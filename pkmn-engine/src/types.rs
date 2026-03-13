@@ -85,7 +85,6 @@ const fn build_table() -> [[f32; 19]; 19] {
     t[17][6]  = 2.0; t[17][14] = 2.0; t[17][15] = 2.0; // Fairy
 
     // Typeless (index 18) stays 1.0 for everything — already set by default
-
     t
 }
 
