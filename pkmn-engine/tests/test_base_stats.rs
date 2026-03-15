@@ -13,13 +13,12 @@ fn test_species_lookup() {
     assert_eq!(bulbasaur.spe, 45);
     assert_eq!(bulbasaur.type1, Type::Grass);
     assert_eq!(bulbasaur.type2, Type::Poison);
-    assert_eq!(bulbasaur.weight, 69); // 6.9 kg -> 69
+    assert_eq!(bulbasaur.weight, 69);
 
     let charizard = species(6);
     assert_eq!(charizard.type1, Type::Fire);
     assert_eq!(charizard.type2, Type::Flying);
 
-    // MissingNo at 0
     let missingno = species(0);
     assert_eq!(missingno.hp, 0);
     assert_eq!(missingno.type1, Type::Normal);
@@ -52,12 +51,11 @@ fn test_bst_calculation() {
 
 #[test]
 fn test_forme_lookups() {
-    // Mega Abomasnow
     let abomasnow_mega = species(FORME_ABOMASNOW_MEGA);
     assert_eq!(abomasnow_mega.type1, Type::Grass);
     assert_eq!(abomasnow_mega.type2, Type::Ice);
-    assert_eq!(abomasnow_mega.weight, 1850); // 185.0 kg
-    assert_eq!(bst(abomasnow_mega), 594); // 90+132+105+132+105+30 = 594
+    assert_eq!(abomasnow_mega.weight, 1850);
+    assert_eq!(bst(abomasnow_mega), 594);
 }
 
 #[test]

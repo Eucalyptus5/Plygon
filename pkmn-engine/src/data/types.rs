@@ -1,8 +1,3 @@
-// src/data/types.rs
-//
-// u8 enum — 18 types fit in 5 bits but u8 avoids bit-packing overhead.
-// Type effectiveness is a 18×18 lookup table (324 bytes, fits in L1).
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum Type {
@@ -28,21 +23,11 @@ pub enum Type {
 
 pub const NUM_TYPES: usize = 18;
 
-/// Type effectiveness multiplier × 4 (stored as u8 to avoid floats).
-///   0 = immune (0×)
-///   2 = not very effective (0.5×)
-///   4 = neutral (1×)
-///   8 = super effective (2×)
-///
-/// Access: EFFECTIVENESS[attacking_type as usize][defending_type as usize]
-///
-/// To apply: damage = base_damage * eff / 4
-/// For dual types: damage = base_damage * eff1 * eff2 / 16
 pub static EFFECTIVENESS: [[u8; NUM_TYPES]; NUM_TYPES] = {
-    const X: u8 = 0; // immune
-    const H: u8 = 2; // half (not very effective)
-    const N: u8 = 4; // neutral
-    const S: u8 = 8; // super effective
+    const X: u8 = 0;
+    const H: u8 = 2;
+    const N: u8 = 4;
+    const S: u8 = 8;
     //                  Nor Fir Wat Ele Gra Ice Fig Poi Gro Fly Psy Bug Roc Gho Dra Dar Ste Fai
     [
     /* Normal   */ [  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  H,  X,  N,  N,  H,  N ],
@@ -66,18 +51,11 @@ pub static EFFECTIVENESS: [[u8; NUM_TYPES]; NUM_TYPES] = {
     ]
 };
 
-/// Get effectiveness multiplier × 4 for a single attacking type vs single defending type.
 #[inline(always)]
 pub fn type_effectiveness(atk: Type, def: Type) -> u8 {
     unsafe { *EFFECTIVENESS.get_unchecked(atk as usize).get_unchecked(def as usize) }
 }
 
-/// Get combined effectiveness (×4 scale) for attacking type vs defender's types.
-/// Handles both mono-type and dual-type defenders correctly.
-///
-/// Return values: 0=immune, 1=4× resist, 2=2× resist, 4=neutral, 8=2× SE, 16=4× SE.
-///
-/// Apply to damage: `damage = base_damage * eff / 4`
 #[inline]
 pub fn dual_type_effectiveness(atk: Type, def1: Type, def2: Type) -> u8 {
     let e1 = type_effectiveness(atk, def1);
