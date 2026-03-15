@@ -1,7 +1,5 @@
 use crate::data::types::Type;
 
-// ─── Enums ────────────────────────────────────────────────────────────────
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum MoveCategory {
@@ -46,7 +44,7 @@ pub enum VarPower {
     TechnoBlast= 16,
 }
 
-// ─── Flags (u16 — we only need 15 bits) ───────────────────────────────────
+// Flags (only need 15 bits)
 
 #[allow(non_snake_case)]
 pub mod MoveFlags {
@@ -67,7 +65,7 @@ pub mod MoveFlags {
     pub const BYPASSSUB:   u16 = 1 << 14;
 }
 
-// ─── Hot path struct: everything the damage calc touches ──────────────────
+// Hot path struct: everything the damage calc touches
 
 /// 14 bytes with #[repr(C)], zero padding.
 /// Field order: u16 first (strictest alignment), then all u8/i8 fields.
@@ -101,8 +99,7 @@ pub struct MoveMeta {
 
 const _: () = assert!(core::mem::size_of::<MoveMeta>() == 2);
 
-// ─── Accessors ────────────────────────────────────────────────────────────
-
+// Accessors
 /// Hot-path move lookup. O(1).
 #[inline(always)]
 pub fn move_data(id: usize) -> &'static MoveData {
@@ -119,8 +116,7 @@ pub fn move_meta(id: usize) -> &'static MoveMeta {
     unsafe { GEN_MOVE_META.get_unchecked(id) }
 }
 
-// ─── Variable base power resolvers ────────────────────────────────────────
-
+// Variable base power resolvers
 const WEIGHT_BP: [(u16, u8); 6] = [
     (2000, 120),
     (1000, 100),
