@@ -103,7 +103,8 @@ pub const VOL_LASER_FOCUS: u32      = 1 << 31;
 
 /// Flags cleared at end of every turn.
 pub const VOL_PER_TURN_MASK: u32 =
-    VOL_FLINCHED | VOL_MOVED_THIS_TURN | VOL_PROTECT_THIS_TURN | VOL_ENDURE;
+    VOL_FLINCHED | VOL_MOVED_THIS_TURN | VOL_PROTECT_THIS_TURN | VOL_ENDURE
+    | VOL_DESTINY_BOND;
 
 // ---------------------------------------------------------------------------
 // MonSlot flags (bits within MonSlot.flags : u8)
@@ -122,6 +123,13 @@ pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;
 
 // ---------------------------------------------------------------------------
+// SideConditions side_extra bit layout
+// ---------------------------------------------------------------------------
+
+pub const SIDE_HEALING_WISH: u8  = 1 << 3;
+pub const SIDE_LUNAR_DANCE: u8   = 1 << 4;
+
+// ---------------------------------------------------------------------------
 // Field flags
 // ---------------------------------------------------------------------------
 
@@ -136,6 +144,7 @@ pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
 pub const ACTION_SWITCH_5: u8 = 9;
+pub const ACTION_TERA: u8     = 10;
 pub const ACTION_STRUGGLE: u8 = 255;
 
 pub const BATTLE_LEVEL: u16 = 100;
@@ -236,7 +245,10 @@ pub struct SideConditions {
     pub aurora_veil_turns: u8,
     pub tailwind_turns: u8,
     pub wish_turns: u8,
-    pub _padding: [u8; 2],
+    /// Packed: low nibble = safeguard_turns (0-5), high nibble = mist_turns (0-5)
+    pub safeguard_mist: u8,
+    /// Packed: bits 0-2 = lucky_chant_turns (0-5), bit 3 = healing_wish, bit 4 = lunar_dance
+    pub side_extra: u8,
 }
 
 /// Global field state: weather, terrain, trick room, gravity.  10 bytes.
@@ -339,6 +351,41 @@ impl core::fmt::Debug for BattleState {
             .field("phase", &self.phase)
             .field("turn", &self.field.turn)
             .finish()
+    }
+}
+
+impl SideConditions {
+    #[inline(always)]
+    pub fn safeguard_turns(&self) -> u8 { self.safeguard_mist & 0x0F }
+    #[inline(always)]
+    pub fn set_safeguard_turns(&mut self, t: u8) {
+        self.safeguard_mist = (self.safeguard_mist & 0xF0) | (t & 0x0F);
+    }
+    #[inline(always)]
+    pub fn mist_turns(&self) -> u8 { self.safeguard_mist >> 4 }
+    #[inline(always)]
+    pub fn set_mist_turns(&mut self, t: u8) {
+        self.safeguard_mist = (self.safeguard_mist & 0x0F) | ((t & 0x0F) << 4);
+    }
+    #[inline(always)]
+    pub fn lucky_chant_turns(&self) -> u8 { self.side_extra & 0x07 }
+    #[inline(always)]
+    pub fn set_lucky_chant_turns(&mut self, t: u8) {
+        self.side_extra = (self.side_extra & 0xF8) | (t & 0x07);
+    }
+    #[inline(always)]
+    pub fn has_healing_wish(&self) -> bool { self.side_extra & SIDE_HEALING_WISH != 0 }
+    #[inline(always)]
+    pub fn set_healing_wish(&mut self, v: bool) {
+        if v { self.side_extra |= SIDE_HEALING_WISH; }
+        else { self.side_extra &= !SIDE_HEALING_WISH; }
+    }
+    #[inline(always)]
+    pub fn has_lunar_dance(&self) -> bool { self.side_extra & SIDE_LUNAR_DANCE != 0 }
+    #[inline(always)]
+    pub fn set_lunar_dance(&mut self, v: bool) {
+        if v { self.side_extra |= SIDE_LUNAR_DANCE; }
+        else { self.side_extra &= !SIDE_LUNAR_DANCE; }
     }
 }
 

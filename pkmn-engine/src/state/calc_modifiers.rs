@@ -55,17 +55,50 @@ pub fn screen_modifier(
 // ── STAB ──────────────────────────────────────────────────────────────
 
 /// Returns (num, den) for STAB.
+/// Handles Tera STAB rules:
+/// - Tera type matches original type: 2× STAB on tera-type moves
+/// - Tera type doesn't match: 1.5× on tera-type moves, 1.5× on original-type moves
 #[inline]
 pub fn stab_modifier(state: &BattleState, atk_side: usize, move_type: Type) -> (u32, u32) {
-    let has_stab = has_type(state, atk_side, move_type as u8);
-    if !has_stab {
-        return (4096, 4096);
-    }
+    let mon = state.active_mon(atk_side);
     let ability = effective_ability(state, atk_side);
-    if ability == data_bridge::ABILITY_ADAPTABILITY {
-        (8192, 4096) // 2.0×
+    let mt = move_type as u8;
+
+    if mon.is_terastallized() {
+        let tera_type = mon.tera_type;
+        let sp = data_bridge::species(mon.species_id);
+        let orig_t1 = sp.type1 as u8;
+        let orig_t2 = sp.type2 as u8;
+        let matches_tera = mt == tera_type;
+        let matches_original = mt == orig_t1 || mt == orig_t2;
+
+        if matches_tera && matches_original {
+            // Tera type == original type: 2× (or 2.25× with Adaptability)
+            if ability == data_bridge::ABILITY_ADAPTABILITY {
+                (9216, 4096) // 2.25×
+            } else {
+                (8192, 4096) // 2.0×
+            }
+        } else if matches_tera || matches_original {
+            // Tera type XOR original type: 1.5×
+            if ability == data_bridge::ABILITY_ADAPTABILITY {
+                (8192, 4096) // 2.0×
+            } else {
+                (6144, 4096) // 1.5×
+            }
+        } else {
+            (4096, 4096) // No STAB
+        }
     } else {
-        (6144, 4096) // 1.5×
+        let has_stab = has_type(state, atk_side, mt);
+        if !has_stab {
+            return (4096, 4096);
+        }
+        if ability == data_bridge::ABILITY_ADAPTABILITY {
+            (8192, 4096) // 2.0×
+        } else {
+            (6144, 4096) // 1.5×
+        }
     }
 }
 

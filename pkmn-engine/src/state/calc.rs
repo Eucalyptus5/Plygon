@@ -176,9 +176,13 @@ pub fn calc_damage(
     let mut a = effective_stat(state, atk_stat_side, atk_stat_idx);
     let mut d = effective_stat(state, def_side, def_stat_idx);
 
-    // ── Crit check ─────────────────────────────────────────────────
+    // ── Crit check (blocked by Lucky Chant) ─────────────────────
     let c_stage = crit_stage(state, atk_side, md);
-    let is_crit = is_crit(c_stage, rng_fn);
+    let is_crit = if state.sides[def_side].side_conditions.lucky_chant_turns() > 0 {
+        false
+    } else {
+        is_crit(c_stage, rng_fn)
+    };
     result.crit = is_crit;
 
     // Apply boost stages (crits modify which stages are used)

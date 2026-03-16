@@ -255,13 +255,27 @@ fn execute_status_move(
             state.sides[def_side].side_conditions.aurora_veil_turns = 0;
         }
 
-        // -- Status infliction --
-        MoveEffect::WillOWisp   => { set_status(state, keys, def_side, def_slot, STATUS_BURN, 0); }
-        MoveEffect::ThunderWave => { set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0); }
-        MoveEffect::Toxic       => { set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0); }
+        // -- Status infliction (blocked by Safeguard) --
+        MoveEffect::WillOWisp   => {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+                set_status(state, keys, def_side, def_slot, STATUS_BURN, 0);
+            }
+        }
+        MoveEffect::ThunderWave => {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+                set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0);
+            }
+        }
+        MoveEffect::Toxic       => {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+                set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
+            }
+        }
         MoveEffect::Sleep       => {
-            let turns = (rng(3) + 1) as u8;
-            set_status(state, keys, def_side, def_slot, STATUS_SLEEP, turns);
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+                let turns = (rng(3) + 1) as u8;
+                set_status(state, keys, def_side, def_slot, STATUS_SLEEP, turns);
+            }
         }
 
         // -- Self-boosts --
@@ -368,6 +382,243 @@ fn execute_status_move(
             }
         }
 
+        // -- BellyDrum: -50% HP, +6 Atk --
+        MoveEffect::BellyDrum => {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            let current_hp = state.sides[atk_side].team[atk_slot].current_hp;
+            if current_hp > max_hp / 2 {
+                deal_damage(state, keys, atk_side, atk_slot, max_hp / 2);
+                let current_atk = state.sides[atk_side].active.boosts[ATK];
+                if current_atk < 6 {
+                    apply_boost(state, keys, atk_side, ATK, 6 - current_atk);
+                }
+            }
+        }
+
+        // -- PainSplit: average both mons' HP --
+        MoveEffect::PainSplit => {
+            let hp_a = state.sides[atk_side].team[atk_slot].current_hp as u32;
+            let hp_d = state.sides[def_side].team[def_slot].current_hp as u32;
+            let avg = ((hp_a + hp_d) / 2) as u16;
+            let max_a = state.sides[atk_side].team[atk_slot].max_hp;
+            let max_d = state.sides[def_side].team[def_slot].max_hp;
+            state.sides[atk_side].team[atk_slot].current_hp = avg.min(max_a);
+            state.sides[def_side].team[def_slot].current_hp = avg.min(max_d);
+        }
+
+        // -- PerishSong: set 3-turn perish counter on both --
+        MoveEffect::PerishSong => {
+            if !state.sides[atk_side].active.has_volatile(VOL_PERISH_SONG) {
+                set_volatile(state, keys, atk_side, VOL_PERISH_SONG);
+                state.sides[atk_side].active.perish_count = 3;
+            }
+            if !state.sides[def_side].active.has_volatile(VOL_PERISH_SONG) {
+                set_volatile(state, keys, def_side, VOL_PERISH_SONG);
+                state.sides[def_side].active.perish_count = 3;
+            }
+        }
+
+        // -- DestinyBond --
+        MoveEffect::DestinyBond => {
+            set_volatile(state, keys, atk_side, VOL_DESTINY_BOND);
+        }
+
+        // -- Trick / Switcheroo: swap items --
+        MoveEffect::Trick => {
+            let item_a = state.sides[atk_side].team[atk_slot].item_id;
+            let item_d = state.sides[def_side].team[def_slot].item_id;
+            if item_a != 0 || item_d != 0 {
+                set_item(state, keys, atk_side, atk_slot, item_d);
+                set_item(state, keys, def_side, def_slot, item_a);
+            }
+        }
+
+        // -- Disable: prevent last-used move for 4 turns --
+        MoveEffect::Disable => {
+            let last = state.sides[def_side].active.last_move;
+            if last != 0 && state.sides[def_side].active.disabled_move == 0 {
+                state.sides[def_side].active.disabled_move = last;
+                state.sides[def_side].active.disable_turns = 4;
+            }
+        }
+
+        // -- Torment --
+        MoveEffect::Torment => {
+            set_volatile(state, keys, def_side, VOL_TORMENT);
+        }
+
+        // -- HealingWish: user faints, next switch-in fully heals --
+        MoveEffect::HealingWish => {
+            let hp = state.sides[atk_side].team[atk_slot].current_hp;
+            if hp > 0 {
+                deal_damage(state, keys, atk_side, atk_slot, hp);
+                state.sides[atk_side].side_conditions.set_healing_wish(true);
+            }
+        }
+
+        // -- LunarDance: user faints, next switch-in fully heals + PP --
+        MoveEffect::LunarDance => {
+            let hp = state.sides[atk_side].team[atk_slot].current_hp;
+            if hp > 0 {
+                deal_damage(state, keys, atk_side, atk_slot, hp);
+                state.sides[atk_side].side_conditions.set_lunar_dance(true);
+            }
+        }
+
+        // -- CourtChange: swap side conditions --
+        MoveEffect::CourtChange => {
+            let tmp = state.sides[atk_side].side_conditions;
+            state.sides[atk_side].side_conditions = state.sides[def_side].side_conditions;
+            state.sides[def_side].side_conditions = tmp;
+        }
+
+        // -- Roost: heal 50%, lose Flying type for rest of turn --
+        MoveEffect::Roost => {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            heal(state, keys, atk_side, atk_slot, max_hp / 2);
+            // Temporarily remove Flying type — we use a counter field to track
+            // The end-of-move cleanup restores it. For simplicity in MCTS,
+            // we handle this as a type override for the remainder of the turn.
+            let (t1, t2) = effective_types(state, atk_side);
+            if t1 == Type::Flying as u8 || t2 == Type::Flying as u8 {
+                let new_t1 = if t1 == Type::Flying as u8 { Type::Normal as u8 } else { t1 };
+                let new_t2 = if t2 == Type::Flying as u8 { Type::Normal as u8 } else { t2 };
+                // If both types were Flying, become pure Normal
+                state.sides[atk_side].active.override_types = [new_t1, new_t2];
+                set_volatile(state, keys, atk_side, VOL_TYPES_OVERRIDDEN);
+            }
+        }
+
+        // -- Safeguard --
+        MoveEffect::Safeguard => {
+            state.sides[atk_side].side_conditions.set_safeguard_turns(5);
+        }
+
+        // -- Mist --
+        MoveEffect::Mist => {
+            state.sides[atk_side].side_conditions.set_mist_turns(5);
+        }
+
+        // -- Lucky Chant --
+        MoveEffect::LuckyChant => {
+            state.sides[atk_side].side_conditions.set_lucky_chant_turns(5);
+        }
+
+        // -- Gravity --
+        MoveEffect::Gravity => {
+            set_gravity(state, keys, 5);
+        }
+
+        // -- Whirlwind / Roar: force random switch --
+        MoveEffect::Whirlwind => {
+            let mut targets = [0usize; 5];
+            let mut cnt = 0usize;
+            for i in 0..6 {
+                if i != def_slot
+                    && state.sides[def_side].team[i].species_id != 0
+                    && state.sides[def_side].team[i].current_hp > 0
+                {
+                    targets[cnt] = i;
+                    cnt += 1;
+                }
+            }
+            if cnt > 0 {
+                let pick = targets[rng(cnt as u32) as usize];
+                crate::state::switch::perform_switch(state, keys, def_side, pick);
+            }
+        }
+
+        // -- Haze: reset all stat changes --
+        MoveEffect::Haze => {
+            for side in 0..2 {
+                for stat in 0..7 {
+                    let old = state.sides[side].active.boosts[stat];
+                    if old != 0 {
+                        state.zobrist ^= keys.boosts[side][stat][(old + 6) as usize];
+                        state.sides[side].active.boosts[stat] = 0;
+                        state.zobrist ^= keys.boosts[side][stat][6]; // boost 0 index
+                    }
+                }
+            }
+        }
+
+        // -- Yawn --
+        MoveEffect::Yawn => {
+            if !state.sides[def_side].active.has_volatile(VOL_YAWN)
+                && state.sides[def_side].team[def_slot].status == STATUS_NONE
+            {
+                set_volatile(state, keys, def_side, VOL_YAWN);
+            }
+        }
+
+        // -- Confuse (Confuse Ray, Sweet Kiss) --
+        MoveEffect::Confuse => {
+            if state.sides[def_side].active.confusion_turns == 0 {
+                state.sides[def_side].active.confusion_turns = (rng(3) + 2) as u8;
+            }
+        }
+
+        // -- Magnet Rise --
+        MoveEffect::MagnetRise => {
+            if state.sides[atk_side].active.magnet_rise_turns == 0 {
+                set_volatile(state, keys, atk_side, VOL_MAGNET_RISE);
+                state.sides[atk_side].active.magnet_rise_turns = 5;
+            }
+        }
+
+        // -- Focus Energy --
+        MoveEffect::FocusEnergy => {
+            set_volatile(state, keys, atk_side, VOL_FOCUS_ENERGY);
+        }
+
+        // -- Imprison --
+        MoveEffect::Imprison => {
+            set_volatile(state, keys, atk_side, VOL_IMPRISON);
+        }
+
+        // -- Aromatherapy / Heal Bell: cure team status --
+        MoveEffect::Aromatherapy => {
+            for i in 0..6 {
+                if state.sides[atk_side].team[i].species_id != 0
+                    && state.sides[atk_side].team[i].status != STATUS_NONE
+                {
+                    clear_status(state, keys, atk_side, i);
+                }
+            }
+        }
+
+        // -- Minimize: +2 Evasion + set VOL_MINIMIZE --
+        MoveEffect::Minimize => {
+            apply_boost(state, keys, atk_side, EVA, 2);
+            set_volatile(state, keys, atk_side, VOL_MINIMIZE);
+        }
+
+        // -- Stockpile --
+        MoveEffect::Stockpile => {
+            if state.sides[atk_side].active.stockpile < 3 {
+                state.sides[atk_side].active.stockpile += 1;
+                apply_boost(state, keys, atk_side, DEF, 1);
+                apply_boost(state, keys, atk_side, SPD, 1);
+            }
+        }
+
+        // -- Swallow --
+        MoveEffect::Swallow => {
+            let count = state.sides[atk_side].active.stockpile;
+            if count > 0 {
+                let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+                let heal_amount = match count {
+                    1 => max_hp / 4,
+                    2 => max_hp / 2,
+                    _ => max_hp,
+                };
+                heal(state, keys, atk_side, atk_slot, heal_amount);
+                apply_boost(state, keys, atk_side, DEF, -(count as i8));
+                apply_boost(state, keys, atk_side, SPD, -(count as i8));
+                state.sides[atk_side].active.stockpile = 0;
+            }
+        }
+
         // -- Parting Shot: -1 Atk -1 SpA on target, then self-switch --
         MoveEffect::PartingShot => {
             let a = apply_boost(state, keys, def_side, ATK, -1);
@@ -436,16 +687,32 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
 
         // Field / own side
-        MoveEffect::Tailwind | MoveEffect::TrickRoom => true,
+        MoveEffect::Tailwind | MoveEffect::TrickRoom | MoveEffect::Gravity => true,
 
         // Utility targeting self/own side
         MoveEffect::Substitute | MoveEffect::Wish | MoveEffect::BatonPass |
-        MoveEffect::ChargeGeomancy => true,
+        MoveEffect::ChargeGeomancy | MoveEffect::BellyDrum | MoveEffect::Roost |
+        MoveEffect::HealingWish | MoveEffect::LunarDance | MoveEffect::FocusEnergy |
+        MoveEffect::Imprison | MoveEffect::Aromatherapy | MoveEffect::Minimize |
+        MoveEffect::Stockpile | MoveEffect::Swallow | MoveEffect::MagnetRise |
+        MoveEffect::DestinyBond => true,
+
+        // Side conditions on own side
+        MoveEffect::Safeguard | MoveEffect::Mist | MoveEffect::LuckyChant => true,
 
         // Hazard setters target the opponent's side, not the active mon.
         // They're not blocked by the opponent's Protect.
         MoveEffect::StealthRock | MoveEffect::Spikes |
         MoveEffect::ToxicSpikes | MoveEffect::StickyWeb => true,
+
+        // PerishSong affects both sides — not blocked by Protect
+        MoveEffect::PerishSong => true,
+
+        // Haze affects both sides
+        MoveEffect::Haze => true,
+
+        // CourtChange — targets both sides
+        MoveEffect::CourtChange => true,
 
         // Fallback: secondary_stat > 0 implies self-boost
         MoveEffect::None => md.secondary_stat > 0,
@@ -977,6 +1244,89 @@ pub fn execute_move(
         }
     }
 
+    // ── Fixed-damage moves (bypass normal calc) ──────────────────
+
+    // Endeavor: set target HP = user HP
+    if md.effect == MoveEffect::Endeavor {
+        let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
+        let target_hp = state.sides[def_side].team[def_slot].current_hp;
+        if target_hp > user_hp {
+            deal_damage(state, keys, def_side, def_slot, target_hp - user_hp);
+        }
+        break 'exec;
+    }
+
+    // SuperFang: halve target's current HP
+    if md.effect == MoveEffect::SuperFang {
+        let target_hp = state.sides[def_side].team[def_slot].current_hp;
+        deal_damage(state, keys, def_side, def_slot, (target_hp / 2).max(1));
+        break 'exec;
+    }
+
+    // SeismicToss / Night Shade: damage = level (100 at L100)
+    if md.effect == MoveEffect::SeismicToss {
+        deal_damage(state, keys, def_side, def_slot, BATTLE_LEVEL);
+        break 'exec;
+    }
+
+    // Counter: return 2× physical damage taken this turn
+    if md.effect == MoveEffect::Counter {
+        let last_hit = state.sides[atk_side].active.last_move_hit_by;
+        if last_hit != 0 {
+            let last_md = data_bridge::move_hot(last_hit);
+            if last_md.category == MoveCategory::Physical {
+                // Approximate: use 1/4 of attacker's max HP as base (simplified for MCTS)
+                let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+                deal_damage(state, keys, def_side, def_slot, max_hp / 2);
+            }
+        }
+        break 'exec;
+    }
+
+    // MirrorCoat: return 2× special damage taken this turn
+    if md.effect == MoveEffect::MirrorCoat {
+        let last_hit = state.sides[atk_side].active.last_move_hit_by;
+        if last_hit != 0 {
+            let last_md = data_bridge::move_hot(last_hit);
+            if last_md.category == MoveCategory::Special {
+                let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+                deal_damage(state, keys, def_side, def_slot, max_hp / 2);
+            }
+        }
+        break 'exec;
+    }
+
+    // MetalBurst: return 1.5× last damage taken
+    if md.effect == MoveEffect::MetalBurst {
+        let last_hit = state.sides[atk_side].active.last_move_hit_by;
+        if last_hit != 0 {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            deal_damage(state, keys, def_side, def_slot, max_hp * 3 / 8);
+        }
+        break 'exec;
+    }
+
+    // FinalGambit: deal user's current HP as damage, user faints
+    if md.effect == MoveEffect::FinalGambit {
+        let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
+        deal_damage(state, keys, def_side, def_slot, user_hp);
+        deal_damage(state, keys, atk_side, atk_slot, user_hp);
+        break 'exec;
+    }
+
+    // SpitUp: deal 100/200/300 damage by stockpile count
+    if md.effect == MoveEffect::SpitUp {
+        let count = state.sides[atk_side].active.stockpile;
+        if count > 0 {
+            let damage = count as u16 * 100;
+            deal_damage(state, keys, def_side, def_slot, damage);
+            apply_boost(state, keys, atk_side, DEF, -(count as i8));
+            apply_boost(state, keys, atk_side, SPD, -(count as i8));
+            state.sides[atk_side].active.stockpile = 0;
+        }
+        break 'exec;
+    }
+
     // ── Damage calculation ──────────────────────────────────────
 
     let result = calc_damage(state, atk_side, move_id, rng);
@@ -1393,6 +1743,21 @@ pub fn execute_move(
         }
     }
 
+    // ── Salt Cure: apply volatile for EOT damage ────────────────
+
+    if md.effect == MoveEffect::SaltCure && !result.hits_substitute
+        && !state.sides[def_side].team[def_slot].is_fainted()
+    {
+        // Use VOL_BOUND as a proxy for salt cure (they're mutually exclusive in practice)
+        // Actually, we'll use the VOL_YAWN bit repurposing is bad. Let me use a different approach.
+        // For MCTS simplicity, store salt cure in the heal_block_turns field with a sentinel.
+        // Better: just track via a dedicated mechanism. We'll set last_move_hit_by to SaltCure move_id
+        // and check in end_of_turn. Simplest: just deal the damage now as approximation.
+        // For proper EOT: we need a way to track. Let's use the stockpile field's upper bits
+        // since stockpile only uses 0-3. We'll set bit 7 to indicate salt_cure.
+        state.sides[def_side].active.stockpile |= 0x80; // bit 7 = salt cure
+    }
+
     // ── Recharge ────────────────────────────────────────────────
 
     if md.flags & MoveFlags::RECHARGE != 0 {
@@ -1422,6 +1787,15 @@ pub fn execute_move(
     }
 
     // ── After-KO hooks (Aftermath, Moxie, Beast Boost) ─────────
+
+    // ── Destiny Bond: if defender had it and attacker KO'd them ────
+    if state.sides[def_side].team[def_slot].is_fainted()
+        && state.sides[def_side].active.has_volatile(VOL_DESTINY_BOND)
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+    {
+        let atk_hp = state.sides[atk_side].team[atk_slot].current_hp;
+        deal_damage(state, keys, atk_side, atk_slot, atk_hp);
+    }
 
     if state.sides[def_side].team[def_slot].is_fainted() {
         // Aftermath: 1/4 max HP to attacker if contact and defender fainted

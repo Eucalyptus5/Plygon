@@ -136,6 +136,68 @@ pub fn check_zen_mode(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
     }
 }
 
+/// Wishiwashi Schooling: School forme at >25% HP, Solo at ≤25%.
+/// Called from end-of-turn and after damage.
+pub fn check_schooling(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let ability = accessors::effective_ability(state, side);
+    if ability != data_bridge::ABILITY_SCHOOLING { return; }
+
+    let slot = state.sides[side].active_index as usize;
+    let mon = &state.sides[side].team[slot];
+    if mon.is_fainted() { return; }
+
+    const WISHIWASHI_SOLO: u16 = 746;
+    const WISHIWASHI_SCHOOL: u16 = 1192;
+
+    let species = accessors::effective_species(state, side);
+    let quarter_hp = mon.max_hp / 4;
+
+    if mon.current_hp > quarter_hp && species == WISHIWASHI_SOLO {
+        apply_battle_forme(state, keys, side, WISHIWASHI_SCHOOL);
+    } else if mon.current_hp <= quarter_hp && species == WISHIWASHI_SCHOOL {
+        revert_battle_forme(state, keys, side);
+    }
+}
+
+/// Minior Shields Down: Core forme at ≤50% HP.
+/// Called from end-of-turn and after damage.
+pub fn check_shields_down(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let ability = accessors::effective_ability(state, side);
+    if ability != data_bridge::ABILITY_SHIELDS_DOWN { return; }
+
+    let slot = state.sides[side].active_index as usize;
+    let mon = &state.sides[side].team[slot];
+    if mon.is_fainted() { return; }
+
+    const MINIOR_METEOR: u16 = 774;
+    const MINIOR_CORE: u16 = 1200;
+
+    let species = accessors::effective_species(state, side);
+    let half_hp = mon.max_hp / 2;
+
+    if mon.current_hp <= half_hp && species == MINIOR_METEOR {
+        apply_battle_forme(state, keys, side, MINIOR_CORE);
+    } else if mon.current_hp > half_hp && species == MINIOR_CORE {
+        revert_battle_forme(state, keys, side);
+    }
+}
+
+/// Palafin Zero to Hero: switch to Hero forme on switch-in if flag is set.
+/// Called from switch_in after hazards.
+pub fn check_palafin_hero(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let slot = state.sides[side].active_index as usize;
+    let mon = &state.sides[side].team[slot];
+    if mon.is_fainted() { return; }
+    if mon.flags & crate::state::structs::MON_FLAG_HERO_ACTIVATED == 0 { return; }
+
+    const PALAFIN_ZERO: u16 = 964;
+    const PALAFIN_HERO: u16 = 1321;
+
+    if mon.species_id == PALAFIN_ZERO {
+        apply_battle_forme(state, keys, side, PALAFIN_HERO);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

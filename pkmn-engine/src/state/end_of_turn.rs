@@ -26,6 +26,9 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     for side in 0..2 { step_item_healing(state, keys, side); }   // 10
     for side in 0..2 { step_screen_expiry(state, side); }        // 11
     for side in 0..2 { step_tailwind_expiry(state, side); }      // 12
+    for side in 0..2 { step_side_condition_expiry(state, side); }// 12b
+    for side in 0..2 { step_salt_cure(state, keys, side); }     // 12c
+    for side in 0..2 { step_yawn(state, keys, side); }          // 12d
     step_volatile_counters(state, keys);                         // 13
     for side in 0..2 { step_perish_song(state, keys, side); }    // 14
     for side in 0..2 { step_eot_abilities(state, keys, side); }  // 15
@@ -198,6 +201,46 @@ fn step_tailwind_expiry(state: &mut BattleState, side: usize) {
     if sc.tailwind_turns > 0 { sc.tailwind_turns -= 1; }
 }
 
+fn step_side_condition_expiry(state: &mut BattleState, side: usize) {
+    let sc = &mut state.sides[side].side_conditions;
+    let sg = sc.safeguard_turns();
+    if sg > 0 { sc.set_safeguard_turns(sg - 1); }
+    let mt = sc.mist_turns();
+    if mt > 0 { sc.set_mist_turns(mt - 1); }
+    let lc = sc.lucky_chant_turns();
+    if lc > 0 { sc.set_lucky_chant_turns(lc - 1); }
+}
+
+fn step_salt_cure(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+    // Salt cure is stored as bit 7 of stockpile field
+    if state.sides[side].active.stockpile & 0x80 == 0 { return; }
+    if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
+
+    let (t1, t2) = effective_types(state, side);
+    let is_water_steel = t1 == crate::data::types::Type::Water as u8
+        || t2 == crate::data::types::Type::Water as u8
+        || t1 == crate::data::types::Type::Steel as u8
+        || t2 == crate::data::types::Type::Steel as u8;
+    let (n, d) = if is_water_steel { (1, 4) } else { (1, 8) };
+    deal_proportional_damage(state, keys, side, slot, n, d);
+}
+
+fn step_yawn(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    if !state.sides[side].active.has_volatile(VOL_YAWN) { return; }
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+    // Yawn puts the target to sleep the turn after it's used
+    clear_volatile(state, keys, side, VOL_YAWN);
+    if state.sides[side].team[slot].status == STATUS_NONE {
+        // Check safeguard
+        if state.sides[side].side_conditions.safeguard_turns() == 0 {
+            set_status(state, keys, side, slot, STATUS_SLEEP, 2); // 1-3 turns
+        }
+    }
+}
+
 fn step_volatile_counters(state: &mut BattleState, keys: &ZobristKeys) {
     for side in 0..2 {
         let a = &mut state.sides[side].active;
@@ -253,6 +296,12 @@ fn step_eot_abilities(
         }
         data_bridge::ABILITY_ZEN_MODE => {
             forme::check_zen_mode(state, keys, side);
+        }
+        data_bridge::ABILITY_SCHOOLING => {
+            forme::check_schooling(state, keys, side);
+        }
+        data_bridge::ABILITY_SHIELDS_DOWN => {
+            forme::check_shields_down(state, keys, side);
         }
         data_bridge::ABILITY_MOODY => {
             // +2 to a random stat below +6, -1 to a different stat above -6

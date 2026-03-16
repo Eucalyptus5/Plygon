@@ -4,6 +4,15 @@ use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::state::accessors::*;
 
+/// Move IDs that are blocked by Gravity.
+const GRAVITY_BLOCKED: [u16; 5] = [
+    19,  // Fly
+    340, // Bounce
+    393, // Magnet Rise
+    477, // Telekinesis
+    507, // Sky Drop
+];
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ActionList {
     pub actions: [u8; 10],
@@ -33,7 +42,23 @@ fn generate_full_actions(state: &BattleState, side: usize) -> ActionList {
     let move_count = generate_legal_moves(state, side, &mut list);
     if move_count == 0 { list.push(ACTION_STRUGGLE); }
     generate_legal_switches(state, side, &mut list);
+    // Tera: available once per battle per side, only during PHASE_ACTIONS
+    if can_tera(state, side) {
+        list.push(ACTION_TERA);
+    }
     list
+}
+
+/// Check if the side can Terastallize.
+#[inline]
+fn can_tera(state: &BattleState, side: usize) -> bool {
+    // _padding[0] bit 0 = tera used this battle
+    if state.sides[side]._padding[0] & 1 != 0 { return false; }
+    let mon = state.active_mon(side);
+    if mon.is_fainted() { return false; }
+    if mon.is_terastallized() { return false; }
+    if mon.tera_type == 0 { return false; } // no tera type set
+    true
 }
 
 fn generate_switch_only(state: &BattleState, side: usize) -> ActionList {
@@ -98,6 +123,8 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
         }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
         if active.choice_locked_move != 0 && moves[i] != active.choice_locked_move { continue; }
+        // Gravity: block flying/levitation moves
+        if state.field.gravity_turns > 0 && GRAVITY_BLOCKED.contains(&moves[i]) { continue; }
         let opp_active = &state.sides[opp].active;
         if opp_active.has_volatile(VOL_IMPRISON) {
             let opp_moves = effective_moves(state, opp);

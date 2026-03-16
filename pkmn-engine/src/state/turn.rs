@@ -25,6 +25,7 @@ use crate::data::types::Type;
 pub enum ActionKind {
     Move { slot: u8, move_id: u16 },
     Switch { target: u8 },
+    Tera { move_id: u16 },
     Struggle,
 }
 
@@ -37,6 +38,11 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
             ActionKind::Move { slot: action, move_id }
         }
         4..=9 => ActionKind::Switch { target: action - 4 },
+        ACTION_TERA => {
+            // Tera + use move 0 (MCTS simplification: tera is combined with move 0)
+            let move_id = effective_moves(state, side)[0];
+            ActionKind::Tera { move_id }
+        }
         _ => ActionKind::Struggle,
     }
 }
@@ -113,7 +119,7 @@ fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 
     match action {
         ActionKind::Switch { .. } => 7,
         ActionKind::Struggle => 0,
-        ActionKind::Move { move_id, .. } => {
+        ActionKind::Tera { move_id } | ActionKind::Move { move_id, .. } => {
             if *move_id == 0 { return 0; }
             let md = data_bridge::move_hot(*move_id);
             let mut pri = md.priority;
@@ -189,12 +195,12 @@ fn resolve_order(
     }
 
     // Quick Draw: 30% chance to go first with damaging moves
-    let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } if {
+    let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
         let md = data_bridge::move_hot(move_id);
         md.category != MoveCategory::Status
     }) && effective_ability(state, side_a) == data_bridge::ABILITY_QUICK_DRAW
         && rng(10) < 3;
-    let b_quick = matches!(act_b, ActionKind::Move { move_id, .. } if {
+    let b_quick = matches!(act_b, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
         let md = data_bridge::move_hot(move_id);
         md.category != MoveCategory::Status
     }) && effective_ability(state, side_b) == data_bridge::ABILITY_QUICK_DRAW
@@ -233,10 +239,28 @@ fn execute_action(
         ActionKind::Move { slot, move_id } => {
             execute_move(state, keys, side, move_id, slot, rng);
         }
+        ActionKind::Tera { move_id } => {
+            apply_tera(state, keys, side);
+            execute_move(state, keys, side, move_id, 0, rng);
+        }
         ActionKind::Struggle => {
             execute_move(state, keys, side, 0, 0, rng);
         }
     }
+}
+
+/// Apply Terastallization to the active Pokémon.
+#[inline]
+fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let slot = state.sides[side].active_index as usize;
+    let mon = &mut state.sides[side].team[slot];
+    if mon.is_fainted() || mon.is_terastallized() { return; }
+    // Set terastallized flag
+    mon.flags |= MON_FLAG_TERASTALLIZED;
+    // Mark tera as used for this side
+    state.sides[side]._padding[0] |= 1;
+    // Zobrist update for tera
+    state.zobrist ^= keys.species[side][slot][0]; // simple hash perturbation
 }
 
 // ── Faint sweep & phase transitions ─────────────────────────────────
@@ -287,10 +311,36 @@ pub fn execute_turn(
     let act1 = decode_action(state, 1, action_p2);
     let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
 
+    // Execute first action
     execute_action(state, keys, first.side, &first.action, rng);
 
-    if !state.active_mon(second.side).is_fainted() {
+    // Check for mid-turn faint: if EITHER side fainted from first action
+    // (e.g., recoil KO, Rough Skin, Destiny Bond), we need a forced replacement
+    // before continuing. Check if the first mover's opponent fainted AND
+    // first mover also fainted (double KO).
+    let first_opp = 1 - first.side;
+    if state.active_mon(first.side).is_fainted() || state.active_mon(first_opp).is_fainted() {
+        // If the second mover fainted (from first action), they can't act
+        if state.active_mon(second.side).is_fainted() {
+            // Skip second action — go to faint_sweep
+        } else {
+            // Second mover is alive — they still get to act
+            execute_action(state, keys, second.side, &second.action, rng);
+        }
+    } else {
+        // Normal case: no faints, second mover acts
         execute_action(state, keys, second.side, &second.action, rng);
+    }
+
+    // Check for mid-turn VOL_MUST_SWITCH (pivot moves) — if a side has
+    // MUST_SWITCH set, we need to transition to switch phase BEFORE end-of-turn
+    let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
+    let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
+    if p1_pivot || p2_pivot {
+        // Pivot moves: transition to switch phase, skip end-of-turn
+        // The caller must call execute_switch_turn next
+        faint_sweep(state, keys);
+        return;
     }
 
     end_of_turn(state, keys);
@@ -316,5 +366,8 @@ pub fn execute_switch_turn(
         }
     }
 
+    // After switches, check if anyone fainted from entry hazards.
+    // If so, faint_sweep will set the appropriate PHASE_SWITCH_* state,
+    // requiring another call to execute_switch_turn (chain replacement).
     faint_sweep(state, keys);
 }

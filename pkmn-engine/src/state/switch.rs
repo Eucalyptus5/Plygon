@@ -52,6 +52,31 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
         return;
     }
 
+    // Palafin Zero to Hero: transform on switch-in
+    crate::state::forme::check_palafin_hero(state, keys, side);
+
+    // Healing Wish / Lunar Dance: fully heal the incoming mon
+    {
+        let sc = &state.sides[side].side_conditions;
+        let has_hw = sc.has_healing_wish();
+        let has_ld = sc.has_lunar_dance();
+        if has_hw || has_ld {
+            let max_hp = state.sides[side].team[slot].max_hp;
+            heal(state, keys, side, slot, max_hp);
+            if state.sides[side].team[slot].status != STATUS_NONE {
+                clear_status(state, keys, side, slot);
+            }
+            if has_ld {
+                // Restore PP too
+                for i in 0..4 {
+                    state.sides[side].team[slot].pp[i] = 255; // max PP (simplified)
+                }
+            }
+            state.sides[side].side_conditions.set_healing_wish(false);
+            state.sides[side].side_conditions.set_lunar_dance(false);
+        }
+    }
+
     apply_switch_in_ability(state, keys, side);
     apply_switch_in_item(state, keys, side);
 }
@@ -185,8 +210,12 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
     let ability = effective_ability(state, side);
     let opp = 1 - side;
     match ability {
-        // -- Intimidate --
-        data_bridge::ABILITY_INTIMIDATE  => { apply_boost(state, keys, opp, ATK, -1); }
+        // -- Intimidate (blocked by Mist) --
+        data_bridge::ABILITY_INTIMIDATE  => {
+            if state.sides[opp].side_conditions.mist_turns() == 0 {
+                apply_boost(state, keys, opp, ATK, -1);
+            }
+        }
 
         // -- Weather setters --
         data_bridge::ABILITY_DRIZZLE     => { set_weather(state, keys, WEATHER_RAIN, 5); }

@@ -167,6 +167,44 @@ pub enum MoveEffect {
 
     // -- Locked/thrashing moves (Step 4) --
     Thrash       = 52,  // Outrage, Petal Dance, Thrash, Raging Fury: 2-3 turns locked, confuse on end
+
+    // -- Phase 7: Status move effects --
+    BellyDrum    = 59,  // -50% HP, +6 Atk (fail if <50% HP)
+    PainSplit    = 60,  // Average both mons' current HP
+    Endeavor     = 61,  // Set target HP = user HP (fail if target HP ≤ user HP)
+    SuperFang    = 62,  // Halve target's current HP
+    SeismicToss  = 63,  // Deal damage equal to user's level (100 at L100)
+    Counter      = 64,  // Return 2× physical damage taken this turn
+    MirrorCoat   = 65,  // Return 2× special damage taken this turn
+    MetalBurst   = 66,  // Return 1.5× last damage taken this turn
+    FinalGambit  = 67,  // Deal user's current HP as damage, user faints
+    PerishSong   = 68,  // Set 3-turn perish counter on both active mons
+    DestinyBond  = 69,  // If user faints before next move, KO attacker
+    Trick        = 70,  // Swap user's item with target's item
+    Disable      = 71,  // Prevent target's last-used move for 4 turns
+    Torment      = 72,  // Cannot use same move consecutively
+    HealingWish  = 73,  // User faints, next switch-in fully heals
+    LunarDance   = 74,  // User faints, next switch-in fully heals + PP
+    CourtChange  = 75,  // Swap side conditions between sides
+    Roost        = 76,  // Heal 50% HP, lose Flying type for rest of turn
+    SaltCure     = 77,  // 1/4 EOT if Water/Steel, 1/8 otherwise
+    Gravity      = 78,  // Set Gravity for 5 turns
+    Safeguard    = 79,  // Prevent status from opponents for 5 turns
+    Mist         = 80,  // Prevent opponent-caused stat drops for 5 turns
+    LuckyChant   = 81,  // Prevent crits for 5 turns
+    Whirlwind    = 82,  // Force random switch (phazing)
+    Haze         = 83,  // Reset all stat changes
+    Yawn         = 84,  // Sleep target next turn
+    Confuse      = 85,  // Confuse target (Confuse Ray, Sweet Kiss)
+    MagnetRise   = 86,  // Levitate for 5 turns
+    FocusEnergy  = 87,  // +2 crit stage
+    Imprison     = 88,  // Block opponent's shared moves
+    Aromatherapy = 89,  // Cure team status
+    Minimize     = 90,  // +2 Evasion, set VOL_MINIMIZE
+    Stockpile    = 91,  // +1 Def/SpD, stockpile count++
+    SpitUp       = 92,  // Deal 100/200/300 damage by stockpile, reset
+    Swallow      = 93,  // Heal 25/50/100% by stockpile, reset
+    TeraBlast    = 94,  // Physical or Special based on higher stat, Normal → Tera type
 }
 
 // Flags (16 bits)

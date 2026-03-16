@@ -283,6 +283,11 @@ pub const ABILITY_EMBODY_ASPECT_CORNERSTONE: u16 = 304;
 // -- Switch-out abilities --
 pub const ABILITY_ZERO_TO_HERO: u16   = 278;
 
+// -- Forme-change abilities --
+pub const ABILITY_SCHOOLING: u16      = 208; // Wishiwashi
+pub const ABILITY_SHIELDS_DOWN: u16   = 197; // Minior
+pub const ABILITY_GULP_MISSILE: u16   = 241; // Cramorant
+
 // -- Priority-blocking abilities --
 // (Dazzling, Queenly Majesty, Armor Tail are in defender immunities above)
 
