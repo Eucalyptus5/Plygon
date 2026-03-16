@@ -52,6 +52,7 @@ pub mod ItemFlag {
     pub const Z_CRYSTAL: u32        = 1 << 28;
     pub const CONSUMABLE: u32       = 1 << 29;
     pub const GEM: u32              = 1 << 30;
+    pub const POWER_HERB: u32       = 1 << 31;
 
     // Convenience masks
     pub const IS_CHOICE: u32 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;

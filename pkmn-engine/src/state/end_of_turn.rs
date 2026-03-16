@@ -5,6 +5,7 @@ use crate::state::data_bridge::{self, ItemFlag};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
+use crate::state::forme;
 
 pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_weather(state, keys);                                   // 1
@@ -165,6 +166,14 @@ fn step_item_healing(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
             deal_proportional_damage(state, keys, side, slot, 1, 8);
         }
     }
+    // Flame Orb: inflict burn at end of turn
+    if itm.has(ItemFlag::FLAME_ORB) {
+        set_status(state, keys, side, slot, STATUS_BURN, 0);
+    }
+    // Toxic Orb: inflict bad poison at end of turn
+    if itm.has(ItemFlag::TOXIC_ORB) {
+        set_status(state, keys, side, slot, STATUS_BAD_POISON, 0);
+    }
 }
 
 fn step_screen_expiry(state: &mut BattleState, side: usize) {
@@ -228,6 +237,9 @@ fn step_eot_abilities(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
                 heal(state, keys, side, slot, m / 8);
             }
         }
+        data_bridge::ABILITY_ZEN_MODE => {
+            forme::check_zen_mode(state, keys, side);
+        }
         _ => {}
     }
 }
@@ -245,4 +257,67 @@ mod tests {
     }
     #[test] fn test_burn() { let (mut s, k) = setup(); s.sides[0].team[0].status = STATUS_BURN; s.zobrist = compute_full_hash(&s, &k); step_status_damage(&mut s, &k, 0); assert_eq!(s.sides[0].team[0].current_hp, 188); assert!(validate_hash(&s, &k)); }
     #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k); assert_eq!(s.field.turn, 1); }
+
+    // ── Step 8: Orb item tests ────────────────────────────────
+
+    #[test]
+    fn test_flame_orb_inflicts_burn() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].item_id = 145; // Flame Orb
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_item_healing(&mut s, &k, 0);
+
+        assert_eq!(s.sides[0].team[0].status, STATUS_BURN);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_flame_orb_no_overwrite_existing_status() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].item_id = 145;
+        s.sides[0].team[0].status = STATUS_PARALYSIS;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_item_healing(&mut s, &k, 0);
+
+        // set_status returns false if already statused — paralysis stays
+        assert_eq!(s.sides[0].team[0].status, STATUS_PARALYSIS);
+    }
+
+    #[test]
+    fn test_toxic_orb_inflicts_bad_poison() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].item_id = 515; // Toxic Orb
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_item_healing(&mut s, &k, 0);
+
+        assert_eq!(s.sides[0].team[0].status, STATUS_BAD_POISON);
+        assert!(validate_hash(&s, &k));
+    }
+
+    // ── Step 9: Zen Mode EoT test ──────────────────────────
+
+    #[test]
+    fn test_zen_mode_eot_triggers() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 555, current_hp: 100, max_hp: 400,
+            ability_id: data_bridge::ABILITY_ZEN_MODE,
+            stats: [280, 110, 60, 110, 190],
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // HP 100/400 = 25% → should trigger Zen Mode
+        step_eot_abilities(&mut state, &keys, 0);
+        assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
+        assert!(validate_hash(&state, &keys));
+    }
 }

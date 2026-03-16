@@ -111,6 +111,17 @@ pub const ABILITY_TINTED_LENS: u16   = 110;
 pub const ABILITY_FUR_COAT: u16      = 169;
 pub const ABILITY_ICE_SCALES: u16    = 246;
 
+// -- Pre-move hooks (attacker) --
+pub const ABILITY_PROTEAN: u16       = 168;
+pub const ABILITY_LIBERO: u16        = 236;
+pub const ABILITY_STANCE_CHANGE: u16 = 176;
+
+// -- Forme change: HP-triggered --
+pub const ABILITY_ZEN_MODE: u16      = 161;  // Darmanitan: ≤50% HP → Zen forme
+
+// -- Pre-damage hooks (defender) --
+pub const ABILITY_DISGUISE: u16      = 209;
+
 // -- Damage calc: defender damage reduction --
 pub const ABILITY_MULTISCALE: u16    = 136;
 pub const ABILITY_SHADOW_SHIELD: u16 = 231;
@@ -128,6 +139,31 @@ pub const ABILITY_WATER_ABSORB: u16  = 11;
 pub const ABILITY_VOLT_ABSORB: u16   = 10;
 pub const ABILITY_MOTOR_DRIVE: u16   = 78;
 pub const ABILITY_STURDY: u16        = 5;
+pub const ABILITY_LIGHTNING_ROD: u16 = 31;
+pub const ABILITY_STORM_DRAIN: u16   = 114;
+pub const ABILITY_SAP_SIPPER: u16    = 157;
+pub const ABILITY_BULLETPROOF: u16   = 171;
+pub const ABILITY_SOUNDPROOF: u16    = 43;
+pub const ABILITY_OVERCOAT: u16      = 142;
+
+// -- After-damage hooks: defender --
+pub const ABILITY_ROUGH_SKIN: u16    = 24;
+pub const ABILITY_IRON_BARBS: u16    = 160;
+pub const ABILITY_WEAK_ARMOR: u16    = 133;
+pub const ABILITY_JUSTIFIED: u16     = 154;
+pub const ABILITY_STAMINA: u16       = 192;
+pub const ABILITY_ANGER_POINT: u16   = 83;
+pub const ABILITY_COLOR_CHANGE: u16  = 16;
+pub const ABILITY_FLAME_BODY: u16    = 49;
+pub const ABILITY_STATIC: u16        = 9;
+pub const ABILITY_POISON_POINT: u16  = 38;
+pub const ABILITY_EFFECT_SPORE: u16  = 27;
+pub const ABILITY_AFTERMATH: u16     = 106;
+pub const ABILITY_CUTE_CHARM: u16    = 56;
+
+// -- After-KO hooks: attacker --
+pub const ABILITY_MOXIE: u16         = 153;
+pub const ABILITY_BEAST_BOOST: u16   = 224;
 
 // -- Multi-hit --
 pub const ABILITY_SKILL_LINK: u16    = 92;
@@ -136,7 +172,7 @@ pub const ABILITY_SKILL_LINK: u16    = 92;
 pub const ABILITY_QUICK_FEET: u16    = 95;
 pub const ABILITY_NO_GUARD: u16      = 99;
 pub const ABILITY_COMPOUND_EYES: u16 = 14;
-pub const ABILITY_VICTORY_STAR: u16  = 161;
+pub const ABILITY_VICTORY_STAR: u16  = 162;
 pub const ABILITY_SERENE_GRACE: u16  = 32;
 pub const ABILITY_SAND_VEIL: u16     = 8;
 pub const ABILITY_SNOW_CLOAK: u16    = 81;

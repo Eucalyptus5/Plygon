@@ -214,6 +214,11 @@ pub struct ActiveMon {
     pub telekinesis_turns: u8,
     pub heal_block_turns: u8,
     pub perish_count: u8,
+    // _padding[0]: baton_pass flag (1 = Baton Pass switch pending, preserve boosts/volatiles)
+    // _padding[1]: charge location (0=none, 1=air, 2=underground, 3=underwater, 4=vanished)
+    // _padding[2]: move-lock turns remaining (Outrage/Thrash: 0=not locked, 1-2=turns left)
+    // _padding[3]: protean_activated (1 = Protean/Libero already fired this switch-in)
+    // _padding[4]: shield bits (bit 0 = Disguise broken, bit 1 = Ice Face broken)
     pub _padding: [u8; 5],
 }
 

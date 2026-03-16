@@ -33,6 +33,8 @@ pub fn effective_ability(state: &BattleState, side: usize) -> u16 {
 pub fn effective_stat(state: &BattleState, side: usize, stat_index: usize) -> u16 {
     let active = &state.sides[side].active;
     if active.has_volatile(VOL_TRANSFORMED) { return active.override_stats[stat_index]; }
+    // Forme-change stat overrides (Aegislash Blade, Zen Mode, etc.)
+    if active.override_stats[0] != 0 { return active.override_stats[stat_index]; }
     state.active_mon(side).stats[stat_index]
 }
 
@@ -53,7 +55,7 @@ pub fn effective_pp(state: &BattleState, side: usize, move_slot: usize) -> u8 {
 #[inline(always)]
 pub fn effective_species(state: &BattleState, side: usize) -> u16 {
     let active = &state.sides[side].active;
-    if active.has_volatile(VOL_TRANSFORMED) && active.override_species != 0 {
+    if active.override_species != 0 {
         return active.override_species;
     }
     state.active_mon(side).species_id

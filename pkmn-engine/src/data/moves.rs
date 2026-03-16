@@ -42,6 +42,9 @@ pub enum VarPower {
     TrumpCard  = 14,
     NaturalGift= 15,
     TechnoBlast= 16,
+    Hex        = 17,    // 2× if target has status
+    Acrobatics = 18,    // 2× if attacker has no item
+    RisingVoltage = 19, // 2× if Electric Terrain + target grounded
 }
 
 // ── Move effect enum ────────────────────────────────────────────────
@@ -90,11 +93,41 @@ pub enum MoveEffect {
     ForceSwitch  = 32,  // U-turn, Volt Switch, Flip Turn
     RapidSpin    = 33,  // Physical + clears hazards + Speed boost
 
+    // -- Move-specific damage modifiers (Step 1) --
+    KnockOff       = 34,  // 1.5× if target has removable item + remove item post-damage
+    FreezeDry      = 35,  // Override: super effective vs Water
+    ExpandingForce = 36,  // 1.5× chain in Psychic Terrain (source grounded)
+    Psyblade       = 37,  // 1.5× chain in Electric Terrain
+    SolarBeam      = 38,  // 0.5× power in rain/sand/snow; charge skip in sun (Step 3)
+    WeatherAccRain = 39,  // Thunder/Hurricane: 100% in rain, 50% in sun
+    WeatherAccSnow = 40,  // Blizzard: 100% in snow/hail
+
+    // -- Pivot moves (Step 2) --
+    PartingShot  = 41,  // -1 Atk -1 SpA on opponent, then self-switch
+    BatonPass    = 42,  // Self-switch preserving boosts + select volatiles
+
+    // -- Charge moves (Step 3) --
+    // Semi-invulnerable charge moves (dodge most attacks during charge turn)
+    ChargeFly       = 43,  // Fly, Bounce: airborne
+    ChargeDig       = 44,  // Dig: underground
+    ChargeDive      = 45,  // Dive: underwater
+    ChargePhantom   = 46,  // Phantom Force, Shadow Force: vanished + bypasses Protect
+    // Non-semi-invulnerable charge moves
+    ChargeSkyAttack = 47,  // Sky Attack: plain charge
+    ChargeSkullBash = 48,  // Skull Bash: +1 Def on charge turn
+    ChargeMeteorBeam= 49,  // Meteor Beam: +1 SpA on charge turn
+    ChargeElectroShot=50,  // Electro Shot: +1 SpA on charge, skip in rain
+    ChargeGeomancy  = 51,  // Geomancy: status move, +2 SpA/SpD/Spe on execute
+    // SolarBeam (= 38) also has charge logic: skip in sun.
+
     // Recovery (Recover, Roost, etc.) is detected by MoveFlags::HEAL.
     // Recharge (Hyper Beam, etc.) is detected by MoveFlags::RECHARGE.
+
+    // -- Locked/thrashing moves (Step 4) --
+    Thrash       = 52,  // Outrage, Petal Dance, Thrash, Raging Fury: 2-3 turns locked, confuse on end
 }
 
-// Flags (only need 15 bits)
+// Flags (16 bits)
 
 #[allow(non_snake_case)]
 pub mod MoveFlags {
@@ -113,6 +146,7 @@ pub mod MoveFlags {
     pub const CHARGE:      u16 = 1 << 12;
     pub const HEAL:        u16 = 1 << 13;
     pub const BYPASSSUB:   u16 = 1 << 14;
+    pub const BULLET:      u16 = 1 << 15;
 }
 
 // Hot path struct: everything the damage calc and executor touch

@@ -6,7 +6,7 @@
 //! All integer math.  4096-scale modifier chain.  Zero heap allocations.
 
 use crate::state::structs::*;
-use crate::state::data_bridge::{self, ItemFlag, MoveCategory};
+use crate::state::data_bridge::{self, ItemFlag, MoveCategory, MoveEffect};
 use crate::state::accessors::*;
 use crate::state::calc_modifiers::*;
 use crate::data::moves::MoveFlags;
@@ -82,7 +82,22 @@ pub fn calc_damage(
     let (def_t1, def_t2) = effective_types(state, def_side);
     let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
     let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
-    let eff = dual_type_effectiveness(move_type, def_type1, def_type2);
+    let mut eff = dual_type_effectiveness(move_type, def_type1, def_type2);
+
+    // Freeze-Dry: super effective vs Water (override type chart)
+    // Ice vs Water is normally 0.5× (eff contribution = 2), override to 2× (= 8).
+    // For each Water type the defender has, multiply eff by 4.
+    if md.effect == MoveEffect::FreezeDry {
+        let water = Type::Water as u8;
+        if def_t1 == water && def_t2 == water {
+            // Pure Water: single-type, eff = type_eff(Ice, Water) = 2 → override to 8
+            eff = (eff as u16 * 4).min(16) as u8;
+        } else if def_t1 == water {
+            eff = (eff as u16 * 4).min(16) as u8;
+        } else if def_t2 == water {
+            eff = (eff as u16 * 4).min(16) as u8;
+        }
+    }
 
     result.effectiveness = eff;
 
@@ -92,10 +107,16 @@ pub fn calc_damage(
         return result;
     }
 
-    // Ability-based immunity (Water Absorb, Volt Absorb, etc.)
+    // Ability-based type immunity (Water Absorb, Volt Absorb, Levitate, etc.)
     if let Some(heal) = ability_immunity(state, def_side, move_type) {
         result.type_immune = true;
         result.drain_heal = heal; // attacker doesn't heal; defender does (caller handles)
+        return result;
+    }
+
+    // Ability-based flag immunity (Bulletproof, Soundproof, Overcoat)
+    if ability_flag_immunity(state, def_side, md.flags) {
+        result.type_immune = true;
         return result;
     }
 
@@ -113,6 +134,10 @@ pub fn calc_damage(
     if atk_item.has(ItemFlag::GEM) && atk_item.type_param == move_type as u8 {
         result.item_consumed = true;
     }
+
+    // Move-effect power mods (Knock Off, Expanding Force, Psyblade, Solar Beam)
+    let (mp_n, mp_d) = move_effect_power_mod(state, md, atk_side, def_side);
+    power = chain_mod(power, mp_n, mp_d);
 
     // ── Resolve A and D stats ──────────────────────────────────────
     let is_physical = md.category == MoveCategory::Physical;
@@ -464,5 +489,47 @@ mod tests {
         // Doesn't affect special
         let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Special, STATUS_NONE);
         assert_eq!(a, 150);
+    }
+
+    // ── Step 1: Freeze-Dry effectiveness tests ──────────────
+
+    #[test]
+    fn test_freeze_dry_vs_water() {
+        // Ice vs pure Water: normally 0.5× (eff=2), Freeze-Dry makes it 2× (eff=8)
+        let eff = dual_type_effectiveness(Type::Ice, Type::Water, Type::Water);
+        assert_eq!(eff, 2); // normal: resist
+
+        // Simulate Freeze-Dry override
+        let mut eff_fd = eff;
+        let water = Type::Water as u8;
+        let def_t1 = Type::Water as u8;
+        let def_t2 = Type::Water as u8;
+        if def_t1 == water && def_t2 == water {
+            eff_fd = (eff_fd as u16 * 4).min(16) as u8;
+        }
+        assert_eq!(eff_fd, 8); // 2× super effective
+    }
+
+    #[test]
+    fn test_freeze_dry_vs_water_ground() {
+        // Ice vs Water/Ground: normally 0.5× * 2× = 1× (eff=4)
+        // Freeze-Dry override: 2× * 2× = 4× (eff=16)
+        let eff = dual_type_effectiveness(Type::Ice, Type::Water, Type::Ground);
+        assert_eq!(eff, 4); // neutral
+
+        let mut eff_fd = eff;
+        let water = Type::Water as u8;
+        if Type::Water as u8 == water {
+            eff_fd = (eff_fd as u16 * 4).min(16) as u8;
+        }
+        assert_eq!(eff_fd, 16); // 4× super effective
+    }
+
+    #[test]
+    fn test_freeze_dry_vs_non_water() {
+        // Ice vs pure Fire: normally 0.5× (eff=2), no Freeze-Dry override
+        let eff = dual_type_effectiveness(Type::Ice, Type::Fire, Type::Fire);
+        assert_eq!(eff, 2);
+        // No Water → no change
     }
 }

@@ -98,6 +98,8 @@ fn dummy_move() -> MoveData {
         multihit_hi: 0,
         secondary_chance: 0,
         secondary_stat: 0,
+        effect: MoveEffect::None,
+        secondary_status: 0,
     }
 }
 

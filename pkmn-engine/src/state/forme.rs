@@ -3,6 +3,7 @@
 use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::state::team_builder::recompute_stats;
+use crate::state::accessors;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 
@@ -70,6 +71,71 @@ pub fn apply_transform(
     }
 }
 
+/// In-battle forme change that uses override_stats instead of TeamData.
+/// Scales current stats by new_base / old_base ratio per stat.
+/// Also sets override_types from the new species.
+/// To revert, call `revert_battle_forme`.
+pub fn apply_battle_forme(
+    state: &mut BattleState, keys: &ZobristKeys,
+    side: usize, new_species_id: u16,
+) {
+    let slot = state.sides[side].active_index as usize;
+    let old_species_id = state.sides[side].team[slot].species_id;
+    let old_sp = data_bridge::species(old_species_id);
+    let new_sp = data_bridge::species(new_species_id);
+
+    // base stat arrays: [atk, def, spa, spd, spe]
+    let old_bases = [old_sp.atk, old_sp.def, old_sp.spa, old_sp.spd, old_sp.spe];
+    let new_bases = [new_sp.atk, new_sp.def, new_sp.spa, new_sp.spd, new_sp.spe];
+
+    // Read current stats first (immutable borrow), then write overrides
+    let mut scaled_stats = [0u16; 5];
+    for i in 0..5 {
+        let current = accessors::effective_stat(state, side, i);
+        scaled_stats[i] = (current as u32 * new_bases[i] as u32 / old_bases[i].max(1) as u32).max(1) as u16;
+    }
+    state.sides[side].active.override_stats = scaled_stats;
+
+    // Set type overrides
+    set_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
+    state.sides[side].active.override_types = [new_sp.type1 as u8, new_sp.type2 as u8];
+    state.sides[side].active.override_species = new_species_id;
+}
+
+/// Revert an in-battle forme change: clear override_stats, types, species.
+pub fn revert_battle_forme(
+    state: &mut BattleState, keys: &ZobristKeys, side: usize,
+) {
+    state.sides[side].active.override_stats = [0; 5];
+    state.sides[side].active.override_species = 0;
+    if state.sides[side].active.has_volatile(VOL_TYPES_OVERRIDDEN) {
+        clear_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
+    }
+}
+
+/// Zen Mode check: Darmanitan transforms at ≤50% HP, reverts at >50%.
+/// Called from end-of-turn and after taking damage.
+pub fn check_zen_mode(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let ability = accessors::effective_ability(state, side);
+    if ability != data_bridge::ABILITY_ZEN_MODE { return; }
+
+    let slot = state.sides[side].active_index as usize;
+    let mon = &state.sides[side].team[slot];
+    if mon.is_fainted() { return; }
+
+    const DARMANITAN: u16 = 555;
+    const DARMANITAN_ZEN: u16 = 1171;
+
+    let species = accessors::effective_species(state, side);
+    let half_hp = mon.max_hp / 2;
+
+    if mon.current_hp <= half_hp && species == DARMANITAN {
+        apply_battle_forme(state, keys, side, DARMANITAN_ZEN);
+    } else if mon.current_hp > half_hp && species == DARMANITAN_ZEN {
+        revert_battle_forme(state, keys, side);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,6 +159,76 @@ mod tests {
         assert_eq!(effective_pp(&state, 0, 0), 5);
         assert_eq!(state.sides[0].team[0].current_hp, 200); // HP unchanged
         assert_eq!(state.sides[0].team[0].item_id, 220);    // Item unchanged
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_battle_forme_aegislash() {
+        // Aegislash Shield (681): atk:50, def:140, spa:50, spd:140, spe:60
+        // Aegislash Blade (1103): atk:140, def:50, spa:140, spd:50, spe:60
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 681, current_hp: 300, max_hp: 300,
+            ability_id: data_bridge::ABILITY_STANCE_CHANGE,
+            stats: [100, 280, 100, 280, 120], // base shield-like stats
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        apply_battle_forme(&mut state, &keys, 0, 1103);
+
+        // Stats should scale: atk 100*140/50=280, def 280*50/140=100
+        assert_eq!(effective_stat(&state, 0, ATK), 280);
+        assert_eq!(effective_stat(&state, 0, DEF), 100);
+        assert_eq!(effective_stat(&state, 0, SPA), 280);
+        assert_eq!(effective_stat(&state, 0, SPD), 100);
+        assert_eq!(effective_stat(&state, 0, SPE), 120); // 60/60 = same
+        assert_eq!(effective_species(&state, 0), 1103);
+        assert!(validate_hash(&state, &keys));
+
+        // Revert
+        revert_battle_forme(&mut state, &keys, 0);
+        assert_eq!(effective_stat(&state, 0, ATK), 100); // back to team stats
+        assert_eq!(effective_stat(&state, 0, DEF), 280);
+        assert_eq!(effective_species(&state, 0), 681);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_zen_mode_triggers_at_half_hp() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 555, current_hp: 200, max_hp: 400,
+            ability_id: data_bridge::ABILITY_ZEN_MODE,
+            stats: [280, 110, 60, 110, 190], // Darmanitan base stats
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // HP is 200/400 = 50% → should trigger (≤50%)
+        check_zen_mode(&mut state, &keys, 0);
+        assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
+        // Zen Mode: atk:30, def:105, spa:140, spd:105, spe:55
+        // Scaling: atk 280*30/140=60, def 110*105/55=210
+        assert_eq!(effective_stat(&state, 0, ATK), 60);
+        assert_eq!(effective_stat(&state, 0, DEF), 210);
+        assert!(validate_hash(&state, &keys));
+
+        // Heal above 50% → should revert
+        heal(&mut state, &keys, 0, 0, 201);
+        check_zen_mode(&mut state, &keys, 0);
+        assert_eq!(effective_species(&state, 0), 555);
+        assert_eq!(effective_stat(&state, 0, ATK), 280);
         assert!(validate_hash(&state, &keys));
     }
 }

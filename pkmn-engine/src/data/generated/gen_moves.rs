@@ -7,7 +7,7 @@
 use crate::data::types::Type;
 use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveTarget, VarPower, MoveEffect, MoveFlags};
 
-/// 902 moves in 921 slots.
+/// 877 moves in 1001 slots.
 pub static GEN_MOVES: &[MoveData] = &[
     // [0] —
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -17,93 +17,93 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [1] Pound
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [2] Karate Chop
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [3] Double Slap
-    MoveData { flags:MoveFlags::CONTACT, base_power:15, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:15, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [4] Comet Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:18, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:18, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [5] Mega Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:80, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:80, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [6] Pay Day
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [7] Fire Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [8] Ice Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:6 },
     // [9] Thunder Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [10] Scratch
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [11] Vise Grip
-    MoveData { flags:MoveFlags::CONTACT, base_power:55, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:55, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [12] Guillotine
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:30,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:30,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [13] Razor Wind
-    MoveData { flags:MoveFlags::CHARGE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
@@ -114,274 +114,274 @@ pub static GEN_MOVES: &[MoveData] = &[
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::SwordsDance, secondary_status:0 },
-    // [15] Cut
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:50, accuracy:95,
-        category:MoveCategory::Physical, move_type:Type::Normal,
+    // [15] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [16] Gust
-    MoveData { flags:MoveFlags::WIND, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [17] Wing Attack
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [18] Whirlwind
-    MoveData { flags:MoveFlags::WIND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-6,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [19] Fly
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:90, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:90, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeFly, secondary_status:0 },
     // [20] Bind
-    MoveData { flags:MoveFlags::CONTACT, base_power:15, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:15, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [21] Slam
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:75,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:75,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [22] Vine Whip
-    MoveData { flags:MoveFlags::CONTACT, base_power:45, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:45, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [23] Stomp
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [24] Double Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [25] Mega Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:75,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:75,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [26] Jump Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:0, drain:-50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [27] Rolling Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [28] Sand Attack
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [29] Headbutt
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [30] Horn Attack
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [31] Fury Attack
-    MoveData { flags:MoveFlags::CONTACT, base_power:15, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:15, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [32] Horn Drill
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:30,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:30,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [33] Tackle
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [34] Body Slam
-    MoveData { flags:MoveFlags::CONTACT, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [35] Wrap
-    MoveData { flags:MoveFlags::CONTACT, base_power:15, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:15, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [36] Take Down
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:-25, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [37] Thrash
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::Thrash, secondary_status:0 },
     // [38] Double-Edge
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:-33, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [39] Tail Whip
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [40] Poison Sting
-    MoveData { flags:0, base_power:15, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:15, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [41] Twineedle
-    MoveData { flags:0, base_power:25, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:25, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [42] Pin Missile
-    MoveData { flags:0, base_power:25, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:25, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [43] Leer
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [44] Bite
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [45] Growl
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [46] Roar
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-6,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [47] Sing
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:55,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:55,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [48] Supersonic
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:55,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:55,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [49] Sonic Boom
-    MoveData { flags:0, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [50] Disable
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [51] Acid
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [52] Ember
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [53] Flamethrower
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -395,133 +395,133 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [55] Water Gun
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [56] Hydro Pump
-    MoveData { flags:0, base_power:110, accuracy:80,
+    MoveData { flags:MoveFlags::PROTECT, base_power:110, accuracy:80,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [57] Surf
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [58] Ice Beam
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:6 },
     // [59] Blizzard
-    MoveData { flags:MoveFlags::WIND, base_power:110, accuracy:70,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:110, accuracy:70,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:6 },
+        effect:MoveEffect::WeatherAccSnow, secondary_status:6 },
     // [60] Psybeam
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [61] Bubble Beam
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [62] Aurora Beam
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [63] Hyper Beam
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [64] Peck
-    MoveData { flags:MoveFlags::CONTACT, base_power:35, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:35, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [65] Drill Peck
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [66] Submission
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:80,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:80,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:-25, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [67] Low Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::Weight, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [68] Counter
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-5,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [69] Seismic Toss
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [70] Strength
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [71] Absorb
-    MoveData { flags:MoveFlags::HEAL, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:20, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [72] Mega Drain
-    MoveData { flags:MoveFlags::HEAL, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [73] Leech Seed
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -535,147 +535,147 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [75] Razor Leaf
-    MoveData { flags:MoveFlags::SLICE, base_power:55, accuracy:95,
+    MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:55, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Grass,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [76] Solar Beam
-    MoveData { flags:MoveFlags::CHARGE, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::SolarBeam, secondary_status:0 },
     // [77] Poison Powder
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE, base_power:0, accuracy:75,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::PROTECT, base_power:0, accuracy:75,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [78] Stun Spore
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE, base_power:0, accuracy:75,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::PROTECT, base_power:0, accuracy:75,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [79] Sleep Powder
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE, base_power:0, accuracy:75,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::PROTECT, base_power:0, accuracy:75,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [80] Petal Dance
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::DANCE, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::DANCE | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::Thrash, secondary_status:0 },
     // [81] String Shot
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:95,
         category:MoveCategory::Status, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [82] Dragon Rage
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [83] Fire Spin
-    MoveData { flags:0, base_power:35, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:35, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [84] Thunder Shock
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [85] Thunderbolt
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [86] Thunder Wave
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Status, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ThunderWave, secondary_status:0 },
     // [87] Thunder
-    MoveData { flags:0, base_power:110, accuracy:70,
+    MoveData { flags:MoveFlags::PROTECT, base_power:110, accuracy:70,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:2 },
+        effect:MoveEffect::WeatherAccRain, secondary_status:2 },
     // [88] Rock Throw
-    MoveData { flags:0, base_power:50, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [89] Earthquake
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [90] Fissure
-    MoveData { flags:0, base_power:0, accuracy:30,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:30,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [91] Dig
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeDig, secondary_status:0 },
     // [92] Toxic
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Toxic, secondary_status:0 },
     // [93] Confusion
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [94] Psychic
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [95] Hypnosis
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:60,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:60,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -696,14 +696,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Agility, secondary_status:0 },
     // [98] Quick Attack
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [99] Rage
-    MoveData { flags:MoveFlags::CONTACT, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -717,21 +717,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [101] Night Shade
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [102] Mimic
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [103] Screech
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:85,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:85,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -766,14 +766,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [108] Smokescreen
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [109] Confuse Ray
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -799,7 +799,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::IronDefense, secondary_status:0 },
+        effect:MoveEffect::None, secondary_status:0 },
     // [113] Light Screen
     MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
@@ -829,7 +829,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [117] Bide
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
@@ -850,95 +850,95 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [120] Self-Destruct
-    MoveData { flags:0, base_power:200, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:200, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [121] Egg Bomb
-    MoveData { flags:0, base_power:100, accuracy:75,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:100, accuracy:75,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [122] Lick
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [123] Smog
-    MoveData { flags:0, base_power:30, accuracy:70,
+    MoveData { flags:MoveFlags::PROTECT, base_power:30, accuracy:70,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:40, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [124] Sludge
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [125] Bone Club
-    MoveData { flags:0, base_power:65, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [126] Fire Blast
-    MoveData { flags:0, base_power:110, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:110, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [127] Waterfall
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [128] Clamp
-    MoveData { flags:MoveFlags::CONTACT, base_power:35, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:35, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [129] Swift
-    MoveData { flags:0, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [130] Skull Bash
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:130, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:130, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeSkullBash, secondary_status:0 },
     // [131] Spike Cannon
-    MoveData { flags:0, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [132] Constrict
-    MoveData { flags:MoveFlags::CONTACT, base_power:10, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:10, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [133] Amnesia
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -948,7 +948,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [134] Kinesis
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:80,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:80,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -962,61 +962,61 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [136] High Jump Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:130, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:130, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:0, drain:-50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [137] Glare
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [138] Dream Eater
-    MoveData { flags:MoveFlags::HEAL, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [139] Poison Gas
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [140] Barrage
-    MoveData { flags:0, base_power:15, accuracy:85,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:15, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [141] Leech Life
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::HEAL, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::HEAL, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [142] Lovely Kiss
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:75,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:75,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [143] Sky Attack
-    MoveData { flags:MoveFlags::CHARGE, base_power:140, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:140, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Flying,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeSkyAttack, secondary_status:0 },
     // [144] Transform
     MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
@@ -1025,35 +1025,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [145] Bubble
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [146] Dizzy Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [147] Spore
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [148] Flash
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [149] Psywave
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1072,30 +1072,30 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::IronDefense, secondary_status:0 },
+        effect:MoveEffect::None, secondary_status:0 },
     // [152] Crabhammer
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Water,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [153] Explosion
-    MoveData { flags:0, base_power:250, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:250, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [154] Fury Swipes
-    MoveData { flags:MoveFlags::CONTACT, base_power:18, accuracy:80,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:18, accuracy:80,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [155] Bonemerang
-    MoveData { flags:0, base_power:50, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
@@ -1109,14 +1109,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [157] Rock Slide
-    MoveData { flags:0, base_power:75, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:75, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [158] Hyper Fang
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:80, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:80, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1137,23 +1137,23 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [161] Tri Attack
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [162] Super Fang
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [163] Slash
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
@@ -1165,7 +1165,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Substitute, secondary_status:0 },
     // [165] Struggle
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1179,49 +1179,49 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [167] Triple Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:10, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:10, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:3, multihit_hi:3,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [168] Thief
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [169] Spider Web
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [170] Mind Reader
-    MoveData { flags:0, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [171] Nightmare
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [172] Flame Wheel
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [173] Snore
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1235,7 +1235,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [175] Flail
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::Flail, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1249,70 +1249,70 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [177] Aeroblast
-    MoveData { flags:MoveFlags::WIND, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Flying,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [178] Cotton Spore
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [179] Reversal
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::Flail, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [180] Spite
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [181] Powder Snow
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:6 },
     // [182] Protect
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [183] Mach Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [184] Scary Face
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [185] Feint Attack
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [186] Sweet Kiss
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:75,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:75,
         category:MoveCategory::Status, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1326,42 +1326,42 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [188] Sludge Bomb
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [189] Mud-Slap
-    MoveData { flags:0, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [190] Octazooka
-    MoveData { flags:0, base_power:65, accuracy:85,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:65, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [191] Spikes
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Spikes, secondary_status:0 },
     // [192] Zap Cannon
-    MoveData { flags:0, base_power:120, accuracy:50,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:120, accuracy:50,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [193] Foresight
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1382,40 +1382,40 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [196] Icy Wind
-    MoveData { flags:MoveFlags::WIND, base_power:55, accuracy:95,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:55, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [197] Detect
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [198] Bone Rush
-    MoveData { flags:0, base_power:25, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:25, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [199] Lock-On
-    MoveData { flags:0, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [200] Outrage
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::Thrash, secondary_status:0 },
     // [201] Sandstorm
     MoveData { flags:MoveFlags::WIND, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Rock,
@@ -1424,7 +1424,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [202] Giga Drain
-    MoveData { flags:MoveFlags::HEAL, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:75, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1438,28 +1438,28 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [204] Charm
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [205] Rollout
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [206] False Swipe
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [207] Swagger
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:85,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1473,35 +1473,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [209] Spark
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [210] Fury Cutter
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:40, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:40, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [211] Steel Wing
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [212] Mean Look
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [213] Attract
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1522,21 +1522,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [216] Return
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::Return, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [217] Present
-    MoveData { flags:0, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [218] Frustration
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::Frustration, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1550,42 +1550,42 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [220] Pain Split
-    MoveData { flags:0, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [221] Sacred Fire
-    MoveData { flags:0, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [222] Magnitude
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [223] Dynamic Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:100, accuracy:50,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:100, accuracy:50,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [224] Megahorn
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [225] Dragon Breath
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1597,51 +1597,51 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::ForceSwitch, secondary_status:0 },
+        effect:MoveEffect::BatonPass, secondary_status:0 },
     // [227] Encore
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Encore, secondary_status:0 },
     // [228] Pursuit
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [229] Rapid Spin
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::RapidSpin, secondary_status:0 },
     // [230] Sweet Scent
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [231] Iron Tail
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:75,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:75,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [232] Metal Claw
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [233] Vital Throw
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-1,
         multihit_lo:0, multihit_hi:0,
@@ -1669,21 +1669,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [237] Hidden Power
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [238] Cross Chop
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:80,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:80,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [239] Twister
-    MoveData { flags:MoveFlags::WIND, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1704,14 +1704,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [242] Crunch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:20, secondary_stat:-1,
+        secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [243] Mirror Coat
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-5,
         multihit_lo:0, multihit_hi:0,
@@ -1725,25 +1725,25 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [245] Extreme Speed
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:2,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [246] Ancient Power
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:5,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [247] Shadow Ball
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:20, secondary_stat:-1,
+        secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [248] Future Sight
     MoveData { flags:0, base_power:120, accuracy:100,
@@ -1753,35 +1753,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [249] Rock Smash
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [250] Whirlpool
-    MoveData { flags:0, base_power:35, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:35, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [251] Beat Up
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [252] Fake Out
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:3,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [253] Uproar
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1795,7 +1795,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [255] Spit Up
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1809,7 +1809,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [257] Heat Wave
-    MoveData { flags:MoveFlags::WIND, base_power:95, accuracy:90,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:95, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1823,49 +1823,49 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [259] Torment
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [260] Flatter
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [261] Will-O-Wisp
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:85,
         category:MoveCategory::Status, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::WillOWisp, secondary_status:0 },
     // [262] Memento
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [263] Facade
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::Facade, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [264] Focus Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:150, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-3,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [265] Smelling Salts
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1893,7 +1893,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [269] Taunt
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1907,7 +1907,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [271] Trick
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1942,7 +1942,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [276] Superpower
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -1963,49 +1963,49 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [279] Revenge
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [280] Brick Break
-    MoveData { flags:MoveFlags::CONTACT, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [281] Yawn
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [282] Knock Off
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::KnockOff, secondary_status:0 },
     // [283] Endeavor
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [284] Eruption
-    MoveData { flags:0, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::Eruption, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [285] Skill Swap
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2040,21 +2040,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [290] Secret Power
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [291] Dive
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeDive, secondary_status:0 },
     // [292] Arm Thrust
-    MoveData { flags:MoveFlags::CONTACT, base_power:15, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:15, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
@@ -2075,37 +2075,37 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [295] Luster Purge
-    MoveData { flags:0, base_power:95, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:95, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [296] Mist Ball
-    MoveData { flags:0, base_power:95, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:95, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [297] Feather Dance
-    MoveData { flags:MoveFlags::DANCE | MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::DANCE | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [298] Teeter Dance
-    MoveData { flags:MoveFlags::DANCE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::DANCE | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [299] Blaze Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:85, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:85, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fire,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
@@ -2117,14 +2117,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [301] Ice Ball
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BULLET | MoveFlags::PROTECT, base_power:30, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [302] Needle Arm
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2138,56 +2138,56 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [304] Hyper Voice
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [305] Poison Fang
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:4 },
     // [306] Crush Claw
-    MoveData { flags:MoveFlags::CONTACT, base_power:75, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:75, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [307] Blast Burn
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [308] Hydro Cannon
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [309] Meteor Mash
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:90, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:90, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:20, secondary_stat:1,
+        secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [310] Astonish
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [311] Weather Ball
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2201,63 +2201,63 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [313] Fake Tears
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [314] Air Cutter
-    MoveData { flags:MoveFlags::WIND | MoveFlags::SLICE, base_power:60, accuracy:95,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:60, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Flying,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [315] Overheat
-    MoveData { flags:0, base_power:130, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:130, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [316] Odor Sleuth
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [317] Rock Tomb
-    MoveData { flags:0, base_power:60, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [318] Silver Wind
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:5,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [319] Metal Sound
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:85,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:85,
         category:MoveCategory::Status, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [320] Grass Whistle
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:55,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:55,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [321] Tickle
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2271,77 +2271,77 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [323] Water Spout
-    MoveData { flags:0, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::Eruption, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [324] Signal Beam
-    MoveData { flags:0, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [325] Shadow Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [326] Extrasensory
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [327] Sky Uppercut
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:85, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:85, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [328] Sand Tomb
-    MoveData { flags:0, base_power:35, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:35, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [329] Sheer Cold
-    MoveData { flags:0, base_power:0, accuracy:30,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:30,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [330] Muddy Water
-    MoveData { flags:0, base_power:90, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [331] Bullet Seed
-    MoveData { flags:0, base_power:25, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:25, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [332] Aerial Ace
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [333] Icicle Spear
-    MoveData { flags:0, base_power:25, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:25, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
@@ -2355,7 +2355,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::IronDefense, secondary_status:0 },
     // [335] Block
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2369,14 +2369,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [337] Dragon Claw
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [338] Frenzy Plant
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2390,42 +2390,42 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::BulkUp, secondary_status:0 },
     // [340] Bounce
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:85, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:85, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:2 },
+        effect:MoveEffect::ChargeFly, secondary_status:2 },
     // [341] Mud Shot
-    MoveData { flags:0, base_power:55, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:55, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [342] Poison Tail
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [343] Covet
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [344] Volt Tackle
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:-33, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [345] Magical Leaf
-    MoveData { flags:0, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2446,9 +2446,9 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::CalmMind, secondary_status:0 },
     // [348] Leaf Blade
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
@@ -2460,21 +2460,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::DragonDance, secondary_status:0 },
     // [350] Rock Blast
-    MoveData { flags:0, base_power:25, accuracy:90,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:25, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [351] Shock Wave
-    MoveData { flags:0, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [352] Water Pulse
-    MoveData { flags:MoveFlags::PULSE, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2488,7 +2488,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [354] Psycho Boost
-    MoveData { flags:0, base_power:140, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:140, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2509,28 +2509,28 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [357] Miracle Eye
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [358] Wake-Up Slap
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [359] Hammer Arm
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:100, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:100, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [360] Gyro Ball
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BULLET | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::GyroBall, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2544,14 +2544,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [362] Brine
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [363] Natural Gift
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2565,7 +2565,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [365] Pluck
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2586,77 +2586,77 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [368] Metal Burst
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [369] U-turn
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ForceSwitch, secondary_status:0 },
     // [370] Close Combat
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [371] Payback
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [372] Assurance
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [373] Embargo
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [374] Fling
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [375] Psycho Shift
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [376] Trump Card
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [377] Heal Block
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [378] Wring Out
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2670,7 +2670,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [380] Gastro Acid
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2684,7 +2684,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [382] Me First
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2698,56 +2698,56 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [384] Power Swap
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [385] Guard Swap
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [386] Punishment
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::Punishment, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [387] Last Resort
-    MoveData { flags:MoveFlags::CONTACT, base_power:140, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:140, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [388] Worry Seed
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [389] Sucker Punch
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [390] Toxic Spikes
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ToxicSpikes, secondary_status:0 },
     // [391] Heart Swap
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2768,21 +2768,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [394] Flare Blitz
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:-33, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [395] Force Palm
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [396] Aura Sphere
-    MoveData { flags:MoveFlags::PULSE, base_power:80, accuracy:0,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::BULLET | MoveFlags::PROTECT, base_power:80, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2796,133 +2796,133 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Agility, secondary_status:0 },
     // [398] Poison Jab
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [399] Dark Pulse
-    MoveData { flags:MoveFlags::PULSE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [400] Night Slash
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [401] Aqua Tail
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [402] Seed Bomb
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [403] Air Slash
-    MoveData { flags:MoveFlags::SLICE, base_power:75, accuracy:95,
+    MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:75, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [404] X-Scissor
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [405] Bug Buzz
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [406] Dragon Pulse
-    MoveData { flags:MoveFlags::PULSE, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [407] Dragon Rush
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:75,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:75,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [408] Power Gem
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [409] Drain Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::HEAL, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT | MoveFlags::HEAL, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [410] Vacuum Wave
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [411] Focus Blast
-    MoveData { flags:0, base_power:120, accuracy:70,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:120, accuracy:70,
         category:MoveCategory::Special, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [412] Energy Ball
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [413] Brave Bird
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:-33, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [414] Earth Power
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [415] Switcheroo
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [416] Giga Impact
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -2936,105 +2936,105 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::NastyPlot, secondary_status:0 },
     // [418] Bullet Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [419] Avalanche
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [420] Ice Shard
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [421] Shadow Claw
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [422] Thunder Fang
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:65, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:65, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [423] Ice Fang
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:65, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:65, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [424] Fire Fang
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:65, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:65, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [425] Shadow Sneak
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [426] Mud Bomb
-    MoveData { flags:0, base_power:65, accuracy:85,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:65, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [427] Psycho Cut
-    MoveData { flags:MoveFlags::SLICE, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Psychic,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [428] Zen Headbutt
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [429] Mirror Shot
-    MoveData { flags:0, base_power:65, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [430] Flash Cannon
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [431] Rock Climb
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [432] Defog
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3048,149 +3048,149 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::TrickRoom, secondary_status:0 },
     // [434] Draco Meteor
-    MoveData { flags:0, base_power:130, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:130, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [435] Discharge
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [436] Lava Plume
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [437] Leaf Storm
-    MoveData { flags:0, base_power:130, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:130, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [438] Power Whip
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [439] Rock Wrecker
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [440] Cross Poison
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [441] Gunk Shot
-    MoveData { flags:0, base_power:120, accuracy:80,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:80,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [442] Iron Head
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [443] Magnet Bomb
-    MoveData { flags:0, base_power:60, accuracy:0,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:60, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [444] Stone Edge
-    MoveData { flags:0, base_power:100, accuracy:80,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:80,
         category:MoveCategory::Physical, move_type:Type::Rock,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [445] Captivate
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [446] Stealth Rock
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::StealthRock, secondary_status:0 },
     // [447] Grass Knot
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::Weight, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [448] Chatter
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [449] Judgment
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [450] Bug Bite
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [451] Charge Beam
-    MoveData { flags:0, base_power:50, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:70, secondary_stat:1,
+        secondary_chance:70, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [452] Wood Hammer
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:-33, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [453] Aqua Jet
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [454] Attack Order
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
@@ -3209,30 +3209,30 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [457] Head Smash
-    MoveData { flags:MoveFlags::CONTACT, base_power:150, accuracy:80,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:150, accuracy:80,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:-50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [458] Double Hit
-    MoveData { flags:MoveFlags::CONTACT, base_power:35, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:35, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [459] Roar of Time
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [460] Spacial Rend
-    MoveData { flags:0, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Dragon,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
@@ -3244,39 +3244,39 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [462] Crush Grip
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [463] Magma Storm
-    MoveData { flags:0, base_power:100, accuracy:75,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:75,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [464] Dark Void
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:50,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:50,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Sleep, secondary_status:0 },
     // [465] Seed Flare
-    MoveData { flags:0, base_power:120, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:40, secondary_stat:-2,
+        secondary_chance:40, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [466] Ominous Wind
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:5,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [467] Shadow Force
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:120, accuracy:100,
@@ -3284,7 +3284,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargePhantom, secondary_status:0 },
     // [468] Hone Claws
     MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Dark,
@@ -3300,14 +3300,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [470] Guard Split
-    MoveData { flags:0, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [471] Power Split
-    MoveData { flags:0, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3321,14 +3321,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [473] Psyshock
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [474] Venoshock
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3349,7 +3349,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [477] Telekinesis
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3363,28 +3363,28 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [479] Smack Down
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [480] Storm Throw
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [481] Flame Burst
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [482] Sludge Wave
-    MoveData { flags:0, base_power:95, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:95, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3398,39 +3398,39 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::QuiverDance, secondary_status:0 },
     // [484] Heavy Slam
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::HeavySlam, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [485] Synchronoise
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [486] Electro Ball
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::ElectroBall, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [487] Soak
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [488] Flame Charge
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [489] Coil
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -3440,35 +3440,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Coil, secondary_status:0 },
     // [490] Low Sweep
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [491] Acid Spray
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-2,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [492] Foul Play
-    MoveData { flags:MoveFlags::CONTACT, base_power:95, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:95, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [493] Simple Beam
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [494] Entrainment
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3482,35 +3482,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [496] Round
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [497] Echoed Voice
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [498] Chip Away
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [499] Clear Smog
-    MoveData { flags:0, base_power:50, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [500] Stored Power
-    MoveData { flags:0, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::StoredPower, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3531,7 +3531,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [503] Scald
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3545,21 +3545,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ShellSmash, secondary_status:0 },
     // [505] Heal Pulse
-    MoveData { flags:MoveFlags::PULSE | MoveFlags::REFLECTABLE | MoveFlags::HEAL, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::PROTECT | MoveFlags::HEAL, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [506] Hex
-    MoveData { flags:0, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::Hex, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [507] Sky Drop
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::CHARGE, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3573,49 +3573,49 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ShiftGear, secondary_status:0 },
     // [509] Circle Throw
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-6,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [510] Incinerate
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [511] Quash
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [512] Acrobatics
-    MoveData { flags:MoveFlags::CONTACT, base_power:55, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:55, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::Acrobatics, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [513] Reflect Type
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [514] Retaliate
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [515] Final Gambit
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3629,63 +3629,63 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [517] Inferno
-    MoveData { flags:0, base_power:100, accuracy:50,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:50,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [518] Water Pledge
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [519] Fire Pledge
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [520] Grass Pledge
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [521] Volt Switch
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ForceSwitch, secondary_status:0 },
     // [522] Struggle Bug
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [523] Bulldoze
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [524] Frost Breath
-    MoveData { flags:0, base_power:60, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [525] Dragon Tail
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-6,
         multihit_lo:0, multihit_hi:0,
@@ -3699,77 +3699,77 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [527] Electroweb
-    MoveData { flags:0, base_power:55, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:55, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [528] Wild Charge
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:-25, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [529] Drill Run
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Ground,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [530] Dual Chop
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [531] Heart Stamp
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [532] Horn Leech
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::HEAL, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::HEAL, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [533] Sacred Sword
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [534] Razor Shell
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:75, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:75, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [535] Heat Crash
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::HeavySlam, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [536] Leaf Tornado
-    MoveData { flags:0, base_power:65, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:-1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [537] Steamroller
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3781,156 +3781,156 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::IronDefense, secondary_status:0 },
+        effect:MoveEffect::None, secondary_status:0 },
     // [539] Night Daze
-    MoveData { flags:0, base_power:85, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:85, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:40, secondary_stat:-1,
+        secondary_chance:40, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [540] Psystrike
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [541] Tail Slap
-    MoveData { flags:MoveFlags::CONTACT, base_power:25, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:25, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [542] Hurricane
-    MoveData { flags:MoveFlags::WIND, base_power:110, accuracy:70,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:110, accuracy:70,
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::WeatherAccRain, secondary_status:0 },
     // [543] Head Charge
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:-25, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [544] Gear Grind
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [545] Searing Shot
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [546] Techno Blast
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [547] Relic Song
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:5 },
     // [548] Secret Sword
-    MoveData { flags:MoveFlags::SLICE, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [549] Glaciate
-    MoveData { flags:0, base_power:65, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [550] Bolt Strike
-    MoveData { flags:MoveFlags::CONTACT, base_power:130, accuracy:85,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:130, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [551] Blue Flare
-    MoveData { flags:0, base_power:130, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:130, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [552] Fiery Dance
-    MoveData { flags:MoveFlags::DANCE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::DANCE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:50, secondary_stat:1,
+        secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [553] Freeze Shock
-    MoveData { flags:MoveFlags::CHARGE, base_power:140, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:140, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [554] Ice Burn
-    MoveData { flags:MoveFlags::CHARGE, base_power:140, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:140, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [555] Snarl
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:55, accuracy:95,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:55, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [556] Icicle Crash
-    MoveData { flags:0, base_power:85, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:85, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [557] V-create
-    MoveData { flags:MoveFlags::CONTACT, base_power:180, accuracy:95,
-        category:MoveCategory::Physical, move_type:Type::Fire,
+    // [557] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [558] Fusion Flare
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [559] Fusion Bolt
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [560] Flying Press
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3944,7 +3944,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [562] Belch
-    MoveData { flags:0, base_power:120, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3958,14 +3958,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [564] Sticky Web
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::StickyWeb, secondary_status:0 },
     // [565] Fell Stinger
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -3977,16 +3977,16 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargePhantom, secondary_status:0 },
     // [567] Trick-or-Treat
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [568] Noble Roar
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4000,56 +4000,56 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [570] Parabolic Charge
-    MoveData { flags:MoveFlags::HEAL, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:65, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [571] Forest's Curse
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [572] Petal Blizzard
-    MoveData { flags:MoveFlags::WIND, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [573] Freeze-Dry
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:6 },
+        effect:MoveEffect::FreezeDry, secondary_status:6 },
     // [574] Disarming Voice
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:40, accuracy:0,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:40, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [575] Parting Shot
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::PartingShot, secondary_status:0 },
     // [576] Topsy-Turvy
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [577] Draining Kiss
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::HEAL, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::HEAL, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:75, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4084,35 +4084,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [582] Electrify
-    MoveData { flags:0, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [583] Play Rough
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:-1,
+        secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [584] Fairy Wind
-    MoveData { flags:MoveFlags::WIND, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [585] Moonblast
-    MoveData { flags:0, base_power:95, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:95, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [586] Boomburst
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:140, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:140, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4126,35 +4126,35 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [588] King's Shield
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [589] Play Nice
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [590] Confide
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [591] Diamond Storm
-    MoveData { flags:0, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [592] Steam Eruption
-    MoveData { flags:0, base_power:110, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:110, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4168,21 +4168,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [594] Water Shuriken
-    MoveData { flags:0, base_power:15, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:15, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [595] Mystical Fire
-    MoveData { flags:0, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [596] Spiky Shield
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
@@ -4196,21 +4196,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [598] Eerie Impulse
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [599] Venom Drench
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [600] Powder
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE | MoveFlags::BYPASSSUB, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
@@ -4222,7 +4222,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeGeomancy, secondary_status:0 },
     // [602] Magnetic Flux
     MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Electric,
@@ -4245,7 +4245,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [605] Dazzling Gleam
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4258,99 +4258,99 @@ pub static GEN_MOVES: &[MoveData] = &[
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [607] Hold Hands
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    // [607] —
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [608] Baby-Doll Eyes
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [609] Nuzzle
-    MoveData { flags:MoveFlags::CONTACT, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
-    // [610] Hold Back
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Normal,
+    // [610] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [611] Infestation
-    MoveData { flags:MoveFlags::CONTACT, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [612] Power-Up Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [613] Oblivion Wing
-    MoveData { flags:MoveFlags::HEAL, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:75, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [614] Thousand Arrows
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [615] Thousand Waves
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [616] Land's Wrath
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [617] Light of Ruin
-    MoveData { flags:0, base_power:140, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:140, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:-50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [618] Origin Pulse
-    MoveData { flags:MoveFlags::PULSE, base_power:110, accuracy:85,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::PROTECT, base_power:110, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [619] Precipice Blades
-    MoveData { flags:0, base_power:120, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [620] Dragon Ascent
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4630,91 +4630,91 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [660] First Impression
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:2,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [661] Baneful Bunker
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [662] Spirit Shackle
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [663] Darkest Lariat
-    MoveData { flags:MoveFlags::CONTACT, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [664] Sparkling Aria
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [665] Ice Hammer
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:100, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:100, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [666] Floral Healing
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::HEAL, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [667] High Horsepower
-    MoveData { flags:MoveFlags::CONTACT, base_power:95, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:95, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [668] Strength Sap
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::HEAL, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [669] Solar Blade
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::CHARGE, base_power:125, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:125, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::SolarBeam, secondary_status:0 },
     // [670] Leafage
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [671] Spotlight
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:3,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [672] Toxic Thread
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4735,21 +4735,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [675] Throat Chop
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [676] Pollen Puff
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [677] Anchor Shot
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4763,105 +4763,105 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [679] Lunge
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [680] Fire Lash
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [681] Power Trip
-    MoveData { flags:MoveFlags::CONTACT, base_power:20, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:20, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
-        var_power:VarPower::StoredPower, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [682] Burn Up
-    MoveData { flags:0, base_power:130, accuracy:100,
-        category:MoveCategory::Special, move_type:Type::Fire,
+    // [682] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [683] Speed Swap
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [684] Smart Strike
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [685] Purify
-    MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::HEAL, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [686] Revelation Dance
-    MoveData { flags:MoveFlags::DANCE, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::DANCE | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [687] Core Enforcer
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [688] Trop Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [689] Instruct
-    MoveData { flags:MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [690] Beak Blast
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-3,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [691] Clanging Scales
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:110, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:110, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [692] Dragon Hammer
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [693] Brutal Swing
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -4938,133 +4938,133 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [704] Shell Trap
-    MoveData { flags:0, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-3,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [705] Fleur Cannon
-    MoveData { flags:0, base_power:130, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:130, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [706] Psychic Fangs
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [707] Stomping Tantrum
-    MoveData { flags:MoveFlags::CONTACT, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [708] Shadow Bone
-    MoveData { flags:0, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:20, secondary_stat:-1,
+        secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [709] Accelerock
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [710] Liquidation
-    MoveData { flags:MoveFlags::CONTACT, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:20, secondary_stat:-1,
+        secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [711] Prismatic Laser
-    MoveData { flags:MoveFlags::RECHARGE, base_power:160, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:160, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [712] Spectral Thief
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BYPASSSUB, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [713] Sunsteel Strike
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [714] Moongeist Beam
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [715] Tearful Look
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [716] Zing Zap
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [717] Nature's Madness
-    MoveData { flags:0, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [718] Multi-Attack
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [719] 10,000,000 Volt Thunderbolt
-    MoveData { flags:0, base_power:195, accuracy:0,
-        category:MoveCategory::Special, move_type:Type::Electric,
-        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
+    // [719] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [720] Mind Blown
-    MoveData { flags:0, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [721] Plasma Fists
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [722] Photon Geyser
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -5112,99 +5112,99 @@ pub static GEN_MOVES: &[MoveData] = &[
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [729] Zippy Zap
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Electric,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:2,
-        multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
-        effect:MoveEffect::None, secondary_status:0 },
-    // [730] Splishy Splash
-    MoveData { flags:0, base_power:90, accuracy:100,
-        category:MoveCategory::Special, move_type:Type::Water,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
-        multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:2 },
-    // [731] Floaty Fall
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:95,
-        category:MoveCategory::Physical, move_type:Type::Flying,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
-        multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
-    // [732] Pika Papow
+    // [729] —
     MoveData { flags:0, base_power:0, accuracy:0,
-        category:MoveCategory::Special, move_type:Type::Electric,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [733] Bouncy Bubble
-    MoveData { flags:MoveFlags::HEAL, base_power:60, accuracy:100,
-        category:MoveCategory::Special, move_type:Type::Water,
-        var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
-        multihit_lo:0, multihit_hi:0,
-        secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
-    // [734] Buzzy Buzz
-    MoveData { flags:0, base_power:60, accuracy:100,
-        category:MoveCategory::Special, move_type:Type::Electric,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
-        multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:2 },
-    // [735] Sizzly Slide
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Fire,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
-        multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:1 },
-    // [736] Glitzy Glow
-    MoveData { flags:0, base_power:80, accuracy:95,
-        category:MoveCategory::Special, move_type:Type::Psychic,
+    // [730] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [737] Baddy Bad
-    MoveData { flags:0, base_power:80, accuracy:95,
-        category:MoveCategory::Special, move_type:Type::Dark,
+    // [731] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [738] Sappy Seed
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:100, accuracy:90,
-        category:MoveCategory::Physical, move_type:Type::Grass,
+    // [732] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [739] Freezy Frost
-    MoveData { flags:0, base_power:100, accuracy:90,
-        category:MoveCategory::Special, move_type:Type::Ice,
+    // [733] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [740] Sparkly Swirl
-    MoveData { flags:0, base_power:120, accuracy:85,
-        category:MoveCategory::Special, move_type:Type::Fairy,
+    // [734] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [741] Veevee Volley
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:0,
-        category:MoveCategory::Physical, move_type:Type::Normal,
+    // [735] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [736] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [737] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [738] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [739] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [740] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [741] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [742] Double Iron Bash
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
@@ -5218,21 +5218,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [744] Dynamax Cannon
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [745] Snipe Shot
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [746] Jaw Lock
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -5253,21 +5253,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [749] Tar Shot
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [750] Magic Powder
-    MoveData { flags:MoveFlags::POWDER | MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::POWDER | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [751] Dragon Darts
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
@@ -5281,21 +5281,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [753] Octolock
-    MoveData { flags:0, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [754] Bolt Beak
-    MoveData { flags:MoveFlags::CONTACT, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [755] Fishious Rend
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE, base_power:85, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::BITE | MoveFlags::PROTECT, base_power:85, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -5442,7 +5442,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [776] Body Press
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -5456,232 +5456,232 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [778] Drum Beating
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [779] Snap Trap
-    MoveData { flags:MoveFlags::CONTACT, base_power:35, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:35, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [780] Pyro Ball
-    MoveData { flags:0, base_power:120, accuracy:90,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:120, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [781] Behemoth Blade
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [782] Behemoth Bash
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [783] Aura Wheel
-    MoveData { flags:0, base_power:110, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:110, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [784] Breaking Swipe
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [785] Branch Poke
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [786] Overdrive
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [787] Apple Acid
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [788] Grav Apple
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [789] Spirit Break
-    MoveData { flags:MoveFlags::CONTACT, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [790] Strange Steam
-    MoveData { flags:0, base_power:90, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [791] Life Dew
-    MoveData { flags:MoveFlags::HEAL | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::HEAL, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [792] Obstruct
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
+    MoveData { flags:0, base_power:0, accuracy:100,
         category:MoveCategory::Status, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [793] False Surrender
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [794] Meteor Assault
-    MoveData { flags:MoveFlags::RECHARGE, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:150, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [795] Eternabeam
-    MoveData { flags:MoveFlags::RECHARGE, base_power:160, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:160, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [796] Steel Beam
-    MoveData { flags:0, base_power:140, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:140, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [797] Expanding Force
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ExpandingForce, secondary_status:0 },
     // [798] Steel Roller
-    MoveData { flags:MoveFlags::CONTACT, base_power:130, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:130, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [799] Scale Shot
-    MoveData { flags:0, base_power:25, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:25, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:5,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [800] Meteor Beam
-    MoveData { flags:MoveFlags::CHARGE, base_power:120, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:120, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeMeteorBeam, secondary_status:0 },
     // [801] Shell Side Arm
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [802] Misty Explosion
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [803] Grassy Glide
-    MoveData { flags:MoveFlags::CONTACT, base_power:55, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:55, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [804] Rising Voltage
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::RisingVoltage, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [805] Terrain Pulse
-    MoveData { flags:MoveFlags::PULSE, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PULSE | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [806] Skitter Smack
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [807] Burning Jealousy
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [808] Lash Out
-    MoveData { flags:MoveFlags::CONTACT, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [809] Poltergeist
-    MoveData { flags:0, base_power:110, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:110, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [810] Corrosive Gas
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:100,
-        category:MoveCategory::Status, move_type:Type::Poison,
+    // [810] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
@@ -5694,125 +5694,125 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [812] Flip Turn
-    MoveData { flags:MoveFlags::CONTACT, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::ForceSwitch, secondary_status:0 },
     // [813] Triple Axel
-    MoveData { flags:MoveFlags::CONTACT, base_power:20, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:20, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:3, multihit_hi:3,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [814] Dual Wingbeat
-    MoveData { flags:MoveFlags::CONTACT, base_power:40, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [815] Scorching Sands
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [816] Jungle Healing
-    MoveData { flags:MoveFlags::HEAL | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::BYPASSSUB | MoveFlags::HEAL, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [817] Wicked Blow
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [818] Surging Strikes
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:25, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:25, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:3, multihit_hi:3,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [819] Thunder Cage
-    MoveData { flags:0, base_power:80, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [820] Dragon Energy
-    MoveData { flags:0, base_power:150, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [821] Freezing Glare
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:10, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:6 },
     // [822] Fiery Wrath
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [823] Thunderous Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [824] Glacial Lance
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [825] Astral Barrage
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [826] Eerie Spell
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [827] Dire Claw
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [828] Psyshield Bash
-    MoveData { flags:MoveFlags::CONTACT, base_power:70, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [829] Power Shift
+    // [829] —
     MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
@@ -5820,49 +5820,49 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [830] Stone Axe
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:65, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:65, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [831] Springtide Storm
-    MoveData { flags:MoveFlags::WIND, base_power:100, accuracy:80,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:100, accuracy:80,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [832] Mystical Power
-    MoveData { flags:0, base_power:70, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [833] Raging Fury
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::Thrash, secondary_status:0 },
     // [834] Wave Crash
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:-33, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [835] Chloroblast
-    MoveData { flags:0, base_power:150, accuracy:95,
+    MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:95,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [836] Mountain Gale
-    MoveData { flags:0, base_power:100, accuracy:85,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:85,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -5876,32 +5876,32 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [838] Headlong Rush
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [839] Barb Barrage
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:3 },
     // [840] Esper Wing
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [841] Bitter Malice
-    MoveData { flags:0, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [842] Shelter
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -5911,42 +5911,42 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [843] Triple Arrows
-    MoveData { flags:0, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [844] Infernal Parade
-    MoveData { flags:0, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [845] Ceaseless Edge
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:65, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:65, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [846] Bleakwind Storm
-    MoveData { flags:MoveFlags::WIND, base_power:100, accuracy:80,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:100, accuracy:80,
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:-1,
+        secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [847] Wildbolt Storm
-    MoveData { flags:MoveFlags::WIND, base_power:100, accuracy:80,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:100, accuracy:80,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:2 },
     // [848] Sandsear Storm
-    MoveData { flags:MoveFlags::WIND, base_power:100, accuracy:80,
+    MoveData { flags:MoveFlags::WIND | MoveFlags::PROTECT, base_power:100, accuracy:80,
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -5967,84 +5967,84 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [851] Tera Blast
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [852] Silk Trap
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [853] Axe Kick
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:0, drain:-50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:30, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [854] Last Respects
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [855] Lumina Crash
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-2,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [856] Order Up
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [857] Jet Punch
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:60, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:60, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [858] Spicy Extract
-    MoveData { flags:MoveFlags::REFLECTABLE, base_power:0, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [859] Spin Out
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [860] Population Bomb
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:20, accuracy:90,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:20, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:10, multihit_hi:10,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [861] Ice Spinner
-    MoveData { flags:MoveFlags::CONTACT, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [862] Glaive Rush
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -6058,21 +6058,21 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [864] Salt Cure
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [865] Triple Dive
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:3, multihit_hi:3,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [866] Mortal Spin
-    MoveData { flags:MoveFlags::CONTACT, base_power:30, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -6093,77 +6093,77 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [869] Kowtow Cleave
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:85, accuracy:0,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:85, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [870] Flower Trick
-    MoveData { flags:0, base_power:70, accuracy:0,
+    MoveData { flags:MoveFlags::PROTECT, base_power:70, accuracy:0,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [871] Torch Song
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [872] Aqua Step
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::DANCE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::DANCE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [873] Raging Bull
-    MoveData { flags:MoveFlags::CONTACT, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [874] Make It Rain
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [875] Psyblade
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::Psyblade, secondary_status:0 },
     // [876] Hydro Steam
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [877] Ruination
-    MoveData { flags:0, base_power:0, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [878] Collision Course
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [879] Electro Drift
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -6198,25 +6198,25 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [884] Pounce
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [885] Trailblaze
-    MoveData { flags:MoveFlags::CONTACT, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [886] Chilling Water
-    MoveData { flags:0, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:100, secondary_stat:-1,
+        secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [887] Hyper Drill
     MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:100,
@@ -6226,154 +6226,154 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [888] Twin Beam
-    MoveData { flags:0, base_power:40, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [889] Rage Fist
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH, base_power:50, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:50, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [890] Armor Cannon
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [891] Bitter Blade
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::HEAL, base_power:90, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::SLICE | MoveFlags::PROTECT | MoveFlags::HEAL, base_power:90, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [892] Double Shock
-    MoveData { flags:MoveFlags::CONTACT, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [893] Gigaton Hammer
-    MoveData { flags:0, base_power:160, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:160, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [894] Comeuppance
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [895] Aqua Cutter
-    MoveData { flags:MoveFlags::SLICE, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:70, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Water,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
-    // [896] Blazing Torque
-    MoveData { flags:0, base_power:80, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Fire,
+    // [896] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:1 },
-    // [897] Wicked Torque
-    MoveData { flags:0, base_power:80, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Dark,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [897] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:10, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:5 },
-    // [898] Noxious Torque
-    MoveData { flags:0, base_power:100, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Poison,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [898] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:3 },
-    // [899] Combat Torque
-    MoveData { flags:0, base_power:100, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Fighting,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [899] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:2 },
-    // [900] Magical Torque
-    MoveData { flags:0, base_power:100, accuracy:100,
-        category:MoveCategory::Physical, move_type:Type::Fairy,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [900] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [901] Blood Moon
-    MoveData { flags:0, base_power:140, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:140, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [902] Matcha Gotcha
-    MoveData { flags:MoveFlags::HEAL, base_power:80, accuracy:90,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::HEAL, base_power:80, accuracy:90,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:20, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:1 },
     // [903] Syrup Bomb
-    MoveData { flags:0, base_power:60, accuracy:85,
+    MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:60, accuracy:85,
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [904] Ivy Cudgel
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Grass,
-        var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:2, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [905] Electro Shot
-    MoveData { flags:MoveFlags::CHARGE, base_power:130, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:130, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0 },
+        effect:MoveEffect::ChargeElectroShot, secondary_status:0 },
     // [906] Tera Starstorm
-    MoveData { flags:0, base_power:120, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [907] Fickle Beam
-    MoveData { flags:0, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [908] Burning Bulwark
-    MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
+    MoveData { flags:0, base_power:0, accuracy:0,
         category:MoveCategory::Status, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:4,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::Protect, secondary_status:0 },
     // [909] Thunderclap
-    MoveData { flags:0, base_power:70, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT | MoveFlags::RECHARGE, base_power:70, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:1,
         multihit_lo:0, multihit_hi:0,
@@ -6387,14 +6387,14 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [911] Tachyon Cutter
-    MoveData { flags:MoveFlags::SLICE, base_power:50, accuracy:0,
+    MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:50, accuracy:0,
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:2, multihit_hi:2,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [912] Hard Press
-    MoveData { flags:MoveFlags::CONTACT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
@@ -6408,50 +6408,610 @@ pub static GEN_MOVES: &[MoveData] = &[
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [914] Alluring Voice
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:80, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [915] Temper Flare
-    MoveData { flags:MoveFlags::CONTACT, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [916] Supercell Slam
-    MoveData { flags:MoveFlags::CONTACT, base_power:100, accuracy:95,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:95,
         category:MoveCategory::Physical, move_type:Type::Electric,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::None, crit_ratio:0, drain:-50, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [917] Psychic Noise
-    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:75, accuracy:100,
+    MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB | MoveFlags::PROTECT, base_power:75, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [918] Upper Hand
-    MoveData { flags:MoveFlags::CONTACT, base_power:65, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:65, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:3,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:100, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0 },
     // [919] Malignant Chain
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:50, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:4 },
     // [920] Nihil Light
-    MoveData { flags:0, base_power:100, accuracy:100,
+    MoveData { flags:MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Dragon,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [921] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [922] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [923] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [924] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [925] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [926] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [927] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [928] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [929] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [930] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [931] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [932] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [933] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [934] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [935] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [936] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [937] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [938] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [939] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [940] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [941] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [942] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [943] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [944] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [945] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [946] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [947] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [948] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [949] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [950] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [951] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [952] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [953] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [954] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [955] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [956] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [957] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [958] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [959] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [960] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [961] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [962] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [963] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [964] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [965] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [966] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [967] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [968] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [969] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [970] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [971] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [972] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [973] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [974] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [975] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [976] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [977] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [978] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [979] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [980] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [981] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [982] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [983] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [984] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [985] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [986] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [987] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [988] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [989] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [990] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [991] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [992] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [993] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [994] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [995] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [996] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [997] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [998] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [999] —
+    MoveData { flags:0, base_power:0, accuracy:0,
+        category:MoveCategory::Status, move_type:Type::Normal,
+        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        multihit_lo:0, multihit_hi:0,
+        secondary_chance:0, secondary_stat:0,
+        effect:MoveEffect::None, secondary_status:0 },
+    // [1000] G-Max Befuddle
+    MoveData { flags:0, base_power:10, accuracy:0,
+        category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit_lo:0, multihit_hi:0,
         secondary_chance:0, secondary_stat:0,
@@ -6459,928 +7019,1010 @@ pub static GEN_MOVES: &[MoveData] = &[
 ];
 
 pub static GEN_MOVE_META: &[MoveMeta] = &[
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Any },
-    MoveMeta { pp:35, target:MoveTarget::Any },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Any },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllySide },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Any },
-    MoveMeta { pp:20, target:MoveTarget::Any },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:25, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Self_ },
-    MoveMeta { pp:40, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::AllySide },
-    MoveMeta { pp:30, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::AllySide },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Any },
-    MoveMeta { pp:40, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::FoeSide },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::All },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::AllySide },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::AllySide },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:35, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::All },
-    MoveMeta { pp:5, target:MoveTarget::All },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllyOrSelf },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllySide },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Any },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Any },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Any },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::All },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Any },
-    MoveMeta { pp:15, target:MoveTarget::AllySide },
-    MoveMeta { pp:30, target:MoveTarget::AllyOrSelf },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::AllySide },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::FoeSide },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Any },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Any },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Any },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::All },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::FoeSide },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::AllySide },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllySide },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Any },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Any },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::AllySide },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::FoeSide },
-    MoveMeta { pp:25, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:25, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllySide },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::AllyOrSelf },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::AllySide },
-    MoveMeta { pp:30, target:MoveTarget::AllySide },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:40, target:MoveTarget::Self_ },
-    MoveMeta { pp:40, target:MoveTarget::AllyOrSelf },
-    MoveMeta { pp:30, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Any },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Any },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:0, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:30, target:MoveTarget::Self_ },
-    MoveMeta { pp:20, target:MoveTarget::AllySide },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:20, target:MoveTarget::AllySide },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Self_ },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:40, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:40, target:MoveTarget::AllAdjacent },
-    MoveMeta { pp:10, target:MoveTarget::AllyOrSelf },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:1, target:MoveTarget::Self_ },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:10, target:MoveTarget::All },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:20, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllAdjacentFoes },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Self_ },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::AllyOrSelf },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::Normal },
-    MoveMeta { pp:15, target:MoveTarget::Normal },
-    MoveMeta { pp:5, target:MoveTarget::Normal },
-    MoveMeta { pp:10, target:MoveTarget::AllAdjacentFoes },
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [0]
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [1] Pound
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [2] Karate Chop
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [3] Double Slap
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [4] Comet Punch
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [5] Mega Punch
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [6] Pay Day
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [7] Fire Punch
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [8] Ice Punch
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [9] Thunder Punch
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [10] Scratch
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [11] Vise Grip
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [12] Guillotine
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [13] Razor Wind
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [14] Swords Dance
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [15]
+    MoveMeta { pp: 35, target: MoveTarget::Any }, // [16] Gust
+    MoveMeta { pp: 35, target: MoveTarget::Any }, // [17] Wing Attack
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [18] Whirlwind
+    MoveMeta { pp: 15, target: MoveTarget::Any }, // [19] Fly
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [20] Bind
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [21] Slam
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [22] Vine Whip
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [23] Stomp
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [24] Double Kick
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [25] Mega Kick
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [26] Jump Kick
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [27] Rolling Kick
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [28] Sand Attack
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [29] Headbutt
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [30] Horn Attack
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [31] Fury Attack
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [32] Horn Drill
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [33] Tackle
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [34] Body Slam
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [35] Wrap
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [36] Take Down
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [37] Thrash
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [38] Double-Edge
+    MoveMeta { pp: 30, target: MoveTarget::AllAdjacentFoes }, // [39] Tail Whip
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [40] Poison Sting
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [41] Twineedle
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [42] Pin Missile
+    MoveMeta { pp: 30, target: MoveTarget::AllAdjacentFoes }, // [43] Leer
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [44] Bite
+    MoveMeta { pp: 40, target: MoveTarget::AllAdjacentFoes }, // [45] Growl
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [46] Roar
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [47] Sing
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [48] Supersonic
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [49] Sonic Boom
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [50] Disable
+    MoveMeta { pp: 30, target: MoveTarget::AllAdjacentFoes }, // [51] Acid
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [52] Ember
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [53] Flamethrower
+    MoveMeta { pp: 30, target: MoveTarget::AllySide }, // [54] Mist
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [55] Water Gun
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [56] Hydro Pump
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacent }, // [57] Surf
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [58] Ice Beam
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [59] Blizzard
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [60] Psybeam
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [61] Bubble Beam
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [62] Aurora Beam
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [63] Hyper Beam
+    MoveMeta { pp: 35, target: MoveTarget::Any }, // [64] Peck
+    MoveMeta { pp: 20, target: MoveTarget::Any }, // [65] Drill Peck
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [66] Submission
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [67] Low Kick
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [68] Counter
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [69] Seismic Toss
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [70] Strength
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [71] Absorb
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [72] Mega Drain
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [73] Leech Seed
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [74] Growth
+    MoveMeta { pp: 25, target: MoveTarget::AllAdjacentFoes }, // [75] Razor Leaf
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [76] Solar Beam
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [77] Poison Powder
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [78] Stun Spore
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [79] Sleep Powder
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [80] Petal Dance
+    MoveMeta { pp: 40, target: MoveTarget::AllAdjacentFoes }, // [81] String Shot
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [82] Dragon Rage
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [83] Fire Spin
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [84] Thunder Shock
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [85] Thunderbolt
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [86] Thunder Wave
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [87] Thunder
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [88] Rock Throw
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacent }, // [89] Earthquake
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [90] Fissure
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [91] Dig
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [92] Toxic
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [93] Confusion
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [94] Psychic
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [95] Hypnosis
+    MoveMeta { pp: 40, target: MoveTarget::Self_ }, // [96] Meditate
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [97] Agility
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [98] Quick Attack
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [99] Rage
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [100] Teleport
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [101] Night Shade
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [102] Mimic
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [103] Screech
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [104] Double Team
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [105] Recover
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [106] Harden
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [107] Minimize
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [108] Smokescreen
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [109] Confuse Ray
+    MoveMeta { pp: 40, target: MoveTarget::Self_ }, // [110] Withdraw
+    MoveMeta { pp: 40, target: MoveTarget::Self_ }, // [111] Defense Curl
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [112] Barrier
+    MoveMeta { pp: 30, target: MoveTarget::AllySide }, // [113] Light Screen
+    MoveMeta { pp: 30, target: MoveTarget::All }, // [114] Haze
+    MoveMeta { pp: 20, target: MoveTarget::AllySide }, // [115] Reflect
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [116] Focus Energy
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [117] Bide
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [118] Metronome
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [119] Mirror Move
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacent }, // [120] Self-Destruct
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [121] Egg Bomb
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [122] Lick
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [123] Smog
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [124] Sludge
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [125] Bone Club
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [126] Fire Blast
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [127] Waterfall
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [128] Clamp
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacentFoes }, // [129] Swift
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [130] Skull Bash
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [131] Spike Cannon
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [132] Constrict
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [133] Amnesia
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [134] Kinesis
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [135] Soft-Boiled
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [136] High Jump Kick
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [137] Glare
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [138] Dream Eater
+    MoveMeta { pp: 40, target: MoveTarget::AllAdjacentFoes }, // [139] Poison Gas
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [140] Barrage
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [141] Leech Life
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [142] Lovely Kiss
+    MoveMeta { pp: 5, target: MoveTarget::Any }, // [143] Sky Attack
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [144] Transform
+    MoveMeta { pp: 30, target: MoveTarget::AllAdjacentFoes }, // [145] Bubble
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [146] Dizzy Punch
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [147] Spore
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [148] Flash
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [149] Psywave
+    MoveMeta { pp: 40, target: MoveTarget::Self_ }, // [150] Splash
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [151] Acid Armor
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [152] Crabhammer
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacent }, // [153] Explosion
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [154] Fury Swipes
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [155] Bonemerang
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [156] Rest
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [157] Rock Slide
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [158] Hyper Fang
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [159] Sharpen
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [160] Conversion
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [161] Tri Attack
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [162] Super Fang
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [163] Slash
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [164] Substitute
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [165] Struggle
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [166] Sketch
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [167] Triple Kick
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [168] Thief
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [169] Spider Web
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [170] Mind Reader
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [171] Nightmare
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [172] Flame Wheel
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [173] Snore
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [174] Curse
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [175] Flail
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [176] Conversion 2
+    MoveMeta { pp: 5, target: MoveTarget::Any }, // [177] Aeroblast
+    MoveMeta { pp: 40, target: MoveTarget::AllAdjacentFoes }, // [178] Cotton Spore
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [179] Reversal
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [180] Spite
+    MoveMeta { pp: 25, target: MoveTarget::AllAdjacentFoes }, // [181] Powder Snow
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [182] Protect
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [183] Mach Punch
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [184] Scary Face
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [185] Feint Attack
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [186] Sweet Kiss
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [187] Belly Drum
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [188] Sludge Bomb
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [189] Mud-Slap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [190] Octazooka
+    MoveMeta { pp: 20, target: MoveTarget::FoeSide }, // [191] Spikes
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [192] Zap Cannon
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [193] Foresight
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [194] Destiny Bond
+    MoveMeta { pp: 5, target: MoveTarget::All }, // [195] Perish Song
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [196] Icy Wind
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [197] Detect
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [198] Bone Rush
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [199] Lock-On
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [200] Outrage
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [201] Sandstorm
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [202] Giga Drain
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [203] Endure
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [204] Charm
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [205] Rollout
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [206] False Swipe
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [207] Swagger
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [208] Milk Drink
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [209] Spark
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [210] Fury Cutter
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [211] Steel Wing
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [212] Mean Look
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [213] Attract
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [214] Sleep Talk
+    MoveMeta { pp: 5, target: MoveTarget::AllySide }, // [215] Heal Bell
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [216] Return
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [217] Present
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [218] Frustration
+    MoveMeta { pp: 25, target: MoveTarget::AllySide }, // [219] Safeguard
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [220] Pain Split
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [221] Sacred Fire
+    MoveMeta { pp: 30, target: MoveTarget::AllAdjacent }, // [222] Magnitude
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [223] Dynamic Punch
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [224] Megahorn
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [225] Dragon Breath
+    MoveMeta { pp: 40, target: MoveTarget::Self_ }, // [226] Baton Pass
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [227] Encore
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [228] Pursuit
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [229] Rapid Spin
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacentFoes }, // [230] Sweet Scent
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [231] Iron Tail
+    MoveMeta { pp: 35, target: MoveTarget::Normal }, // [232] Metal Claw
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [233] Vital Throw
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [234] Morning Sun
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [235] Synthesis
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [236] Moonlight
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [237] Hidden Power
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [238] Cross Chop
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacentFoes }, // [239] Twister
+    MoveMeta { pp: 5, target: MoveTarget::All }, // [240] Rain Dance
+    MoveMeta { pp: 5, target: MoveTarget::All }, // [241] Sunny Day
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [242] Crunch
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [243] Mirror Coat
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [244] Psych Up
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [245] Extreme Speed
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [246] Ancient Power
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [247] Shadow Ball
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [248] Future Sight
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [249] Rock Smash
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [250] Whirlpool
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [251] Beat Up
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [252] Fake Out
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [253] Uproar
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [254] Stockpile
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [255] Spit Up
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [256] Swallow
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [257] Heat Wave
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [258] Hail
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [259] Torment
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [260] Flatter
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [261] Will-O-Wisp
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [262] Memento
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [263] Facade
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [264] Focus Punch
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [265] Smelling Salts
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [266] Follow Me
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [267] Nature Power
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [268] Charge
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [269] Taunt
+    MoveMeta { pp: 20, target: MoveTarget::AllyOrSelf }, // [270] Helping Hand
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [271] Trick
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [272] Role Play
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [273] Wish
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [274] Assist
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [275] Ingrain
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [276] Superpower
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [277] Magic Coat
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [278] Recycle
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [279] Revenge
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [280] Brick Break
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [281] Yawn
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [282] Knock Off
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [283] Endeavor
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [284] Eruption
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [285] Skill Swap
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [286] Imprison
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [287] Refresh
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [288] Grudge
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [289] Snatch
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [290] Secret Power
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [291] Dive
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [292] Arm Thrust
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [293] Camouflage
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [294] Tail Glow
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [295] Luster Purge
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [296] Mist Ball
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [297] Feather Dance
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacent }, // [298] Teeter Dance
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [299] Blaze Kick
+    MoveMeta { pp: 15, target: MoveTarget::All }, // [300] Mud Sport
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [301] Ice Ball
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [302] Needle Arm
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [303] Slack Off
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [304] Hyper Voice
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [305] Poison Fang
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [306] Crush Claw
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [307] Blast Burn
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [308] Hydro Cannon
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [309] Meteor Mash
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [310] Astonish
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [311] Weather Ball
+    MoveMeta { pp: 5, target: MoveTarget::AllySide }, // [312] Aromatherapy
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [313] Fake Tears
+    MoveMeta { pp: 25, target: MoveTarget::AllAdjacentFoes }, // [314] Air Cutter
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [315] Overheat
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [316] Odor Sleuth
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [317] Rock Tomb
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [318] Silver Wind
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [319] Metal Sound
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [320] Grass Whistle
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [321] Tickle
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [322] Cosmic Power
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [323] Water Spout
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [324] Signal Beam
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [325] Shadow Punch
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [326] Extrasensory
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [327] Sky Uppercut
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [328] Sand Tomb
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [329] Sheer Cold
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [330] Muddy Water
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [331] Bullet Seed
+    MoveMeta { pp: 20, target: MoveTarget::Any }, // [332] Aerial Ace
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [333] Icicle Spear
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [334] Iron Defense
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [335] Block
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [336] Howl
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [337] Dragon Claw
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [338] Frenzy Plant
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [339] Bulk Up
+    MoveMeta { pp: 5, target: MoveTarget::Any }, // [340] Bounce
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [341] Mud Shot
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [342] Poison Tail
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [343] Covet
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [344] Volt Tackle
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [345] Magical Leaf
+    MoveMeta { pp: 15, target: MoveTarget::All }, // [346] Water Sport
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [347] Calm Mind
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [348] Leaf Blade
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [349] Dragon Dance
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [350] Rock Blast
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [351] Shock Wave
+    MoveMeta { pp: 20, target: MoveTarget::Any }, // [352] Water Pulse
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [353] Doom Desire
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [354] Psycho Boost
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [355] Roost
+    MoveMeta { pp: 5, target: MoveTarget::All }, // [356] Gravity
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [357] Miracle Eye
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [358] Wake-Up Slap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [359] Hammer Arm
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [360] Gyro Ball
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [361] Healing Wish
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [362] Brine
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [363] Natural Gift
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [364] Feint
+    MoveMeta { pp: 20, target: MoveTarget::Any }, // [365] Pluck
+    MoveMeta { pp: 15, target: MoveTarget::AllySide }, // [366] Tailwind
+    MoveMeta { pp: 30, target: MoveTarget::AllyOrSelf }, // [367] Acupressure
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [368] Metal Burst
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [369] U-turn
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [370] Close Combat
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [371] Payback
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [372] Assurance
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [373] Embargo
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [374] Fling
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [375] Psycho Shift
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [376] Trump Card
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [377] Heal Block
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [378] Wring Out
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [379] Power Trick
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [380] Gastro Acid
+    MoveMeta { pp: 30, target: MoveTarget::AllySide }, // [381] Lucky Chant
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [382] Me First
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [383] Copycat
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [384] Power Swap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [385] Guard Swap
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [386] Punishment
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [387] Last Resort
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [388] Worry Seed
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [389] Sucker Punch
+    MoveMeta { pp: 20, target: MoveTarget::FoeSide }, // [390] Toxic Spikes
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [391] Heart Swap
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [392] Aqua Ring
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [393] Magnet Rise
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [394] Flare Blitz
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [395] Force Palm
+    MoveMeta { pp: 20, target: MoveTarget::Any }, // [396] Aura Sphere
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [397] Rock Polish
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [398] Poison Jab
+    MoveMeta { pp: 15, target: MoveTarget::Any }, // [399] Dark Pulse
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [400] Night Slash
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [401] Aqua Tail
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [402] Seed Bomb
+    MoveMeta { pp: 15, target: MoveTarget::Any }, // [403] Air Slash
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [404] X-Scissor
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [405] Bug Buzz
+    MoveMeta { pp: 10, target: MoveTarget::Any }, // [406] Dragon Pulse
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [407] Dragon Rush
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [408] Power Gem
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [409] Drain Punch
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [410] Vacuum Wave
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [411] Focus Blast
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [412] Energy Ball
+    MoveMeta { pp: 15, target: MoveTarget::Any }, // [413] Brave Bird
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [414] Earth Power
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [415] Switcheroo
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [416] Giga Impact
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [417] Nasty Plot
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [418] Bullet Punch
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [419] Avalanche
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [420] Ice Shard
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [421] Shadow Claw
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [422] Thunder Fang
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [423] Ice Fang
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [424] Fire Fang
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [425] Shadow Sneak
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [426] Mud Bomb
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [427] Psycho Cut
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [428] Zen Headbutt
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [429] Mirror Shot
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [430] Flash Cannon
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [431] Rock Climb
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [432] Defog
+    MoveMeta { pp: 5, target: MoveTarget::All }, // [433] Trick Room
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [434] Draco Meteor
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacent }, // [435] Discharge
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacent }, // [436] Lava Plume
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [437] Leaf Storm
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [438] Power Whip
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [439] Rock Wrecker
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [440] Cross Poison
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [441] Gunk Shot
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [442] Iron Head
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [443] Magnet Bomb
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [444] Stone Edge
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacentFoes }, // [445] Captivate
+    MoveMeta { pp: 20, target: MoveTarget::FoeSide }, // [446] Stealth Rock
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [447] Grass Knot
+    MoveMeta { pp: 20, target: MoveTarget::Any }, // [448] Chatter
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [449] Judgment
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [450] Bug Bite
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [451] Charge Beam
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [452] Wood Hammer
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [453] Aqua Jet
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [454] Attack Order
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [455] Defend Order
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [456] Heal Order
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [457] Head Smash
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [458] Double Hit
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [459] Roar of Time
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [460] Spacial Rend
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [461] Lunar Dance
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [462] Crush Grip
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [463] Magma Storm
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [464] Dark Void
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [465] Seed Flare
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [466] Ominous Wind
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [467] Shadow Force
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [468] Hone Claws
+    MoveMeta { pp: 10, target: MoveTarget::AllySide }, // [469] Wide Guard
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [470] Guard Split
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [471] Power Split
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [472] Wonder Room
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [473] Psyshock
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [474] Venoshock
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [475] Autotomize
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [476] Rage Powder
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [477] Telekinesis
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [478] Magic Room
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [479] Smack Down
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [480] Storm Throw
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [481] Flame Burst
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacent }, // [482] Sludge Wave
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [483] Quiver Dance
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [484] Heavy Slam
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacent }, // [485] Synchronoise
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [486] Electro Ball
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [487] Soak
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [488] Flame Charge
+    MoveMeta { pp: 20, target: MoveTarget::Self_ }, // [489] Coil
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [490] Low Sweep
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [491] Acid Spray
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [492] Foul Play
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [493] Simple Beam
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [494] Entrainment
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [495] After You
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [496] Round
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [497] Echoed Voice
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [498] Chip Away
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [499] Clear Smog
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [500] Stored Power
+    MoveMeta { pp: 15, target: MoveTarget::AllySide }, // [501] Quick Guard
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [502] Ally Switch
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [503] Scald
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [504] Shell Smash
+    MoveMeta { pp: 10, target: MoveTarget::Any }, // [505] Heal Pulse
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [506] Hex
+    MoveMeta { pp: 10, target: MoveTarget::Any }, // [507] Sky Drop
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [508] Shift Gear
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [509] Circle Throw
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [510] Incinerate
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [511] Quash
+    MoveMeta { pp: 15, target: MoveTarget::Any }, // [512] Acrobatics
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [513] Reflect Type
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [514] Retaliate
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [515] Final Gambit
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [516] Bestow
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [517] Inferno
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [518] Water Pledge
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [519] Fire Pledge
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [520] Grass Pledge
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [521] Volt Switch
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacentFoes }, // [522] Struggle Bug
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacent }, // [523] Bulldoze
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [524] Frost Breath
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [525] Dragon Tail
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [526] Work Up
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [527] Electroweb
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [528] Wild Charge
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [529] Drill Run
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [530] Dual Chop
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [531] Heart Stamp
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [532] Horn Leech
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [533] Sacred Sword
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [534] Razor Shell
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [535] Heat Crash
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [536] Leaf Tornado
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [537] Steamroller
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [538] Cotton Guard
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [539] Night Daze
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [540] Psystrike
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [541] Tail Slap
+    MoveMeta { pp: 10, target: MoveTarget::Any }, // [542] Hurricane
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [543] Head Charge
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [544] Gear Grind
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacent }, // [545] Searing Shot
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [546] Techno Blast
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [547] Relic Song
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [548] Secret Sword
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [549] Glaciate
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [550] Bolt Strike
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [551] Blue Flare
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [552] Fiery Dance
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [553] Freeze Shock
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [554] Ice Burn
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [555] Snarl
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [556] Icicle Crash
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [557]
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [558] Fusion Flare
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [559] Fusion Bolt
+    MoveMeta { pp: 10, target: MoveTarget::Any }, // [560] Flying Press
+    MoveMeta { pp: 10, target: MoveTarget::AllySide }, // [561] Mat Block
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [562] Belch
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [563] Rototiller
+    MoveMeta { pp: 20, target: MoveTarget::FoeSide }, // [564] Sticky Web
+    MoveMeta { pp: 25, target: MoveTarget::Normal }, // [565] Fell Stinger
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [566] Phantom Force
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [567] Trick-or-Treat
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [568] Noble Roar
+    MoveMeta { pp: 25, target: MoveTarget::All }, // [569] Ion Deluge
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacent }, // [570] Parabolic Charge
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [571] Forest's Curse
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacent }, // [572] Petal Blizzard
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [573] Freeze-Dry
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [574] Disarming Voice
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [575] Parting Shot
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [576] Topsy-Turvy
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [577] Draining Kiss
+    MoveMeta { pp: 10, target: MoveTarget::AllySide }, // [578] Crafty Shield
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [579] Flower Shield
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [580] Grassy Terrain
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [581] Misty Terrain
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [582] Electrify
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [583] Play Rough
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [584] Fairy Wind
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [585] Moonblast
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacent }, // [586] Boomburst
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [587] Fairy Lock
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [588] King's Shield
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [589] Play Nice
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [590] Confide
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [591] Diamond Storm
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [592] Steam Eruption
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [593] Hyperspace Hole
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [594] Water Shuriken
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [595] Mystical Fire
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [596] Spiky Shield
+    MoveMeta { pp: 20, target: MoveTarget::AllyOrSelf }, // [597] Aromatic Mist
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [598] Eerie Impulse
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacentFoes }, // [599] Venom Drench
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [600] Powder
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [601] Geomancy
+    MoveMeta { pp: 20, target: MoveTarget::AllySide }, // [602] Magnetic Flux
+    MoveMeta { pp: 30, target: MoveTarget::AllySide }, // [603] Happy Hour
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [604] Electric Terrain
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [605] Dazzling Gleam
+    MoveMeta { pp: 40, target: MoveTarget::Self_ }, // [606] Celebrate
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [607]
+    MoveMeta { pp: 30, target: MoveTarget::Normal }, // [608] Baby-Doll Eyes
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [609] Nuzzle
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [610]
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [611] Infestation
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [612] Power-Up Punch
+    MoveMeta { pp: 10, target: MoveTarget::Any }, // [613] Oblivion Wing
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [614] Thousand Arrows
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [615] Thousand Waves
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [616] Land's Wrath
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [617] Light of Ruin
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [618] Origin Pulse
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [619] Precipice Blades
+    MoveMeta { pp: 5, target: MoveTarget::Any }, // [620] Dragon Ascent
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [621] Hyperspace Fury
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [622] Breakneck Blitz
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [623]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [624] All-Out Pummeling
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [625]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [626] Supersonic Skystrike
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [627]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [628] Acid Downpour
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [629]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [630] Tectonic Rage
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [631]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [632] Continental Crush
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [633]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [634] Savage Spin-Out
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [635]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [636] Never-Ending Nightmare
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [637]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [638] Corkscrew Crash
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [639]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [640] Inferno Overdrive
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [641]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [642] Hydro Vortex
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [643]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [644] Bloom Doom
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [645]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [646] Gigavolt Havoc
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [647]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [648] Shattered Psyche
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [649]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [650] Subzero Slammer
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [651]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [652] Devastating Drake
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [653]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [654] Black Hole Eclipse
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [655]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [656] Twinkle Tackle
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [657]
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [658] Catastropika
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [659] Shore Up
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [660] First Impression
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [661] Baneful Bunker
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [662] Spirit Shackle
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [663] Darkest Lariat
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacent }, // [664] Sparkling Aria
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [665] Ice Hammer
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [666] Floral Healing
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [667] High Horsepower
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [668] Strength Sap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [669] Solar Blade
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [670] Leafage
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [671] Spotlight
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [672] Toxic Thread
+    MoveMeta { pp: 30, target: MoveTarget::Self_ }, // [673] Laser Focus
+    MoveMeta { pp: 20, target: MoveTarget::AllySide }, // [674] Gear Up
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [675] Throat Chop
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [676] Pollen Puff
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [677] Anchor Shot
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [678] Psychic Terrain
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [679] Lunge
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [680] Fire Lash
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [681] Power Trip
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [682]
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [683] Speed Swap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [684] Smart Strike
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [685] Purify
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [686] Revelation Dance
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [687] Core Enforcer
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [688] Trop Kick
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [689] Instruct
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [690] Beak Blast
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [691] Clanging Scales
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [692] Dragon Hammer
+    MoveMeta { pp: 20, target: MoveTarget::AllAdjacent }, // [693] Brutal Swing
+    MoveMeta { pp: 20, target: MoveTarget::AllySide }, // [694] Aurora Veil
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [695] Sinister Arrow Raid
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [696] Malicious Moonsault
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [697] Oceanic Operetta
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [698] Guardian of Alola
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [699] Soul-Stealing 7-Star Strike
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [700] Stoked Sparksurfer
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [701] Pulverizing Pancake
+    MoveMeta { pp: 1, target: MoveTarget::Self_ }, // [702] Extreme Evoboost
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [703] Genesis Supernova
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [704] Shell Trap
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [705] Fleur Cannon
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [706] Psychic Fangs
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [707] Stomping Tantrum
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [708] Shadow Bone
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [709] Accelerock
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [710] Liquidation
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [711] Prismatic Laser
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [712] Spectral Thief
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [713] Sunsteel Strike
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [714] Moongeist Beam
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [715] Tearful Look
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [716] Zing Zap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [717] Nature's Madness
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [718] Multi-Attack
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [719]
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacent }, // [720] Mind Blown
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [721] Plasma Fists
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [722] Photon Geyser
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [723] Light That Burns the Sky
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [724] Searing Sunraze Smash
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [725] Menacing Moonraze Maelstrom
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [726] Let's Snuggle Forever
+    MoveMeta { pp: 1, target: MoveTarget::Normal }, // [727] Splintered Stormshards
+    MoveMeta { pp: 1, target: MoveTarget::AllAdjacentFoes }, // [728] Clangorous Soulblaze
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [729]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [730]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [731]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [732]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [733]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [734]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [735]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [736]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [737]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [738]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [739]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [740]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [741]
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [742] Double Iron Bash
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [743] Max Guard
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [744] Dynamax Cannon
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [745] Snipe Shot
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [746] Jaw Lock
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [747] Stuff Cheeks
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [748] No Retreat
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [749] Tar Shot
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [750] Magic Powder
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [751] Dragon Darts
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [752] Teatime
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [753] Octolock
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [754] Bolt Beak
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [755] Fishious Rend
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [756] Court Change
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [757] Max Flare
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [758] Max Flutterby
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [759] Max Lightning
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [760] Max Strike
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [761] Max Knuckle
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [762] Max Phantasm
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [763] Max Hailstorm
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [764] Max Ooze
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [765] Max Geyser
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [766] Max Airstream
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [767] Max Starfall
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [768] Max Wyrmwind
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [769] Max Mindstorm
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [770] Max Rockfall
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [771] Max Quake
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [772] Max Darkness
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [773] Max Overgrowth
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [774] Max Steelspike
+    MoveMeta { pp: 5, target: MoveTarget::Self_ }, // [775] Clangorous Soul
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [776] Body Press
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [777] Decorate
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [778] Drum Beating
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [779] Snap Trap
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [780] Pyro Ball
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [781] Behemoth Blade
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [782] Behemoth Bash
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [783] Aura Wheel
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [784] Breaking Swipe
+    MoveMeta { pp: 40, target: MoveTarget::Normal }, // [785] Branch Poke
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [786] Overdrive
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [787] Apple Acid
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [788] Grav Apple
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [789] Spirit Break
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [790] Strange Steam
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [791] Life Dew
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [792] Obstruct
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [793] False Surrender
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [794] Meteor Assault
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [795] Eternabeam
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [796] Steel Beam
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [797] Expanding Force
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [798] Steel Roller
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [799] Scale Shot
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [800] Meteor Beam
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [801] Shell Side Arm
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacent }, // [802] Misty Explosion
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [803] Grassy Glide
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [804] Rising Voltage
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [805] Terrain Pulse
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [806] Skitter Smack
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [807] Burning Jealousy
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [808] Lash Out
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [809] Poltergeist
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [810]
+    MoveMeta { pp: 10, target: MoveTarget::AllyOrSelf }, // [811] Coaching
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [812] Flip Turn
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [813] Triple Axel
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [814] Dual Wingbeat
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [815] Scorching Sands
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [816] Jungle Healing
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [817] Wicked Blow
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [818] Surging Strikes
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [819] Thunder Cage
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [820] Dragon Energy
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [821] Freezing Glare
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [822] Fiery Wrath
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [823] Thunderous Kick
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [824] Glacial Lance
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [825] Astral Barrage
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [826] Eerie Spell
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [827] Dire Claw
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [828] Psyshield Bash
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [829]
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [830] Stone Axe
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [831] Springtide Storm
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [832] Mystical Power
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [833] Raging Fury
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [834] Wave Crash
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [835] Chloroblast
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [836] Mountain Gale
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [837] Victory Dance
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [838] Headlong Rush
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [839] Barb Barrage
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [840] Esper Wing
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [841] Bitter Malice
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [842] Shelter
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [843] Triple Arrows
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [844] Infernal Parade
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [845] Ceaseless Edge
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [846] Bleakwind Storm
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [847] Wildbolt Storm
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [848] Sandsear Storm
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [849] Lunar Blessing
+    MoveMeta { pp: 15, target: MoveTarget::Self_ }, // [850] Take Heart
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [851] Tera Blast
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [852] Silk Trap
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [853] Axe Kick
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [854] Last Respects
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [855] Lumina Crash
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [856] Order Up
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [857] Jet Punch
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [858] Spicy Extract
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [859] Spin Out
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [860] Population Bomb
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [861] Ice Spinner
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [862] Glaive Rush
+    MoveMeta { pp: 1, target: MoveTarget::Self_ }, // [863] Revival Blessing
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [864] Salt Cure
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [865] Triple Dive
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [866] Mortal Spin
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [867] Doodle
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [868] Fillet Away
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [869] Kowtow Cleave
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [870] Flower Trick
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [871] Torch Song
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [872] Aqua Step
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [873] Raging Bull
+    MoveMeta { pp: 5, target: MoveTarget::AllAdjacentFoes }, // [874] Make It Rain
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [875] Psyblade
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [876] Hydro Steam
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [877] Ruination
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [878] Collision Course
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [879] Electro Drift
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [880] Shed Tail
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [881] Chilly Reception
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [882] Tidy Up
+    MoveMeta { pp: 10, target: MoveTarget::All }, // [883] Snowscape
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [884] Pounce
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [885] Trailblaze
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [886] Chilling Water
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [887] Hyper Drill
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [888] Twin Beam
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [889] Rage Fist
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [890] Armor Cannon
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [891] Bitter Blade
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [892] Double Shock
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [893] Gigaton Hammer
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [894] Comeuppance
+    MoveMeta { pp: 20, target: MoveTarget::Normal }, // [895] Aqua Cutter
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [896]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [897]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [898]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [899]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [900]
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [901] Blood Moon
+    MoveMeta { pp: 15, target: MoveTarget::AllAdjacentFoes }, // [902] Matcha Gotcha
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [903] Syrup Bomb
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [904] Ivy Cudgel
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [905] Electro Shot
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [906] Tera Starstorm
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [907] Fickle Beam
+    MoveMeta { pp: 10, target: MoveTarget::Self_ }, // [908] Burning Bulwark
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [909] Thunderclap
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [910] Mighty Cleave
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [911] Tachyon Cutter
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [912] Hard Press
+    MoveMeta { pp: 15, target: MoveTarget::AllyOrSelf }, // [913] Dragon Cheer
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [914] Alluring Voice
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [915] Temper Flare
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [916] Supercell Slam
+    MoveMeta { pp: 10, target: MoveTarget::Normal }, // [917] Psychic Noise
+    MoveMeta { pp: 15, target: MoveTarget::Normal }, // [918] Upper Hand
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [919] Malignant Chain
+    MoveMeta { pp: 10, target: MoveTarget::AllAdjacentFoes }, // [920] Nihil Light
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [921]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [922]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [923]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [924]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [925]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [926]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [927]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [928]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [929]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [930]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [931]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [932]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [933]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [934]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [935]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [936]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [937]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [938]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [939]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [940]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [941]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [942]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [943]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [944]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [945]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [946]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [947]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [948]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [949]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [950]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [951]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [952]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [953]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [954]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [955]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [956]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [957]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [958]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [959]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [960]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [961]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [962]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [963]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [964]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [965]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [966]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [967]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [968]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [969]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [970]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [971]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [972]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [973]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [974]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [975]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [976]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [977]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [978]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [979]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [980]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [981]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [982]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [983]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [984]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [985]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [986]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [987]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [988]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [989]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [990]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [991]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [992]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [993]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [994]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [995]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [996]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [997]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [998]
+    MoveMeta { pp: 0, target: MoveTarget::Normal }, // [999]
+    MoveMeta { pp: 5, target: MoveTarget::Normal }, // [1000] G-Max Befuddle
 ];
+
+// ── Move ID constants ────────────────────────────────────────────
 
 pub const MOVE_POUND: usize = 1;
 pub const MOVE_KARATE_CHOP: usize = 2;
@@ -7396,7 +8038,6 @@ pub const MOVE_VISE_GRIP: usize = 11;
 pub const MOVE_GUILLOTINE: usize = 12;
 pub const MOVE_RAZOR_WIND: usize = 13;
 pub const MOVE_SWORDS_DANCE: usize = 14;
-pub const MOVE_CUT: usize = 15;
 pub const MOVE_GUST: usize = 16;
 pub const MOVE_WING_ATTACK: usize = 17;
 pub const MOVE_WHIRLWIND: usize = 18;
@@ -7938,7 +8579,6 @@ pub const MOVE_FREEZE_SHOCK: usize = 553;
 pub const MOVE_ICE_BURN: usize = 554;
 pub const MOVE_SNARL: usize = 555;
 pub const MOVE_ICICLE_CRASH: usize = 556;
-pub const MOVE_V_CREATE: usize = 557;
 pub const MOVE_FUSION_FLARE: usize = 558;
 pub const MOVE_FUSION_BOLT: usize = 559;
 pub const MOVE_FLYING_PRESS: usize = 560;
@@ -7988,10 +8628,8 @@ pub const MOVE_HAPPY_HOUR: usize = 603;
 pub const MOVE_ELECTRIC_TERRAIN: usize = 604;
 pub const MOVE_DAZZLING_GLEAM: usize = 605;
 pub const MOVE_CELEBRATE: usize = 606;
-pub const MOVE_HOLD_HANDS: usize = 607;
 pub const MOVE_BABY_DOLL_EYES: usize = 608;
 pub const MOVE_NUZZLE: usize = 609;
-pub const MOVE_HOLD_BACK: usize = 610;
 pub const MOVE_INFESTATION: usize = 611;
 pub const MOVE_POWER_UP_PUNCH: usize = 612;
 pub const MOVE_OBLIVION_WING: usize = 613;
@@ -8045,7 +8683,6 @@ pub const MOVE_PSYCHIC_TERRAIN: usize = 678;
 pub const MOVE_LUNGE: usize = 679;
 pub const MOVE_FIRE_LASH: usize = 680;
 pub const MOVE_POWER_TRIP: usize = 681;
-pub const MOVE_BURN_UP: usize = 682;
 pub const MOVE_SPEED_SWAP: usize = 683;
 pub const MOVE_SMART_STRIKE: usize = 684;
 pub const MOVE_PURIFY: usize = 685;
@@ -8082,7 +8719,6 @@ pub const MOVE_TEARFUL_LOOK: usize = 715;
 pub const MOVE_ZING_ZAP: usize = 716;
 pub const MOVE_NATURE_S_MADNESS: usize = 717;
 pub const MOVE_MULTI_ATTACK: usize = 718;
-pub const MOVE_10_000_000_VOLT_THUNDERBOLT: usize = 719;
 pub const MOVE_MIND_BLOWN: usize = 720;
 pub const MOVE_PLASMA_FISTS: usize = 721;
 pub const MOVE_PHOTON_GEYSER: usize = 722;
@@ -8092,19 +8728,6 @@ pub const MOVE_MENACING_MOONRAZE_MAELSTROM: usize = 725;
 pub const MOVE_LET_S_SNUGGLE_FOREVER: usize = 726;
 pub const MOVE_SPLINTERED_STORMSHARDS: usize = 727;
 pub const MOVE_CLANGOROUS_SOULBLAZE: usize = 728;
-pub const MOVE_ZIPPY_ZAP: usize = 729;
-pub const MOVE_SPLISHY_SPLASH: usize = 730;
-pub const MOVE_FLOATY_FALL: usize = 731;
-pub const MOVE_PIKA_PAPOW: usize = 732;
-pub const MOVE_BOUNCY_BUBBLE: usize = 733;
-pub const MOVE_BUZZY_BUZZ: usize = 734;
-pub const MOVE_SIZZLY_SLIDE: usize = 735;
-pub const MOVE_GLITZY_GLOW: usize = 736;
-pub const MOVE_BADDY_BAD: usize = 737;
-pub const MOVE_SAPPY_SEED: usize = 738;
-pub const MOVE_FREEZY_FROST: usize = 739;
-pub const MOVE_SPARKLY_SWIRL: usize = 740;
-pub const MOVE_VEEVEE_VOLLEY: usize = 741;
 pub const MOVE_DOUBLE_IRON_BASH: usize = 742;
 pub const MOVE_MAX_GUARD: usize = 743;
 pub const MOVE_DYNAMAX_CANNON: usize = 744;
@@ -8173,7 +8796,6 @@ pub const MOVE_SKITTER_SMACK: usize = 806;
 pub const MOVE_BURNING_JEALOUSY: usize = 807;
 pub const MOVE_LASH_OUT: usize = 808;
 pub const MOVE_POLTERGEIST: usize = 809;
-pub const MOVE_CORROSIVE_GAS: usize = 810;
 pub const MOVE_COACHING: usize = 811;
 pub const MOVE_FLIP_TURN: usize = 812;
 pub const MOVE_TRIPLE_AXEL: usize = 813;
@@ -8192,7 +8814,6 @@ pub const MOVE_ASTRAL_BARRAGE: usize = 825;
 pub const MOVE_EERIE_SPELL: usize = 826;
 pub const MOVE_DIRE_CLAW: usize = 827;
 pub const MOVE_PSYSHIELD_BASH: usize = 828;
-pub const MOVE_POWER_SHIFT: usize = 829;
 pub const MOVE_STONE_AXE: usize = 830;
 pub const MOVE_SPRINGTIDE_STORM: usize = 831;
 pub const MOVE_MYSTICAL_POWER: usize = 832;
@@ -8259,11 +8880,6 @@ pub const MOVE_DOUBLE_SHOCK: usize = 892;
 pub const MOVE_GIGATON_HAMMER: usize = 893;
 pub const MOVE_COMEUPPANCE: usize = 894;
 pub const MOVE_AQUA_CUTTER: usize = 895;
-pub const MOVE_BLAZING_TORQUE: usize = 896;
-pub const MOVE_WICKED_TORQUE: usize = 897;
-pub const MOVE_NOXIOUS_TORQUE: usize = 898;
-pub const MOVE_COMBAT_TORQUE: usize = 899;
-pub const MOVE_MAGICAL_TORQUE: usize = 900;
 pub const MOVE_BLOOD_MOON: usize = 901;
 pub const MOVE_MATCHA_GOTCHA: usize = 902;
 pub const MOVE_SYRUP_BOMB: usize = 903;
@@ -8284,3 +8900,5 @@ pub const MOVE_PSYCHIC_NOISE: usize = 917;
 pub const MOVE_UPPER_HAND: usize = 918;
 pub const MOVE_MALIGNANT_CHAIN: usize = 919;
 pub const MOVE_NIHIL_LIGHT: usize = 920;
+pub const MOVE_G_MAX_BEFUDDLE: usize = 1000;
+

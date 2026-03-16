@@ -6,7 +6,7 @@
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemData, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
-use crate::data::moves::{MoveData, MoveFlags, VarPower};
+use crate::data::moves::{MoveData, MoveFlags, MoveEffect, VarPower};
 use crate::data::types::Type;
 
 // ── 4096-scale chain helper ───────────────────────────────────────────
@@ -173,6 +173,22 @@ pub fn resolve_power(
         }
         VarPower::Facade => {
             if atk_mon.status != STATUS_NONE { 140 } else { 70 }
+        }
+        VarPower::Hex => {
+            if def_mon.status != STATUS_NONE { 130 } else { 65 }
+        }
+        VarPower::Acrobatics => {
+            if atk_mon.item_id == 0 { 110 } else { 55 }
+        }
+        VarPower::RisingVoltage => {
+            // 2× if Electric Terrain and target is grounded
+            if state.field.terrain == TERRAIN_ELECTRIC
+                && is_grounded(state, def_side)
+            {
+                140
+            } else {
+                70
+            }
         }
         _ => md.base_power,
     }
@@ -363,23 +379,82 @@ pub fn resolve_hits(md: &MoveData, ability: u16, rng: &mut impl FnMut(u32) -> u3
 
 // ── Immunity checks ───────────────────────────────────────────────────
 
-/// Check for ability-based immunities.  Returns Some(heal_amount) if the
-/// move is absorbed (e.g. Water Absorb heals 1/4), or Some(0) if just immune.
+/// Describes the side-effect of an ability-based immunity.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum AbilityImmunityEffect {
+    /// Absorb: heal the defender by the given amount.
+    Heal(u16),
+    /// Boost: raise a stat on the defender.
+    Boost(usize, i8),          // (stat_index, stages)
+    /// Flash Fire: set VOL_FLASH_FIRE on the defender.
+    FlashFire,
+    /// Pure immunity with no side effect (Levitate, Bulletproof, etc.).
+    Nullify,
+}
+
+/// Check for ability-based type immunities.
+/// Returns Some(effect) if the move is nullified, None otherwise.
 #[inline]
-pub fn ability_immunity(
+pub fn ability_type_immunity(
     state: &BattleState, def_side: usize, move_type: Type,
-) -> Option<u16> {
+) -> Option<AbilityImmunityEffect> {
     let ability = effective_ability(state, def_side);
     let def_mon = state.active_mon(def_side);
 
     match (ability, move_type) {
-        (data_bridge::ABILITY_WATER_ABSORB, Type::Water) => Some(def_mon.max_hp / 4),
-        (data_bridge::ABILITY_VOLT_ABSORB, Type::Electric) => Some(def_mon.max_hp / 4),
-        (data_bridge::ABILITY_DRY_SKIN, Type::Water) => Some(def_mon.max_hp / 4),
-        (data_bridge::ABILITY_MOTOR_DRIVE, Type::Electric) => Some(0), // +1 Spe, no heal
-        (data_bridge::ABILITY_FLASH_FIRE, Type::Fire) => Some(0),     // sets VOL_FLASH_FIRE
+        // Absorb abilities: nullify + heal 25%
+        (data_bridge::ABILITY_WATER_ABSORB, Type::Water) => Some(AbilityImmunityEffect::Heal(def_mon.max_hp / 4)),
+        (data_bridge::ABILITY_VOLT_ABSORB, Type::Electric) => Some(AbilityImmunityEffect::Heal(def_mon.max_hp / 4)),
+        (data_bridge::ABILITY_DRY_SKIN, Type::Water) => Some(AbilityImmunityEffect::Heal(def_mon.max_hp / 4)),
+
+        // Redirect/boost abilities: nullify + stat boost
+        (data_bridge::ABILITY_LIGHTNING_ROD, Type::Electric) => Some(AbilityImmunityEffect::Boost(SPA, 1)),
+        (data_bridge::ABILITY_STORM_DRAIN, Type::Water) => Some(AbilityImmunityEffect::Boost(SPA, 1)),
+        (data_bridge::ABILITY_MOTOR_DRIVE, Type::Electric) => Some(AbilityImmunityEffect::Boost(SPE, 1)),
+        (data_bridge::ABILITY_SAP_SIPPER, Type::Grass) => Some(AbilityImmunityEffect::Boost(ATK, 1)),
+
+        // Flash Fire: nullify + set volatile
+        (data_bridge::ABILITY_FLASH_FIRE, Type::Fire) => Some(AbilityImmunityEffect::FlashFire),
+
+        // Levitate: immune to Ground
+        (data_bridge::ABILITY_LEVITATE, Type::Ground) => {
+            // Grounded mons (Gravity, Smack Down, Ingrain) lose Levitate immunity
+            if !is_grounded(state, def_side) {
+                Some(AbilityImmunityEffect::Nullify)
+            } else {
+                None
+            }
+        }
         _ => None,
     }
+}
+
+/// Check for ability-based flag immunities (Bulletproof, Soundproof, Overcoat).
+/// Separate from type immunities because these check MoveFlags, not move type.
+#[inline]
+pub fn ability_flag_immunity(
+    state: &BattleState, def_side: usize, flags: u16,
+) -> bool {
+    let ability = effective_ability(state, def_side);
+    match ability {
+        data_bridge::ABILITY_BULLETPROOF if flags & MoveFlags::BULLET != 0 => true,
+        data_bridge::ABILITY_SOUNDPROOF  if flags & MoveFlags::SOUND != 0 => true,
+        data_bridge::ABILITY_OVERCOAT    if flags & MoveFlags::POWDER != 0 => true,
+        _ => false,
+    }
+}
+
+/// Legacy wrapper used by calc_damage (returns Option<u16> for backward compat).
+#[inline]
+pub fn ability_immunity(
+    state: &BattleState, def_side: usize, move_type: Type,
+) -> Option<u16> {
+    ability_type_immunity(state, def_side, move_type).map(|eff| {
+        match eff {
+            AbilityImmunityEffect::Heal(hp) => hp,
+            _ => 0,
+        }
+    })
 }
 
 // ── Weather stat boosts ───────────────────────────────────────────────
@@ -399,6 +474,63 @@ pub fn weather_def_stat_mod(
             if def_type1 == Type::Ice as u8 || def_type2 == Type::Ice as u8
             => (d as u32 * 3 / 2) as u16,
         _ => d,
+    }
+}
+
+// ── Move-effect power modifiers ──────────────────────────────────────
+
+/// Returns (num, den) in 4096-scale for move-specific onBasePower effects.
+/// Dispatches on MoveEffect for moves with chainModify callbacks.
+#[inline]
+pub fn move_effect_power_mod(
+    state: &BattleState, md: &MoveData, atk_side: usize, def_side: usize,
+) -> (u32, u32) {
+    match md.effect {
+        // Knock Off: 1.5× if target has a removable item
+        MoveEffect::KnockOff => {
+            let def_mon = state.active_mon(def_side);
+            let def_item = data_bridge::item(def_mon.item_id);
+            // Item is removable if it exists and isn't a Mega Stone or Z-Crystal
+            if def_mon.item_id != 0
+                && !def_item.has(ItemFlag::MEGA_STONE)
+                && !def_item.has(ItemFlag::Z_CRYSTAL)
+            {
+                (6144, 4096) // 1.5×
+            } else {
+                (4096, 4096)
+            }
+        }
+
+        // Expanding Force: 1.5× in Psychic Terrain (source grounded)
+        MoveEffect::ExpandingForce => {
+            if state.field.terrain == TERRAIN_PSYCHIC
+                && is_grounded(state, atk_side)
+            {
+                (6144, 4096)
+            } else {
+                (4096, 4096)
+            }
+        }
+
+        // Psyblade: 1.5× in Electric Terrain
+        MoveEffect::Psyblade => {
+            if state.field.terrain == TERRAIN_ELECTRIC {
+                (6144, 4096)
+            } else {
+                (4096, 4096)
+            }
+        }
+
+        // Solar Beam / Solar Blade: 0.5× in rain, sand, snow
+        MoveEffect::SolarBeam => {
+            match state.field.weather {
+                WEATHER_RAIN | WEATHER_HEAVY_RAIN
+                | WEATHER_SAND | WEATHER_SNOW => (2048, 4096), // 0.5×
+                _ => (4096, 4096),
+            }
+        }
+
+        _ => (4096, 4096),
     }
 }
 
@@ -430,5 +562,171 @@ mod tests {
         assert_eq!(stab_modifier(&state, 0, Type::Normal), (6144, 4096));
         // Fire move → no STAB
         assert_eq!(stab_modifier(&state, 0, Type::Fire), (4096, 4096));
+    }
+
+    // ── Step 1: Move-specific damage modifier tests ───────────
+
+    #[test]
+    fn test_hex_var_power() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[0].team[0].stats = [100; 5];
+        state.sides[1].team[0].species_id = 2;
+        state.sides[1].team[0].stats = [100; 5];
+
+        let md = MoveData {
+            base_power: 65,
+            var_power: VarPower::Hex,
+            category: MoveCategory::Special,
+            move_type: Type::Ghost,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // No status → 65 BP
+        assert_eq!(resolve_power(&state, &md, 0, 1), 65);
+
+        // Poisoned → 130 BP
+        state.sides[1].team[0].status = STATUS_POISON;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 130);
+    }
+
+    #[test]
+    fn test_acrobatics_var_power() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[0].team[0].stats = [100; 5];
+        state.sides[1].team[0].species_id = 2;
+        state.sides[1].team[0].stats = [100; 5];
+
+        let md = MoveData {
+            base_power: 55,
+            var_power: VarPower::Acrobatics,
+            category: MoveCategory::Physical,
+            move_type: Type::Flying,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // With item → 55 BP
+        state.sides[0].team[0].item_id = 100;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 55);
+
+        // No item → 110 BP
+        state.sides[0].team[0].item_id = 0;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 110);
+    }
+
+    #[test]
+    fn test_rising_voltage_var_power() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[0].team[0].stats = [100; 5];
+        state.sides[1].team[0].species_id = 2;
+        state.sides[1].team[0].stats = [100; 5];
+
+        let md = MoveData {
+            base_power: 70,
+            var_power: VarPower::RisingVoltage,
+            category: MoveCategory::Special,
+            move_type: Type::Electric,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // No terrain → 70 BP
+        assert_eq!(resolve_power(&state, &md, 0, 1), 70);
+
+        // Electric Terrain + grounded target → 140 BP
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 140);
+    }
+
+    #[test]
+    fn test_knock_off_power_mod() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        let md = MoveData {
+            effect: MoveEffect::KnockOff,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // Target has no item → no boost
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (4096, 4096));
+
+        // Target has item → 1.5×
+        state.sides[1].team[0].item_id = 100;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (6144, 4096));
+    }
+
+    #[test]
+    fn test_expanding_force_power_mod() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        let md = MoveData {
+            effect: MoveEffect::ExpandingForce,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // No terrain → no boost
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (4096, 4096));
+
+        // Psychic Terrain + grounded source → 1.5×
+        state.field.terrain = TERRAIN_PSYCHIC;
+        state.field.terrain_turns = 5;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (6144, 4096));
+    }
+
+    #[test]
+    fn test_psyblade_power_mod() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        let md = MoveData {
+            effect: MoveEffect::Psyblade,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // No terrain → no boost
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (4096, 4096));
+
+        // Electric Terrain → 1.5×
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (6144, 4096));
+    }
+
+    #[test]
+    fn test_solar_beam_power_mod() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        let md = MoveData {
+            effect: MoveEffect::SolarBeam,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // No weather → normal
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (4096, 4096));
+
+        // Sun → normal (not weakened)
+        state.field.weather = WEATHER_SUN;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (4096, 4096));
+
+        // Rain → 0.5×
+        state.field.weather = WEATHER_RAIN;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (2048, 4096));
+
+        // Sand → 0.5×
+        state.field.weather = WEATHER_SAND;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (2048, 4096));
+
+        // Snow → 0.5×
+        state.field.weather = WEATHER_SNOW;
+        assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (2048, 4096));
     }
 }
