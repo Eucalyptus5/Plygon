@@ -89,6 +89,13 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
             let md = data_bridge::move_hot(moves[i]);
             if md.category == MoveCategory::Status { continue; }
         }
+        // Assault Vest: block Status-category moves
+        if data_bridge::item(state.sides[side].team[state.sides[side].active_index as usize].item_id)
+            .has(data_bridge::ItemFlag::ASSAULT_VEST)
+        {
+            let md = data_bridge::move_hot(moves[i]);
+            if md.category == MoveCategory::Status { continue; }
+        }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
         if active.choice_locked_move != 0 && moves[i] != active.choice_locked_move { continue; }
         let opp_active = &state.sides[opp].active;

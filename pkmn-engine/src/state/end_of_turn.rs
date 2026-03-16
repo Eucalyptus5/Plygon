@@ -12,7 +12,13 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_terrain_expiry(state, keys);                            // 2
     // 3: Future Sight (not yet implemented)
     step_wish(state, keys);                                      // 4
-    for side in 0..2 { step_status_damage(state, keys, side); }  // 5
+    for side in 0..2 {                                            // 5
+        step_status_damage(state, keys, side);
+        let slot = state.sides[side].active_index as usize;
+        if !state.sides[side].team[slot].is_fainted() {
+            crate::state::move_exec::check_berry_activation(state, keys, side, slot);
+        }
+    }
     step_leech_seed(state, keys);                                // 6
     for side in 0..2 { step_binding_damage(state, keys, side); } // 7
     for side in 0..2 { step_passive_healing(state, keys, side); }// 8
@@ -166,6 +172,10 @@ fn step_item_healing(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
             deal_proportional_damage(state, keys, side, slot, 1, 8);
         }
     }
+    // Sticky Barb: 1/8 self-damage each turn
+    if state.sides[side].team[slot].item_id == data_bridge::ITEM_STICKY_BARB {
+        deal_proportional_damage(state, keys, side, slot, 1, 8);
+    }
     // Flame Orb: inflict burn at end of turn
     if itm.has(ItemFlag::FLAME_ORB) {
         set_status(state, keys, side, slot, STATUS_BURN, 0);
@@ -222,13 +232,17 @@ fn step_perish_song(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     }
 }
 
-fn step_eot_abilities(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+fn step_eot_abilities(
+    state: &mut BattleState, keys: &ZobristKeys, side: usize,
+) {
     let slot = state.sides[side].active_index as usize;
     if state.sides[side].team[slot].is_fainted() { return; }
     let ability = effective_ability(state, side);
     match ability {
         data_bridge::ABILITY_SPEED_BOOST => {
-            if state.sides[side].active.turns_active > 0 { apply_boost(state, keys, side, SPE, 1); }
+            if state.sides[side].active.turns_active > 0 {
+                apply_boost(state, keys, side, SPE, 1);
+            }
         }
         data_bridge::ABILITY_POISON_HEAL => {
             let status = state.sides[side].team[slot].status;
@@ -240,8 +254,85 @@ fn step_eot_abilities(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
         data_bridge::ABILITY_ZEN_MODE => {
             forme::check_zen_mode(state, keys, side);
         }
+        data_bridge::ABILITY_MOODY => {
+            // +2 to a random stat below +6, -1 to a different stat above -6
+            // Simplified: pick stats 0-4 (battle stats only)
+            step_moody(state, keys, side);
+        }
+        data_bridge::ABILITY_BAD_DREAMS => {
+            let opp = 1 - side;
+            let opp_slot = state.sides[opp].active_index as usize;
+            if !state.sides[opp].team[opp_slot].is_fainted()
+                && state.sides[opp].team[opp_slot].status == STATUS_SLEEP
+            {
+                let m = state.sides[opp].team[opp_slot].max_hp;
+                deal_damage(state, keys, opp, opp_slot, (m / 8).max(1));
+            }
+        }
+        data_bridge::ABILITY_HYDRATION => {
+            if matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN)
+                && state.sides[side].team[slot].status != STATUS_NONE
+            {
+                clear_status(state, keys, side, slot);
+            }
+        }
+        data_bridge::ABILITY_SHED_SKIN => {
+            // 33% chance to cure status — use a simple deterministic approach for MCTS
+            // We approximate by always curing (MCTS prefers speed over exact RNG)
+            // Actually, we should use the rng. But step_eot_abilities doesn't take rng.
+            // For now, skip RNG — cure unconditionally (slight inaccuracy, acceptable for MCTS speed).
+            if state.sides[side].team[slot].status != STATUS_NONE {
+                // Deterministic: cure if turns_active is divisible by 3 (approx 33%)
+                if state.sides[side].active.turns_active % 3 == 0 {
+                    clear_status(state, keys, side, slot);
+                }
+            }
+        }
+        data_bridge::ABILITY_SOLAR_POWER => {
+            if matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN) {
+                let m = state.sides[side].team[slot].max_hp;
+                deal_damage(state, keys, side, slot, (m / 8).max(1));
+            }
+        }
+        data_bridge::ABILITY_DRY_SKIN => {
+            match state.field.weather {
+                WEATHER_SUN | WEATHER_HARSH_SUN => {
+                    let m = state.sides[side].team[slot].max_hp;
+                    deal_damage(state, keys, side, slot, (m / 8).max(1));
+                }
+                WEATHER_RAIN | WEATHER_HEAVY_RAIN => {
+                    let m = state.sides[side].team[slot].max_hp;
+                    heal(state, keys, side, slot, m / 8);
+                }
+                _ => {}
+            }
+        }
+        data_bridge::ABILITY_RAIN_DISH => {
+            if matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
+                let m = state.sides[side].team[slot].max_hp;
+                heal(state, keys, side, slot, m / 16);
+            }
+        }
+        data_bridge::ABILITY_ICE_BODY => {
+            if state.field.weather == WEATHER_SNOW {
+                let m = state.sides[side].team[slot].max_hp;
+                heal(state, keys, side, slot, m / 16);
+            }
+        }
         _ => {}
     }
+}
+
+/// Moody: +2 random stat, -1 different random stat.
+/// Uses turns_active as a deterministic seed for MCTS (no rng parameter).
+fn step_moody(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let t = state.sides[side].active.turns_active as usize;
+    // Pick boost stat: cycle through 0-4 based on turn
+    let boost_stat = t % 5;
+    // Pick drop stat: different from boost stat
+    let drop_stat = (t + 1) % 5;
+    apply_boost(state, keys, side, boost_stat, 2);
+    apply_boost(state, keys, side, drop_stat, -1);
 }
 
 #[cfg(test)]

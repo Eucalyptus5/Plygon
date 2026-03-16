@@ -15,6 +15,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[5] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [  6] Air Balloon
     t[6] = ItemData { flags: F::AIR_BALLOON | F::CONSUMABLE, type_param: 0xFF, power_param: 10, _padding: [0; 2] };
+    // [ 22] Berry Juice
+    t[22] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [ 10] Apicot Berry
     t[10] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::PINCH_BERRY, type_param: 3, power_param: 0, _padding: [0; 2] };
     // [ 13] Aspear Berry
@@ -59,6 +61,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[78] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 15, power_param: 0, _padding: [0; 2] };
     // [ 81] Cornn Berry
     t[81] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
+    // [ 93] Deep Sea Scale
+    t[93] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [ 86] Custap Berry
     t[86] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [ 89] Dark Gem
@@ -145,6 +149,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[248] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::PINCH_BERRY, type_param: 0, power_param: 0, _padding: [0; 2] };
     // [249] Life Orb
     t[249] = ItemData { flags: F::LIFE_ORB, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
+    // [251] Light Ball
+    t[251] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
     // [252] Light Clay
     t[252] = ItemData { flags: F::EXTENDS_SCREENS, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
     // [262] Lum Berry
@@ -169,6 +175,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[291] = ItemData { flags: F::TYPE_BOOST, type_param: 10, power_param: 0, _padding: [0; 2] };
     // [292] Miracle Seed
     t[292] = ItemData { flags: F::TYPE_BOOST, type_param: 4, power_param: 30, _padding: [0; 2] };
+    // [297] Muscle Band
+    t[297] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, _padding: [0; 2] };
     // [300] Mystic Water
     t[300] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 30, _padding: [0; 2] };
     // [302] Nanab Berry
@@ -241,6 +249,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[436] = ItemData { flags: F::TYPE_BOOST, type_param: 9, power_param: 50, _padding: [0; 2] };
     // [437] Shed Shell
     t[437] = ItemData { flags: F::TRAP_IMMUNE, type_param: 0xFF, power_param: 10, _padding: [0; 2] };
+    // [438] Shell Bell
+    t[438] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
     // [443] Shuca Berry
     t[443] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 8, power_param: 0, _padding: [0; 2] };
     // [444] Silk Scarf
@@ -267,12 +277,16 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[472] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [473] Steel Gem
     t[473] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 16, power_param: 0, _padding: [0; 2] };
+    // [476] Sticky Barb
+    t[476] = ItemData { flags: 0, type_param: 0xFF, power_param: 80, _padding: [0; 2] };
     // [477] Stone Plate
     t[477] = ItemData { flags: F::TYPE_BOOST, type_param: 12, power_param: 0, _padding: [0; 2] };
     // [486] Tamato Berry
     t[486] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [487] Tanga Berry
     t[487] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 11, power_param: 0, _padding: [0; 2] };
+    // [491] Thick Club
+    t[491] = ItemData { flags: 0, type_param: 0xFF, power_param: 90, _padding: [0; 2] };
     // [515] Toxic Orb
     t[515] = ItemData { flags: F::TOXIC_ORB, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
     // [516] Toxic Plate
@@ -293,6 +307,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[537] = ItemData { flags: F::WIDE_LENS, type_param: 0xFF, power_param: 10, _padding: [0; 2] };
     // [538] Wiki Berry
     t[538] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
+    // [539] Wise Glasses
+    t[539] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, _padding: [0; 2] };
     // [544] Clefablite
     t[544] = ItemData { flags: F::MEGA_STONE, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [545] Victreebelite
@@ -415,6 +431,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[607] = ItemData { flags: F::MEGA_STONE, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [608] Venusaurite
     t[608] = ItemData { flags: F::MEGA_STONE, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
+    // [609] Weakness Policy
+    t[609] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 80, _padding: [0; 2] };
     // [610] Pixie Plate
     t[610] = ItemData { flags: F::TYPE_BOOST, type_param: 17, power_param: 0, _padding: [0; 2] };
     // [611] Fairy Gem
@@ -535,6 +553,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[689] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
     // [690] Kommonium Z
     t[690] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, _padding: [0; 2] };
+    // [713] Throat Spray
+    t[713] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
     // [715] Heavy-Duty Boots
     t[715] = ItemData { flags: F::HAZARD_IMMUNE, type_param: 0xFF, power_param: 80, _padding: [0; 2] };
     // [741] Adamant Crystal
@@ -543,6 +563,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[742] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 0, _padding: [0; 2] };
     // [743] Griseous Core
     t[743] = ItemData { flags: F::TYPE_BOOST, type_param: 13, power_param: 0, _padding: [0; 2] };
+    // [749] Punching Glove
+    t[749] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, _padding: [0; 2] };
     // [754] Fairy Feather
     t[754] = ItemData { flags: F::TYPE_BOOST, type_param: 17, power_param: 10, _padding: [0; 2] };
     t

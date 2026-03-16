@@ -134,8 +134,11 @@ pub fn calc_damage(
         power = chain_mod(power, 4915, 4096); // 1.2×
     }
 
-    // Item power mods (type boost, gem)
-    let (ip_n, ip_d) = item_power_mod(atk_item, move_type);
+    // Item power mods (type boost, gem, Life Orb, Muscle Band, Wise Glasses, etc.)
+    let (ip_n, ip_d) = item_power_mod(
+        atk_item, atk_mon.item_id, move_type, md.category, md.flags,
+        state.sides[atk_side].active.consec_move_count,
+    );
     power = chain_mod(power, ip_n, ip_d);
     if atk_item.has(ItemFlag::GEM) && atk_item.type_param == move_type as u8 {
         result.item_consumed = true;
@@ -144,6 +147,11 @@ pub fn calc_damage(
     // Move-effect power mods (Knock Off, Expanding Force, Psyblade, Solar Beam)
     let (mp_n, mp_d) = move_effect_power_mod(state, md, atk_side, def_side);
     power = chain_mod(power, mp_n, mp_d);
+
+    // Charge (Electromorphosis/Wind Power): 2× Electric moves
+    if move_type == Type::Electric && state.sides[atk_side].active._padding[4] & 4 != 0 {
+        power *= 2;
+    }
 
     // ── Resolve A and D stats ──────────────────────────────────────
     let is_physical = md.category == MoveCategory::Physical;
@@ -185,30 +193,62 @@ pub fn calc_damage(
     }
 
     // ── Ability stat mods ──────────────────────────────────────────
-    a = ability_atk_stat_mod(a, atk_ability, md.category, atk_mon.status);
-    d = ability_def_stat_mod(d, def_ability, md.category, move_type);
+    a = ability_atk_stat_mod(
+        a, atk_ability, md.category, atk_mon.status,
+        move_type, state.field.weather,
+        atk_mon.current_hp, atk_mon.max_hp,
+        state.sides[atk_side].active.turns_active,
+        state.sides[def_side].active.turns_active,
+    );
+    d = ability_def_stat_mod(
+        d, def_ability, md.category, move_type,
+        def_mon.status, state.field.weather, state.field.terrain,
+    );
 
-    // Solar Power: only in Sun
-    if atk_ability == data_bridge::ABILITY_SOLAR_POWER
-        && md.category == MoveCategory::Special
-        && state.field.weather != WEATHER_SUN
-    {
-        // Undo the Solar Power boost if not sunny (ability_atk_stat_mod always applies it)
-        // Actually, ability_atk_stat_mod doesn't check weather, so let's fix:
-        // We'll just not double-apply. The function applies 1.5× unconditionally for
-        // Solar Power on special moves. We need to undo if not sunny.
-        // Better approach: handle it here.
+    // Paradox ability stat boosts (Protosynthesis/Quark Drive): 1.3× for non-Spe stats
+    let atk_paradox = state.sides[atk_side].active._padding[3] >> 4;
+    if atk_paradox > 0 {
+        let boosted_stat = (atk_paradox - 1) as usize;
+        if boosted_stat == atk_stat_idx && boosted_stat != SPE {
+            a = (a as u32 * 5325 / 4096) as u16; // 1.3×
+        }
+    }
+    let def_paradox = state.sides[def_side].active._padding[3] >> 4;
+    if def_paradox > 0 {
+        let boosted_stat = (def_paradox - 1) as usize;
+        if boosted_stat == def_stat_idx && boosted_stat != SPE {
+            d = (d as u32 * 5325 / 4096) as u16; // 1.3×
+        }
     }
 
     // ── Item stat mods ─────────────────────────────────────────────
+    // Hook 7: ITEM_ATK_STAT_MOD
     if is_physical && atk_item.has(ItemFlag::CHOICE_ATK) { a = (a as u32 * 3 / 2) as u16; }
     if !is_physical && atk_item.has(ItemFlag::CHOICE_SPA) { a = (a as u32 * 3 / 2) as u16; }
+    // Thick Club: 2× Atk for Marowak/Cubone
+    if is_physical && atk_mon.item_id == data_bridge::ITEM_THICK_CLUB {
+        let sp = effective_species(state, atk_side);
+        if sp == data_bridge::SPECIES_MAROWAK || sp == data_bridge::SPECIES_CUBONE {
+            a *= 2;
+        }
+    }
+    // Light Ball: 2× Atk and SpA for Pikachu
+    if atk_mon.item_id == data_bridge::ITEM_LIGHT_BALL {
+        let sp = effective_species(state, atk_side);
+        if sp == data_bridge::SPECIES_PIKACHU { a *= 2; }
+    }
 
+    // Hook 9: ITEM_DEF_STAT_MOD
     if !is_physical && def_item.has(ItemFlag::ASSAULT_VEST) { d = (d as u32 * 3 / 2) as u16; }
     if def_item.has(ItemFlag::EVIOLITE) {
         // Eviolite: 1.5× both defenses for NFE mons.  Caller/data should track NFE.
         // For now, apply unconditionally (conservative — slightly overestimates defense).
         d = (d as u32 * 3 / 2) as u16;
+    }
+    // Deep Sea Scale: 2× SpD for Clamperl
+    if !is_physical && def_mon.item_id == data_bridge::ITEM_DEEP_SEA_SCALE {
+        let sp = effective_species(state, def_side);
+        if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
     }
 
     // ── Weather defensive stat boosts ──────────────────────────────
@@ -294,8 +334,13 @@ pub fn calc_damage(
     if md.drain < 0 {
         result.recoil_damage = (result.damage as u32 * (-md.drain) as u32 / 100) as u16;
     }
+    // Life Orb recoil: Sheer Force suppresses it when move has secondary effects
     if atk_item.has(ItemFlag::LIFE_ORB) {
-        result.recoil_damage += atk_mon.max_hp / 10;
+        let sheer_force_active = atk_ability == data_bridge::ABILITY_SHEER_FORCE
+            && md.secondary_chance > 0;
+        if !sheer_force_active {
+            result.recoil_damage += atk_mon.max_hp / 10;
+        }
     }
 
     result
@@ -505,10 +550,12 @@ mod tests {
 
     #[test]
     fn test_huge_power() {
-        let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Physical, STATUS_NONE);
+        let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Physical, STATUS_NONE,
+            Type::Normal, WEATHER_NONE, 300, 300, 0, 0);
         assert_eq!(a, 300);
         // Doesn't affect special
-        let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Special, STATUS_NONE);
+        let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Special, STATUS_NONE,
+            Type::Normal, WEATHER_NONE, 300, 300, 0, 0);
         assert_eq!(a, 150);
     }
 

@@ -7,13 +7,15 @@
 //! Zero heap allocations.  All integer math.
 
 use crate::state::structs::*;
-use crate::state::data_bridge::{self, ItemFlag};
+use crate::state::data_bridge::{self, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 use crate::state::switch::perform_switch;
 use crate::state::end_of_turn::end_of_turn;
 use crate::state::move_exec::execute_move;
+use crate::data::moves::MoveFlags;
+use crate::data::types::Type;
 
 // ── Action decoding ─────────────────────────────────────────────────
 
@@ -53,14 +55,13 @@ struct OrderedAction {
 #[inline]
 fn resolve_speed(state: &BattleState, side: usize) -> u32 {
     let mon = state.active_mon(side);
+    let ability = effective_ability(state, side);
     let mut speed = boosted_stat(
         effective_stat(state, side, SPE),
         state.sides[side].active.boosts[SPE],
     ) as u32;
 
-    if mon.status == STATUS_PARALYSIS
-        && effective_ability(state, side) != data_bridge::ABILITY_QUICK_FEET
-    {
+    if mon.status == STATUS_PARALYSIS && ability != data_bridge::ABILITY_QUICK_FEET {
         speed /= 2;
     }
 
@@ -76,6 +77,34 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         speed *= 2;
     }
 
+    // Weather speed abilities: 2× in matching weather
+    match ability {
+        data_bridge::ABILITY_CHLOROPHYLL
+            if matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+            => { speed *= 2; }
+        data_bridge::ABILITY_SWIFT_SWIM
+            if matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN)
+            => { speed *= 2; }
+        data_bridge::ABILITY_SAND_RUSH if state.field.weather == WEATHER_SAND
+            => { speed *= 2; }
+        data_bridge::ABILITY_SLUSH_RUSH if state.field.weather == WEATHER_SNOW
+            => { speed *= 2; }
+        data_bridge::ABILITY_SURGE_SURFER if state.field.terrain == TERRAIN_ELECTRIC
+            => { speed *= 2; }
+        data_bridge::ABILITY_SLOW_START
+            if state.sides[side].active.turns_active < 5
+            => { speed /= 2; }
+        data_bridge::ABILITY_QUICK_FEET if mon.status != STATUS_NONE
+            => { speed = speed * 3 / 2; }
+        _ => {}
+    }
+
+    // Paradox abilities (Protosynthesis/Quark Drive) Spe boost
+    let paradox_stat = state.sides[side].active._padding[3] >> 4;
+    if paradox_stat == (SPE as u8 + 1) {
+        speed = speed * 3 / 2; // 1.5× for Spe
+    }
+
     speed
 }
 
@@ -88,6 +117,8 @@ fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 
             if *move_id == 0 { return 0; }
             let md = data_bridge::move_hot(*move_id);
             let mut pri = md.priority;
+            let ability = effective_ability(state, side);
+
             // Grassy Glide: +1 priority in Grassy Terrain if user is grounded
             if md.effect == data_bridge::MoveEffect::GrassyGlide
                 && state.field.terrain == TERRAIN_GRASSY
@@ -95,6 +126,42 @@ fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 
             {
                 pri += 1;
             }
+
+            // Prankster: +1 to Status moves
+            if ability == data_bridge::ABILITY_PRANKSTER
+                && md.category == MoveCategory::Status
+            {
+                pri += 1;
+            }
+
+            // Gale Wings: +1 to Flying moves at full HP
+            if ability == data_bridge::ABILITY_GALE_WINGS
+                && md.move_type == Type::Flying
+            {
+                let mon = state.active_mon(side);
+                if mon.current_hp == mon.max_hp {
+                    pri += 1;
+                }
+            }
+
+            // Triage: +3 to healing moves
+            if ability == data_bridge::ABILITY_TRIAGE
+                && md.flags & MoveFlags::HEAL != 0
+            {
+                pri += 3;
+            }
+
+            // Stall / Mycelium Might: effectively go last (handled via fractional priority)
+            // We model this as -1 priority shift for applicable moves
+            if ability == data_bridge::ABILITY_STALL {
+                pri -= 1;
+            }
+            if ability == data_bridge::ABILITY_MYCELIUM_MIGHT
+                && md.category == MoveCategory::Status
+            {
+                pri -= 1;
+            }
+
             pri
         }
     }
@@ -120,6 +187,21 @@ fn resolve_order(
     if matches!(act_a, ActionKind::Switch { .. }) && matches!(act_b, ActionKind::Switch { .. }) {
         return (a, b);
     }
+
+    // Quick Draw: 30% chance to go first with damaging moves
+    let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } if {
+        let md = data_bridge::move_hot(move_id);
+        md.category != MoveCategory::Status
+    }) && effective_ability(state, side_a) == data_bridge::ABILITY_QUICK_DRAW
+        && rng(10) < 3;
+    let b_quick = matches!(act_b, ActionKind::Move { move_id, .. } if {
+        let md = data_bridge::move_hot(move_id);
+        md.category != MoveCategory::Status
+    }) && effective_ability(state, side_b) == data_bridge::ABILITY_QUICK_DRAW
+        && rng(10) < 3;
+
+    if a_quick && !b_quick { return (a, b); }
+    if b_quick && !a_quick { return (b, a); }
 
     let spd_a = resolve_speed(state, side_a);
     let spd_b = resolve_speed(state, side_b);

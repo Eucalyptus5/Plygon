@@ -212,6 +212,14 @@ pub fn ability_power_mod(
         data_bridge::ABILITY_STRONG_JAW if md.flags & MoveFlags::BITE != 0 => (6144, 4096),
         data_bridge::ABILITY_TOUGH_CLAWS if md.flags & MoveFlags::CONTACT != 0 => (5325, 4096), // 1.3×
         data_bridge::ABILITY_SHEER_FORCE if md.secondary_chance > 0 => (5325, 4096),
+        data_bridge::ABILITY_SHARPNESS if md.flags & MoveFlags::SLICE != 0 => (6144, 4096), // 1.5×
+        data_bridge::ABILITY_PUNK_ROCK if md.flags & MoveFlags::SOUND != 0 => (5325, 4096), // 1.3×
+        data_bridge::ABILITY_SAND_FORCE
+            if matches!(md.move_type, Type::Rock | Type::Ground | Type::Steel)
+            && state.field.weather == WEATHER_SAND => (5325, 4096), // 1.3×
+        data_bridge::ABILITY_ANALYTIC
+            if state.sides[1 - atk_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+            => (5325, 4096), // 1.3× if target already moved
 
         // Pinch abilities: 1.5× when HP ≤ 1/3 and matching type
         data_bridge::ABILITY_OVERGROW if md.move_type == Type::Grass
@@ -227,6 +235,22 @@ pub fn ability_power_mod(
         data_bridge::ABILITY_FLASH_FIRE if md.move_type == Type::Fire
             && state.sides[atk_side].active.has_volatile(VOL_FLASH_FIRE) => (6144, 4096),
 
+        // Supreme Overlord: 1.1× per fainted ally (max 5)
+        data_bridge::ABILITY_SUPREME_OVERLORD => {
+            let slot = state.sides[atk_side].active_index as usize;
+            let fainted = (0..6).filter(|&i| {
+                i != slot
+                    && state.sides[atk_side].team[i].species_id != 0
+                    && state.sides[atk_side].team[i].current_hp == 0
+            }).count() as u32;
+            if fainted > 0 {
+                // 4096, 4506, 4915, 5325, 5734, 6144 for 0-5 fainted
+                (4096 + fainted * 410, 4096)
+            } else {
+                (4096, 4096)
+            }
+        }
+
         _ => (4096, 4096),
     }
 }
@@ -234,8 +258,14 @@ pub fn ability_power_mod(
 // ── Attacker ability stat modifiers ───────────────────────────────────
 
 /// Modify the offensive stat A based on attacker's ability.
+/// `weather`, `hp`, `max_hp`, `turns_active`, `def_turns_active` are passed
+/// to avoid needing the full state reference.
 #[inline]
-pub fn ability_atk_stat_mod(a: u16, ability: u16, category: MoveCategory, status: u8) -> u16 {
+pub fn ability_atk_stat_mod(
+    a: u16, ability: u16, category: MoveCategory, status: u8,
+    move_type: Type, weather: u8, hp: u16, max_hp: u16, turns_active: u8,
+    def_turns_active: u8,
+) -> u16 {
     match ability {
         data_bridge::ABILITY_HUGE_POWER | data_bridge::ABILITY_PURE_POWER
             if category == MoveCategory::Physical => a * 2,
@@ -245,22 +275,57 @@ pub fn ability_atk_stat_mod(a: u16, ability: u16, category: MoveCategory, status
             if category == MoveCategory::Physical && status != STATUS_NONE
             => (a as u32 * 3 / 2) as u16,
         data_bridge::ABILITY_SOLAR_POWER
-            if category == MoveCategory::Special => (a as u32 * 3 / 2) as u16,
-            // Note: Solar Power only active in Sun — caller should check weather
+            if category == MoveCategory::Special
+            && matches!(weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+            => (a as u32 * 3 / 2) as u16,
+        data_bridge::ABILITY_GORILLA_TACTICS
+            if category == MoveCategory::Physical => (a as u32 * 3 / 2) as u16,
+        data_bridge::ABILITY_STAKEOUT
+            if def_turns_active == 0 => a * 2,
+        data_bridge::ABILITY_SLOW_START
+            if turns_active < 5 => a / 2,
+        data_bridge::ABILITY_DEFEATIST
+            if hp * 2 <= max_hp => a / 2,
+        data_bridge::ABILITY_FLOWER_GIFT
+            if category == MoveCategory::Physical
+            && matches!(weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+            => (a as u32 * 3 / 2) as u16,
+        // Type-specific stat mods (Showdown uses onModifyAtk/onModifySpA)
+        data_bridge::ABILITY_WATER_BUBBLE
+            if move_type == Type::Water => a * 2,
+        data_bridge::ABILITY_DRAGONS_MAW
+            if move_type == Type::Dragon => (a as u32 * 3 / 2) as u16,
+        data_bridge::ABILITY_TRANSISTOR
+            if move_type == Type::Electric => (a as u32 * 5325 / 4096) as u16, // 1.3×
+        data_bridge::ABILITY_STEELWORKER
+            if move_type == Type::Steel => (a as u32 * 3 / 2) as u16,
+        data_bridge::ABILITY_ROCKY_PAYLOAD
+            if move_type == Type::Rock => (a as u32 * 3 / 2) as u16,
         _ => a,
     }
 }
 
 /// Modify the defensive stat D based on defender's ability.
 #[inline]
-pub fn ability_def_stat_mod(d: u16, ability: u16, category: MoveCategory, move_type: Type) -> u16 {
+pub fn ability_def_stat_mod(
+    d: u16, ability: u16, category: MoveCategory, move_type: Type,
+    status: u8, weather: u8, terrain: u8,
+) -> u16 {
     match ability {
         data_bridge::ABILITY_FUR_COAT if category == MoveCategory::Physical => d * 2,
         data_bridge::ABILITY_ICE_SCALES if category == MoveCategory::Special => d * 2,
         data_bridge::ABILITY_THICK_FAT
-            if move_type == Type::Fire || move_type == Type::Ice
-            // Thick Fat effectively halves the attacking power, implemented as doubling def
-            => d * 2,
+            if move_type == Type::Fire || move_type == Type::Ice => d * 2,
+        data_bridge::ABILITY_MARVEL_SCALE
+            if category == MoveCategory::Physical && status != STATUS_NONE
+            => (d as u32 * 3 / 2) as u16,
+        data_bridge::ABILITY_GRASS_PELT
+            if category == MoveCategory::Physical && terrain == TERRAIN_GRASSY
+            => (d as u32 * 3 / 2) as u16,
+        data_bridge::ABILITY_FLOWER_GIFT
+            if category == MoveCategory::Special
+            && matches!(weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+            => (d as u32 * 3 / 2) as u16,
         _ => d,
     }
 }
@@ -295,6 +360,12 @@ pub fn defender_ability_final_mod(
         // Dry Skin: 1.25× damage from Fire
         data_bridge::ABILITY_DRY_SKIN if md.move_type == Type::Fire => (5120, 4096),
 
+        // Punk Rock: 0.5× damage from Sound moves received
+        data_bridge::ABILITY_PUNK_ROCK if md.flags & MoveFlags::SOUND != 0 => (2048, 4096),
+
+        // Water Bubble: 0.5× damage from Fire received
+        data_bridge::ABILITY_WATER_BUBBLE if md.move_type == Type::Fire => (2048, 4096),
+
         _ => (4096, 4096),
     }
 }
@@ -309,6 +380,8 @@ pub fn attacker_ability_final_mod(
     match atk_ability {
         // Tinted Lens: not-very-effective hits do 2× (becomes neutral)
         data_bridge::ABILITY_TINTED_LENS if effectiveness < 4 && effectiveness > 0 => (8192, 4096),
+        // Neuroforce: 1.25× on super effective
+        data_bridge::ABILITY_NEUROFORCE if effectiveness > 4 => (5120, 4096),
         _ => (4096, 4096),
     }
 }
@@ -317,14 +390,33 @@ pub fn attacker_ability_final_mod(
 
 /// Returns (num, den) for attacker's item effect on base power.
 #[inline]
-pub fn item_power_mod(item: &ItemData, move_type: Type) -> (u32, u32) {
+pub fn item_power_mod(
+    item: &ItemData, item_id: u16, move_type: Type,
+    category: MoveCategory, flags: u16, consec_move_count: u8,
+) -> (u32, u32) {
+    // Flag-based O(1) dispatch
     if item.has(ItemFlag::TYPE_BOOST) && item.type_param == move_type as u8 {
         return (4915, 4096); // 1.2×
     }
     if item.has(ItemFlag::GEM) && item.type_param == move_type as u8 {
         return (5325, 4096); // 1.3×
     }
-    (4096, 4096)
+    if item.has(ItemFlag::LIFE_ORB) {
+        return (5324, 4096); // 1.3× (Life Orb damage boost)
+    }
+    if item.has(ItemFlag::METRONOME) && consec_move_count > 1 {
+        // 1.0x + 0.2x per consecutive use after the first, cap at 2.0x
+        let count = (consec_move_count - 1).min(5) as u32;
+        return (4096 + count * 819, 4096); // 819 ≈ 0.2 * 4096
+    }
+
+    // Item-ID-based dispatch for items without flags
+    match item_id {
+        data_bridge::ITEM_MUSCLE_BAND if category == MoveCategory::Physical => (4505, 4096), // 1.1×
+        data_bridge::ITEM_WISE_GLASSES if category == MoveCategory::Special => (4505, 4096), // 1.1×
+        data_bridge::ITEM_PUNCHING_GLOVE if flags & MoveFlags::PUNCH != 0 => (4505, 4096), // 1.1×
+        _ => (4096, 4096),
+    }
 }
 
 // ── Item final damage modifiers ───────────────────────────────────────
@@ -341,9 +433,7 @@ pub fn item_final_mod(
     let den: u32 = 4096;
     let mut berry_consumed = false;
 
-    if atk_item.has(ItemFlag::LIFE_ORB) {
-        num = num * 5324 / 4096; // 1.3×
-    }
+    // Life Orb power boost is now in item_power_mod (Hook 12)
     if atk_item.has(ItemFlag::EXPERT_BELT) && effectiveness > 4 {
         num = num * 4915 / 4096; // 1.2×
     }

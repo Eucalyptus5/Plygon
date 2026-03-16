@@ -543,13 +543,13 @@ fn can_hit_semi_invuln(move_id: u16, charge_loc: u8) -> bool {
     }
 }
 
-// ── Pinch berry activation ──────────────────────────────────────────
+// ── Unified berry / HP-check activation (Hook 22) ───────────────────
 
-/// Check if a Pokémon's HP is low enough to trigger its pinch berry.
-/// Called after taking damage (in move_exec) and at end of turn.
-/// Stat-boost pinch berries (Liechi, Petaya, etc.): type_param = stat index,
-/// activates at ≤25% HP → +1 stat + consume.
-pub fn check_pinch_berry(
+/// Check if a Pokémon's held item should activate based on HP or status.
+/// Called after ANY HP change: post-damage, post-recoil, post-hazard, post-status damage.
+/// Handles: pinch berries, Sitrus Berry, Lum Berry, Berry Juice, Starf Berry,
+/// flavored heal berries (Aguav/Figy/Wiki/Mago/Iapapa), and Gluttony threshold.
+pub fn check_berry_activation(
     state: &mut BattleState,
     keys: &ZobristKeys,
     side: usize,
@@ -557,23 +557,94 @@ pub fn check_pinch_berry(
 ) {
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
-    let item = data_bridge::item(mon.item_id);
+    let item_id = mon.item_id;
+    let item = data_bridge::item(item_id);
 
-    if !item.has(ItemFlag::PINCH_BERRY) { return; }
+    let has_gluttony = effective_ability(state, side) == data_bridge::ABILITY_GLUTTONY;
+    let max_hp = mon.max_hp;
+    let current_hp = mon.current_hp;
 
-    // Pinch threshold: ≤25% HP (or ≤50% with Gluttony — future TODO)
-    let threshold = mon.max_hp / 4;
-    if mon.current_hp > threshold { return; }
-
-    // type_param encodes which stat to boost: 0=Atk, 1=Def, 2=SpA, 3=SpD, 4=Spe
-    let stat = item.type_param as usize;
-    if stat < 5 {
-        apply_boost(state, keys, side, stat, 1);
+    // ── Pinch stat berries (Liechi, Petaya, Ganlon, Apicot, Salac) ──
+    if item.has(ItemFlag::PINCH_BERRY) {
+        let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
+        if current_hp <= threshold {
+            let stat = item.type_param as usize;
+            if stat < 5 {
+                apply_boost(state, keys, side, stat, 1);
+            }
+            consume_berry(state, keys, side, slot);
+        }
+        return;
     }
+
+    // ── Sitrus Berry: ≤50% HP → heal 25% ──
+    if item_id == data_bridge::ITEM_SITRUS_BERRY {
+        if current_hp * 2 <= max_hp {
+            heal(state, keys, side, slot, max_hp / 4);
+            consume_berry(state, keys, side, slot);
+        }
+        return;
+    }
+
+    // ── Lum Berry: has non-volatile status → cure ──
+    if item_id == data_bridge::ITEM_LUM_BERRY {
+        if state.sides[side].team[slot].status != STATUS_NONE {
+            clear_status(state, keys, side, slot);
+            consume_berry(state, keys, side, slot);
+        }
+        return;
+    }
+
+    // ── Berry Juice: ≤50% HP → heal 20 HP ──
+    if item_id == data_bridge::ITEM_BERRY_JUICE {
+        if current_hp * 2 <= max_hp {
+            heal(state, keys, side, slot, 20);
+            consume_berry(state, keys, side, slot);
+        }
+        return;
+    }
+
+    // ── Starf Berry: ≤25% HP (or 50% with Gluttony) → +2 random stat ──
+    if item_id == data_bridge::ITEM_STARF_BERRY {
+        let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
+        if current_hp <= threshold {
+            // Deterministic stat pick for MCTS: use turns_active as seed
+            let stat = (state.sides[side].active.turns_active as usize) % 5;
+            apply_boost(state, keys, side, stat, 2);
+            consume_berry(state, keys, side, slot);
+        }
+        return;
+    }
+
+    // ── Flavored heal berries (Aguav/Figy/Wiki/Mago/Iapapa): ≤25% → heal 33% ──
+    match item_id {
+        data_bridge::ITEM_AGUAV_BERRY | data_bridge::ITEM_FIGY_BERRY |
+        data_bridge::ITEM_WIKI_BERRY | data_bridge::ITEM_MAGO_BERRY |
+        data_bridge::ITEM_IAPAPA_BERRY => {
+            let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
+            if current_hp <= threshold {
+                heal(state, keys, side, slot, max_hp / 3);
+                consume_berry(state, keys, side, slot);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Consume a berry and trigger Unburden if applicable.
+#[inline]
+fn consume_berry(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize) {
     consume_item(state, keys, side, slot);
     if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
         set_volatile(state, keys, side, VOL_UNBURDEN);
     }
+}
+
+/// Legacy alias — some call sites still use this name.
+pub fn check_pinch_berry(
+    state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize,
+) {
+    check_berry_activation(state, keys, side, slot);
 }
 
 // ── Self-effect application ──────────────────────────────────────────
@@ -977,6 +1048,35 @@ pub fn execute_move(
     }
     if result.recoil_damage > 0 {
         deal_damage(state, keys, atk_side, atk_slot, result.recoil_damage);
+        // Berry activation after recoil (e.g., Sitrus Berry)
+        if !state.sides[atk_side].team[atk_slot].is_fainted() {
+            check_berry_activation(state, keys, atk_side, atk_slot);
+        }
+    }
+
+    // ── Clear Charge bit after using an Electric move ──────────
+    if md.move_type == Type::Electric {
+        state.sides[atk_side].active._padding[4] &= !4;
+    }
+
+    // ── Hook 20: ITEM_AFTER_DAMAGE (attacker) ───────────────────
+
+    if !state.sides[atk_side].team[atk_slot].is_fainted() && !result.hits_substitute {
+        let atk_item_id = state.sides[atk_side].team[atk_slot].item_id;
+        // Shell Bell: heal 1/8 of damage dealt
+        if atk_item_id == data_bridge::ITEM_SHELL_BELL && final_damage > 0 {
+            heal(state, keys, atk_side, atk_slot, (final_damage / 8).max(1));
+        }
+        // Throat Spray: +1 SpA if sound move, consume
+        if atk_item_id == data_bridge::ITEM_THROAT_SPRAY
+            && md.flags & MoveFlags::SOUND != 0
+        {
+            apply_boost(state, keys, atk_side, SPA, 1);
+            consume_item(state, keys, atk_side, atk_slot);
+            if effective_ability(state, atk_side) == data_bridge::ABILITY_UNBURDEN {
+                set_volatile(state, keys, atk_side, VOL_UNBURDEN);
+            }
+        }
     }
 
     // ── SelfEffect application (after damage + drain/recoil) ────
@@ -985,12 +1085,12 @@ pub fn execute_move(
         apply_self_effect(state, keys, atk_side, md);
     }
 
-    // ── Pinch berry activation (after taking direct damage) ──────
+    // ── Berry activation (after taking direct damage) ────────────
 
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
-        check_pinch_berry(state, keys, def_side, def_slot);
+        check_berry_activation(state, keys, def_side, def_slot);
     }
 
     // ── Zen Mode check (defender HP may have dropped ≤50%) ─────
@@ -1061,7 +1161,156 @@ pub fn execute_move(
                     set_volatile(state, keys, def_side, VOL_TYPES_OVERRIDDEN);
                 }
             }
+            // Rattled: Bug/Dark/Ghost hit → +1 Spe
+            data_bridge::ABILITY_RATTLED
+                if matches!(md.move_type, Type::Bug | Type::Dark | Type::Ghost)
+                => { apply_boost(state, keys, def_side, SPE, 1); }
+            // Steam Engine: Fire/Water hit → +6 Spe
+            data_bridge::ABILITY_STEAM_ENGINE
+                if matches!(md.move_type, Type::Fire | Type::Water)
+                => { apply_boost(state, keys, def_side, SPE, 6); }
+            // Thermal Exchange: Fire hit → +1 Atk (+ burn immunity handled elsewhere)
+            data_bridge::ABILITY_THERMAL_EXCHANGE if md.move_type == Type::Fire
+                => { apply_boost(state, keys, def_side, ATK, 1); }
+            // Berserk: HP drops ≤50% → +1 SpA
+            data_bridge::ABILITY_BERSERK => {
+                let m = state.sides[def_side].team[def_slot].max_hp;
+                let hp = state.sides[def_side].team[def_slot].current_hp;
+                // The damage already happened, so check if HP crossed the 50% threshold
+                // We approximate: if HP ≤ 50% after damage, trigger
+                if hp > 0 && hp * 2 <= m {
+                    apply_boost(state, keys, def_side, SPA, 1);
+                }
+            }
+            // Toxic Debris: physical hit → set Toxic Spikes on attacker's side
+            data_bridge::ABILITY_TOXIC_DEBRIS if md.category == MoveCategory::Physical => {
+                crate::state::switch::add_toxic_spikes(state, atk_side);
+            }
+            // Electromorphosis: any hit → gain Charge (2× next Electric move)
+            data_bridge::ABILITY_ELECTROMORPHOSIS => {
+                state.sides[def_side].active._padding[4] |= 4; // charge bit
+            }
+            // Wind Power: wind move hit → gain Charge
+            data_bridge::ABILITY_WIND_POWER if md.flags & MoveFlags::WIND != 0 => {
+                state.sides[def_side].active._padding[4] |= 4; // charge bit
+            }
+            // Seed Sower: any hit → set Grassy Terrain
+            data_bridge::ABILITY_SEED_SOWER => {
+                set_terrain(state, keys, TERRAIN_GRASSY, 5);
+            }
+            // Cotton Down: any hit → lower attacker's Spe by 1
+            data_bridge::ABILITY_COTTON_DOWN => {
+                if !state.sides[atk_side].team[atk_slot].is_fainted() {
+                    apply_boost(state, keys, atk_side, SPE, -1);
+                }
+            }
+            // Mummy / Lingering Aroma: contact → overwrite attacker's ability
+            data_bridge::ABILITY_MUMMY if md.flags & MoveFlags::CONTACT != 0 => {
+                if !state.sides[atk_side].team[atk_slot].is_fainted() {
+                    let atk_ab = effective_ability(state, atk_side);
+                    if atk_ab != data_bridge::ABILITY_MUMMY && atk_ab != 0 {
+                        state.sides[atk_side].active.override_ability = data_bridge::ABILITY_MUMMY;
+                        set_volatile(state, keys, atk_side, VOL_ABILITY_OVERRIDDEN);
+                    }
+                }
+            }
+            data_bridge::ABILITY_LINGERING_AROMA if md.flags & MoveFlags::CONTACT != 0 => {
+                if !state.sides[atk_side].team[atk_slot].is_fainted() {
+                    let atk_ab = effective_ability(state, atk_side);
+                    if atk_ab != data_bridge::ABILITY_LINGERING_AROMA && atk_ab != 0 {
+                        state.sides[atk_side].active.override_ability = data_bridge::ABILITY_LINGERING_AROMA;
+                        set_volatile(state, keys, atk_side, VOL_ABILITY_OVERRIDDEN);
+                    }
+                }
+            }
+            // Perish Body: contact → set 3-turn Perish on both
+            data_bridge::ABILITY_PERISH_BODY if md.flags & MoveFlags::CONTACT != 0 => {
+                if !state.sides[def_side].active.has_volatile(VOL_PERISH_SONG) {
+                    set_volatile(state, keys, def_side, VOL_PERISH_SONG);
+                    state.sides[def_side].active.perish_count = 3;
+                }
+                if !state.sides[atk_side].active.has_volatile(VOL_PERISH_SONG)
+                    && !state.sides[atk_side].team[atk_slot].is_fainted()
+                {
+                    set_volatile(state, keys, atk_side, VOL_PERISH_SONG);
+                    state.sides[atk_side].active.perish_count = 3;
+                }
+            }
             _ => {}
+        }
+
+        // ── Attacker ability hooks after dealing damage (Hook 19) ────
+        if !state.sides[atk_side].team[atk_slot].is_fainted() {
+            let atk_ability = effective_ability(state, atk_side);
+            match atk_ability {
+                // Poison Touch: 30% poison on contact
+                data_bridge::ABILITY_POISON_TOUCH
+                    if md.flags & MoveFlags::CONTACT != 0
+                    && state.sides[def_side].team[def_slot].status == STATUS_NONE
+                    => {
+                    if rng(100) < 30 {
+                        set_status(state, keys, def_side, def_slot, STATUS_POISON, 0);
+                    }
+                }
+                // Toxic Chain: 30% toxic on any hit
+                data_bridge::ABILITY_TOXIC_CHAIN
+                    if state.sides[def_side].team[def_slot].status == STATUS_NONE
+                    => {
+                    if rng(100) < 30 {
+                        set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
+                    }
+                }
+                // Magician: steal target's item on hit
+                data_bridge::ABILITY_MAGICIAN
+                    if state.active_mon(atk_side).item_id == 0
+                    && state.active_mon(def_side).item_id != 0
+                    => {
+                    let stolen = state.sides[def_side].team[def_slot].item_id;
+                    set_item(state, keys, atk_side, atk_slot, stolen);
+                    consume_item(state, keys, def_side, def_slot);
+                }
+                _ => {}
+            }
+        }
+
+        // ── Hook 21: ITEM_AFTER_HIT (defender) ──────────────────────
+
+        let def_item_id = state.sides[def_side].team[def_slot].item_id;
+        if def_item_id != 0 && !state.sides[def_side].team[def_slot].is_fainted() {
+            // Weakness Policy: +2 Atk +2 SpA if hit by SE move, consume
+            if def_item_id == data_bridge::ITEM_WEAKNESS_POLICY && result.effectiveness > 4 {
+                apply_boost(state, keys, def_side, ATK, 2);
+                apply_boost(state, keys, def_side, SPA, 2);
+                consume_item(state, keys, def_side, def_slot);
+                if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
+                    set_volatile(state, keys, def_side, VOL_UNBURDEN);
+                }
+            }
+            // Jaboca Berry: 1/8 attacker HP if physical hit
+            if def_item_id == data_bridge::ITEM_JABOCA_BERRY
+                && md.category == MoveCategory::Physical
+                && !state.sides[atk_side].team[atk_slot].is_fainted()
+            {
+                let atk_max = state.sides[atk_side].team[atk_slot].max_hp;
+                deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
+                consume_berry(state, keys, def_side, def_slot);
+            }
+            // Rowap Berry: 1/8 attacker HP if special hit
+            if def_item_id == data_bridge::ITEM_ROWAP_BERRY
+                && md.category == MoveCategory::Special
+                && !state.sides[atk_side].team[atk_slot].is_fainted()
+            {
+                let atk_max = state.sides[atk_side].team[atk_slot].max_hp;
+                deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
+                consume_berry(state, keys, def_side, def_slot);
+            }
+            // Air Balloon: pop on any damaging hit
+            if data_bridge::item(def_item_id).has(ItemFlag::AIR_BALLOON) {
+                consume_item(state, keys, def_side, def_slot);
+                if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
+                    set_volatile(state, keys, def_side, VOL_UNBURDEN);
+                }
+            }
         }
     }
 
@@ -1187,12 +1436,33 @@ pub fn execute_move(
             }
         }
 
+        // Innards Out: deal damage equal to HP lost (= final_damage) to attacker
+        if !result.hits_substitute
+            && !state.sides[atk_side].team[atk_slot].is_fainted()
+        {
+            let def_ability = effective_ability(state, def_side);
+            if def_ability == data_bridge::ABILITY_INNARDS_OUT {
+                deal_damage(state, keys, atk_side, atk_slot, final_damage);
+            }
+        }
+
         // Moxie / Beast Boost: attacker stat boost on KO
         if !state.sides[atk_side].team[atk_slot].is_fainted() {
             let atk_ability = effective_ability(state, atk_side);
             match atk_ability {
                 data_bridge::ABILITY_MOXIE => {
                     apply_boost(state, keys, atk_side, ATK, 1);
+                }
+                data_bridge::ABILITY_CHILLING_NEIGH | data_bridge::ABILITY_AS_ONE_GLASTRIER => {
+                    apply_boost(state, keys, atk_side, ATK, 1);
+                }
+                data_bridge::ABILITY_GRIM_NEIGH | data_bridge::ABILITY_AS_ONE_SPECTRIER => {
+                    apply_boost(state, keys, atk_side, SPA, 1);
+                }
+                data_bridge::ABILITY_BATTLE_BOND => {
+                    apply_boost(state, keys, atk_side, ATK, 1);
+                    apply_boost(state, keys, atk_side, SPA, 1);
+                    apply_boost(state, keys, atk_side, SPE, 1);
                 }
                 data_bridge::ABILITY_BEAST_BOOST => {
                     // Boost the highest raw stat

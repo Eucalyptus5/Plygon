@@ -291,9 +291,49 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             apply_boost(state, keys, side, DEF, 1);
         }
 
+        // -- Protosynthesis / Quark Drive: identify best stat and set boost --
+        data_bridge::ABILITY_PROTOSYNTHESIS => {
+            activate_paradox_ability(state, keys, side,
+                matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN));
+        }
+        data_bridge::ABILITY_QUARK_DRIVE => {
+            activate_paradox_ability(state, keys, side,
+                state.field.terrain == TERRAIN_ELECTRIC);
+        }
+
         // -- Unnerve / Air Lock / Cloud Nine: passive effects, no switch-in action --
         // These are checked by other systems (berry activation, weather damage).
         _ => {}
+    }
+}
+
+/// Activate Protosynthesis or Quark Drive: find highest stat, encode in _padding[3].
+/// `field_active` = true if the ability's weather/terrain is currently active.
+fn activate_paradox_ability(
+    state: &mut BattleState, keys: &ZobristKeys, side: usize, field_active: bool,
+) {
+    let slot = state.sides[side].active_index as usize;
+    let mon = &state.sides[side].team[slot];
+
+    // Determine if ability should activate
+    const ITEM_BOOSTER_ENERGY: u16 = 1880;
+    let from_booster = !field_active && mon.item_id == ITEM_BOOSTER_ENERGY;
+    if !field_active && !from_booster { return; }
+
+    // Find highest raw stat (0=Atk, 1=Def, 2=SpA, 3=SpD, 4=Spe)
+    let stats = &mon.stats;
+    let best = (0..5).max_by_key(|&i| stats[i]).unwrap_or(0);
+
+    // Encode in upper nibble of _padding[3]: stat+1 (1-5)
+    state.sides[side].active._padding[3] =
+        (state.sides[side].active._padding[3] & 0x0F) | (((best as u8) + 1) << 4);
+
+    // Consume Booster Energy if it was the trigger
+    if from_booster {
+        consume_item(state, keys, side, slot);
+        if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
+            set_volatile(state, keys, side, VOL_UNBURDEN);
+        }
     }
 }
 

@@ -73,6 +73,16 @@ pub const ABILITY_SPEED_BOOST: u16   = 3;
 pub const ABILITY_MOODY: u16         = 141;
 pub const ABILITY_POISON_HEAL: u16   = 90;
 pub const ABILITY_MAGIC_GUARD: u16   = 98;
+pub const ABILITY_BAD_DREAMS: u16    = 123;
+pub const ABILITY_HYDRATION: u16     = 93;
+pub const ABILITY_SHED_SKIN: u16     = 61;
+pub const ABILITY_RAIN_DISH: u16     = 44;
+pub const ABILITY_ICE_BODY: u16      = 115;
+pub const ABILITY_HARVEST: u16       = 139;
+
+// -- Paradox abilities --
+pub const ABILITY_PROTOSYNTHESIS: u16 = 281;
+pub const ABILITY_QUARK_DRIVE: u16   = 282;
 
 // -- Damage calc: attacker stat mods --
 pub const ABILITY_HUGE_POWER: u16    = 37;
@@ -80,6 +90,16 @@ pub const ABILITY_PURE_POWER: u16    = 74;
 pub const ABILITY_HUSTLE: u16        = 55;
 pub const ABILITY_GUTS: u16          = 62;
 pub const ABILITY_SOLAR_POWER: u16   = 94;
+pub const ABILITY_GORILLA_TACTICS: u16 = 255;
+pub const ABILITY_STAKEOUT: u16      = 198;
+pub const ABILITY_SLOW_START: u16    = 112;
+pub const ABILITY_DEFEATIST: u16     = 129;
+pub const ABILITY_FLOWER_GIFT: u16   = 122;
+pub const ABILITY_WATER_BUBBLE: u16  = 199;
+pub const ABILITY_DRAGONS_MAW: u16   = 263;
+pub const ABILITY_TRANSISTOR: u16    = 262;
+pub const ABILITY_STEELWORKER: u16   = 200;
+pub const ABILITY_ROCKY_PAYLOAD: u16 = 276;
 
 // -- Damage calc: attacker damage mods --
 pub const ABILITY_TECHNICIAN: u16    = 101;
@@ -92,6 +112,10 @@ pub const ABILITY_MEGA_LAUNCHER: u16 = 178;
 pub const ABILITY_STRONG_JAW: u16    = 173;
 pub const ABILITY_FLASH_FIRE: u16    = 18;
 pub const ABILITY_UNBURDEN: u16      = 84;
+pub const ABILITY_SHARPNESS: u16     = 292;
+pub const ABILITY_PUNK_ROCK: u16     = 244;
+pub const ABILITY_SAND_FORCE: u16    = 159;
+pub const ABILITY_SUPREME_OVERLORD: u16 = 293;
 
 // -- Damage calc: STAB / crit --
 pub const ABILITY_ADAPTABILITY: u16  = 91;
@@ -106,10 +130,13 @@ pub const ABILITY_SWARM: u16         = 68;
 
 // -- Damage calc: attacker effectiveness mods --
 pub const ABILITY_TINTED_LENS: u16   = 110;
+pub const ABILITY_NEUROFORCE: u16    = 233;
 
 // -- Damage calc: defender stat mods --
 pub const ABILITY_FUR_COAT: u16      = 169;
 pub const ABILITY_ICE_SCALES: u16    = 246;
+pub const ABILITY_MARVEL_SCALE: u16  = 63;
+pub const ABILITY_GRASS_PELT: u16    = 179;
 
 // -- Pre-move hooks (attacker) --
 pub const ABILITY_PROTEAN: u16       = 168;
@@ -166,10 +193,33 @@ pub const ABILITY_POISON_POINT: u16  = 38;
 pub const ABILITY_EFFECT_SPORE: u16  = 27;
 pub const ABILITY_AFTERMATH: u16     = 106;
 pub const ABILITY_CUTE_CHARM: u16    = 56;
+pub const ABILITY_COTTON_DOWN: u16   = 238;
+pub const ABILITY_RATTLED: u16       = 155;
+pub const ABILITY_STEAM_ENGINE: u16  = 243;
+pub const ABILITY_BERSERK: u16       = 201;
+pub const ABILITY_TOXIC_DEBRIS: u16  = 295;
+pub const ABILITY_INNARDS_OUT: u16   = 215;
+pub const ABILITY_MUMMY: u16         = 152;
+pub const ABILITY_LINGERING_AROMA: u16 = 268;
+pub const ABILITY_PERISH_BODY: u16   = 253;
+pub const ABILITY_SEED_SOWER: u16    = 269;
+pub const ABILITY_ELECTROMORPHOSIS: u16 = 280;
+pub const ABILITY_WIND_POWER: u16    = 277;
+pub const ABILITY_THERMAL_EXCHANGE: u16 = 270;
+
+// -- After-damage hooks: attacker --
+pub const ABILITY_MAGICIAN: u16      = 170;
+pub const ABILITY_POISON_TOUCH: u16  = 143;
+pub const ABILITY_TOXIC_CHAIN: u16   = 305;
 
 // -- After-KO hooks: attacker --
 pub const ABILITY_MOXIE: u16         = 153;
 pub const ABILITY_BEAST_BOOST: u16   = 224;
+pub const ABILITY_CHILLING_NEIGH: u16 = 264;
+pub const ABILITY_GRIM_NEIGH: u16    = 265;
+pub const ABILITY_AS_ONE_GLASTRIER: u16 = 266;
+pub const ABILITY_AS_ONE_SPECTRIER: u16 = 267;
+pub const ABILITY_BATTLE_BOND: u16   = 210;
 
 // -- Multi-hit --
 pub const ABILITY_SKILL_LINK: u16    = 92;
@@ -182,6 +232,22 @@ pub const ABILITY_VICTORY_STAR: u16  = 162;
 pub const ABILITY_SERENE_GRACE: u16  = 32;
 pub const ABILITY_SAND_VEIL: u16     = 8;
 pub const ABILITY_SNOW_CLOAK: u16    = 81;
+pub const ABILITY_GLUTTONY: u16      = 82;
+
+// -- Speed modifiers --
+pub const ABILITY_CHLOROPHYLL: u16   = 34;
+pub const ABILITY_SWIFT_SWIM: u16    = 33;
+pub const ABILITY_SAND_RUSH: u16     = 146;
+pub const ABILITY_SLUSH_RUSH: u16    = 202;
+pub const ABILITY_SURGE_SURFER: u16  = 207;
+
+// -- Priority modifiers --
+pub const ABILITY_PRANKSTER: u16     = 158;
+pub const ABILITY_GALE_WINGS: u16    = 177;
+pub const ABILITY_TRIAGE: u16        = 205;
+pub const ABILITY_QUICK_DRAW: u16    = 259;
+pub const ABILITY_STALL: u16         = 100;
+pub const ABILITY_MYCELIUM_MIGHT: u16 = 298;
 
 // -- Type-change abilities (pre-calc) --
 pub const ABILITY_GALVANIZE: u16     = 206;
@@ -220,6 +286,34 @@ pub const ABILITY_ZERO_TO_HERO: u16   = 278;
 // -- Priority-blocking abilities --
 // (Dazzling, Queenly Majesty, Armor Tail are in defender immunities above)
 
-// ── Legacy item ID constants (kept for tests) ───────────────────────
+// ── Item ID constants (spritenum-based, matching gen_items.rs) ───────
 
 pub const ITEM_NONE: u16 = 0;
+pub const ITEM_AGUAV_BERRY: u16 = 5;
+pub const ITEM_AIR_BALLOON: u16 = 6;
+pub const ITEM_BERRY_JUICE: u16 = 22;
+pub const ITEM_DEEP_SEA_SCALE: u16 = 93;
+pub const ITEM_FIGY_BERRY: u16 = 140;
+pub const ITEM_IAPAPA_BERRY: u16 = 217;
+pub const ITEM_JABOCA_BERRY: u16 = 230;
+pub const ITEM_LIGHT_BALL: u16 = 251;
+pub const ITEM_LUM_BERRY: u16 = 262;
+pub const ITEM_MAGO_BERRY: u16 = 274;
+pub const ITEM_MUSCLE_BAND: u16 = 297;
+pub const ITEM_ROWAP_BERRY: u16 = 420;
+pub const ITEM_SHELL_BELL: u16 = 438;
+pub const ITEM_SITRUS_BERRY: u16 = 448;
+pub const ITEM_STARF_BERRY: u16 = 472;
+pub const ITEM_STICKY_BARB: u16 = 476;
+pub const ITEM_THICK_CLUB: u16 = 491;
+pub const ITEM_THROAT_SPRAY: u16 = 713;
+pub const ITEM_WEAKNESS_POLICY: u16 = 609;
+pub const ITEM_WIKI_BERRY: u16 = 538;
+pub const ITEM_WISE_GLASSES: u16 = 539;
+pub const ITEM_PUNCHING_GLOVE: u16 = 749;
+
+// Species IDs for item-specific checks
+pub const SPECIES_PIKACHU: u16 = 25;
+pub const SPECIES_CUBONE: u16 = 104;
+pub const SPECIES_MAROWAK: u16 = 105;
+pub const SPECIES_CLAMPERL: u16 = 366;
