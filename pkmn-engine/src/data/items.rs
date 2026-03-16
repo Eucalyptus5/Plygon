@@ -68,14 +68,17 @@ pub struct ItemData {
     pub flags: u32,
     pub type_param: u8,   // Type as u8 for type-boost/resist/gem items, 0xFF = N/A
     pub power_param: u8,  // Fling base power
-    pub _padding: [u8; 2],
+    /// Base species ID that locks this item (e.g. 493 for Arceus Plates).
+    /// 0 = not forme-locked.  Knock Off / Thief cannot remove the item when
+    /// `base_species(holder) == forme_species`.
+    pub forme_species: u16,
 }
 
 const _: () = assert!(core::mem::size_of::<ItemData>() == 8);
 
 impl ItemData {
     pub const NONE: Self = Self {
-        flags: 0, type_param: 0xFF, power_param: 0, _padding: [0; 2],
+        flags: 0, type_param: 0xFF, power_param: 0, forme_species: 0,
     };
 
     /// Check if a flag is set.
@@ -88,6 +91,13 @@ impl ItemData {
     #[inline(always)]
     pub fn is_none(&self) -> bool {
         self.flags == 0 && self.type_param == 0xFF
+    }
+
+    /// Returns true when this item cannot be removed from a holder whose
+    /// base species is `holder_base_species` (e.g. Plates on Arceus).
+    #[inline(always)]
+    pub fn is_forme_locked(&self, holder_base_species: u16) -> bool {
+        self.forme_species != 0 && self.forme_species == holder_base_species
     }
 }
 

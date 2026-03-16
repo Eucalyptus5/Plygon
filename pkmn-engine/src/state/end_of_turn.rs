@@ -121,6 +121,7 @@ fn step_leech_seed(state: &mut BattleState, keys: &ZobristKeys) {
         let slot = state.sides[side].active_index as usize;
         if !state.sides[side].active.has_volatile(VOL_LEECH_SEED) { continue; }
         if state.sides[side].team[slot].is_fainted() { continue; }
+        if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { continue; }
         let drain = (state.sides[side].team[slot].max_hp / 8).max(1);
         deal_damage(state, keys, side, slot, drain);
         let opp = 1 - side;
@@ -133,6 +134,19 @@ fn step_binding_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     let slot = state.sides[side].active_index as usize;
     if !state.sides[side].active.has_volatile(VOL_BOUND) { return; }
     if state.sides[side].team[slot].is_fainted() { return; }
+
+    // Decrement counter; expire at 0
+    let turns = state.sides[side].active.bind_turns();
+    if turns == 0 {
+        clear_volatile(state, keys, side, VOL_BOUND);
+        state.sides[side].active.set_bind_turns(0);
+        return;
+    }
+    state.sides[side].active.set_bind_turns(turns - 1);
+
+    // Magic Guard blocks damage but counter still ticks
+    if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
+
     let opp_item_id = state.sides[1-side].team[state.sides[1-side].active_index as usize].item_id;
     let has_band = data_bridge::item(opp_item_id).has(ItemFlag::BINDING_BOOST);
     let (n, d) = if has_band { (1, 6) } else { (1, 8) };
@@ -459,5 +473,115 @@ mod tests {
         step_eot_abilities(&mut state, &keys, 0);
         assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
         assert!(validate_hash(&state, &keys));
+    }
+
+    // ── Step 6: Leech Seed tests ──────────────────────────
+
+    #[test]
+    fn test_leech_seed_drains_and_heals() {
+        let (mut s, k) = setup();
+        // Damage side 1 so heal is observable
+        s.sides[1].team[0].current_hp = 150;
+        set_volatile(&mut s, &k, 0, VOL_LEECH_SEED);
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_leech_seed(&mut s, &k);
+
+        // 200 / 8 = 25 drain
+        assert_eq!(s.sides[0].team[0].current_hp, 175); // drained
+        assert_eq!(s.sides[1].team[0].current_hp, 175); // healed
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_leech_seed_magic_guard_blocks() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].ability_id = data_bridge::ABILITY_MAGIC_GUARD;
+        s.sides[1].team[0].current_hp = 150;
+        set_volatile(&mut s, &k, 0, VOL_LEECH_SEED);
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_leech_seed(&mut s, &k);
+
+        assert_eq!(s.sides[0].team[0].current_hp, 200); // no drain
+        assert_eq!(s.sides[1].team[0].current_hp, 150); // no heal
+        assert!(validate_hash(&s, &k));
+    }
+
+    // ── Step 7: Binding damage tests ──────────────────────
+
+    #[test]
+    fn test_binding_damage_with_counter() {
+        let (mut s, k) = setup();
+        set_volatile(&mut s, &k, 0, VOL_BOUND);
+        s.sides[0].active.set_bind_turns(3);
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_binding_damage(&mut s, &k, 0);
+
+        assert_eq!(s.sides[0].active.bind_turns(), 2);
+        assert_eq!(s.sides[0].team[0].current_hp, 175); // 200/8 = 25
+        assert!(s.sides[0].active.has_volatile(VOL_BOUND));
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_binding_expiry_at_zero() {
+        let (mut s, k) = setup();
+        set_volatile(&mut s, &k, 0, VOL_BOUND);
+        s.sides[0].active.set_bind_turns(0);
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_binding_damage(&mut s, &k, 0);
+
+        assert!(!s.sides[0].active.has_volatile(VOL_BOUND));
+        assert_eq!(s.sides[0].team[0].current_hp, 200); // no damage on expiry
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_binding_damage_magic_guard() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].ability_id = data_bridge::ABILITY_MAGIC_GUARD;
+        set_volatile(&mut s, &k, 0, VOL_BOUND);
+        s.sides[0].active.set_bind_turns(3);
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_binding_damage(&mut s, &k, 0);
+
+        assert_eq!(s.sides[0].active.bind_turns(), 2); // counter still ticks
+        assert_eq!(s.sides[0].team[0].current_hp, 200); // no damage
+        assert!(s.sides[0].active.has_volatile(VOL_BOUND));
+        assert!(validate_hash(&s, &k));
+    }
+
+    // ── Step 14: Perish Song tests ────────────────────────
+
+    #[test]
+    fn test_perish_song_countdown() {
+        let (mut s, k) = setup();
+        set_volatile(&mut s, &k, 0, VOL_PERISH_SONG);
+        s.sides[0].active.perish_count = 3;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_perish_song(&mut s, &k, 0);
+
+        assert_eq!(s.sides[0].active.perish_count, 2);
+        assert_eq!(s.sides[0].team[0].current_hp, 200); // no damage yet
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_perish_song_faint_at_zero() {
+        let (mut s, k) = setup();
+        set_volatile(&mut s, &k, 0, VOL_PERISH_SONG);
+        s.sides[0].active.perish_count = 0;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_perish_song(&mut s, &k, 0);
+
+        assert_eq!(s.sides[0].team[0].current_hp, 0); // fainted
+        assert!(!s.sides[0].active.has_volatile(VOL_PERISH_SONG)); // cleared
+        assert!(validate_hash(&s, &k));
     }
 }

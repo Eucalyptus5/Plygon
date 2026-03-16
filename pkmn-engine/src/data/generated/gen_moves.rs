@@ -175,7 +175,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [21] Slam
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:75,
@@ -295,7 +295,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [36] Take Down
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:90, accuracy:85,
@@ -679,7 +679,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [84] Thunder Shock
     MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,
@@ -1039,7 +1039,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [129] Swift
     MoveData { flags:MoveFlags::PROTECT, base_power:60, accuracy:0,
@@ -2015,7 +2015,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [251] Beat Up
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
@@ -2639,7 +2639,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [329] Sheer Cold
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:30,
@@ -3719,7 +3719,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [464] Dark Void
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:50,
@@ -4903,7 +4903,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [612] Power-Up Punch
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:40, accuracy:100,
@@ -6247,7 +6247,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [780] Pyro Ball
     MoveData { flags:MoveFlags::BULLET | MoveFlags::PROTECT, base_power:120, accuracy:90,
@@ -6567,7 +6567,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PartialTrap, secondary_status:0,
         self_effect:SelfEffect::None },
     // [820] Dragon Energy
     MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,

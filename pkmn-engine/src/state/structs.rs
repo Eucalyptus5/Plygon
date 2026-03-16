@@ -34,6 +34,14 @@ pub const PHASE_SWITCH_BOTH: u8 = 3;
 pub const PHASE_GAME_OVER: u8   = 4;
 
 // ---------------------------------------------------------------------------
+// Turn subphase constants (stored in BattleState._padding bits 0-1)
+// ---------------------------------------------------------------------------
+
+pub const SUBPHASE_NORMAL: u8       = 0; // No mid-turn state
+pub const SUBPHASE_AFTER_MOVE1: u8  = 1; // Faint after Move 1, Move 2 pending
+pub const SUBPHASE_AFTER_MOVE2: u8  = 2; // Faint after Move 2, end-of-turn pending
+
+// ---------------------------------------------------------------------------
 // Stat indices (index into MonSlot.stats and ActiveMon.boosts)
 // ---------------------------------------------------------------------------
 
@@ -228,7 +236,8 @@ pub struct ActiveMon {
     // _padding[1]: charge location (0=none, 1=air, 2=underground, 3=underwater, 4=vanished)
     // _padding[2]: move-lock turns remaining (Outrage/Thrash: 0=not locked, 1-2=turns left)
     // _padding[3]: protean_activated (1 = Protean/Libero already fired this switch-in)
-    // _padding[4]: shield bits (bit 0 = Disguise broken, bit 1 = Ice Face broken)
+    // _padding[4]: shield bits (bit 0 = Disguise broken, bit 1 = Ice Face broken, bit 2 = charge),
+    //              bind_turns (bits 3-6: 0-15 turns remaining for partial trap)
     pub _padding: [u8; 5],
 }
 
@@ -416,6 +425,14 @@ impl ActiveMon {
     }
 
     #[inline(always)]
+    pub fn bind_turns(&self) -> u8 { (self._padding[4] >> 3) & 0x0F }
+
+    #[inline(always)]
+    pub fn set_bind_turns(&mut self, turns: u8) {
+        self._padding[4] = (self._padding[4] & 0x07) | ((turns & 0x0F) << 3);
+    }
+
+    #[inline(always)]
     pub fn zero(&mut self) { *self = Self::default(); }
 }
 
@@ -433,4 +450,27 @@ impl BattleState {
 
     #[inline(always)]
     pub fn is_game_over(&self) -> bool { self.phase == PHASE_GAME_OVER }
+
+    // -- Turn resumption helpers (mid-turn forced switch) --
+
+    #[inline(always)]
+    pub fn turn_subphase(&self) -> u8 { self._padding & 0x03 }
+
+    #[inline(always)]
+    pub fn second_mover_side(&self) -> usize { ((self._padding >> 2) & 1) as usize }
+
+    #[inline(always)]
+    pub fn pending_action(&self) -> u8 { self.field._padding }
+
+    #[inline(always)]
+    pub fn set_turn_resume(&mut self, subphase: u8, second_side: usize, action: u8) {
+        self._padding = (subphase & 0x03) | (((second_side as u8) & 1) << 2);
+        self.field._padding = action;
+    }
+
+    #[inline(always)]
+    pub fn clear_turn_resume(&mut self) {
+        self._padding = 0;
+        self.field._padding = 0;
+    }
 }

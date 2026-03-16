@@ -504,7 +504,7 @@ mod tests {
             &data_bridge::ItemData {
                 flags: ItemFlag::RESIST_BERRY | ItemFlag::IS_BERRY | ItemFlag::CONSUMABLE,
                 type_param: Type::Fire as u8,
-                power_param: 0, _padding: [0; 2],
+                power_param: 0, forme_species: 0,
             },
             Type::Fire,
             8, // super effective

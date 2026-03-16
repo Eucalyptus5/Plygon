@@ -133,6 +133,8 @@ fn apply_secondary(
     rng: &mut impl FnMut(u32) -> u32,
 ) {
     if md.secondary_chance == 0 { return; }
+    // Rapid Spin: secondary (Speed +1) is fully handled in Hook 16
+    if md.effect == MoveEffect::RapidSpin { return; }
 
     let atk_ability = effective_ability(state, atk_side);
 
@@ -248,11 +250,18 @@ fn execute_status_move(
 
         // -- Hazard removal --
         MoveEffect::Defog => {
+            apply_boost(state, keys, def_side, EVA, -1);
+            // Target side: hazards + screens + safeguard + mist
             clear_hazards(state, def_side);
-            clear_hazards(state, atk_side);
             state.sides[def_side].side_conditions.reflect_turns = 0;
             state.sides[def_side].side_conditions.light_screen_turns = 0;
             state.sides[def_side].side_conditions.aurora_veil_turns = 0;
+            state.sides[def_side].side_conditions.set_safeguard_turns(0);
+            state.sides[def_side].side_conditions.set_mist_turns(0);
+            // Attacker side: hazards only
+            clear_hazards(state, atk_side);
+            // Clear terrain
+            clear_terrain(state, keys);
         }
 
         // -- Status infliction (blocked by Safeguard) --
@@ -914,10 +923,28 @@ pub fn check_pinch_berry(
     check_berry_activation(state, keys, side, slot);
 }
 
+// ── Crash damage on move failure ────────────────────────────────────
+
+/// Apply crash damage (50% max HP) if the move has CrashDamage self-effect.
+/// Called on every move-failure path: miss, Protect, immunity, semi-invuln.
+#[inline]
+fn apply_crash_if_needed(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    atk_side: usize,
+    md: &MoveData,
+) {
+    if md.self_effect == SelfEffect::CrashDamage {
+        let atk_slot = state.sides[atk_side].active_index as usize;
+        let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+        deal_damage(state, keys, atk_side, atk_slot, max_hp / 2);
+    }
+}
+
 // ── Self-effect application ──────────────────────────────────────────
 
 /// Apply the attacker's self-effect after damage + drain/recoil.
-/// CrashDamage is NOT handled here (it's in the miss path above).
+/// CrashDamage is NOT handled here (it's on the failure paths via apply_crash_if_needed).
 #[inline]
 fn apply_self_effect(
     state: &mut BattleState,
@@ -1199,6 +1226,7 @@ pub fn execute_move(
 
     let bypasses_protect = is_charge_turn2 && md.effect == MoveEffect::ChargePhantom;
     if !bypasses_protect && state.sides[def_side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
+        apply_crash_if_needed(state, keys, atk_side, md);
         break 'exec;
     }
 
@@ -1211,6 +1239,7 @@ pub fn execute_move(
             && def_ability != data_bridge::ABILITY_NO_GUARD
             && !can_hit_semi_invuln(move_id, state.sides[def_side].active._padding[1])
         {
+            apply_crash_if_needed(state, keys, atk_side, md);
             break 'exec;
         }
     }
@@ -1218,11 +1247,7 @@ pub fn execute_move(
     // ── Accuracy check (Struggle always hits) ───────────────────
 
     if !is_struggle && !accuracy_check(state, atk_side, md, rng) {
-        // §B: Crash damage on miss — 50% of attacker's max HP
-        if md.self_effect == SelfEffect::CrashDamage {
-            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
-            deal_damage(state, keys, atk_side, atk_slot, max_hp / 2);
-        }
+        apply_crash_if_needed(state, keys, atk_side, md);
         break 'exec;
     }
 
@@ -1230,16 +1255,19 @@ pub fn execute_move(
     if !is_struggle {
         // Priority-blocking: Dazzling / Queenly Majesty / Armor Tail
         if priority_block_immunity(state, def_side, md.priority) {
+            apply_crash_if_needed(state, keys, atk_side, md);
             break 'exec;
         }
         // Flag-based immunities (Bulletproof, Soundproof, Overcoat, Wind Rider)
         if let Some(eff) = ability_flag_immunity(state, def_side, md.flags) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
+            apply_crash_if_needed(state, keys, atk_side, md);
             break 'exec;
         }
         // Type-based immunities and side effects
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
+            apply_crash_if_needed(state, keys, atk_side, md);
             break 'exec;
         }
     }
@@ -1331,7 +1359,10 @@ pub fn execute_move(
 
     let result = calc_damage(state, atk_side, move_id, rng);
 
-    if result.type_immune { break 'exec; }
+    if result.type_immune {
+        apply_crash_if_needed(state, keys, atk_side, md);
+        break 'exec;
+    }
 
     // ── Disguise / Ice Face: nullify first hit ──────────────────
 
@@ -1731,12 +1762,15 @@ pub fn execute_move(
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && !result.hits_substitute
     {
-        let def_mon = state.active_mon(def_side);
+        let def_mon = &state.sides[def_side].team[def_slot];
         if def_mon.item_id != 0 {
+            let def_ability = effective_ability(state, def_side);
+            let sticky = def_ability == data_bridge::ABILITY_STICKY_HOLD;
             let def_itm = data_bridge::item(def_mon.item_id);
-            if !def_itm.has(ItemFlag::MEGA_STONE) && !def_itm.has(ItemFlag::Z_CRYSTAL) {
+            let base = data_bridge::base_species(def_mon.species_id);
+            if !sticky && !def_itm.is_forme_locked(base) {
                 consume_item(state, keys, def_side, def_slot);
-                if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
+                if def_ability == data_bridge::ABILITY_UNBURDEN {
                     set_volatile(state, keys, def_side, VOL_UNBURDEN);
                 }
             }
@@ -1758,17 +1792,37 @@ pub fn execute_move(
         state.sides[def_side].active.stockpile |= 0x80; // bit 7 = salt cure
     }
 
+    // ── Partial Trap (Bind, Wrap, Fire Spin, etc.) ──────────────
+
+    if md.effect == MoveEffect::PartialTrap && !result.hits_substitute
+        && !state.sides[def_side].team[def_slot].is_fainted()
+        && !state.sides[def_side].active.has_volatile(VOL_BOUND)
+    {
+        set_volatile(state, keys, def_side, VOL_BOUND);
+        state.sides[def_side].active.set_bind_turns(4); // fixed 4 turns for MCTS
+    }
+
     // ── Recharge ────────────────────────────────────────────────
 
     if md.flags & MoveFlags::RECHARGE != 0 {
         set_volatile(state, keys, atk_side, VOL_RECHARGING);
     }
 
-    // ── Rapid Spin: clear own hazards + Speed boost ─────────────
+    // ── Rapid Spin: clear own hazards, Leech Seed, Bind + Speed boost ──
+    // All effects gated by Sheer Force (Showdown: !move.hasSheerForce)
 
-    if md.effect == MoveEffect::RapidSpin {
-        clear_hazards(state, atk_side);
-        apply_boost(state, keys, atk_side, SPE, 1);
+    if md.effect == MoveEffect::RapidSpin
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+    {
+        let sheer_force = effective_ability(state, atk_side) == data_bridge::ABILITY_SHEER_FORCE
+            && md.secondary_chance > 0;
+        if !sheer_force {
+            clear_hazards(state, atk_side);
+            clear_volatile(state, keys, atk_side, VOL_LEECH_SEED);
+            clear_volatile(state, keys, atk_side, VOL_BOUND);
+            state.sides[atk_side].active.set_bind_turns(0);
+            apply_boost(state, keys, atk_side, SPE, 1);
+        }
     }
 
     // ── Force switch (U-turn, Volt Switch, Flip Turn) ───────────
@@ -1977,6 +2031,48 @@ mod tests {
         execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
         assert!(!state.sides[0].active.has_volatile(VOL_RECHARGING));
         assert_eq!(state.sides[0].team[0].pp[0], pp);
+    }
+
+    #[test]
+    fn test_confusion_clears_on_expiry() {
+        let (mut state, keys) = setup();
+        state.sides[0].active.confusion_turns = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp = state.sides[1].team[0].current_hp;
+        // rng(3) returns 1 (not 0), so no self-hit; confusion_turns decrements to 0
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(1));
+        assert_eq!(state.sides[0].active.confusion_turns, 0);
+        // Mon attacked normally — defender took damage
+        assert!(state.sides[1].team[0].current_hp < def_hp);
+    }
+
+    #[test]
+    fn test_protect_first_always_succeeds() {
+        let (mut state, keys) = setup();
+        assert_eq!(state.sides[0].active.protect_consecutive, 0);
+        execute_protect(&mut state, &keys, 0, &mut fixed_rng(99));
+        assert!(state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
+        assert_eq!(state.sides[0].active.protect_consecutive, 1);
+    }
+
+    #[test]
+    fn test_protect_consecutive_can_fail() {
+        let (mut state, keys) = setup();
+        state.sides[0].active.protect_consecutive = 1;
+        // rng(3) returns 1 (not 0), so Protect fails
+        execute_protect(&mut state, &keys, 0, &mut fixed_rng(1));
+        assert!(!state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
+    }
+
+    #[test]
+    fn test_protect_resets_on_different_move() {
+        let (mut state, keys) = setup();
+        state.sides[0].active.protect_consecutive = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+        // Mon does NOT use Protect this turn (no VOL_PROTECT_THIS_TURN set)
+        // EOT should reset protect_consecutive to 0
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        assert_eq!(state.sides[0].active.protect_consecutive, 0);
     }
 
     #[test]
@@ -3729,5 +3825,309 @@ mod tests {
         );
         assert_eq!(new_type, Type::Water);
         assert!(boost);
+    }
+
+    // ── SelfEffect additional tests ──────────────────────────────
+
+    #[test]
+    fn test_overheat_drops_spa_2() {
+        use crate::data::MOVE_OVERHEAT;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_OVERHEAT as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_OVERHEAT as u16, 0, &mut fixed_rng(0));
+        // Damage dealt
+        assert!(state.sides[1].team[0].current_hp < hp_before);
+        // Attacker should have -2 SpA
+        assert_eq!(state.sides[0].active.boosts[SPA], -2);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_high_jump_kick_crash_on_immune() {
+        use crate::data::MOVE_HIGH_JUMP_KICK;
+        let (mut state, keys) = setup();
+        // Make defender a Ghost type (species 92 = Gastly: Ghost/Poison)
+        state.sides[1].team[0].species_id = 92;
+        state.sides[0].team[0].moves[0] = MOVE_HIGH_JUMP_KICK as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let atk_hp_before = state.sides[0].team[0].current_hp;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        // RNG set to hit (0 < 90 accuracy), but Fighting is immune to Ghost
+        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
+        // Defender should NOT have taken damage (type immune)
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
+        // Attacker should have taken 50% max HP crash damage
+        let expected_crash = atk_hp_before / 2;
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before - expected_crash);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_high_jump_kick_crash_on_protect() {
+        use crate::data::MOVE_HIGH_JUMP_KICK;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_HIGH_JUMP_KICK as u16;
+        // Defender has Protect active this turn
+        state.sides[1].active.set_volatile(VOL_PROTECT_THIS_TURN);
+        state.zobrist = compute_full_hash(&state, &keys);
+        let atk_hp_before = state.sides[0].team[0].current_hp;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
+        // Defender should NOT have taken damage (Protect)
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
+        // Attacker should have taken 50% max HP crash damage
+        let expected_crash = atk_hp_before / 2;
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before - expected_crash);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_no_self_effect_on_zero_bp() {
+        // Status moves (0 BP) go through execute_status_move, not the damaging path,
+        // so SelfEffect dispatch (which lives in the damaging path) should never fire.
+        use crate::data::MOVE_WILL_O_WISP;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_WILL_O_WISP as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
+        // No stat changes on attacker from self-effect dispatch
+        for i in 0..7 {
+            assert_eq!(state.sides[0].active.boosts[i], 0);
+        }
+        assert!(validate_hash(&state, &keys));
+    }
+
+    // ── Knock Off tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_knock_off_removes_item() {
+        use crate::data::MOVE_KNOCK_OFF;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
+        state.sides[1].team[0].item_id = 242; // Leftovers (regular item)
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].item_id, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_knock_off_no_remove_forme_item() {
+        use crate::data::MOVE_KNOCK_OFF;
+        // Arceus (493) holding Draco Plate (105, forme_species=493) — should NOT be removed
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
+        state.sides[1].team[0].species_id = 493; // Arceus
+        state.sides[1].team[0].item_id = 105;    // Draco Plate
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].item_id, 105); // item NOT removed
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_knock_off_removes_plate_non_arceus() {
+        use crate::data::MOVE_KNOCK_OFF;
+        // Non-Arceus holding Draco Plate — should be removed
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
+        state.sides[1].team[0].item_id = 105; // Draco Plate, but holder is species 50
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].item_id, 0); // item removed
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_knock_off_sticky_hold() {
+        use crate::data::MOVE_KNOCK_OFF;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
+        state.sides[1].team[0].item_id = 242; // Leftovers
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STICKY_HOLD;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].item_id, 242); // item kept
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_knock_off_no_boost_forme_item() {
+        // Knock Off vs Arceus + Plate should not get 1.5x boost.
+        // We verify indirectly: same attack, same defense, forme-locked item means less damage.
+        use crate::data::MOVE_KNOCK_OFF;
+        let (mut state_locked, keys) = setup();
+        state_locked.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
+        state_locked.sides[1].team[0].species_id = 493; // Arceus
+        state_locked.sides[1].team[0].item_id = 105;    // Draco Plate
+        state_locked.zobrist = compute_full_hash(&state_locked, &keys);
+        let hp_before_locked = state_locked.sides[1].team[0].current_hp;
+        execute_move(&mut state_locked, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        let dmg_locked = hp_before_locked - state_locked.sides[1].team[0].current_hp;
+
+        let (mut state_normal, _) = setup();
+        state_normal.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
+        state_normal.sides[1].team[0].item_id = 242; // Leftovers (removable)
+        state_normal.zobrist = compute_full_hash(&state_normal, &keys);
+        let hp_before_normal = state_normal.sides[1].team[0].current_hp;
+        execute_move(&mut state_normal, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        let dmg_normal = hp_before_normal - state_normal.sides[1].team[0].current_hp;
+
+        // Normal target with removable item should take MORE damage (1.5x boost)
+        assert!(dmg_normal > dmg_locked, "removable item should get 1.5x boost: {} vs {}", dmg_normal, dmg_locked);
+    }
+
+    // ── Rapid Spin tests ────────────────────────────────────────
+
+    #[test]
+    fn test_rapid_spin_clears_hazards() {
+        use crate::data::MOVE_RAPID_SPIN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
+        // Set hazards on attacker's side
+        state.sides[0].side_conditions.spikes = 3;
+        state.sides[0].side_conditions.toxic_spikes = 2;
+        state.sides[0].side_conditions.hazard_flags = HAZARD_STEALTH_ROCK | HAZARD_STICKY_WEB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].side_conditions.spikes, 0);
+        assert_eq!(state.sides[0].side_conditions.toxic_spikes, 0);
+        assert_eq!(state.sides[0].side_conditions.hazard_flags, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_rapid_spin_removes_leech_seed() {
+        use crate::data::MOVE_RAPID_SPIN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
+        state.sides[0].active.set_volatile(VOL_LEECH_SEED);
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].active.has_volatile(VOL_LEECH_SEED));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_rapid_spin_removes_bind() {
+        use crate::data::MOVE_RAPID_SPIN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
+        state.sides[0].active.set_volatile(VOL_BOUND);
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].active.has_volatile(VOL_BOUND));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_rapid_spin_speed_boost() {
+        use crate::data::MOVE_RAPID_SPIN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[SPE], 1);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_rapid_spin_sheer_force_suppresses() {
+        use crate::data::MOVE_RAPID_SPIN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_SHEER_FORCE;
+        state.sides[0].side_conditions.spikes = 2;
+        state.sides[0].side_conditions.hazard_flags = HAZARD_STEALTH_ROCK;
+        state.sides[0].active.set_volatile(VOL_LEECH_SEED);
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        // Sheer Force suppresses all secondary effects
+        assert_eq!(state.sides[0].side_conditions.spikes, 2);
+        assert_eq!(state.sides[0].side_conditions.hazard_flags, HAZARD_STEALTH_ROCK);
+        assert!(state.sides[0].active.has_volatile(VOL_LEECH_SEED));
+        assert_eq!(state.sides[0].active.boosts[SPE], 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    // ── Defog tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_defog_clears_both_sides() {
+        use crate::data::MOVE_DEFOG;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_DEFOG as u16;
+        // Set hazards on both sides
+        state.sides[0].side_conditions.spikes = 2;
+        state.sides[0].side_conditions.hazard_flags = HAZARD_STEALTH_ROCK;
+        state.sides[1].side_conditions.spikes = 3;
+        state.sides[1].side_conditions.toxic_spikes = 1;
+        state.sides[1].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        // Both sides cleared
+        assert_eq!(state.sides[0].side_conditions.spikes, 0);
+        assert_eq!(state.sides[0].side_conditions.hazard_flags, 0);
+        assert_eq!(state.sides[1].side_conditions.spikes, 0);
+        assert_eq!(state.sides[1].side_conditions.toxic_spikes, 0);
+        assert_eq!(state.sides[1].side_conditions.hazard_flags, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_defog_clears_screens() {
+        use crate::data::MOVE_DEFOG;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_DEFOG as u16;
+        state.sides[1].side_conditions.reflect_turns = 4;
+        state.sides[1].side_conditions.light_screen_turns = 3;
+        state.sides[1].side_conditions.aurora_veil_turns = 2;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].side_conditions.reflect_turns, 0);
+        assert_eq!(state.sides[1].side_conditions.light_screen_turns, 0);
+        assert_eq!(state.sides[1].side_conditions.aurora_veil_turns, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_defog_evasion_drop() {
+        use crate::data::MOVE_DEFOG;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_DEFOG as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].active.boosts[EVA], -1);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_defog_clears_terrain() {
+        use crate::data::MOVE_DEFOG;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_DEFOG as u16;
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.field.terrain, TERRAIN_NONE);
+        assert_eq!(state.field.terrain_turns, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_defog_clears_safeguard_mist() {
+        use crate::data::MOVE_DEFOG;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_DEFOG as u16;
+        state.sides[1].side_conditions.set_safeguard_turns(5);
+        state.sides[1].side_conditions.set_mist_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].side_conditions.safeguard_turns(), 0);
+        assert_eq!(state.sides[1].side_conditions.mist_turns(), 0);
+        assert!(validate_hash(&state, &keys));
     }
 }

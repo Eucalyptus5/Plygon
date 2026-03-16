@@ -1,5 +1,6 @@
 use pkmn_engine::state::BattleState;
 use pkmn_engine::state::switch::*;
+use pkmn_engine::state::execute_switch_turn;
 use pkmn_engine::state::zobrist::{ZobristKeys, compute_full_hash, validate_hash};
 use pkmn_engine::state::data_bridge::*;
 use pkmn_engine::state::structs::*;
@@ -260,4 +261,73 @@ fn test_perform_switch() {
     assert_eq!(state.sides[0].active.boosts[1], 0);
     assert!(state.sides[0].team[1].current_hp < 300); // spikes hit
     assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_stealth_rock_4x_weak() {
+    let (mut state, keys) = setup();
+    state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
+
+    // Simulate Fire/Flying dual type via override_types on the active struct.
+    // switch_in does not clear active volatiles, so these persist into apply_entry_hazards.
+    state.sides[0].active.override_types = [Type::Fire as u8, Type::Flying as u8];
+    state.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    switch_in(&mut state, &keys, 0, 1);
+
+    // dual_type_effectiveness(Rock, Fire, Flying) = (8 * 8) / 4 = 16
+    // damage = 300 * 16 / 32 = 150
+    assert_eq!(state.sides[0].team[1].current_hp, 300 - 150);
+}
+
+#[test]
+fn test_stealth_rock_resist() {
+    let (mut state, keys) = setup();
+    state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
+
+    // Simulate Steel mono-type via Tera (effective_types returns (Steel, Steel))
+    state.sides[0].team[1].tera_type = Type::Steel as u8;
+    state.sides[0].team[1].flags |= MON_FLAG_TERASTALLIZED;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    switch_in(&mut state, &keys, 0, 1);
+
+    // dual_type_effectiveness(Rock, Steel, Steel): mono shortcut returns 2 (resist)
+    // damage = (300 * 2 / 32).max(1) = 18
+    assert_eq!(state.sides[0].team[1].current_hp, 300 - 18);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_hazard_ko_triggers_switch() {
+    let (mut state, keys) = setup();
+    state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
+
+    // Give the incoming mon only 1 HP so stealth rock KOs it
+    state.sides[0].team[0].species_id = 1;
+    state.sides[0].team[1].species_id = 1;
+    state.sides[0].team[1].current_hp = 1;
+
+    // Need a third alive mon so faint_sweep doesn't declare GAME_OVER
+    state.sides[0].team[2].species_id = 1;
+    state.sides[0].team[2].current_hp = 300;
+    state.sides[0].team[2].max_hp = 300;
+
+    // Side 1 needs a valid mon too
+    state.sides[1].team[0].species_id = 1;
+
+    // Put the game in PHASE_SWITCH_P1 (forced replacement for side 0)
+    state.phase = PHASE_SWITCH_P1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Action 5 = switch to team slot 1 (decode_action: 4..=9 => Switch { target: action - 4 })
+    let mut rng = |_: u32| -> u32 { 0 };
+    execute_switch_turn(&mut state, &keys, 5, 0, &mut rng);
+
+    // Mon should be KO'd from stealth rock
+    assert_eq!(state.sides[0].team[1].current_hp, 0);
+
+    // faint_sweep should set phase back to PHASE_SWITCH_P1 (chain replacement needed)
+    assert_eq!(state.phase, PHASE_SWITCH_P1);
 }

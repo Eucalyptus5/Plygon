@@ -39,6 +39,11 @@ pub fn legal_actions(state: &BattleState, side: usize) -> ActionList {
 
 fn generate_full_actions(state: &BattleState, side: usize) -> ActionList {
     let mut list = ActionList::new();
+    // Recharging: forced to skip turn, no choices at all (no moves, no switches)
+    if state.sides[side].active.has_volatile(VOL_RECHARGING) {
+        list.push(ACTION_STRUGGLE); // forced placeholder action
+        return list;
+    }
     let move_count = generate_legal_moves(state, side, &mut list);
     if move_count == 0 { list.push(ACTION_STRUGGLE); }
     generate_legal_switches(state, side, &mut list);
@@ -72,8 +77,6 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
     let moves = effective_moves(state, side);
     let opp = 1 - side;
     let mut count = 0u8;
-
-    if active.has_volatile(VOL_RECHARGING) { return 0; }
 
     // Charging (turn 2 pending): the only legal move is the stored charge move.
     // execute_move will override move_id to last_move anyway, but MCTS needs

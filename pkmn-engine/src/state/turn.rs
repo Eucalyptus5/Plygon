@@ -311,25 +311,28 @@ pub fn execute_turn(
     let act1 = decode_action(state, 1, action_p2);
     let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
 
+    // Determine raw action byte for second mover (needed for turn resumption)
+    let second_raw = if second.side == 0 { action_p1 } else { action_p2 };
+
     // Execute first action
     execute_action(state, keys, first.side, &first.action, rng);
 
-    // Check for mid-turn faint: if EITHER side fainted from first action
-    // (e.g., recoil KO, Rough Skin, Destiny Bond), we need a forced replacement
-    // before continuing. Check if the first mover's opponent fainted AND
-    // first mover also fainted (double KO).
-    let first_opp = 1 - first.side;
-    if state.active_mon(first.side).is_fainted() || state.active_mon(first_opp).is_fainted() {
-        // If the second mover fainted (from first action), they can't act
-        if state.active_mon(second.side).is_fainted() {
-            // Skip second action — go to faint_sweep
-        } else {
-            // Second mover is alive — they still get to act
-            execute_action(state, keys, second.side, &second.action, rng);
-        }
-    } else {
-        // Normal case: no faints, second mover acts
-        execute_action(state, keys, second.side, &second.action, rng);
+    // --- Faint check after Move 1 ---
+    // If either side fainted, pause for forced replacement before continuing.
+    if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
+        state.set_turn_resume(SUBPHASE_AFTER_MOVE1, second.side, second_raw);
+        faint_sweep(state, keys);
+        return;
+    }
+
+    // No faints: execute second action
+    execute_action(state, keys, second.side, &second.action, rng);
+
+    // --- Faint check after Move 2 ---
+    if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
+        state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
+        faint_sweep(state, keys);
+        return;
     }
 
     // Check for mid-turn VOL_MUST_SWITCH (pivot moves) — if a side has
@@ -337,14 +340,13 @@ pub fn execute_turn(
     let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
     let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
     if p1_pivot || p2_pivot {
-        // Pivot moves: transition to switch phase, skip end-of-turn
-        // The caller must call execute_switch_turn next
         faint_sweep(state, keys);
         return;
     }
 
     end_of_turn(state, keys);
     faint_sweep(state, keys);
+    state.clear_turn_resume();
 }
 
 pub fn execute_switch_turn(
@@ -352,9 +354,11 @@ pub fn execute_switch_turn(
     keys: &ZobristKeys,
     action_p1: u8,
     action_p2: u8,
+    rng: &mut impl FnMut(u32) -> u32,
 ) {
     let phase = state.phase;
 
+    // Perform the replacement switches
     if phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 0, action_p1) {
             perform_switch(state, keys, 0, target as usize);
@@ -366,8 +370,73 @@ pub fn execute_switch_turn(
         }
     }
 
-    // After switches, check if anyone fainted from entry hazards.
-    // If so, faint_sweep will set the appropriate PHASE_SWITCH_* state,
-    // requiring another call to execute_switch_turn (chain replacement).
-    faint_sweep(state, keys);
+    let subphase = state.turn_subphase();
+
+    match subphase {
+        SUBPHASE_AFTER_MOVE1 => {
+            // Check if replacement fainted from entry hazards (chain replacement)
+            faint_sweep(state, keys);
+            if state.phase != PHASE_ACTIONS { return; }
+
+            // Execute Move 2 if the second mover was NOT the side that was replaced
+            let second_side = state.second_mover_side();
+            let second_raw = state.pending_action();
+
+            let second_replaced = match phase {
+                PHASE_SWITCH_P1   => second_side == 0,
+                PHASE_SWITCH_P2   => second_side == 1,
+                PHASE_SWITCH_BOTH => true,
+                _ => false,
+            };
+
+            if !second_replaced && !state.active_mon(second_side).is_fainted() {
+                let second_action = decode_action(state, second_side, second_raw);
+                execute_action(state, keys, second_side, &second_action, rng);
+            }
+
+            // Faint check after Move 2
+            if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
+                state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
+                faint_sweep(state, keys);
+                return;
+            }
+
+            // Pivot check
+            let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
+            let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
+            if p1_pivot || p2_pivot {
+                state.clear_turn_resume();
+                faint_sweep(state, keys);
+                return;
+            }
+
+            end_of_turn(state, keys);
+            faint_sweep(state, keys);
+            state.clear_turn_resume();
+        }
+
+        SUBPHASE_AFTER_MOVE2 => {
+            // Check if replacement fainted from entry hazards
+            faint_sweep(state, keys);
+            if state.phase != PHASE_ACTIONS { return; }
+
+            // Pivot check (could have been set by Move 2)
+            let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
+            let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
+            if p1_pivot || p2_pivot {
+                state.clear_turn_resume();
+                faint_sweep(state, keys);
+                return;
+            }
+
+            end_of_turn(state, keys);
+            faint_sweep(state, keys);
+            state.clear_turn_resume();
+        }
+
+        _ => {
+            // SUBPHASE_NORMAL: legacy behavior for pivot/must-switch
+            faint_sweep(state, keys);
+        }
+    }
 }

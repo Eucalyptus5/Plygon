@@ -112,6 +112,7 @@ pub const ABILITY_MEGA_LAUNCHER: u16 = 178;
 pub const ABILITY_STRONG_JAW: u16    = 173;
 pub const ABILITY_FLASH_FIRE: u16    = 18;
 pub const ABILITY_UNBURDEN: u16      = 84;
+pub const ABILITY_STICKY_HOLD: u16   = 60;
 pub const ABILITY_SHARPNESS: u16     = 292;
 pub const ABILITY_PUNK_ROCK: u16     = 244;
 pub const ABILITY_SAND_FORCE: u16    = 159;
@@ -322,3 +323,24 @@ pub const SPECIES_PIKACHU: u16 = 25;
 pub const SPECIES_CUBONE: u16 = 104;
 pub const SPECIES_MAROWAK: u16 = 105;
 pub const SPECIES_CLAMPERL: u16 = 366;
+pub const SPECIES_DIALGA: u16 = 483;
+pub const SPECIES_PALKIA: u16 = 484;
+pub const SPECIES_GIRATINA: u16 = 487;
+pub const SPECIES_ARCEUS: u16 = 493;
+pub const SPECIES_GENESECT: u16 = 649;
+pub const SPECIES_SILVALLY: u16 = 773;
+pub const SPECIES_ZACIAN: u16 = 888;
+pub const SPECIES_ZAMAZENTA: u16 = 889;
+pub const SPECIES_OGERPON: u16 = 1017;
+
+/// Map any species/forme ID to its base national-dex species number.
+#[inline(always)]
+pub fn base_species(species_id: u16) -> u16 {
+    use crate::data::gen_species::FORME_TO_BASE;
+    let idx = species_id as usize;
+    if idx < FORME_TO_BASE.len() {
+        FORME_TO_BASE[idx]
+    } else {
+        0
+    }
+}

@@ -204,12 +204,9 @@ fn test_recharging() {
     state.sides[0].active.set_volatile(VOL_RECHARGING);
     
     let a = legal_actions(&state, 0);
-    // 0 moves returns Struggle, plus 5 switches -> 6 actions
-    assert_eq!(a.count, 6);
+    // Recharging: forced to skip turn, only Struggle (no switches)
+    assert_eq!(a.count, 1);
     assert_eq!(a.actions[0], ACTION_STRUGGLE);
-    for i in 1..a.count {
-        assert!(a.actions[i as usize] >= ACTION_SWITCH_0 + 1);
-    }
 }
 
 #[test]

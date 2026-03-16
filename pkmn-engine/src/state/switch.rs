@@ -190,9 +190,12 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     if sc.toxic_spikes > 0 && is_grounded(state, side) {
         let (t1, t2) = effective_types(state, side);
         let is_poison = t1 == Type::Poison as u8 || t2 == Type::Poison as u8;
+        let is_steel = t1 == Type::Steel as u8 || t2 == Type::Steel as u8;
         if is_poison {
+            // Poison types absorb and remove Toxic Spikes
             state.sides[side].side_conditions.toxic_spikes = 0;
-        } else {
+        } else if !is_steel {
+            // Steel types are immune to poison; all others get poisoned
             match sc.toxic_spikes {
                 1 => { set_status(state, keys, side, slot, STATUS_POISON, 0); }
                 _ => { set_status(state, keys, side, slot, STATUS_BAD_POISON, 0); }

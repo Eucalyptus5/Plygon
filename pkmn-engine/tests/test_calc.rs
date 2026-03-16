@@ -299,3 +299,67 @@ fn test_items() {
     
     assert!(res_band.damage > res_no_band.damage);
 }
+
+#[test]
+fn test_light_screen_halves_special() {
+    let mut state = setup();
+    state.sides[1].side_conditions.light_screen_turns = 5;
+
+    // Thunderbolt (85) - Special
+    let res_screen = calc_damage(&state, 0, 85, &mut |_| 1);
+
+    state.sides[1].side_conditions.light_screen_turns = 0;
+    let res_no_screen = calc_damage(&state, 0, 85, &mut |_| 1);
+
+    assert!(res_screen.damage < res_no_screen.damage,
+        "Light Screen should halve special damage: {} vs {}", res_screen.damage, res_no_screen.damage);
+
+    // Physical (Pound) should NOT be affected by Light Screen
+    state.sides[1].side_conditions.light_screen_turns = 5;
+    let res_phys_screen = calc_damage(&state, 0, 1, &mut |_| 1);
+
+    state.sides[1].side_conditions.light_screen_turns = 0;
+    let res_phys_no_screen = calc_damage(&state, 0, 1, &mut |_| 1);
+
+    assert_eq!(res_phys_screen.damage, res_phys_no_screen.damage,
+        "Light Screen should not affect physical damage");
+}
+
+#[test]
+fn test_aurora_veil_halves_both() {
+    let mut state = setup();
+
+    // Physical (Pound) with Aurora Veil
+    state.sides[1].side_conditions.aurora_veil_turns = 5;
+    let res_phys_av = calc_damage(&state, 0, 1, &mut |_| 1);
+    state.sides[1].side_conditions.aurora_veil_turns = 0;
+    let res_phys = calc_damage(&state, 0, 1, &mut |_| 1);
+    assert!(res_phys_av.damage < res_phys.damage,
+        "Aurora Veil should halve physical damage: {} vs {}", res_phys_av.damage, res_phys.damage);
+
+    // Special (Thunderbolt) with Aurora Veil
+    state.sides[1].side_conditions.aurora_veil_turns = 5;
+    let res_spec_av = calc_damage(&state, 0, 85, &mut |_| 1);
+    state.sides[1].side_conditions.aurora_veil_turns = 0;
+    let res_spec = calc_damage(&state, 0, 85, &mut |_| 1);
+    assert!(res_spec_av.damage < res_spec.damage,
+        "Aurora Veil should halve special damage: {} vs {}", res_spec_av.damage, res_spec.damage);
+}
+
+#[test]
+fn test_crit_bypasses_screens() {
+    let mut state = setup();
+
+    // Crit with Reflect active
+    state.sides[1].side_conditions.reflect_turns = 5;
+    let res_crit_screen = calc_damage(&state, 0, 1, &mut |_| 0); // forces crit
+
+    // Crit without Reflect
+    state.sides[1].side_conditions.reflect_turns = 0;
+    let res_crit_no_screen = calc_damage(&state, 0, 1, &mut |_| 0); // forces crit
+
+    assert!(res_crit_screen.crit, "Should be a crit");
+    assert!(res_crit_no_screen.crit, "Should be a crit");
+    assert_eq!(res_crit_screen.damage, res_crit_no_screen.damage,
+        "Crit should bypass Reflect: {} vs {}", res_crit_screen.damage, res_crit_no_screen.damage);
+}

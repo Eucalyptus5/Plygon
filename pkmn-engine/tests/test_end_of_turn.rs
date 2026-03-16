@@ -326,3 +326,22 @@ fn test_interaction_order() {
     assert_eq!(state.sides[0].team[0].current_hp, 245);
     assert!(validate_hash(&state, &keys));
 }
+
+#[test]
+fn test_screen_expires() {
+    let (mut state, keys) = setup();
+    state.sides[0].side_conditions.light_screen_turns = 1;
+    state.sides[0].side_conditions.aurora_veil_turns = 1;
+    state.field.trick_room_turns = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].side_conditions.light_screen_turns, 0,
+        "Light Screen should expire after 1 turn");
+    assert_eq!(state.sides[0].side_conditions.aurora_veil_turns, 0,
+        "Aurora Veil should expire after 1 turn");
+    assert_eq!(state.field.trick_room_turns, 0,
+        "Trick Room should expire after 1 turn");
+    assert!(validate_hash(&state, &keys));
+}

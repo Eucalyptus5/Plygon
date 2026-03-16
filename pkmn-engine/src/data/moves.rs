@@ -205,6 +205,7 @@ pub enum MoveEffect {
     SpitUp       = 92,  // Deal 100/200/300 damage by stockpile, reset
     Swallow      = 93,  // Heal 25/50/100% by stockpile, reset
     TeraBlast    = 94,  // Physical or Special based on higher stat, Normal → Tera type
+    PartialTrap  = 95,  // Bind, Wrap, Fire Spin, etc.: trap + EOT 1/8 damage
 }
 
 // Flags (16 bits)

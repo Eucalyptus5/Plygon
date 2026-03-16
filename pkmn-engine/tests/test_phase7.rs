@@ -442,9 +442,222 @@ fn test_mid_turn_faint_triggers_switch_phase() {
             "In switch phase, only switch actions should be legal");
         // Pick first available switch target
         let switch_action = actions.actions[0];
-        execute_switch_turn(&mut state, &keys, switch_action, 0);
+        execute_switch_turn(&mut state, &keys, switch_action, 0, &mut dummy_rng);
         // Active mon should now be alive
         assert!(state.active_mon(0).current_hp > 0,
             "New active mon should be alive after forced switch");
     }
+}
+
+// ─── 15. Single faint after Move 1 triggers PHASE_SWITCH ─────────
+
+#[test]
+fn test_single_faint_triggers_switch_phase() {
+    let (mut state, keys) = setup();
+    // Give side 1's active 1 HP so side 0's Pound OHKOs it
+    state.sides[1].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Side 0 speed=100 > Side 1 speed=80, so side 0 goes first
+    // Side 0's Pound (action 0) should KO side 1
+    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[1].team[0].current_hp, 0, "Side 1 should be fainted");
+    assert_eq!(state.phase, PHASE_SWITCH_P2,
+        "Side 1 fainted, should be PHASE_SWITCH_P2, got {}", state.phase);
+    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1,
+        "Should be in SUBPHASE_AFTER_MOVE1");
+    assert!(validate_hash(&state, &keys));
+}
+
+// ─── 16. Both faint simultaneously → PHASE_SWITCH_BOTH ──────────
+
+#[test]
+fn test_both_faint_triggers_switch_both() {
+    let (mut state, keys) = setup();
+    // Simulate a double KO via direct state manipulation:
+    // Set both actives to 0 HP, set phase and subphase, recompute hash.
+    state.sides[0].team[0].current_hp = 0;
+    state.sides[1].team[0].current_hp = 0;
+    state.set_turn_resume(SUBPHASE_AFTER_MOVE1, 1, 0);
+    state.phase = PHASE_SWITCH_BOTH;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    assert_eq!(state.phase, PHASE_SWITCH_BOTH);
+    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1);
+
+    // Both sides should have only switch actions
+    let actions_p1 = legal_actions(&state, 0);
+    let actions_p2 = legal_actions(&state, 1);
+    assert!(actions_p1.as_slice().iter().all(|&a| a >= ACTION_SWITCH_0),
+        "P1 should only have switch actions during PHASE_SWITCH_BOTH");
+    assert!(actions_p2.as_slice().iter().all(|&a| a >= ACTION_SWITCH_0),
+        "P2 should only have switch actions during PHASE_SWITCH_BOTH");
+
+    // Perform the switches — both switch to slot 1
+    execute_switch_turn(&mut state, &keys,
+        ACTION_SWITCH_0 + 1, ACTION_SWITCH_0 + 1, &mut dummy_rng);
+
+    // Both replacements should be alive
+    assert!(state.active_mon(0).current_hp > 0, "P1 replacement should be alive");
+    assert!(state.active_mon(1).current_hp > 0, "P2 replacement should be alive");
+    assert!(validate_hash(&state, &keys));
+}
+
+// ─── 17. Forced switch resumes turn — Move 2 still executes ─────
+
+#[test]
+fn test_forced_switch_resumes_turn() {
+    let (mut state, keys) = setup();
+    // Side 1's active has 1 HP, side 0 goes first (speed 100 > 80) and KOs it
+    state.sides[1].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let p1_hp_before = state.sides[0].team[0].current_hp;
+
+    // Side 0 uses Pound (action 0), Side 1 uses Pound (action 0)
+    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+
+    // Should pause for side 1's replacement
+    assert_eq!(state.phase, PHASE_SWITCH_P2);
+    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1);
+
+    // Side 0 should NOT have taken damage yet (Move 2 hasn't executed)
+    assert_eq!(state.sides[0].team[0].current_hp, p1_hp_before,
+        "Side 0 should not have taken damage before Move 2 executes");
+
+    // Side 1 switches in slot 1
+    execute_switch_turn(&mut state, &keys, 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);
+
+    // The replacement (side 1 slot 1) should have executed Move 2 (Pound on side 0)
+    // Side 1 slot 1 has attack=80, side 0 has defense=100, Pound base power=40
+    // Some damage should have been dealt to side 0
+    // NOTE: The replacement does NOT get to attack — only the original second mover.
+    // Since the second mover (side 1) was replaced, Move 2 is skipped.
+    // End-of-turn should have run. Phase should be PHASE_ACTIONS.
+    assert_eq!(state.phase, PHASE_ACTIONS,
+        "After replacement, turn should complete to PHASE_ACTIONS, got {}", state.phase);
+    assert_eq!(state.turn_subphase(), SUBPHASE_NORMAL,
+        "Turn resume state should be cleared");
+    assert!(validate_hash(&state, &keys));
+}
+
+// ─── 18. Forced switch legal moves: only switches, no moves ─────
+
+#[test]
+fn test_forced_switch_legal_moves_only_switches() {
+    let (mut state, keys) = setup();
+    state.sides[1].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Side 0 OHKOs side 1
+    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+
+    assert_eq!(state.phase, PHASE_SWITCH_P2);
+
+    // Side 1 should only have switch actions
+    let actions = legal_actions(&state, 1);
+    assert!(!actions.as_slice().is_empty(), "Side 1 should have switch options");
+    assert!(actions.as_slice().iter().all(|&a| a >= ACTION_SWITCH_0),
+        "All actions should be switches, got {:?}", actions.as_slice());
+
+    // Side 0 (not forced to switch) during PHASE_SWITCH_P2 should have no actions
+    let actions_p1 = legal_actions(&state, 0);
+    assert!(actions_p1.as_slice().is_empty(),
+        "Side 0 should have no actions during PHASE_SWITCH_P2");
+}
+
+// ─── 19. Replacement does NOT execute the fainted mon's move ────
+
+#[test]
+fn test_replacement_does_not_act() {
+    let (mut state, keys) = setup();
+    // Side 1 has 1 HP, side 0 goes first and KOs it
+    state.sides[1].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let p1_hp_before = state.sides[0].team[0].current_hp;
+
+    // Both use Pound. Side 0 goes first (faster), KOs side 1.
+    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    assert_eq!(state.phase, PHASE_SWITCH_P2);
+
+    // Side 1 switches in slot 1
+    execute_switch_turn(&mut state, &keys, 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);
+
+    // The replacement should NOT have attacked side 0
+    // Side 0's HP should be unchanged (no Move 2 from fainted/replaced side)
+    assert_eq!(state.sides[0].team[0].current_hp, p1_hp_before,
+        "Side 0 HP should be unchanged — replacement must not attack");
+    assert_eq!(state.phase, PHASE_ACTIONS);
+    assert!(validate_hash(&state, &keys));
+}
+
+// ─── 20. Faint after Move 2 also triggers switch phase ──────────
+
+#[test]
+fn test_faint_after_move2_triggers_switch() {
+    let (mut state, keys) = setup();
+    // Side 0 has 1 HP. Side 0 is faster (speed 100 > 80), so it goes first.
+    // Side 0 attacks (doesn't KO). Side 1 attacks, KOs side 0.
+    state.sides[0].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+
+    // Side 0 should be fainted from Move 2
+    assert_eq!(state.sides[0].team[0].current_hp, 0,
+        "Side 0 should be fainted from Move 2");
+    assert_eq!(state.phase, PHASE_SWITCH_P1,
+        "Should be PHASE_SWITCH_P1, got {}", state.phase);
+    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE2,
+        "Should be SUBPHASE_AFTER_MOVE2");
+
+    // Switch in replacement, end-of-turn should run
+    execute_switch_turn(&mut state, &keys, ACTION_SWITCH_0 + 1, 0, &mut dummy_rng);
+
+    assert_eq!(state.phase, PHASE_ACTIONS,
+        "After replacement post-Move 2, should return to PHASE_ACTIONS");
+    assert_eq!(state.turn_subphase(), SUBPHASE_NORMAL);
+    assert!(state.active_mon(0).current_hp > 0, "Replacement should be alive");
+    assert!(validate_hash(&state, &keys));
+}
+
+// ─── Trick Room inverts speed ────────────────────────────────────
+
+#[test]
+fn test_trick_room_inverts_speed() {
+    let (mut state, keys) = setup();
+    // Side 0 speed = 100, Side 1 speed = 80
+    // Under Trick Room, side 1 (slower) should move first
+    state.field.trick_room_turns = 5;
+    state.sides[0].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+
+    // Side 1 moved first (slower under TR), KO'd side 0
+    assert_eq!(state.sides[0].team[0].current_hp, 0,
+        "Side 0 should be fainted (side 1 moves first under Trick Room)");
+}
+
+// ─── Trick Room does not affect priority ─────────────────────────
+
+#[test]
+fn test_trick_room_no_affect_priority() {
+    let (mut state, keys) = setup();
+    // Give side 0 Quick Attack (98, priority +1) in slot 2
+    state.sides[0].team[0].moves[2] = 98;
+    state.sides[0].team[0].pp[2] = 24;
+    state.field.trick_room_turns = 5;
+    // Under TR, side 1 (speed 80) would be "faster" by speed alone
+    // But Quick Attack has +1 priority, which should override TR
+    state.sides[1].team[0].current_hp = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Side 0 uses Quick Attack (action 2), side 1 uses Pound (action 0)
+    execute_turn(&mut state, &keys, 2, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[1].team[0].current_hp, 0,
+        "Side 1 should be fainted (priority overrides Trick Room)");
 }

@@ -528,7 +528,7 @@ fn test_full_pivot_uturn_then_switch() {
     assert!(state.sides[1].team[0].current_hp < 300);
 
     // Now P1 switches to slot 1
-    execute_switch_turn(&mut state, &keys, ACTION_SWITCH_0 + 1, 0);
+    execute_switch_turn(&mut state, &keys, ACTION_SWITCH_0 + 1, 0, &mut fixed_rng(0));
     assert_eq!(state.sides[0].active_index, 1);
     assert!(validate_hash(&state, &keys));
 }

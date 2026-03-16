@@ -711,13 +711,16 @@ pub fn move_effect_power_mod(
         // Knock Off: 1.5× if target has a removable item
         MoveEffect::KnockOff => {
             let def_mon = state.active_mon(def_side);
-            let def_item = data_bridge::item(def_mon.item_id);
-            // Item is removable if it exists and isn't a Mega Stone or Z-Crystal
-            if def_mon.item_id != 0
-                && !def_item.has(ItemFlag::MEGA_STONE)
-                && !def_item.has(ItemFlag::Z_CRYSTAL)
-            {
-                (6144, 4096) // 1.5×
+            if def_mon.item_id != 0 {
+                let def_ability = effective_ability(state, def_side);
+                let sticky = def_ability == data_bridge::ABILITY_STICKY_HOLD;
+                let def_item = data_bridge::item(def_mon.item_id);
+                let base = data_bridge::base_species(def_mon.species_id);
+                if !sticky && !def_item.is_forme_locked(base) {
+                    (6144, 4096) // 1.5×
+                } else {
+                    (4096, 4096)
+                }
             } else {
                 (4096, 4096)
             }
