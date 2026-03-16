@@ -1,0 +1,228 @@
+//! Turn executor: the single function the MCTS loop calls to advance the game.
+//!
+//! Takes two player actions (chosen simultaneously), resolves turn order,
+//! executes both actions, runs end-of-turn, checks for faints, and updates
+//! the phase.
+//!
+//! Zero heap allocations.  All integer math.
+
+use crate::state::structs::*;
+use crate::state::data_bridge::{self, ItemFlag};
+use crate::state::accessors::*;
+use crate::state::mutations::*;
+use crate::state::zobrist::ZobristKeys;
+use crate::state::switch::perform_switch;
+use crate::state::end_of_turn::end_of_turn;
+use crate::state::move_exec::execute_move;
+
+// ── Action decoding ─────────────────────────────────────────────────
+
+/// Decoded action.  Move variant carries the resolved move_id so we
+/// never call `effective_moves` twice for the same action.
+#[derive(Clone, Copy, Debug)]
+pub enum ActionKind {
+    Move { slot: u8, move_id: u16 },
+    Switch { target: u8 },
+    Struggle,
+}
+
+/// Decode a `u8` action, resolving the move_id eagerly.
+#[inline]
+fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
+    match action {
+        0..=3 => {
+            let move_id = effective_moves(state, side)[action as usize];
+            ActionKind::Move { slot: action, move_id }
+        }
+        4..=9 => ActionKind::Switch { target: action - 4 },
+        _ => ActionKind::Struggle,
+    }
+}
+
+// ── Ordered action pair ─────────────────────────────────────────────
+
+#[derive(Clone, Copy)]
+struct OrderedAction {
+    side: usize,
+    action: ActionKind,
+}
+
+// ── Turn order resolution ───────────────────────────────────────────
+
+/// Compute effective speed for turn order comparison.
+#[inline]
+fn resolve_speed(state: &BattleState, side: usize) -> u32 {
+    let mon = state.active_mon(side);
+    let mut speed = boosted_stat(
+        effective_stat(state, side, SPE),
+        state.sides[side].active.boosts[SPE],
+    ) as u32;
+
+    if mon.status == STATUS_PARALYSIS
+        && effective_ability(state, side) != data_bridge::ABILITY_QUICK_FEET
+    {
+        speed /= 2;
+    }
+
+    if data_bridge::item(mon.item_id).has(ItemFlag::CHOICE_SPE) {
+        speed = speed * 3 / 2;
+    }
+
+    if state.sides[side].active.has_volatile(VOL_UNBURDEN) {
+        speed *= 2;
+    }
+
+    if state.sides[side].side_conditions.tailwind_turns > 0 {
+        speed *= 2;
+    }
+
+    speed
+}
+
+#[inline(always)]
+fn action_priority(action: &ActionKind) -> i8 {
+    match action {
+        ActionKind::Switch { .. } => 7,
+        ActionKind::Struggle => 0,
+        ActionKind::Move { move_id, .. } => {
+            if *move_id == 0 { 0 } else { data_bridge::move_hot(*move_id).priority }
+        }
+    }
+}
+
+#[inline]
+fn resolve_order(
+    state: &BattleState,
+    side_a: usize, act_a: ActionKind,
+    side_b: usize, act_b: ActionKind,
+    rng: &mut impl FnMut(u32) -> u32,
+) -> (OrderedAction, OrderedAction) {
+    let a = OrderedAction { side: side_a, action: act_a };
+    let b = OrderedAction { side: side_b, action: act_b };
+
+    let pri_a = action_priority(&act_a);
+    let pri_b = action_priority(&act_b);
+
+    if pri_a != pri_b {
+        return if pri_a > pri_b { (a, b) } else { (b, a) };
+    }
+
+    if matches!(act_a, ActionKind::Switch { .. }) && matches!(act_b, ActionKind::Switch { .. }) {
+        return (a, b);
+    }
+
+    let spd_a = resolve_speed(state, side_a);
+    let spd_b = resolve_speed(state, side_b);
+    let trick_room = state.field.trick_room_turns > 0;
+
+    let a_faster = if spd_a != spd_b {
+        if trick_room { spd_a < spd_b } else { spd_a > spd_b }
+    } else {
+        rng(2) == 0
+    };
+
+    if a_faster { (a, b) } else { (b, a) }
+}
+
+// ── Action execution dispatch ───────────────────────────────────────
+
+#[inline]
+fn execute_action(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    side: usize,
+    action: &ActionKind,
+    rng: &mut impl FnMut(u32) -> u32,
+) {
+    match *action {
+        ActionKind::Switch { target } => {
+            perform_switch(state, keys, side, target as usize);
+        }
+        ActionKind::Move { slot, move_id } => {
+            execute_move(state, keys, side, move_id, slot, rng);
+        }
+        ActionKind::Struggle => {
+            execute_move(state, keys, side, 0, 0, rng);
+        }
+    }
+}
+
+// ── Faint sweep & phase transitions ─────────────────────────────────
+
+fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
+    let p1_alive = (0..6).any(|i| {
+        let m = &state.sides[0].team[i];
+        m.species_id != 0 && m.current_hp > 0
+    });
+    let p2_alive = (0..6).any(|i| {
+        let m = &state.sides[1].team[i];
+        m.species_id != 0 && m.current_hp > 0
+    });
+
+    if !p1_alive || !p2_alive {
+        set_phase(state, keys, PHASE_GAME_OVER);
+        return;
+    }
+
+    let p1_fainted = state.active_mon(0).is_fainted();
+    let p2_fainted = state.active_mon(1).is_fainted();
+
+    let p1_must = state.sides[0].active.has_volatile(VOL_MUST_SWITCH) && !p1_fainted;
+    let p2_must = state.sides[1].active.has_volatile(VOL_MUST_SWITCH) && !p2_fainted;
+
+    if p1_must { clear_volatile(state, keys, 0, VOL_MUST_SWITCH); }
+    if p2_must { clear_volatile(state, keys, 1, VOL_MUST_SWITCH); }
+
+    let phase = match (p1_fainted || p1_must, p2_fainted || p2_must) {
+        (true, true)   => PHASE_SWITCH_BOTH,
+        (true, false)  => PHASE_SWITCH_P1,
+        (false, true)  => PHASE_SWITCH_P2,
+        (false, false) => PHASE_ACTIONS,
+    };
+    set_phase(state, keys, phase);
+}
+
+// ── Main entry point ────────────────────────────────────────────────
+
+pub fn execute_turn(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    action_p1: u8,
+    action_p2: u8,
+    rng: &mut impl FnMut(u32) -> u32,
+) {
+    let act0 = decode_action(state, 0, action_p1);
+    let act1 = decode_action(state, 1, action_p2);
+    let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
+
+    execute_action(state, keys, first.side, &first.action, rng);
+
+    if !state.active_mon(second.side).is_fainted() {
+        execute_action(state, keys, second.side, &second.action, rng);
+    }
+
+    end_of_turn(state, keys);
+    faint_sweep(state, keys);
+}
+
+pub fn execute_switch_turn(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    action_p1: u8,
+    action_p2: u8,
+) {
+    let phase = state.phase;
+
+    if phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH {
+        if let ActionKind::Switch { target } = decode_action(state, 0, action_p1) {
+            perform_switch(state, keys, 0, target as usize);
+        }
+    }
+    if phase == PHASE_SWITCH_P2 || phase == PHASE_SWITCH_BOTH {
+        if let ActionKind::Switch { target } = decode_action(state, 1, action_p2) {
+            perform_switch(state, keys, 1, target as usize);
+        }
+    }
+
+    faint_sweep(state, keys);
+}

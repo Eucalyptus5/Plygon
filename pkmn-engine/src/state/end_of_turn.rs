@@ -26,6 +26,10 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
         state.sides[side].active.turns_active = state.sides[side].active.turns_active.saturating_add(1);
     }
     for side in 0..2 {                                           // 17
+        // Reset protect_consecutive if Protect was NOT used this turn
+        if !state.sides[side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
+            state.sides[side].active.protect_consecutive = 0;
+        }
         let flags_to_clear = state.sides[side].active.volatile_flags & VOL_PER_TURN_MASK;
         for bit in 0..32u32 {
             if flags_to_clear & (1 << bit) != 0 { state.zobrist ^= keys.volatile_bit[side][bit as usize]; }
@@ -97,14 +101,6 @@ fn step_status_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
             let damage = (max_hp as u32 * counter as u32 / 16).max(1) as u16;
             deal_damage(state, keys, side, slot, damage);
             state.sides[side].active.toxic_counter = counter.saturating_add(1);
-        }
-        STATUS_SLEEP => {
-            if state.sides[side].team[slot].status_counter > 0 {
-                state.sides[side].team[slot].status_counter -= 1;
-                if state.sides[side].team[slot].status_counter == 0 {
-                    clear_status(state, keys, side, slot);
-                }
-            }
         }
         _ => {}
     }

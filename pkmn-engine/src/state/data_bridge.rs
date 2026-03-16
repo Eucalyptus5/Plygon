@@ -2,7 +2,7 @@
 //! the static data layer (`crate::data`).
 
 pub use crate::data::base_stats::SpeciesData;
-pub use crate::data::moves::{MoveData, MoveMeta, MoveCategory};
+pub use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveEffect};
 pub use crate::data::items::{ItemData, ItemFlag};
 
 // ── Species lookup ──────────────────────────────────────────────────
@@ -131,6 +131,15 @@ pub const ABILITY_STURDY: u16        = 5;
 
 // -- Multi-hit --
 pub const ABILITY_SKILL_LINK: u16    = 92;
+
+// -- Turn executor: speed / accuracy / secondary --
+pub const ABILITY_QUICK_FEET: u16    = 95;
+pub const ABILITY_NO_GUARD: u16      = 99;
+pub const ABILITY_COMPOUND_EYES: u16 = 14;
+pub const ABILITY_VICTORY_STAR: u16  = 161;
+pub const ABILITY_SERENE_GRACE: u16  = 32;
+pub const ABILITY_SAND_VEIL: u16     = 8;
+pub const ABILITY_SNOW_CLOAK: u16    = 81;
 
 // ── Legacy item ID constants (kept for tests) ───────────────────────
 

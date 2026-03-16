@@ -10,6 +10,8 @@ pub mod end_of_turn;
 pub mod forme;
 pub mod calc;
 pub mod calc_modifiers;
+pub mod move_exec;
+pub mod turn;
 
 pub use structs::*;
 pub use data_bridge::{species, move_hot, move_cold, move_base_pp, item, ABILITY_NONE};
@@ -18,3 +20,4 @@ pub use accessors::*;
 pub use team_builder::*;
 pub use legal_moves::*;
 pub use calc::DamageResult;
+pub use turn::{execute_turn, execute_switch_turn};

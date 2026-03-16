@@ -44,6 +44,56 @@ pub enum VarPower {
     TechnoBlast= 16,
 }
 
+// ── Move effect enum ────────────────────────────────────────────────
+// Replaces hardcoded move IDs in the executor.  Populated by the data
+// generation pipeline.  MoveEffect::None means "no special dispatch."
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum MoveEffect {
+    None         = 0,
+
+    // -- Status move effects --
+    Protect      = 1,   // Protect, Detect, King's Shield, Baneful Bunker
+    StealthRock  = 2,
+    Spikes       = 3,
+    ToxicSpikes  = 4,
+    StickyWeb    = 5,
+    Defog        = 6,
+    WillOWisp    = 7,
+    ThunderWave  = 8,
+    Toxic        = 9,
+    Sleep        = 10,  // Spore, Sleep Powder, Hypnosis
+    SwordsDance  = 11,
+    NastyPlot    = 12,
+    DragonDance  = 13,
+    CalmMind     = 14,
+    BulkUp       = 15,
+    IronDefense  = 16,
+    Agility      = 17,
+    QuiverDance  = 18,
+    ShellSmash   = 19,
+    Coil         = 20,
+    ShiftGear    = 21,
+    Reflect      = 22,
+    LightScreen  = 23,
+    AuroraVeil   = 24,
+    Tailwind     = 25,
+    TrickRoom    = 26,
+    Substitute   = 27,
+    Wish         = 28,
+    Taunt        = 29,
+    LeechSeed    = 30,
+    Encore       = 31,
+
+    // -- Damaging move side effects --
+    ForceSwitch  = 32,  // U-turn, Volt Switch, Flip Turn
+    RapidSpin    = 33,  // Physical + clears hazards + Speed boost
+
+    // Recovery (Recover, Roost, etc.) is detected by MoveFlags::HEAL.
+    // Recharge (Hyper Beam, etc.) is detected by MoveFlags::RECHARGE.
+}
+
 // Flags (only need 15 bits)
 
 #[allow(non_snake_case)]
@@ -65,29 +115,35 @@ pub mod MoveFlags {
     pub const BYPASSSUB:   u16 = 1 << 14;
 }
 
-// Hot path struct: everything the damage calc touches
+// Hot path struct: everything the damage calc and executor touch
 
-/// 14 bytes with #[repr(C)], zero padding.
+/// 16 bytes with #[repr(C)], zero padding.
 /// Field order: u16 first (strictest alignment), then all u8/i8 fields.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MoveData {
-    pub flags:       u16,
-    pub base_power:  u8,
-    pub accuracy:    u8,
-    pub category:    MoveCategory,
-    pub move_type:   Type,
-    pub var_power:   VarPower,
-    pub crit_ratio:  u8,
-    pub drain:       i8,
-    pub priority:    i8,
-    pub multihit_lo: u8,
-    pub multihit_hi: u8,
+    pub flags:            u16,
+    pub base_power:       u8,
+    pub accuracy:         u8,
+    pub category:         MoveCategory,
+    pub move_type:        Type,
+    pub var_power:        VarPower,
+    pub crit_ratio:       u8,
+    pub drain:            i8,
+    pub priority:         i8,
+    pub multihit_lo:      u8,
+    pub multihit_hi:      u8,
     pub secondary_chance: u8,
     pub secondary_stat:   i8,
+    /// What the executor dispatches on (status moves, force-switch, etc.).
+    pub effect:           MoveEffect,
+    /// Status inflicted as a secondary effect (STATUS_BURN, etc.), or 0.
+    /// Populated by data generation.  When 0, the executor falls back to
+    /// a type-based heuristic (Fire→burn, Electric→paralysis, etc.).
+    pub secondary_status: u8,
 }
 
-const _: () = assert!(core::mem::size_of::<MoveData>() == 14);
+const _: () = assert!(core::mem::size_of::<MoveData>() == 16);
 
 /// Cold path: data NOT needed during damage calc rollouts.
 #[derive(Copy, Clone)]
