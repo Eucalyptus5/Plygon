@@ -2,7 +2,7 @@
 //! the static data layer (`crate::data`).
 
 pub use crate::data::base_stats::SpeciesData;
-pub use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveEffect};
+pub use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveEffect, SelfEffect};
 pub use crate::data::items::{ItemData, ItemFlag};
 
 // ── Species lookup ──────────────────────────────────────────────────
@@ -145,6 +145,12 @@ pub const ABILITY_SAP_SIPPER: u16    = 157;
 pub const ABILITY_BULLETPROOF: u16   = 171;
 pub const ABILITY_SOUNDPROOF: u16    = 43;
 pub const ABILITY_OVERCOAT: u16      = 142;
+pub const ABILITY_EARTH_EATER: u16   = 297;
+pub const ABILITY_WIND_RIDER: u16    = 274;
+pub const ABILITY_GOOD_AS_GOLD: u16  = 283;
+pub const ABILITY_DAZZLING: u16      = 219;
+pub const ABILITY_QUEENLY_MAJESTY: u16 = 214;
+pub const ABILITY_ARMOR_TAIL: u16    = 296;
 
 // -- After-damage hooks: defender --
 pub const ABILITY_ROUGH_SKIN: u16    = 24;
@@ -176,6 +182,43 @@ pub const ABILITY_VICTORY_STAR: u16  = 162;
 pub const ABILITY_SERENE_GRACE: u16  = 32;
 pub const ABILITY_SAND_VEIL: u16     = 8;
 pub const ABILITY_SNOW_CLOAK: u16    = 81;
+
+// -- Type-change abilities (pre-calc) --
+pub const ABILITY_GALVANIZE: u16     = 206;
+pub const ABILITY_PIXILATE: u16      = 182;
+pub const ABILITY_AERILATE: u16      = 184;
+pub const ABILITY_REFRIGERATE: u16   = 174;
+pub const ABILITY_NORMALIZE: u16     = 96;
+pub const ABILITY_LIQUID_VOICE: u16  = 204;
+
+// -- Terrain setters --
+pub const ABILITY_ELECTRIC_SURGE: u16 = 226;
+pub const ABILITY_GRASSY_SURGE: u16   = 229;
+pub const ABILITY_MISTY_SURGE: u16    = 228;
+pub const ABILITY_PSYCHIC_SURGE: u16  = 227;
+
+// -- Switch-in abilities --
+pub const ABILITY_DOWNLOAD: u16       = 88;
+pub const ABILITY_TRACE: u16          = 36;
+pub const ABILITY_IMPOSTER: u16       = 150;
+pub const ABILITY_NEUTRALIZING_GAS: u16 = 256;
+pub const ABILITY_UNNERVE: u16        = 127;
+pub const ABILITY_AIR_LOCK: u16       = 76;
+pub const ABILITY_CLOUD_NINE: u16     = 13;
+pub const ABILITY_INTREPID_SWORD: u16 = 234;
+pub const ABILITY_DAUNTLESS_SHIELD: u16 = 235;
+pub const ABILITY_HOSPITALITY: u16    = 299;
+pub const ABILITY_SUPERSWEET_SYRUP: u16 = 306;
+pub const ABILITY_EMBODY_ASPECT_TEAL: u16 = 301;
+pub const ABILITY_EMBODY_ASPECT_WELLSPRING: u16 = 302;
+pub const ABILITY_EMBODY_ASPECT_HEARTHFLAME: u16 = 303;
+pub const ABILITY_EMBODY_ASPECT_CORNERSTONE: u16 = 304;
+
+// -- Switch-out abilities --
+pub const ABILITY_ZERO_TO_HERO: u16   = 278;
+
+// -- Priority-blocking abilities --
+// (Dazzling, Queenly Majesty, Armor Tail are in defender immunities above)
 
 // ── Legacy item ID constants (kept for tests) ───────────────────────
 

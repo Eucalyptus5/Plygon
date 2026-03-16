@@ -68,7 +68,6 @@ pub fn calc_damage(
 
     let atk_mon = state.active_mon(atk_side);
     let def_mon = state.active_mon(def_side);
-    let atk_active = &state.sides[atk_side].active;
     let def_active = &state.sides[def_side].active;
     let atk_ability = effective_ability(state, atk_side);
     let def_ability = effective_ability(state, def_side);
@@ -77,8 +76,10 @@ pub fn calc_damage(
 
     let mut result = DamageResult::default();
 
+    // ── Resolve effective move type (WeatherBall, TerrainPulse) ─────
+    let (move_type, ate_boost) = resolve_move_type_with_ability(state, md, atk_side, atk_ability);
+
     // ── Type effectiveness ─────────────────────────────────────────
-    let move_type = md.move_type;
     let (def_t1, def_t2) = effective_types(state, def_side);
     let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
     let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
@@ -114,8 +115,8 @@ pub fn calc_damage(
         return result;
     }
 
-    // Ability-based flag immunity (Bulletproof, Soundproof, Overcoat)
-    if ability_flag_immunity(state, def_side, md.flags) {
+    // Ability-based flag immunity (Bulletproof, Soundproof, Overcoat, Wind Rider)
+    if ability_flag_immunity(state, def_side, md.flags).is_some() {
         result.type_immune = true;
         return result;
     }
@@ -127,6 +128,11 @@ pub fn calc_damage(
     // Ability power mods
     let (ap_n, ap_d) = ability_power_mod(state, md, atk_side, base_power);
     power = chain_mod(power, ap_n, ap_d);
+
+    // -ate ability boost: 1.2× when type was changed by Galvanize/Pixilate/etc.
+    if ate_boost {
+        power = chain_mod(power, 4915, 4096); // 1.2×
+    }
 
     // Item power mods (type boost, gem)
     let (ip_n, ip_d) = item_power_mod(atk_item, move_type);
@@ -142,9 +148,24 @@ pub fn calc_damage(
     // ── Resolve A and D stats ──────────────────────────────────────
     let is_physical = md.category == MoveCategory::Physical;
 
-    let (atk_stat_idx, def_stat_idx) = if is_physical { (ATK, DEF) } else { (SPA, SPD) };
+    // Default stat indices
+    let (mut atk_stat_idx, mut def_stat_idx) = if is_physical { (ATK, DEF) } else { (SPA, SPD) };
 
-    let mut a = effective_stat(state, atk_side, atk_stat_idx);
+    // Which side provides the offensive stat (normally atk_side)
+    let mut atk_stat_side = atk_side;
+
+    // Stat-override moves
+    match md.effect {
+        // Photon (Psyshock/Psystrike/Secret Sword): SpA vs Def
+        MoveEffect::Photon => { def_stat_idx = DEF; }
+        // FoulPlay: use target's Atk stat
+        MoveEffect::FoulPlay => { atk_stat_side = def_side; atk_stat_idx = ATK; }
+        // BodyPress: use attacker's Def as Atk
+        MoveEffect::BodyPress => { atk_stat_idx = DEF; }
+        _ => {}
+    }
+
+    let mut a = effective_stat(state, atk_stat_side, atk_stat_idx);
     let mut d = effective_stat(state, def_side, def_stat_idx);
 
     // ── Crit check ─────────────────────────────────────────────────
@@ -153,7 +174,7 @@ pub fn calc_damage(
     result.crit = is_crit;
 
     // Apply boost stages (crits modify which stages are used)
-    let atk_stage = atk_active.boosts[atk_stat_idx];
+    let atk_stage = state.sides[atk_stat_side].active.boosts[atk_stat_idx];
     let def_stage = def_active.boosts[def_stat_idx];
     if is_crit {
         a = boosted_stat(a, atk_stage.max(0));  // ignore negative atk boosts
@@ -475,7 +496,7 @@ mod tests {
     #[test]
     fn test_multihit_skill_link() {
         let md = MoveData {
-            multihit_lo: 2, multihit_hi: 5, base_power: 25,
+            multihit: (5 << 4) | 2, base_power: 25,
             ..unsafe { core::mem::zeroed() }
         };
         let hits = resolve_hits(&md, data_bridge::ABILITY_SKILL_LINK, &mut fixed_rng(0));

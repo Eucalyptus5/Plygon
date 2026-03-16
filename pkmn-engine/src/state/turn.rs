@@ -80,12 +80,22 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
 }
 
 #[inline(always)]
-fn action_priority(action: &ActionKind) -> i8 {
+fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 {
     match action {
         ActionKind::Switch { .. } => 7,
         ActionKind::Struggle => 0,
         ActionKind::Move { move_id, .. } => {
-            if *move_id == 0 { 0 } else { data_bridge::move_hot(*move_id).priority }
+            if *move_id == 0 { return 0; }
+            let md = data_bridge::move_hot(*move_id);
+            let mut pri = md.priority;
+            // Grassy Glide: +1 priority in Grassy Terrain if user is grounded
+            if md.effect == data_bridge::MoveEffect::GrassyGlide
+                && state.field.terrain == TERRAIN_GRASSY
+                && is_grounded(state, side)
+            {
+                pri += 1;
+            }
+            pri
         }
     }
 }
@@ -100,8 +110,8 @@ fn resolve_order(
     let a = OrderedAction { side: side_a, action: act_a };
     let b = OrderedAction { side: side_b, action: act_b };
 
-    let pri_a = action_priority(&act_a);
-    let pri_b = action_priority(&act_b);
+    let pri_a = action_priority(state, side_a, &act_a);
+    let pri_b = action_priority(state, side_b, &act_b);
 
     if pri_a != pri_b {
         return if pri_a > pri_b { (a, b) } else { (b, a) };

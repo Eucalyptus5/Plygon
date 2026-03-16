@@ -292,6 +292,9 @@ pub fn defender_ability_final_mod(
         // Heatproof: 0.5× Fire
         data_bridge::ABILITY_HEATPROOF if md.move_type == Type::Fire => (2048, 4096),
 
+        // Dry Skin: 1.25× damage from Fire
+        data_bridge::ABILITY_DRY_SKIN if md.move_type == Type::Fire => (5120, 4096),
+
         _ => (4096, 4096),
     }
 }
@@ -365,9 +368,11 @@ pub fn item_final_mod(
 /// Determine the number of hits for a multi-hit move.
 #[inline]
 pub fn resolve_hits(md: &MoveData, ability: u16, rng: &mut impl FnMut(u32) -> u32) -> u8 {
-    if md.multihit_lo == 0 { return 1; }
-    if md.multihit_lo == md.multihit_hi { return md.multihit_lo; }
-    if ability == data_bridge::ABILITY_SKILL_LINK { return md.multihit_hi; }
+    let lo = md.multihit_lo();
+    let hi = md.multihit_hi();
+    if lo == 0 { return 1; }
+    if lo == hi { return lo; }
+    if ability == data_bridge::ABILITY_SKILL_LINK { return hi; }
     // 2-5 distribution: 35%, 35%, 15%, 15%
     match rng(100) {
         0..=34 => 2,
@@ -416,6 +421,9 @@ pub fn ability_type_immunity(
         // Flash Fire: nullify + set volatile
         (data_bridge::ABILITY_FLASH_FIRE, Type::Fire) => Some(AbilityImmunityEffect::FlashFire),
 
+        // Earth Eater: immune to Ground, heal 25%
+        (data_bridge::ABILITY_EARTH_EATER, Type::Ground) => Some(AbilityImmunityEffect::Heal(def_mon.max_hp / 4)),
+
         // Levitate: immune to Ground
         (data_bridge::ABILITY_LEVITATE, Type::Ground) => {
             // Grounded mons (Gravity, Smack Down, Ingrain) lose Levitate immunity
@@ -429,19 +437,38 @@ pub fn ability_type_immunity(
     }
 }
 
-/// Check for ability-based flag immunities (Bulletproof, Soundproof, Overcoat).
+/// Check for ability-based flag immunities (Bulletproof, Soundproof, Overcoat, Wind Rider).
 /// Separate from type immunities because these check MoveFlags, not move type.
 #[inline]
 pub fn ability_flag_immunity(
     state: &BattleState, def_side: usize, flags: u16,
-) -> bool {
+) -> Option<AbilityImmunityEffect> {
     let ability = effective_ability(state, def_side);
     match ability {
-        data_bridge::ABILITY_BULLETPROOF if flags & MoveFlags::BULLET != 0 => true,
-        data_bridge::ABILITY_SOUNDPROOF  if flags & MoveFlags::SOUND != 0 => true,
-        data_bridge::ABILITY_OVERCOAT    if flags & MoveFlags::POWDER != 0 => true,
-        _ => false,
+        data_bridge::ABILITY_BULLETPROOF if flags & MoveFlags::BULLET != 0 => Some(AbilityImmunityEffect::Nullify),
+        data_bridge::ABILITY_SOUNDPROOF  if flags & MoveFlags::SOUND != 0 => Some(AbilityImmunityEffect::Nullify),
+        data_bridge::ABILITY_OVERCOAT    if flags & MoveFlags::POWDER != 0 => Some(AbilityImmunityEffect::Nullify),
+        data_bridge::ABILITY_WIND_RIDER  if flags & MoveFlags::WIND != 0 => Some(AbilityImmunityEffect::Boost(ATK, 1)),
+        _ => None,
     }
+}
+
+/// Check if Good as Gold blocks a status move (non-self-targeting).
+#[inline]
+pub fn good_as_gold_immunity(state: &BattleState, def_side: usize) -> bool {
+    effective_ability(state, def_side) == data_bridge::ABILITY_GOOD_AS_GOLD
+}
+
+/// Check if Dazzling / Queenly Majesty / Armor Tail blocks a priority move.
+#[inline]
+pub fn priority_block_immunity(state: &BattleState, def_side: usize, priority: i8) -> bool {
+    if priority <= 0 { return false; }
+    let ability = effective_ability(state, def_side);
+    matches!(ability,
+        data_bridge::ABILITY_DAZZLING |
+        data_bridge::ABILITY_QUEENLY_MAJESTY |
+        data_bridge::ABILITY_ARMOR_TAIL
+    )
 }
 
 /// Legacy wrapper used by calc_damage (returns Option<u16> for backward compat).
@@ -475,6 +502,78 @@ pub fn weather_def_stat_mod(
             => (d as u32 * 3 / 2) as u16,
         _ => d,
     }
+}
+
+// ── Move type overrides ─────────────────────────────────────────────
+
+/// Resolve the effective type of a move (WeatherBall, TerrainPulse).
+#[inline]
+pub fn resolve_move_type(
+    state: &BattleState, md: &MoveData, atk_side: usize,
+) -> Type {
+    match md.effect {
+        MoveEffect::WeatherBall => {
+            match state.field.weather {
+                WEATHER_SUN | WEATHER_HARSH_SUN => Type::Fire,
+                WEATHER_RAIN | WEATHER_HEAVY_RAIN => Type::Water,
+                WEATHER_SAND => Type::Rock,
+                WEATHER_SNOW => Type::Ice,
+                _ => md.move_type,
+            }
+        }
+        MoveEffect::TerrainPulse => {
+            if is_grounded(state, atk_side) {
+                match state.field.terrain {
+                    TERRAIN_ELECTRIC => Type::Electric,
+                    TERRAIN_GRASSY => Type::Grass,
+                    TERRAIN_MISTY => Type::Fairy,
+                    TERRAIN_PSYCHIC => Type::Psychic,
+                    _ => md.move_type,
+                }
+            } else {
+                md.move_type
+            }
+        }
+        _ => md.move_type,
+    }
+}
+
+// ── Type-change ability resolution ──────────────────────────────────
+
+/// Resolve the effective move type, applying type-change abilities.
+/// Returns (final_type, ate_boost) — ate_boost is true if an -ate ability
+/// changed the type and the 1.2× power boost should apply.
+#[inline]
+pub fn resolve_move_type_with_ability(
+    state: &BattleState, md: &MoveData, atk_side: usize, atk_ability: u16,
+) -> (Type, bool) {
+    // First apply normal move-type overrides (WeatherBall, TerrainPulse)
+    let base_type = resolve_move_type(state, md, atk_side);
+
+    // Normalize: all moves become Normal (1.2× boost)
+    if atk_ability == data_bridge::ABILITY_NORMALIZE {
+        return (Type::Normal, base_type != Type::Normal);
+    }
+
+    // Liquid Voice: Sound-flagged moves become Water (1.2×)
+    if atk_ability == data_bridge::ABILITY_LIQUID_VOICE
+        && md.flags & MoveFlags::SOUND != 0
+    {
+        return (Type::Water, true);
+    }
+
+    // -ate abilities: Normal → specific type (1.2×)
+    if base_type == Type::Normal {
+        match atk_ability {
+            data_bridge::ABILITY_GALVANIZE  => return (Type::Electric, true),
+            data_bridge::ABILITY_PIXILATE   => return (Type::Fairy, true),
+            data_bridge::ABILITY_AERILATE   => return (Type::Flying, true),
+            data_bridge::ABILITY_REFRIGERATE => return (Type::Ice, true),
+            _ => {}
+        }
+    }
+
+    (base_type, false)
 }
 
 // ── Move-effect power modifiers ──────────────────────────────────────
@@ -527,6 +626,27 @@ pub fn move_effect_power_mod(
                 WEATHER_RAIN | WEATHER_HEAVY_RAIN
                 | WEATHER_SAND | WEATHER_SNOW => (2048, 4096), // 0.5×
                 _ => (4096, 4096),
+            }
+        }
+
+        // Weather Ball: 2× power in any active weather
+        MoveEffect::WeatherBall => {
+            match state.field.weather {
+                WEATHER_SUN | WEATHER_HARSH_SUN
+                | WEATHER_RAIN | WEATHER_HEAVY_RAIN
+                | WEATHER_SAND | WEATHER_SNOW => (8192, 4096), // 2×
+                _ => (4096, 4096),
+            }
+        }
+
+        // Terrain Pulse: 2× power if terrain active + user grounded
+        MoveEffect::TerrainPulse => {
+            if state.field.terrain != TERRAIN_NONE
+                && is_grounded(state, atk_side)
+            {
+                (8192, 4096) // 2×
+            } else {
+                (4096, 4096)
             }
         }
 

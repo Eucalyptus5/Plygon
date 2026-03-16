@@ -50,6 +50,19 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
 
     if active.has_volatile(VOL_RECHARGING) { return 0; }
 
+    // Charging (turn 2 pending): the only legal move is the stored charge move.
+    // execute_move will override move_id to last_move anyway, but MCTS needs
+    // choice generation to reflect this constraint.
+    if active.has_volatile(VOL_CHARGING) {
+        for i in 0..4 {
+            if moves[i] == active.last_move && moves[i] != 0 {
+                list.push(i as u8); return 1;
+            }
+        }
+        // Fallback: offer slot 0 (execute_move will override to last_move)
+        list.push(0); return 1;
+    }
+
     if active.has_volatile(VOL_MOVE_LOCKED) {
         for i in 0..4 {
             if moves[i] == active.last_move && moves[i] != 0 && effective_pp(state, side, i) > 0 {
@@ -96,7 +109,8 @@ fn generate_legal_switches(state: &BattleState, side: usize, list: &mut ActionLi
 
     if state.phase == PHASE_ACTIONS && !is_trap_immune(state, side) {
         if active.has_volatile(VOL_TRAPPED) || active.has_volatile(VOL_INGRAIN)
-           || active.has_volatile(VOL_BOUND) || active.has_volatile(VOL_MOVE_LOCKED) {
+           || active.has_volatile(VOL_BOUND) || active.has_volatile(VOL_MOVE_LOCKED)
+           || active.has_volatile(VOL_CHARGING) {
             return;
         }
     }
@@ -130,4 +144,50 @@ mod tests {
     #[test] fn test_normal() { let s = make_state(); assert_eq!(legal_actions(&s, 0).count, 6); }
     #[test] fn test_no_pp_struggle() { let mut s = make_state(); s.sides[0].team[0].pp = [0;4]; assert!(legal_actions(&s, 0).as_slice().contains(&ACTION_STRUGGLE)); }
     #[test] fn test_trapped() { let mut s = make_state(); s.sides[0].active.volatile_flags |= VOL_TRAPPED; let a = legal_actions(&s, 0); assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0)); }
+
+    #[test]
+    fn test_charging_restricts_to_charged_move() {
+        let mut s = make_state();
+        // Simulate charging: VOL_CHARGING set, last_move = move in slot 1 (521)
+        s.sides[0].active.volatile_flags |= VOL_CHARGING;
+        s.sides[0].active.last_move = 521; // Volt Switch in slot 1
+        let a = legal_actions(&s, 0);
+        // Should only offer 1 move action (the charged move slot) and NO switches
+        assert_eq!(a.count, 1);
+        assert_eq!(a.actions[0], 1); // slot 1
+        assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0));
+    }
+
+    #[test]
+    fn test_charging_blocks_switches() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_CHARGING;
+        s.sides[0].active.last_move = 85; // slot 0
+        let a = legal_actions(&s, 0);
+        // No switch options when charging
+        assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0));
+    }
+
+    #[test]
+    fn test_move_locked_restricts_to_locked_move() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_MOVE_LOCKED;
+        s.sides[0].active.last_move = 447; // slot 2
+        let a = legal_actions(&s, 0);
+        // Only the locked move, no switches
+        assert_eq!(a.count, 1);
+        assert_eq!(a.actions[0], 2); // slot 2
+    }
+
+    #[test]
+    fn test_must_switch_returns_only_switches() {
+        let mut s = make_state();
+        // VOL_MUST_SWITCH triggers a switch phase via faint_sweep,
+        // so test in PHASE_SWITCH_P1 (the actual phase after faint_sweep)
+        s.phase = PHASE_SWITCH_P1;
+        let a = legal_actions(&s, 0);
+        // Should only have switch targets (2 bench mons alive)
+        assert_eq!(a.count, 2);
+        assert!(a.as_slice().iter().all(|&x| x >= ACTION_SWITCH_0));
+    }
 }

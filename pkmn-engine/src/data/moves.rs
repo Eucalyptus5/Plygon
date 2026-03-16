@@ -47,6 +47,40 @@ pub enum VarPower {
     RisingVoltage = 19, // 2× if Electric Terrain + target grounded
 }
 
+// ── Self-effect enum ────────────────────────────────────────────────
+// Encodes guaranteed self-stat changes, crash damage, and other effects
+// that apply to the attacker after a damaging move lands.
+// Stored in MoveData.self_effect (byte 15).
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum SelfEffect {
+    None            = 0,
+    // Self-stat drops on damaging moves
+    DefSpDDown1     = 1,   // Close Combat, Armor Cannon, Dragon Ascent
+    AtkDefDown1     = 2,   // Superpower
+    DefSpDSpeDown1  = 3,   // V-Create
+    SpADown2        = 4,   // Draco Meteor, Leaf Storm, Overheat, Fleur Cannon, Psycho Boost
+    SpeDown1        = 5,   // Hammer Arm, Ice Hammer
+    AtkDown1        = 6,
+    SpDDown1        = 7,
+    DefDown1        = 8,
+    SpADown1        = 9,
+    SpeDown2        = 10,  // Spin Out
+    // Self-stat boosts on damaging moves
+    AtkUp1          = 11,
+    SpeUp1          = 12,
+    DefUp1          = 13,
+    SpAUp1          = 14,
+    // Special self-effects
+    CrashDamage     = 15,  // High Jump Kick, Jump Kick, Axe Kick, Supercell Slam — 50% max HP on miss
+    SelfSwitch      = 16,  // U-turn, Volt Switch, Flip Turn (placeholder; uses MoveEffect::ForceSwitch)
+    BatonPass       = 17,  // Baton Pass (placeholder; uses MoveEffect::BatonPass)
+    PartingShot     = 18,  // Parting Shot (placeholder; uses MoveEffect::PartingShot)
+    Heal50          = 19,  // Recover, Slack Off, Roost, etc. (placeholder; uses MoveFlags::HEAL)
+    ThawSelf        = 20,  // Scald, Steam Eruption (non-Fire moves that thaw user)
+}
+
 // ── Move effect enum ────────────────────────────────────────────────
 // Replaces hardcoded move IDs in the executor.  Populated by the data
 // generation pipeline.  MoveEffect::None means "no special dispatch."
@@ -123,6 +157,14 @@ pub enum MoveEffect {
     // Recovery (Recover, Roost, etc.) is detected by MoveFlags::HEAL.
     // Recharge (Hyper Beam, etc.) is detected by MoveFlags::RECHARGE.
 
+    // -- Stat-override moves (Step 2: Phase 2) --
+    FoulPlay     = 53,  // Use target's Atk instead of attacker's
+    BodyPress    = 54,  // Use attacker's Def as Atk
+    Photon       = 55,  // Psyshock/Psystrike/Secret Sword: SpA vs Def
+    WeatherBall  = 56,  // Type + 2× power by active weather
+    TerrainPulse = 57,  // Type + 2× power by active terrain (grounded)
+    GrassyGlide  = 58,  // +1 priority in Grassy Terrain (grounded)
+
     // -- Locked/thrashing moves (Step 4) --
     Thrash       = 52,  // Outrage, Petal Dance, Thrash, Raging Fury: 2-3 turns locked, confuse on end
 }
@@ -165,8 +207,9 @@ pub struct MoveData {
     pub crit_ratio:       u8,
     pub drain:            i8,
     pub priority:         i8,
-    pub multihit_lo:      u8,
-    pub multihit_hi:      u8,
+    /// Packed multi-hit: lo = bits[3:0], hi = bits[7:4].
+    /// 0 means single-hit.
+    pub multihit:         u8,
     pub secondary_chance: u8,
     pub secondary_stat:   i8,
     /// What the executor dispatches on (status moves, force-switch, etc.).
@@ -175,6 +218,17 @@ pub struct MoveData {
     /// Populated by data generation.  When 0, the executor falls back to
     /// a type-based heuristic (Fire→burn, Electric→paralysis, etc.).
     pub secondary_status: u8,
+    /// Self-effect applied to the attacker after damage (stat drops, crash, etc.).
+    pub self_effect:      SelfEffect,
+}
+
+impl MoveData {
+    /// Low bound of multi-hit range (0 = single-hit move).
+    #[inline(always)]
+    pub fn multihit_lo(&self) -> u8 { self.multihit & 0xF }
+    /// High bound of multi-hit range.
+    #[inline(always)]
+    pub fn multihit_hi(&self) -> u8 { self.multihit >> 4 }
 }
 
 const _: () = assert!(core::mem::size_of::<MoveData>() == 16);

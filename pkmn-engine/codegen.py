@@ -82,6 +82,16 @@ MOVE_EFFECT = {
     "expandingforce": "ExpandingForce", "psyblade": "Psyblade",
     "solarbeam": "SolarBeam", "solarblade": "SolarBeam",
 
+    # -- Stat-override moves --
+    "foulplay": "FoulPlay",
+    "bodypress": "BodyPress",
+    "psyshock": "Photon", "psystrike": "Photon", "secretsword": "Photon",
+
+    # -- Type/power override moves --
+    "weatherball": "WeatherBall",
+    "terrainpulse": "TerrainPulse",
+    "grassyglide": "GrassyGlide",
+
     # -- Weather accuracy --
     "thunder": "WeatherAccRain", "hurricane": "WeatherAccRain",
     "blizzard": "WeatherAccSnow",
@@ -103,6 +113,57 @@ MOVE_EFFECT = {
     # -- Locked / thrashing --
     "outrage": "Thrash", "petaldance": "Thrash", "thrash": "Thrash",
     "ragingfury": "Thrash",
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# SelfEffect mapping: Showdown move key → engine SelfEffect variant
+# ═══════════════════════════════════════════════════════════════════
+
+SELF_EFFECT = {
+    # -- Self-stat drops on damaging moves --
+    # -1 Def, -1 SpD
+    "closecombat": "DefSpDDown1",
+    "armorcannon": "DefSpDDown1",
+    "dragonascent": "DefSpDDown1",
+    "headlongrush": "DefSpDDown1",
+
+    # -1 Atk, -1 Def
+    "superpower": "AtkDefDown1",
+
+    # -1 Def, -1 SpD, -1 Spe
+    "vcreate": "DefSpDSpeDown1",
+
+    # -2 SpA
+    "dracometeor": "SpADown2",
+    "leafstorm": "SpADown2",
+    "overheat": "SpADown2",
+    "fleurcannon": "SpADown2",
+    "psychoboost": "SpADown2",
+
+    # -1 SpA
+    "makeitrain": "SpADown1",
+
+    # -1 Spe
+    "hammerarm": "SpeDown1",
+    "icehammer": "SpeDown1",
+
+    # -2 Spe
+    "spinout": "SpeDown2",
+
+    # -1 Def
+    "hyperspacefury": "DefDown1",
+
+    # -- Crash damage (50% max HP on miss) --
+    "highjumpkick": "CrashDamage",
+    "jumpkick": "CrashDamage",
+    "axekick": "CrashDamage",
+    "supercellslam": "CrashDamage",
+
+    # -- Thaw self (non-Fire moves that thaw user) --
+    # Fire-type moves thaw by default in the engine, so only non-Fire thaw
+    # moves need this. Scald/Steam Eruption are Water but thaw user.
+    "scald": "ThawSelf",
+    "steameruption": "ThawSelf",
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -424,9 +485,10 @@ def gen_moves():
                 "    MoveData { flags:0, base_power:0, accuracy:0,\n"
                 "        category:MoveCategory::Status, move_type:Type::Normal,\n"
                 "        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,\n"
-                "        multihit_lo:0, multihit_hi:0,\n"
+                "        multihit:0,\n"
                 "        secondary_chance:0, secondary_stat:0,\n"
-                "        effect:MoveEffect::None, secondary_status:0 },"
+                "        effect:MoveEffect::None, secondary_status:0,\n"
+                "        self_effect:SelfEffect::None },"
             )
             lines_cold.append(f"    MoveMeta {{ pp: 0, target: MoveTarget::Normal }}, // [{i}]")
             continue
@@ -530,6 +592,18 @@ def gen_moves():
         }
         target_rust = target_map.get(target, "MoveTarget::Normal")
 
+        # SelfEffect
+        self_effect = "SelfEffect::None"
+        if key in SELF_EFFECT:
+            self_effect = f"SelfEffect::{SELF_EFFECT[key]}"
+
+        # Crash damage moves: drain should be 0 (crash handled via SelfEffect, not recoil)
+        if key in SELF_EFFECT and SELF_EFFECT[key] == "CrashDamage":
+            drain = 0
+
+        # Pack multihit: lo in bits[3:0], hi in bits[7:4]
+        multihit_packed = (mh_hi << 4) | mh_lo
+
         # Name constant
         const_name = re.sub(r'[^A-Za-z0-9]', '_', name_raw).upper()
         const_name = re.sub(r'_+', '_', const_name).strip('_')
@@ -540,9 +614,10 @@ def gen_moves():
             f"    MoveData {{ flags:{flags_str}, base_power:{bp}, accuracy:{accuracy},\n"
             f"        category:{category}, move_type:{move_type},\n"
             f"        var_power:{var_power}, crit_ratio:{crit_ratio}, drain:{drain}, priority:{priority},\n"
-            f"        multihit_lo:{mh_lo}, multihit_hi:{mh_hi},\n"
+            f"        multihit:{multihit_packed},\n"
             f"        secondary_chance:{sec_chance}, secondary_stat:{sec_stat},\n"
-            f"        effect:{effect}, secondary_status:{sec_status} }},"
+            f"        effect:{effect}, secondary_status:{sec_status},\n"
+            f"        self_effect:{self_effect} }},"
         )
         lines_cold.append(
             f"    MoveMeta {{ pp: {pp}, target: {target_rust} }}, // [{i}] {name_raw}"
@@ -557,7 +632,7 @@ def gen_moves():
     out.append("#![allow(unused)]")
     out.append("")
     out.append("use crate::data::types::Type;")
-    out.append("use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveTarget, VarPower, MoveEffect, MoveFlags};")
+    out.append("use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveTarget, VarPower, MoveEffect, MoveFlags, SelfEffect};")
     out.append("")
     out.append(f"/// {len(moves)} moves in {slots} slots.")
     out.append(f"pub static GEN_MOVES: &[MoveData] = &[")

@@ -112,6 +112,7 @@ pub const VOL_PER_TURN_MASK: u32 =
 pub const MON_FLAG_TERASTALLIZED: u8 = 1 << 0;
 pub const MON_FLAG_FEMALE: u8       = 1 << 1;
 pub const MON_FLAG_TRANSFORMED: u8  = 1 << 2;
+pub const MON_FLAG_HERO_ACTIVATED: u8 = 1 << 3; // Palafin: Zero to Hero triggered
 
 // ---------------------------------------------------------------------------
 // Side-condition hazard flags

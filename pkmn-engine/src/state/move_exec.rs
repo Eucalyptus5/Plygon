@@ -7,18 +7,36 @@
 //! Zero heap allocations.  All integer math.
 
 use crate::state::structs::*;
-use crate::state::data_bridge::{self, ItemFlag, MoveCategory, MoveEffect};
+use crate::state::data_bridge::{self, ItemFlag, MoveCategory, MoveEffect, SelfEffect};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 use crate::state::calc::calc_damage;
-use crate::state::calc_modifiers::{ability_type_immunity, ability_flag_immunity, AbilityImmunityEffect};
+use crate::state::calc_modifiers::{ability_type_immunity, ability_flag_immunity, good_as_gold_immunity, priority_block_immunity, AbilityImmunityEffect};
 use crate::state::forme::{apply_battle_forme, revert_battle_forme};
 use crate::state::switch::{
     set_stealth_rock, add_spikes, add_toxic_spikes, set_sticky_web, clear_hazards,
 };
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
+
+// ── Immunity effect application helper ───────────────────────────────
+
+#[inline]
+fn apply_immunity_effect(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    def_side: usize,
+    def_slot: usize,
+    eff: AbilityImmunityEffect,
+) {
+    match eff {
+        AbilityImmunityEffect::Heal(hp) => { heal(state, keys, def_side, def_slot, hp); }
+        AbilityImmunityEffect::Boost(stat, stages) => { apply_boost(state, keys, def_side, stat, stages); }
+        AbilityImmunityEffect::FlashFire => { set_volatile(state, keys, def_side, VOL_FLASH_FIRE); }
+        AbilityImmunityEffect::Nullify => {}
+    }
+}
 
 // ── Accuracy tables ─────────────────────────────────────────────────
 
@@ -205,14 +223,14 @@ fn execute_status_move(
     }
     // Ability-based immunities for status moves
     if !targets_self {
-        if ability_flag_immunity(state, def_side, md.flags) { return; }
+        // Good as Gold: immune to status moves targeting it
+        if good_as_gold_immunity(state, def_side) { return; }
+        if let Some(eff) = ability_flag_immunity(state, def_side, md.flags) {
+            apply_immunity_effect(state, keys, def_side, def_slot, eff);
+            return;
+        }
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type) {
-            match eff {
-                AbilityImmunityEffect::Heal(hp) => { heal(state, keys, def_side, def_slot, hp); }
-                AbilityImmunityEffect::Boost(stat, stages) => { apply_boost(state, keys, def_side, stat, stages); }
-                AbilityImmunityEffect::FlashFire => { set_volatile(state, keys, def_side, VOL_FLASH_FIRE); }
-                AbilityImmunityEffect::Nullify => {}
-            }
+            apply_immunity_effect(state, keys, def_side, def_slot, eff);
             return;
         }
     }
@@ -558,6 +576,77 @@ pub fn check_pinch_berry(
     }
 }
 
+// ── Self-effect application ──────────────────────────────────────────
+
+/// Apply the attacker's self-effect after damage + drain/recoil.
+/// CrashDamage is NOT handled here (it's in the miss path above).
+#[inline]
+fn apply_self_effect(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    atk_side: usize,
+    md: &MoveData,
+) {
+    match md.self_effect {
+        SelfEffect::None => {}
+        SelfEffect::DefSpDDown1 => {
+            apply_boost(state, keys, atk_side, DEF, -1);
+            apply_boost(state, keys, atk_side, SPD, -1);
+        }
+        SelfEffect::AtkDefDown1 => {
+            apply_boost(state, keys, atk_side, ATK, -1);
+            apply_boost(state, keys, atk_side, DEF, -1);
+        }
+        SelfEffect::DefSpDSpeDown1 => {
+            apply_boost(state, keys, atk_side, DEF, -1);
+            apply_boost(state, keys, atk_side, SPD, -1);
+            apply_boost(state, keys, atk_side, SPE, -1);
+        }
+        SelfEffect::SpADown2 => {
+            apply_boost(state, keys, atk_side, SPA, -2);
+        }
+        SelfEffect::SpeDown1 => {
+            apply_boost(state, keys, atk_side, SPE, -1);
+        }
+        SelfEffect::SpeDown2 => {
+            apply_boost(state, keys, atk_side, SPE, -2);
+        }
+        SelfEffect::AtkDown1 => {
+            apply_boost(state, keys, atk_side, ATK, -1);
+        }
+        SelfEffect::SpDDown1 => {
+            apply_boost(state, keys, atk_side, SPD, -1);
+        }
+        SelfEffect::DefDown1 => {
+            apply_boost(state, keys, atk_side, DEF, -1);
+        }
+        SelfEffect::SpADown1 => {
+            apply_boost(state, keys, atk_side, SPA, -1);
+        }
+        SelfEffect::AtkUp1 => {
+            apply_boost(state, keys, atk_side, ATK, 1);
+        }
+        SelfEffect::SpeUp1 => {
+            apply_boost(state, keys, atk_side, SPE, 1);
+        }
+        SelfEffect::DefUp1 => {
+            apply_boost(state, keys, atk_side, DEF, 1);
+        }
+        SelfEffect::SpAUp1 => {
+            apply_boost(state, keys, atk_side, SPA, 1);
+        }
+        SelfEffect::ThawSelf => {
+            let atk_slot = state.sides[atk_side].active_index as usize;
+            if state.sides[atk_side].team[atk_slot].status == STATUS_FREEZE {
+                clear_status(state, keys, atk_side, atk_slot);
+            }
+        }
+        // SelfSwitch/BatonPass/PartingShot/Heal50 are handled via MoveEffect.
+        // CrashDamage is handled in the miss path (§B).
+        _ => {}
+    }
+}
+
 // ── Main move execution ─────────────────────────────────────────────
 
 /// Execute a single move.
@@ -791,29 +880,28 @@ pub fn execute_move(
     // ── Accuracy check (Struggle always hits) ───────────────────
 
     if !is_struggle && !accuracy_check(state, atk_side, md, rng) {
+        // §B: Crash damage on miss — 50% of attacker's max HP
+        if md.self_effect == SelfEffect::CrashDamage {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            deal_damage(state, keys, atk_side, atk_slot, max_hp / 2);
+        }
         break 'exec;
     }
 
     // ── Ability-based immunities (before damage calc) ───────────
-    // Check flag-based immunities (Bulletproof, Soundproof, Overcoat)
-    if !is_struggle && ability_flag_immunity(state, def_side, md.flags) {
-        break 'exec;
-    }
-    // Check type-based immunities and apply side effects
     if !is_struggle {
+        // Priority-blocking: Dazzling / Queenly Majesty / Armor Tail
+        if priority_block_immunity(state, def_side, md.priority) {
+            break 'exec;
+        }
+        // Flag-based immunities (Bulletproof, Soundproof, Overcoat, Wind Rider)
+        if let Some(eff) = ability_flag_immunity(state, def_side, md.flags) {
+            apply_immunity_effect(state, keys, def_side, def_slot, eff);
+            break 'exec;
+        }
+        // Type-based immunities and side effects
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type) {
-            match eff {
-                AbilityImmunityEffect::Heal(hp) => {
-                    heal(state, keys, def_side, def_slot, hp);
-                }
-                AbilityImmunityEffect::Boost(stat, stages) => {
-                    apply_boost(state, keys, def_side, stat, stages);
-                }
-                AbilityImmunityEffect::FlashFire => {
-                    set_volatile(state, keys, def_side, VOL_FLASH_FIRE);
-                }
-                AbilityImmunityEffect::Nullify => {}
-            }
+            apply_immunity_effect(state, keys, def_side, def_slot, eff);
             break 'exec;
         }
     }
@@ -889,6 +977,12 @@ pub fn execute_move(
     }
     if result.recoil_damage > 0 {
         deal_damage(state, keys, atk_side, atk_slot, result.recoil_damage);
+    }
+
+    // ── SelfEffect application (after damage + drain/recoil) ────
+
+    if !state.sides[atk_side].team[atk_slot].is_fainted() {
+        apply_self_effect(state, keys, atk_side, md);
     }
 
     // ── Pinch berry activation (after taking direct damage) ──────
@@ -2086,7 +2180,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
         // Test via the flag immunity helper directly
-        assert!(ability_flag_immunity(&state, 1, md.flags));
+        assert!(ability_flag_immunity(&state, 1, md.flags).is_some());
     }
 
     #[test]
@@ -2096,9 +2190,9 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Bullet-flagged move
-        assert!(ability_flag_immunity(&state, 1, MoveFlags::BULLET));
+        assert!(ability_flag_immunity(&state, 1, MoveFlags::BULLET).is_some());
         // Non-bullet move is not blocked
-        assert!(!ability_flag_immunity(&state, 1, MoveFlags::CONTACT));
+        assert!(ability_flag_immunity(&state, 1, MoveFlags::CONTACT).is_none());
     }
 
     #[test]
@@ -2744,5 +2838,252 @@ mod tests {
         check_pinch_berry(&mut state, &keys, 1, 0);
         // No pinch berry item → no boost
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
+    }
+
+    // ── Phase 1: SelfEffect tests ─────────────────────────────
+
+    #[test]
+    fn test_close_combat_self_drops() {
+        use crate::data::MOVE_CLOSE_COMBAT;
+        let (mut state, keys) = setup();
+        // Give side 0 Close Combat in slot 0
+        state.sides[0].team[0].moves[0] = MOVE_CLOSE_COMBAT as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_CLOSE_COMBAT as u16, 0, &mut fixed_rng(0));
+        // Damage should have been dealt
+        assert!(state.sides[1].team[0].current_hp < hp_before);
+        // Attacker should have -1 Def and -1 SpD
+        assert_eq!(state.sides[0].active.boosts[DEF], -1);
+        assert_eq!(state.sides[0].active.boosts[SPD], -1);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_high_jump_kick_crash_on_miss() {
+        use crate::data::MOVE_HIGH_JUMP_KICK;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_HIGH_JUMP_KICK as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let atk_hp_before = state.sides[0].team[0].current_hp;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        // Use rng that always misses (rng(100) returns 99 >= 90 accuracy)
+        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(99));
+        // Defender should NOT have taken damage (miss)
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
+        // Attacker should have taken 50% max HP crash damage
+        let expected_crash = atk_hp_before / 2;
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before - expected_crash);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_high_jump_kick_hit_no_crash() {
+        use crate::data::MOVE_HIGH_JUMP_KICK;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_HIGH_JUMP_KICK as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let atk_hp_before = state.sides[0].team[0].current_hp;
+        // Use rng that always hits (rng(100) returns 0 < 90 accuracy)
+        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
+        // On hit, no crash damage — attacker HP should be unchanged
+        // (HJK has no recoil on hit, drain=0)
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_recover_heals_50pct() {
+        use crate::data::MOVE_RECOVER;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_RECOVER as u16;
+        // Damage the attacker first
+        deal_damage(&mut state, &keys, 0, 0, 200);
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp; // 100
+        let max_hp = state.sides[0].team[0].max_hp; // 300
+        execute_move(&mut state, &keys, 0, MOVE_RECOVER as u16, 0, &mut fixed_rng(0));
+        // Should heal 50% of max HP
+        assert_eq!(state.sides[0].team[0].current_hp, hp_before + max_hp / 2);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_uturn_sets_must_switch() {
+        use crate::data::MOVE_U_TURN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        // U-turn should set VOL_MUST_SWITCH (attacker has a bench mon)
+        assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    // ── Phase 3: Ability immunity tests ──────────────────────────
+
+    #[test]
+    fn test_earth_eater_blocks_ground_and_heals() {
+        let (mut state, keys) = setup();
+        use crate::data::MOVE_EARTHQUAKE;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_EARTH_EATER;
+        state.sides[1].team[0].current_hp = 200;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
+
+        // Should heal, not take damage
+        assert!(state.sides[1].team[0].current_hp > 200);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_bulletproof_blocks_aura_sphere() {
+        let (mut state, keys) = setup();
+        use crate::data::MOVE_AURA_SPHERE;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_BULLETPROOF;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_AURA_SPHERE as u16, 0, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_dazzling_blocks_priority() {
+        let (mut state, keys) = setup();
+        use crate::data::MOVE_QUICK_ATTACK;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_DAZZLING;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_dazzling_allows_normal_priority() {
+        let (mut state, keys) = setup();
+        use crate::data::MOVE_SURF;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_DAZZLING;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
+
+        assert!(state.sides[1].team[0].current_hp < hp_before);
+    }
+
+    #[test]
+    fn test_wind_rider_blocks_wind_and_boosts_atk() {
+        let (mut state, keys) = setup();
+        // Use a Wind-flagged move — construct one manually
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_WIND_RIDER;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        // Check the immunity directly
+        let eff = ability_flag_immunity(&state, 1, MoveFlags::WIND);
+        assert!(eff.is_some());
+        match eff.unwrap() {
+            AbilityImmunityEffect::Boost(stat, stages) => {
+                assert_eq!(stat, ATK);
+                assert_eq!(stages, 1);
+            }
+            _ => panic!("Expected Boost effect"),
+        }
+    }
+
+    // ── Phase 3: Type-change ability tests ───────────────────────
+
+    #[test]
+    fn test_pixilate_converts_normal_to_fairy() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        // Normal-type move
+        let md = MoveData {
+            move_type: Type::Normal,
+            base_power: 80,
+            category: MoveCategory::Physical,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_PIXILATE,
+        );
+        assert_eq!(new_type, Type::Fairy);
+        assert!(boost);
+    }
+
+    #[test]
+    fn test_pixilate_no_change_on_non_normal() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        let md = MoveData {
+            move_type: Type::Fire,
+            base_power: 80,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_PIXILATE,
+        );
+        assert_eq!(new_type, Type::Fire);
+        assert!(!boost);
+    }
+
+    #[test]
+    fn test_galvanize_converts_normal_to_electric() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        let md = MoveData {
+            move_type: Type::Normal,
+            base_power: 80,
+            category: MoveCategory::Physical,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_GALVANIZE,
+        );
+        assert_eq!(new_type, Type::Electric);
+        assert!(boost);
+    }
+
+    #[test]
+    fn test_normalize_changes_fire_to_normal() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        let md = MoveData {
+            move_type: Type::Fire,
+            base_power: 80,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_NORMALIZE,
+        );
+        assert_eq!(new_type, Type::Normal);
+        assert!(boost); // Fire != Normal, so boost applies
+    }
+
+    #[test]
+    fn test_liquid_voice_converts_sound_to_water() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        let md = MoveData {
+            move_type: Type::Normal,
+            base_power: 90,
+            flags: MoveFlags::SOUND,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_LIQUID_VOICE,
+        );
+        assert_eq!(new_type, Type::Water);
+        assert!(boost);
     }
 }
