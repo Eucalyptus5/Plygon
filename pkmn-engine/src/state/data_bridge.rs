@@ -5,14 +5,10 @@ pub use crate::data::base_stats::SpeciesData;
 pub use crate::data::moves::{MoveData, MoveMeta, MoveCategory, MoveEffect, SelfEffect};
 pub use crate::data::items::{ItemData, ItemFlag};
 
-// ── Species lookup ──────────────────────────────────────────────────
-
 #[inline(always)]
 pub fn species(id: u16) -> &'static SpeciesData {
     crate::data::base_stats::species(id as usize)
 }
-
-// ── Move lookups ────────────────────────────────────────────────────
 
 #[inline(always)]
 pub fn move_hot(id: u16) -> &'static MoveData {
@@ -29,15 +25,12 @@ pub fn move_base_pp(id: u16) -> u8 {
     move_cold(id).pp
 }
 
-// ── Item lookup ─────────────────────────────────────────────────────
-
 #[inline(always)]
 pub fn item(id: u16) -> &'static ItemData {
     crate::data::items::item(id as usize)
 }
 
-// ── Nature modifier ─────────────────────────────────────────────────
-
+// Nature index layout: boosted = nature/5, reduced = nature%5, both map to stat indices 1-5
 pub const fn nature_modifier(nature: u8, stat_index: usize) -> (u8, u8) {
     let boosted = (nature / 5) as usize;
     let reduced = (nature % 5) as usize;
@@ -51,9 +44,6 @@ pub const fn nature_modifier(nature: u8, stat_index: usize) -> (u8, u8) {
         (10, 10)
     }
 }
-
-// ── Ability ID constants ────────────────────────────────────────────
-// Grouped by where they're used in the engine.
 
 // -- General / accessors / switch --
 pub const ABILITY_NONE: u16          = 0;
@@ -145,7 +135,8 @@ pub const ABILITY_LIBERO: u16        = 236;
 pub const ABILITY_STANCE_CHANGE: u16 = 176;
 
 // -- Forme change: HP-triggered --
-pub const ABILITY_ZEN_MODE: u16      = 161;  // Darmanitan: ≤50% HP → Zen forme
+// Darmanitan: <=50% HP -> Zen forme
+pub const ABILITY_ZEN_MODE: u16      = 161;
 
 // -- Pre-damage hooks (defender) --
 pub const ABILITY_DISGUISE: u16      = 209;
@@ -289,10 +280,7 @@ pub const ABILITY_SCHOOLING: u16      = 208; // Wishiwashi
 pub const ABILITY_SHIELDS_DOWN: u16   = 197; // Minior
 pub const ABILITY_GULP_MISSILE: u16   = 241; // Cramorant
 
-// -- Priority-blocking abilities --
 // (Dazzling, Queenly Majesty, Armor Tail are in defender immunities above)
-
-// ── Item ID constants (spritenum-based, matching gen_items.rs) ───────
 
 pub const ITEM_NONE: u16 = 0;
 pub const ITEM_AGUAV_BERRY: u16 = 5;
@@ -318,7 +306,6 @@ pub const ITEM_WIKI_BERRY: u16 = 538;
 pub const ITEM_WISE_GLASSES: u16 = 539;
 pub const ITEM_PUNCHING_GLOVE: u16 = 749;
 
-// Species IDs for item-specific checks
 pub const SPECIES_PIKACHU: u16 = 25;
 pub const SPECIES_CUBONE: u16 = 104;
 pub const SPECIES_MAROWAK: u16 = 105;

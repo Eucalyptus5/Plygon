@@ -390,9 +390,7 @@ fn step_eot_abilities(
 /// Uses turns_active as a deterministic seed for MCTS (no rng parameter).
 fn step_moody(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let t = state.sides[side].active.turns_active as usize;
-    // Pick boost stat: cycle through 0-4 based on turn
     let boost_stat = t % 5;
-    // Pick drop stat: different from boost stat
     let drop_stat = (t + 1) % 5;
     apply_boost(state, keys, side, boost_stat, 2);
     apply_boost(state, keys, side, drop_stat, -1);
@@ -412,7 +410,6 @@ mod tests {
     #[test] fn test_burn() { let (mut s, k) = setup(); s.sides[0].team[0].status = STATUS_BURN; s.zobrist = compute_full_hash(&s, &k); step_status_damage(&mut s, &k, 0); assert_eq!(s.sides[0].team[0].current_hp, 188); assert!(validate_hash(&s, &k)); }
     #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k); assert_eq!(s.field.turn, 1); }
 
-    // ── Step 8: Orb item tests ────────────────────────────────
 
     #[test]
     fn test_flame_orb_inflicts_burn() {
@@ -451,7 +448,6 @@ mod tests {
         assert!(validate_hash(&s, &k));
     }
 
-    // ── Step 9: Zen Mode EoT test ──────────────────────────
 
     #[test]
     fn test_zen_mode_eot_triggers() {
@@ -475,7 +471,6 @@ mod tests {
         assert!(validate_hash(&state, &keys));
     }
 
-    // ── Step 6: Leech Seed tests ──────────────────────────
 
     #[test]
     fn test_leech_seed_drains_and_heals() {
@@ -508,7 +503,6 @@ mod tests {
         assert!(validate_hash(&s, &k));
     }
 
-    // ── Step 7: Binding damage tests ──────────────────────
 
     #[test]
     fn test_binding_damage_with_counter() {
@@ -555,7 +549,6 @@ mod tests {
         assert!(validate_hash(&s, &k));
     }
 
-    // ── Step 14: Perish Song tests ────────────────────────
 
     #[test]
     fn test_perish_song_countdown() {

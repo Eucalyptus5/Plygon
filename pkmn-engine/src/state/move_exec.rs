@@ -20,8 +20,6 @@ use crate::state::switch::{
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
 
-// ── Immunity effect application helper ───────────────────────────────
-
 #[inline]
 fn apply_immunity_effect(
     state: &mut BattleState,
@@ -38,12 +36,8 @@ fn apply_immunity_effect(
     }
 }
 
-// ── Accuracy tables ─────────────────────────────────────────────────
-
 const ACC_NUM: [u32; 13] = [3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9];
 const ACC_DEN: [u32; 13] = [9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3];
-
-// ── Accuracy check ──────────────────────────────────────────────────
 
 #[inline]
 fn accuracy_check(
@@ -121,8 +115,6 @@ fn accuracy_check(
     rng(100) < accuracy
 }
 
-// ── Secondary effect application ────────────────────────────────────
-
 #[inline]
 fn apply_secondary(
     state: &mut BattleState,
@@ -148,7 +140,6 @@ fn apply_secondary(
 
     let def_slot = state.sides[def_side].active_index as usize;
 
-    // ── Stat changes (secondary_stat != 0) ──────────────────────
     if md.secondary_stat > 0 {
         let stat = if md.category == MoveCategory::Physical { ATK } else { SPA };
         apply_boost(state, keys, atk_side, stat, md.secondary_stat as i8);
@@ -160,7 +151,6 @@ fn apply_secondary(
         return;
     }
 
-    // ── Status effect ───────────────────────────────────────────
     // Prefer the explicit field (covers Scald→burn, Body Slam→paralysis).
     // Fall back to type heuristic for moves where the field isn't populated.
     let status = if md.secondary_status != STATUS_NONE {
@@ -180,14 +170,11 @@ fn apply_secondary(
         return;
     }
 
-    // ── Flinch (Rock Slide, Iron Head, Air Slash, etc.) ─────────
     // Only works if the defender hasn't moved yet this turn.
     if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
         set_volatile(state, keys, def_side, VOL_FLINCHED);
     }
 }
-
-// ── Status move dispatch ────────────────────────────────────────────
 
 fn execute_status_move(
     state: &mut BattleState,
@@ -200,20 +187,17 @@ fn execute_status_move(
     let atk_slot = state.sides[atk_side].active_index as usize;
     let def_slot = state.sides[def_side].active_index as usize;
 
-    // ── Protect / Detect ─────────────────────────────────────────
     if md.effect == MoveEffect::Protect {
         execute_protect(state, keys, atk_side, rng);
         return;
     }
 
-    // ── Recovery (HEAL flag) ─────────────────────────────────────
     if md.flags & MoveFlags::HEAL != 0 {
         let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
         heal(state, keys, atk_side, atk_slot, max_hp / 2);
         return;
     }
 
-    // ── Targeting, Protect blocking, accuracy ────────────────────
     let targets_self = is_self_targeting(md);
 
     if !targets_self && state.sides[def_side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
@@ -223,9 +207,7 @@ fn execute_status_move(
     if !targets_self && state.sides[def_side].active.has_volatile(VOL_SEMI_INVULNERABLE) {
         return;
     }
-    // Ability-based immunities for status moves
     if !targets_self {
-        // Good as Gold: immune to status moves targeting it
         if good_as_gold_immunity(state, def_side) { return; }
         if let Some(eff) = ability_flag_immunity(state, def_side, md.flags) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
@@ -240,7 +222,6 @@ fn execute_status_move(
         return;
     }
 
-    // ── Dispatch on MoveEffect ───────────────────────────────────
     match md.effect {
         // -- Hazard setters --
         MoveEffect::StealthRock => { set_stealth_rock(state, def_side); }
@@ -736,8 +717,6 @@ fn screen_duration(state: &BattleState, side: usize) -> u8 {
     if data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::EXTENDS_SCREENS) { 8 } else { 5 }
 }
 
-// ── Protect logic ───────────────────────────────────────────────────
-
 #[inline]
 fn execute_protect(
     state: &mut BattleState,
@@ -757,8 +736,6 @@ fn execute_protect(
         state.sides[side].active.protect_consecutive += 1;
     }
 }
-
-// ── Charge move helpers ────────────────────────────────────────────
 
 /// Check if weather allows skipping the charge turn.
 #[inline]
@@ -819,8 +796,6 @@ fn can_hit_semi_invuln(move_id: u16, charge_loc: u8) -> bool {
     }
 }
 
-// ── Unified berry / HP-check activation (Hook 22) ───────────────────
-
 /// Check if a Pokémon's held item should activate based on HP or status.
 /// Called after ANY HP change: post-damage, post-recoil, post-hazard, post-status damage.
 /// Handles: pinch berries, Sitrus Berry, Lum Berry, Berry Juice, Starf Berry,
@@ -840,7 +815,6 @@ pub fn check_berry_activation(
     let max_hp = mon.max_hp;
     let current_hp = mon.current_hp;
 
-    // ── Pinch stat berries (Liechi, Petaya, Ganlon, Apicot, Salac) ──
     if item.has(ItemFlag::PINCH_BERRY) {
         let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
         if current_hp <= threshold {
@@ -853,7 +827,6 @@ pub fn check_berry_activation(
         return;
     }
 
-    // ── Sitrus Berry: ≤50% HP → heal 25% ──
     if item_id == data_bridge::ITEM_SITRUS_BERRY {
         if current_hp * 2 <= max_hp {
             heal(state, keys, side, slot, max_hp / 4);
@@ -862,7 +835,6 @@ pub fn check_berry_activation(
         return;
     }
 
-    // ── Lum Berry: has non-volatile status → cure ──
     if item_id == data_bridge::ITEM_LUM_BERRY {
         if state.sides[side].team[slot].status != STATUS_NONE {
             clear_status(state, keys, side, slot);
@@ -871,7 +843,6 @@ pub fn check_berry_activation(
         return;
     }
 
-    // ── Berry Juice: ≤50% HP → heal 20 HP ──
     if item_id == data_bridge::ITEM_BERRY_JUICE {
         if current_hp * 2 <= max_hp {
             heal(state, keys, side, slot, 20);
@@ -880,7 +851,6 @@ pub fn check_berry_activation(
         return;
     }
 
-    // ── Starf Berry: ≤25% HP (or 50% with Gluttony) → +2 random stat ──
     if item_id == data_bridge::ITEM_STARF_BERRY {
         let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
         if current_hp <= threshold {
@@ -892,7 +862,6 @@ pub fn check_berry_activation(
         return;
     }
 
-    // ── Flavored heal berries (Aguav/Figy/Wiki/Mago/Iapapa): ≤25% → heal 33% ──
     match item_id {
         data_bridge::ITEM_AGUAV_BERRY | data_bridge::ITEM_FIGY_BERRY |
         data_bridge::ITEM_WIKI_BERRY | data_bridge::ITEM_MAGO_BERRY |
@@ -923,8 +892,6 @@ pub fn check_pinch_berry(
     check_berry_activation(state, keys, side, slot);
 }
 
-// ── Crash damage on move failure ────────────────────────────────────
-
 /// Apply crash damage (50% max HP) if the move has CrashDamage self-effect.
 /// Called on every move-failure path: miss, Protect, immunity, semi-invuln.
 #[inline]
@@ -940,8 +907,6 @@ fn apply_crash_if_needed(
         deal_damage(state, keys, atk_side, atk_slot, max_hp / 2);
     }
 }
-
-// ── Self-effect application ──────────────────────────────────────────
 
 /// Apply the attacker's self-effect after damage + drain/recoil.
 /// CrashDamage is NOT handled here (it's on the failure paths via apply_crash_if_needed).
@@ -1012,8 +977,6 @@ fn apply_self_effect(
     }
 }
 
-// ── Main move execution ─────────────────────────────────────────────
-
 /// Execute a single move.
 ///
 /// `move_id`: the actual move ID (from `effective_moves`), or 0 for Struggle.
@@ -1030,11 +993,8 @@ pub fn execute_move(
     let atk_slot = state.sides[atk_side].active_index as usize;
     let def_slot = state.sides[def_side].active_index as usize;
 
-    // ── Pre-move checks ─────────────────────────────────────────
-
     if state.sides[atk_side].team[atk_slot].is_fainted() { return; }
 
-    // ── Charge move continuation (turn 2) ────────────────────
     let is_charge_turn2 = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
     if is_charge_turn2 {
         move_id = state.sides[atk_side].active.last_move;
@@ -1043,7 +1003,6 @@ pub fn execute_move(
         state.sides[atk_side].active._padding[1] = 0;
     }
 
-    // ── Move-lock continuation (Outrage, Petal Dance, etc.) ──
     let is_move_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
     let was_last_locked_turn;
     if is_move_locked {
@@ -1120,8 +1079,6 @@ pub fn execute_move(
         if rng(2) == 0 { break 'exec; }
     }
 
-    // ── PP and bookkeeping (skip on charge turn 2) ──────────
-
     if !is_charge_turn2 {
         if !is_struggle {
             // For move-locked turns, find the correct move slot for PP deduction
@@ -1156,8 +1113,7 @@ pub fn execute_move(
 
     set_volatile(state, keys, atk_side, VOL_MOVED_THIS_TURN);
 
-    // ── Protean / Libero: change type to match move ─────────
-
+    // Protean / Libero: change type to match move before attacking
     if !is_struggle && !is_charge_turn2 && !is_move_locked {
         let atk_ability = effective_ability(state, atk_side);
         if (atk_ability == data_bridge::ABILITY_PROTEAN || atk_ability == data_bridge::ABILITY_LIBERO)
@@ -1170,7 +1126,7 @@ pub fn execute_move(
         }
     }
 
-    // ── Stance Change (Aegislash) ──────────────────────────
+    // Stance Change: Aegislash switches between Shield and Blade forme
     if !is_struggle {
         let atk_ability = effective_ability(state, atk_side);
         if atk_ability == data_bridge::ABILITY_STANCE_CHANGE {
@@ -1185,8 +1141,6 @@ pub fn execute_move(
             }
         }
     }
-
-    // ── Charge move initiation (turn 1) ─────────────────────
 
     if !is_charge_turn2 && !is_struggle && md.flags & MoveFlags::CHARGE != 0 {
         let skip = can_skip_charge(state, atk_side, md);
@@ -1211,8 +1165,6 @@ pub fn execute_move(
         }
     }
 
-    // ── Thrash lock initiation (first turn of Outrage, etc.) ────
-
     if !is_charge_turn2 && !is_struggle && !is_move_locked
         && md.effect == MoveEffect::Thrash
     {
@@ -1220,22 +1172,16 @@ pub fn execute_move(
         state.sides[atk_side].active._padding[2] = (rng(2) + 1) as u8; // 1 or 2 more turns
     }
 
-    // ── Status moves (Struggle is always damaging, skip) ────────
-
     if !is_struggle && md.category == MoveCategory::Status {
         execute_status_move(state, keys, atk_side, def_side, md, rng);
         return; // Status moves are never thrash, so return is correct
     }
-
-    // ── Protect check (damaging moves) ──────────────────────────
 
     let bypasses_protect = is_charge_turn2 && md.effect == MoveEffect::ChargePhantom;
     if !bypasses_protect && state.sides[def_side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
         apply_crash_if_needed(state, keys, atk_side, md);
         break 'exec;
     }
-
-    // ── Semi-invulnerability dodge ──────────────────────────────
 
     if !is_struggle && state.sides[def_side].active.has_volatile(VOL_SEMI_INVULNERABLE) {
         let atk_ability = effective_ability(state, atk_side);
@@ -1249,14 +1195,11 @@ pub fn execute_move(
         }
     }
 
-    // ── Accuracy check (Struggle always hits) ───────────────────
-
     if !is_struggle && !accuracy_check(state, atk_side, md, rng) {
         apply_crash_if_needed(state, keys, atk_side, md);
         break 'exec;
     }
 
-    // ── Ability-based immunities (before damage calc) ───────────
     if !is_struggle {
         // Priority-blocking: Dazzling / Queenly Majesty / Armor Tail
         if priority_block_immunity(state, def_side, md.priority) {
@@ -1276,8 +1219,6 @@ pub fn execute_move(
             break 'exec;
         }
     }
-
-    // ── Fixed-damage moves (bypass normal calc) ──────────────────
 
     // Endeavor: set target HP = user HP
     if md.effect == MoveEffect::Endeavor {
@@ -1360,16 +1301,12 @@ pub fn execute_move(
         break 'exec;
     }
 
-    // ── Damage calculation ──────────────────────────────────────
-
     let result = calc_damage(state, atk_side, move_id, rng);
 
     if result.type_immune {
         apply_crash_if_needed(state, keys, atk_side, md);
         break 'exec;
     }
-
-    // ── Disguise / Ice Face: nullify first hit ──────────────────
 
     if !result.hits_substitute {
         let def_ability = effective_ability(state, def_side);
@@ -1394,8 +1331,6 @@ pub fn execute_move(
         }
     }
 
-    // ── Focus Sash / Sturdy: survive OHKO at full HP ──────────
-
     let mut final_damage = result.damage;
     if !result.hits_substitute {
         let def_mon = &state.sides[def_side].team[def_slot];
@@ -1414,8 +1349,6 @@ pub fn execute_move(
         }
     }
 
-    // ── Apply damage ───────────────────────────────────────��────
-
     let pre_damage_hp = if !result.hits_substitute {
         state.sides[def_side].team[def_slot].current_hp
     } else { 0 };
@@ -1431,8 +1364,6 @@ pub fn execute_move(
         state.sides[def_side].active.last_move_hit_by = move_id;
     }
 
-    // ── Drain / recoil ──────────────────────────────────────────
-
     if result.drain_heal > 0 {
         heal(state, keys, atk_side, atk_slot, result.drain_heal);
     }
@@ -1444,12 +1375,9 @@ pub fn execute_move(
         }
     }
 
-    // ── Clear Charge bit after using an Electric move ──────────
     if md.move_type == Type::Electric {
         state.sides[atk_side].active._padding[4] &= !4;
     }
-
-    // ── Hook 20: ITEM_AFTER_DAMAGE (attacker) ───────────────────
 
     if !state.sides[atk_side].team[atk_slot].is_fainted() && !result.hits_substitute {
         let atk_item_id = state.sides[atk_side].team[atk_slot].item_id;
@@ -1469,13 +1397,9 @@ pub fn execute_move(
         }
     }
 
-    // ── SelfEffect application (after damage + drain/recoil) ────
-
     if !state.sides[atk_side].team[atk_slot].is_fainted() {
         apply_self_effect(state, keys, atk_side, md);
     }
-
-    // ── Berry activation (after taking direct damage) ────────────
 
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
@@ -1483,14 +1407,11 @@ pub fn execute_move(
         check_berry_activation(state, keys, def_side, def_slot);
     }
 
-    // ── Zen Mode check (defender HP may have dropped ≤50%) ─────
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
         crate::state::forme::check_zen_mode(state, keys, def_side);
     }
-
-    // ── Item consumption ────────────────────────────────────────
 
     if result.item_consumed {
         let atk_itm = data_bridge::item(state.active_mon(atk_side).item_id);
@@ -1509,13 +1430,9 @@ pub fn execute_move(
         }
     }
 
-    // ── Secondary effects ───────────────────────────────────────
-
     if !state.sides[def_side].team[def_slot].is_fainted() {
         apply_secondary(state, keys, atk_side, def_side, md, rng);
     }
-
-    // ── Defender ability hooks on being hit ──────────────────────
 
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
@@ -1628,7 +1545,6 @@ pub fn execute_move(
             _ => {}
         }
 
-        // ── Attacker ability hooks after dealing damage (Hook 19) ────
         if !state.sides[atk_side].team[atk_slot].is_fainted() {
             let atk_ability = effective_ability(state, atk_side);
             match atk_ability {
@@ -1661,8 +1577,6 @@ pub fn execute_move(
                 _ => {}
             }
         }
-
-        // ── Hook 21: ITEM_AFTER_HIT (defender) ──────────────────────
 
         let def_item_id = state.sides[def_side].team[def_slot].item_id;
         if def_item_id != 0 && !state.sides[def_side].team[def_slot].is_fainted() {
@@ -1702,8 +1616,6 @@ pub fn execute_move(
             }
         }
     }
-
-    // ── Contact aftermath (items + abilities) ────────────────────
 
     if md.flags & MoveFlags::CONTACT != 0
         && !state.sides[atk_side].team[atk_slot].is_fainted()
@@ -1774,8 +1686,6 @@ pub fn execute_move(
         }
     }
 
-    // ── Knock Off: remove defender's item ────────────────────────
-
     if md.effect == MoveEffect::KnockOff
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && !result.hits_substitute
@@ -1795,8 +1705,6 @@ pub fn execute_move(
         }
     }
 
-    // ── Salt Cure: apply volatile for EOT damage ────────────────
-
     if md.effect == MoveEffect::SaltCure && !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
@@ -1810,8 +1718,6 @@ pub fn execute_move(
         state.sides[def_side].active.stockpile |= 0x80; // bit 7 = salt cure
     }
 
-    // ── Partial Trap (Bind, Wrap, Fire Spin, etc.) ──────────────
-
     if md.effect == MoveEffect::PartialTrap && !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
         && !state.sides[def_side].active.has_volatile(VOL_BOUND)
@@ -1820,14 +1726,11 @@ pub fn execute_move(
         state.sides[def_side].active.set_bind_turns(4); // fixed 4 turns for MCTS
     }
 
-    // ── Recharge ────────────────────────────────────────────────
-
     if md.flags & MoveFlags::RECHARGE != 0 {
         set_volatile(state, keys, atk_side, VOL_RECHARGING);
     }
 
-    // ── Rapid Spin: clear own hazards, Leech Seed, Bind + Speed boost ──
-    // All effects gated by Sheer Force (Showdown: !move.hasSheerForce)
+    // Rapid Spin effects gated by Sheer Force (Showdown: !move.hasSheerForce)
 
     if md.effect == MoveEffect::RapidSpin
         && !state.sides[atk_side].team[atk_slot].is_fainted()
@@ -1843,8 +1746,6 @@ pub fn execute_move(
         }
     }
 
-    // ── Force switch (U-turn, Volt Switch, Flip Turn) ───────────
-
     if md.effect == MoveEffect::ForceSwitch
         && !state.sides[atk_side].team[atk_slot].is_fainted()
     {
@@ -1858,9 +1759,7 @@ pub fn execute_move(
         }
     }
 
-    // ── After-KO hooks (Aftermath, Moxie, Beast Boost) ─────────
-
-    // ── Destiny Bond: if defender had it and attacker KO'd them ────
+    // Destiny Bond: if defender had it and attacker KO'd them
     if state.sides[def_side].team[def_slot].is_fainted()
         && state.sides[def_side].active.has_volatile(VOL_DESTINY_BOND)
         && !state.sides[atk_side].team[atk_slot].is_fainted()
@@ -1923,15 +1822,12 @@ pub fn execute_move(
 
     } // end 'exec
 
-    // ── Thrash confusion on last locked turn ─────────────────────
-    // Applied regardless of whether the move executed (para/sleep/etc.
+    // Thrash confusion: applied regardless of whether the move executed (para/sleep/etc.
     // still end the lock and cause confusion).
     if was_last_locked_turn && !state.sides[atk_side].team[atk_slot].is_fainted() {
         state.sides[atk_side].active.confusion_turns = (rng(3) + 2) as u8; // 2-4 turns
     }
 }
-
-// ── Tests ────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -2103,8 +1999,6 @@ mod tests {
         assert!(!is_self_targeting(&ww_md));
     }
 
-    // ── Step 1: Weather accuracy tests ──────────────────────
-
     #[test]
     fn test_weather_acc_rain_always_hits() {
         let (mut state, _) = setup();
@@ -2163,8 +2057,6 @@ mod tests {
         // RNG=70 → 70 >= 70 → miss
         assert!(!accuracy_check(&state, 0, &md, &mut fixed_rng(70)));
     }
-
-    // ── Step 2: Pivot move tests ────────────────────────────
 
     #[test]
     fn test_parting_shot_debuffs_and_switches() {
@@ -2236,8 +2128,6 @@ mod tests {
         let ps = MoveData { effect: MoveEffect::PartingShot, ..unsafe { core::mem::zeroed() } };
         assert!(!is_self_targeting(&ps));
     }
-
-    // ── Step 3: Charge move tests ────────────────────────────
 
     /// Helper: create a MoveData with CHARGE flag and given effect.
     fn charge_move(effect: MoveEffect, bp: u8, cat: MoveCategory) -> MoveData {
@@ -2558,10 +2448,6 @@ mod tests {
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
     }
 
-    // ── Step 4: Thrash / locked move tests ────────────────────
-    // Note: Generated move data doesn't have MoveEffect::Thrash yet (Step 10).
-    // Tests manually set VOL_MOVE_LOCKED and counter to test continuation/confusion.
-
     /// Helper: set up move-lock state as if the first thrash turn already executed.
     fn setup_thrash_locked(state: &mut BattleState, keys: &ZobristKeys, side: usize, move_id: u16, turns_remaining: u8) {
         set_volatile(state, keys, side, VOL_MOVE_LOCKED);
@@ -2751,8 +2637,6 @@ mod tests {
         // consec_move_count should remain 3 (not updated)
         assert_eq!(state.sides[0].active.consec_move_count, 3);
     }
-
-    // ── Step 5: Ability immunity tests ───────────────────────────
 
     #[test]
     fn test_water_absorb_blocks_and_heals() {
@@ -2996,8 +2880,6 @@ mod tests {
         assert_eq!(state.sides[1].active.boosts[ATK], 1);
     }
 
-    // ── Step 6: Pre-move ability hook tests ──────────────────────
-
     #[test]
     fn test_protean_changes_type() {
         let (mut state, keys) = setup();
@@ -3053,8 +2935,6 @@ mod tests {
         execute_move(&mut state, &keys, 0, 0, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
     }
-
-    // ── Step 9: Forme change tests ──────────────────────────
 
     #[test]
     fn test_stance_change_to_blade() {
@@ -3203,8 +3083,6 @@ mod tests {
         // Substitute takes the hit, Disguise NOT consumed
         assert_eq!(state.sides[1].active._padding[4] & 1, 0);
     }
-
-    // ── Step 7: After-damage ability hook tests ──────────────────
 
     #[test]
     fn test_rough_skin_damages_attacker() {
@@ -3509,8 +3387,6 @@ mod tests {
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
     }
 
-    // ── Step 8: Item activation tests ────────────────────────────
-
     #[test]
     fn test_focus_sash_survives_ohko() {
         let (mut state, keys) = setup();
@@ -3598,8 +3474,6 @@ mod tests {
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
     }
 
-    // ── Phase 1: SelfEffect tests ─────────────────────────────
-
     #[test]
     fn test_close_combat_self_drops() {
         use crate::data::MOVE_CLOSE_COMBAT;
@@ -3678,8 +3552,6 @@ mod tests {
         assert!(validate_hash(&state, &keys));
     }
 
-    // ── Phase 3: Ability immunity tests ──────────────────────────
-
     #[test]
     fn test_earth_eater_blocks_ground_and_heals() {
         let (mut state, keys) = setup();
@@ -3755,8 +3627,6 @@ mod tests {
             _ => panic!("Expected Boost effect"),
         }
     }
-
-    // ── Phase 3: Type-change ability tests ───────────────────────
 
     #[test]
     fn test_pixilate_converts_normal_to_fairy() {
@@ -3845,8 +3715,6 @@ mod tests {
         assert!(boost);
     }
 
-    // ── SelfEffect additional tests ──────────────────────────────
-
     #[test]
     fn test_overheat_drops_spa_2() {
         use crate::data::MOVE_OVERHEAT;
@@ -3916,8 +3784,6 @@ mod tests {
         }
         assert!(validate_hash(&state, &keys));
     }
-
-    // ── Knock Off tests ─────────────────────────────────────────
 
     #[test]
     fn test_knock_off_removes_item() {
@@ -3997,8 +3863,6 @@ mod tests {
         assert!(dmg_normal > dmg_locked, "removable item should get 1.5x boost: {} vs {}", dmg_normal, dmg_locked);
     }
 
-    // ── Rapid Spin tests ────────────────────────────────────────
-
     #[test]
     fn test_rapid_spin_clears_hazards() {
         use crate::data::MOVE_RAPID_SPIN;
@@ -4069,8 +3933,6 @@ mod tests {
         assert_eq!(state.sides[0].active.boosts[SPE], 0);
         assert!(validate_hash(&state, &keys));
     }
-
-    // ── Defog tests ─────────────────────────────────────────────
 
     #[test]
     fn test_defog_clears_both_sides() {
@@ -4165,8 +4027,6 @@ mod tests {
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
     }
-
-    // ── After-damage ability tests (Hooks 18-19) ────────────────
 
     #[test]
     fn test_mummy_overwrite() {

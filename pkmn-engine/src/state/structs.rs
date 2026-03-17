@@ -6,14 +6,9 @@
 
 use core::mem::size_of;
 
-// Re-export the data-layer types so other state modules can use them.
 pub use crate::data::types::Type;
 pub use crate::data::types::dual_type_effectiveness;
 pub use crate::data::moves::MoveCategory;
-
-// ---------------------------------------------------------------------------
-// Status constants (stored as u8 on MonSlot)
-// ---------------------------------------------------------------------------
 
 pub const STATUS_NONE: u8       = 0;
 pub const STATUS_BURN: u8       = 1;
@@ -23,27 +18,15 @@ pub const STATUS_BAD_POISON: u8 = 4;
 pub const STATUS_SLEEP: u8      = 5;
 pub const STATUS_FREEZE: u8     = 6;
 
-// ---------------------------------------------------------------------------
-// Phase constants
-// ---------------------------------------------------------------------------
-
 pub const PHASE_ACTIONS: u8     = 0;
 pub const PHASE_SWITCH_P1: u8   = 1;
 pub const PHASE_SWITCH_P2: u8   = 2;
 pub const PHASE_SWITCH_BOTH: u8 = 3;
 pub const PHASE_GAME_OVER: u8   = 4;
 
-// ---------------------------------------------------------------------------
-// Turn subphase constants (stored in BattleState._padding bits 0-1)
-// ---------------------------------------------------------------------------
-
-pub const SUBPHASE_NORMAL: u8       = 0; // No mid-turn state
-pub const SUBPHASE_AFTER_MOVE1: u8  = 1; // Faint after Move 1, Move 2 pending
-pub const SUBPHASE_AFTER_MOVE2: u8  = 2; // Faint after Move 2, end-of-turn pending
-
-// ---------------------------------------------------------------------------
-// Stat indices (index into MonSlot.stats and ActiveMon.boosts)
-// ---------------------------------------------------------------------------
+pub const SUBPHASE_NORMAL: u8       = 0;
+pub const SUBPHASE_AFTER_MOVE1: u8  = 1;
+pub const SUBPHASE_AFTER_MOVE2: u8  = 2;
 
 pub const ATK: usize = 0;
 pub const DEF: usize = 1;
@@ -52,10 +35,6 @@ pub const SPD: usize = 3;
 pub const SPE: usize = 4;
 pub const ACC: usize = 5;
 pub const EVA: usize = 6;
-
-// ---------------------------------------------------------------------------
-// Weather / terrain constants
-// ---------------------------------------------------------------------------
 
 pub const WEATHER_NONE: u8       = 0;
 pub const WEATHER_SUN: u8        = 1;
@@ -71,10 +50,6 @@ pub const TERRAIN_ELECTRIC: u8 = 1;
 pub const TERRAIN_GRASSY: u8   = 2;
 pub const TERRAIN_PSYCHIC: u8  = 3;
 pub const TERRAIN_MISTY: u8    = 4;
-
-// ---------------------------------------------------------------------------
-// Volatile flags (bits within ActiveMon.volatile_flags : u32)
-// ---------------------------------------------------------------------------
 
 pub const VOL_SUBSTITUTE: u32        = 1 << 0;
 pub const VOL_LEECH_SEED: u32       = 1 << 1;
@@ -114,39 +89,20 @@ pub const VOL_PER_TURN_MASK: u32 =
     VOL_FLINCHED | VOL_MOVED_THIS_TURN | VOL_PROTECT_THIS_TURN | VOL_ENDURE
     | VOL_DESTINY_BOND;
 
-// ---------------------------------------------------------------------------
-// MonSlot flags (bits within MonSlot.flags : u8)
-// ---------------------------------------------------------------------------
-
 pub const MON_FLAG_TERASTALLIZED: u8 = 1 << 0;
 pub const MON_FLAG_FEMALE: u8       = 1 << 1;
 pub const MON_FLAG_TRANSFORMED: u8  = 1 << 2;
-pub const MON_FLAG_HERO_ACTIVATED: u8 = 1 << 3; // Palafin: Zero to Hero triggered
-
-// ---------------------------------------------------------------------------
-// Side-condition hazard flags
-// ---------------------------------------------------------------------------
+// Palafin: Zero to Hero triggered
+pub const MON_FLAG_HERO_ACTIVATED: u8 = 1 << 3;
 
 pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;
 
-// ---------------------------------------------------------------------------
-// SideConditions side_extra bit layout
-// ---------------------------------------------------------------------------
-
 pub const SIDE_HEALING_WISH: u8  = 1 << 3;
 pub const SIDE_LUNAR_DANCE: u8   = 1 << 4;
 
-// ---------------------------------------------------------------------------
-// Field flags
-// ---------------------------------------------------------------------------
-
 pub const FIELD_MAGIC_ROOM: u8  = 1 << 0;
 pub const FIELD_WONDER_ROOM: u8 = 1 << 1;
-
-// ---------------------------------------------------------------------------
-// Action encoding
-// ---------------------------------------------------------------------------
 
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
@@ -156,10 +112,6 @@ pub const ACTION_TERA: u8     = 10;
 pub const ACTION_STRUGGLE: u8 = 255;
 
 pub const BATTLE_LEVEL: u16 = 100;
-
-// ---------------------------------------------------------------------------
-// Boost multiplier table
-// ---------------------------------------------------------------------------
 
 pub const BOOST_TABLE: [(u16, u16); 13] = [
     (2, 8), (2, 7), (2, 6), (2, 5), (2, 4), (2, 3), // -6..-1
@@ -178,10 +130,6 @@ pub fn boosted_stat(raw: u16, stage: i8) -> u16 {
     (raw as u32 * num as u32 / den as u32) as u16
 }
 
-// ---------------------------------------------------------------------------
-// Struct definitions
-// ---------------------------------------------------------------------------
-
 /// A single Pokémon's persistent identity.  Survives switching.  36 bytes.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
@@ -196,7 +144,7 @@ pub struct MonSlot {
     pub pp: [u8; 4],
     pub status: u8,
     pub status_counter: u8,
-    pub tera_type: u8,       // Type as u8
+    pub tera_type: u8,
     pub flags: u8,
 }
 
@@ -217,7 +165,7 @@ pub struct ActiveMon {
     pub encore_move: u16,
     pub boosts: [i8; 7],
     pub override_pp: [u8; 4],
-    pub override_types: [u8; 2], // Type as u8
+    pub override_types: [u8; 2],
     pub confusion_turns: u8,
     pub taunt_turns: u8,
     pub encore_turns: u8,
@@ -313,10 +261,6 @@ pub struct TeamData {
     pub levels: [[u8; 6]; 2],
 }
 
-// ---------------------------------------------------------------------------
-// Compile-time size assertions
-// ---------------------------------------------------------------------------
-
 const _: () = assert!(size_of::<MonSlot>() == 36);
 const _: () = assert!(size_of::<ActiveMon>() == 72);
 const _: () = assert!(size_of::<SideConditions>() == 12);
@@ -329,10 +273,6 @@ const _: () = {
     fn _assert_copy<T: Copy>() {}
     fn _check() { _assert_copy::<BattleState>(); }
 };
-
-// ---------------------------------------------------------------------------
-// Impls
-// ---------------------------------------------------------------------------
 
 impl core::fmt::Debug for MonSlot {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

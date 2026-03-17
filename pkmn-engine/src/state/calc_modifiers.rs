@@ -9,15 +9,11 @@ use crate::state::accessors::*;
 use crate::data::moves::{MoveData, MoveFlags, MoveEffect, SelfEffect, VarPower};
 use crate::data::types::Type;
 
-// ── 4096-scale chain helper ───────────────────────────────────────────
-
 /// Apply a (num, den) modifier to a value, flooring the result.
 #[inline(always)]
 pub fn chain_mod(value: u32, num: u32, den: u32) -> u32 {
     value * num / den
 }
-
-// ── Weather modifier ──────────────────────────────────────────────────
 
 /// Returns (num, den) in 4096-scale for weather's effect on move damage.
 /// Returns (0, 4096) if the move is completely nullified (Harsh Sun vs Water).
@@ -34,8 +30,6 @@ pub fn weather_modifier(weather: u8, move_type: Type) -> (u32, u32) {
     }
 }
 
-// ── Screen modifier ───────────────────────────────────────────────────
-
 /// Returns (num, den) for Reflect / Light Screen / Aurora Veil.
 /// Crits ignore screens.
 #[inline]
@@ -51,8 +45,6 @@ pub fn screen_modifier(
         _ => (4096, 4096),
     }
 }
-
-// ── STAB ──────────────────────────────────────────────────────────────
 
 /// Returns (num, den) for STAB.
 /// Handles Tera STAB rules:
@@ -102,8 +94,6 @@ pub fn stab_modifier(state: &BattleState, atk_side: usize, move_type: Type) -> (
     }
 }
 
-// ── Critical hit ──────────────────────────────────────────────────────
-
 /// Compute the effective crit stage (0-4+).
 #[inline]
 pub fn crit_stage(state: &BattleState, atk_side: usize, md: &MoveData) -> u8 {
@@ -148,8 +138,6 @@ pub fn crit_multiplier(atk_ability: u16) -> (u32, u32) {
     }
 }
 
-// ── Burn modifier ─────────────────────────────────────────────────────
-
 /// Returns (num, den) for the burn penalty on physical moves.
 #[inline]
 pub fn burn_modifier(
@@ -160,8 +148,6 @@ pub fn burn_modifier(
     if atk_ability == data_bridge::ABILITY_GUTS { return (4096, 4096); } // Guts ignores burn
     (2048, 4096) // 0.5×
 }
-
-// ── Variable power resolution ─────────────────────────────────────────
 
 /// Resolve variable base power moves.  Returns the effective base power.
 #[inline]
@@ -227,8 +213,6 @@ pub fn resolve_power(
     }
 }
 
-// ── Attacker ability power modifiers ──────────────────────────────────
-
 /// Returns (num, den) in 4096-scale for attacker's ability effect on power.
 #[inline]
 pub fn ability_power_mod(
@@ -284,8 +268,6 @@ pub fn ability_power_mod(
         _ => (4096, 4096),
     }
 }
-
-// ── Attacker ability stat modifiers ───────────────────────────────────
 
 /// Modify the offensive stat A based on attacker's ability.
 /// `weather`, `hp`, `max_hp`, `turns_active`, `def_turns_active` are passed
@@ -360,8 +342,6 @@ pub fn ability_def_stat_mod(
     }
 }
 
-// ── Defender ability final damage modifiers ────────────────────────────
-
 /// Returns (num, den) for defender's ability effect on final damage.
 #[inline]
 pub fn defender_ability_final_mod(
@@ -400,8 +380,6 @@ pub fn defender_ability_final_mod(
     }
 }
 
-// ── Attacker ability final damage modifiers ───────────────────────────
-
 /// Returns (num, den) for attacker's ability effect on final damage.
 #[inline]
 pub fn attacker_ability_final_mod(
@@ -416,15 +394,12 @@ pub fn attacker_ability_final_mod(
     }
 }
 
-// ── Item power modifiers ──────────────────────────────────────────────
-
 /// Returns (num, den) for attacker's item effect on base power.
 #[inline]
 pub fn item_power_mod(
     item: &ItemData, item_id: u16, move_type: Type,
     category: MoveCategory, flags: u16, consec_move_count: u8,
 ) -> (u32, u32) {
-    // Flag-based O(1) dispatch
     if item.has(ItemFlag::TYPE_BOOST) && item.type_param == move_type as u8 {
         return (4915, 4096); // 1.2×
     }
@@ -440,7 +415,6 @@ pub fn item_power_mod(
         return (4096 + count * 819, 4096); // 819 ≈ 0.2 * 4096
     }
 
-    // Item-ID-based dispatch for items without flags
     match item_id {
         data_bridge::ITEM_MUSCLE_BAND if category == MoveCategory::Physical => (4505, 4096), // 1.1×
         data_bridge::ITEM_WISE_GLASSES if category == MoveCategory::Special => (4505, 4096), // 1.1×
@@ -449,8 +423,6 @@ pub fn item_power_mod(
     }
 }
 
-// ── Item final damage modifiers ───────────────────────────────────────
-
 /// Returns (num, den) for items that modify final damage.
 /// Also computes extra recoil (Life Orb) and item consumption (resist berry).
 #[inline]
@@ -458,7 +430,6 @@ pub fn item_final_mod(
     atk_item: &ItemData, def_item: &ItemData,
     move_type: Type, effectiveness: u8,
 ) -> (u32, u32, bool) {
-    // Attacker items
     let mut num: u32 = 4096;
     let den: u32 = 4096;
     let mut berry_consumed = false;
@@ -471,7 +442,6 @@ pub fn item_final_mod(
     // Metronome item — caller should pass consec_move_count for proper scaling
     // Simplified: not applied here, caller can handle via consec_move_count
 
-    // Defender resist berry
     if def_item.has(ItemFlag::RESIST_BERRY)
         && def_item.type_param == move_type as u8
         && effectiveness > 4
@@ -482,8 +452,6 @@ pub fn item_final_mod(
 
     (num, den, berry_consumed)
 }
-
-// ── Multi-hit resolution ──────────────────────────────────────────────
 
 /// Determine the number of hits for a multi-hit move.
 #[inline]
@@ -501,8 +469,6 @@ pub fn resolve_hits(md: &MoveData, ability: u16, rng: &mut impl FnMut(u32) -> u3
         _ => 5,
     }
 }
-
-// ── Immunity checks ───────────────────────────────────────────────────
 
 /// Describes the side-effect of an ability-based immunity.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -604,8 +570,6 @@ pub fn ability_immunity(
     })
 }
 
-// ── Weather stat boosts ───────────────────────────────────────────────
-
 /// Apply weather-based defensive stat boosts (Sand → Rock SpD, Snow → Ice Def).
 /// Returns the modified defensive stat.
 #[inline]
@@ -623,8 +587,6 @@ pub fn weather_def_stat_mod(
         _ => d,
     }
 }
-
-// ── Move type overrides ─────────────────────────────────────────────
 
 /// Resolve the effective type of a move (WeatherBall, TerrainPulse).
 #[inline]
@@ -657,8 +619,6 @@ pub fn resolve_move_type(
         _ => md.move_type,
     }
 }
-
-// ── Type-change ability resolution ──────────────────────────────────
 
 /// Resolve the effective move type, applying type-change abilities.
 /// Returns (final_type, ate_boost) — ate_boost is true if an -ate ability
@@ -695,8 +655,6 @@ pub fn resolve_move_type_with_ability(
 
     (base_type, false)
 }
-
-// ── Move-effect power modifiers ──────────────────────────────────────
 
 /// Returns (num, den) in 4096-scale for move-specific onBasePower effects.
 /// Dispatches on MoveEffect for moves with chainModify callbacks.
@@ -806,8 +764,6 @@ mod tests {
         // Fire move → no STAB
         assert_eq!(stab_modifier(&state, 0, Type::Fire), (4096, 4096));
     }
-
-    // ── Step 1: Move-specific damage modifier tests ───────────
 
     #[test]
     fn test_hex_var_power() {
@@ -972,8 +928,6 @@ mod tests {
         state.field.weather = WEATHER_SNOW;
         assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (2048, 4096));
     }
-
-    // ── Hook 11: Ability power modifier tests ────────────────────
 
     fn make_state_with_ability(ability: u16) -> BattleState {
         let mut state = BattleState::default();

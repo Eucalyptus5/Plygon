@@ -60,7 +60,6 @@ pub fn apply_transform(
     active.override_pp = [5, 5, 5, 5];
     active.override_types = [target_species.type1 as u8, target_species.type2 as u8];
 
-    // Copy boosts — update Zobrist
     for stat in 0..7 {
         let old = state.sides[side].active.boosts[stat];
         if old != 0 { state.zobrist ^= keys.boosts[side][stat][(old + 6) as usize]; }
@@ -84,7 +83,6 @@ pub fn apply_battle_forme(
     let old_sp = data_bridge::species(old_species_id);
     let new_sp = data_bridge::species(new_species_id);
 
-    // base stat arrays: [atk, def, spa, spd, spe]
     let old_bases = [old_sp.atk, old_sp.def, old_sp.spa, old_sp.spd, old_sp.spe];
     let new_bases = [new_sp.atk, new_sp.def, new_sp.spa, new_sp.spd, new_sp.spe];
 
@@ -96,7 +94,6 @@ pub fn apply_battle_forme(
     }
     state.sides[side].active.override_stats = scaled_stats;
 
-    // Set type overrides
     set_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
     state.sides[side].active.override_types = [new_sp.type1 as u8, new_sp.type2 as u8];
     state.sides[side].active.override_species = new_species_id;

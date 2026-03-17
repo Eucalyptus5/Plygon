@@ -42,26 +42,17 @@ fn setup() -> (BattleState, ZobristKeys) {
     (state, keys)
 }
 
-// ── Hook 7: Choice Band 1.5× Atk ─────────────────────────────────
-
 #[test]
 fn test_choice_band_boosts_physical_atk() {
-    // Choice Band (id=68) has CHOICE_ATK flag → 1.5× Atk in calc
     let itm = item(68);
     assert!(itm.has(ItemFlag::CHOICE_ATK));
-    // The actual Atk modification is applied in calc.rs via item_atk_stat_mod
-    // which multiplies Atk by 3/2 when CHOICE_ATK is set
 }
-
-// ── Hook 9: Eviolite 1.5× defenses ───────────────────────────────
 
 #[test]
 fn test_eviolite_boosts_def() {
     let itm = item(130); // Eviolite
     assert!(itm.has(ItemFlag::EVIOLITE));
 }
-
-// ── Hook 12: Life Orb 5324/4096 power boost ──────────────────────
 
 #[test]
 fn test_life_orb_power_mod() {
@@ -70,8 +61,6 @@ fn test_life_orb_power_mod() {
     assert_eq!(num, 5324);
     assert_eq!(den, 4096);
 }
-
-// ── Hook 12: Type-boost item 1.2× ────────────────────────────────
 
 #[test]
 fn test_type_boost_item_power_mod() {
@@ -88,8 +77,6 @@ fn test_type_boost_item_no_boost_wrong_type() {
     let (num, den) = item_power_mod(itm, 61, Type::Water, MoveCategory::Special, 0, 0);
     assert_eq!(num, 4096); // no boost for wrong type
 }
-
-// ── Hook 12: Muscle Band / Wise Glasses / Punching Glove ─────────
 
 #[test]
 fn test_muscle_band_physical_boost() {
@@ -127,8 +114,6 @@ fn test_punching_glove_no_boost_non_punch() {
     assert_eq!(num, 4096);
 }
 
-// ── Hook 14: Resist berry halves SE damage + consumed ─────────────
-
 #[test]
 fn test_resist_berry_flag() {
     // Occa Berry (id=311) resists Fire
@@ -139,16 +124,12 @@ fn test_resist_berry_flag() {
     assert_eq!(itm.type_param, Type::Fire as u8);
 }
 
-// ── Hook 15: Focus Sash survives at 1 HP ─────────────────────────
-
 #[test]
 fn test_focus_sash_flag() {
     let itm = item(151); // Focus Sash
     assert!(itm.has(ItemFlag::FOCUS_SASH));
     assert!(itm.has(ItemFlag::CONSUMABLE));
 }
-
-// ── Hook 22: Sitrus Berry heals at ≤50% HP ───────────────────────
 
 #[test]
 fn test_sitrus_berry_heals_at_half() {
@@ -159,9 +140,7 @@ fn test_sitrus_berry_heals_at_half() {
 
     check_berry_activation(&mut state, &keys, 0, 0);
 
-    // Should heal 25% of max HP = 75
-    assert_eq!(state.sides[0].team[0].current_hp, 215);
-    // Item should be consumed
+    assert_eq!(state.sides[0].team[0].current_hp, 215); // heals 25% of max HP
     assert_eq!(state.sides[0].team[0].item_id, 0);
     assert!(validate_hash(&state, &keys));
 }
@@ -175,13 +154,9 @@ fn test_sitrus_berry_no_heal_above_half() {
 
     check_berry_activation(&mut state, &keys, 0, 0);
 
-    // Should NOT heal
     assert_eq!(state.sides[0].team[0].current_hp, 200);
-    // Item should NOT be consumed
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
 }
-
-// ── Hook 22: Gluttony activates berries at 50% ───────────────────
 
 #[test]
 fn test_gluttony_berry_at_50_percent() {
@@ -194,13 +169,11 @@ fn test_gluttony_berry_at_50_percent() {
 
     check_berry_activation(&mut state, &keys, 0, 0);
 
-    // Gluttony should activate at 50% threshold → heals 33% of max
+    // Gluttony raises berry activation threshold from 25% to 50%
     assert!(state.sides[0].team[0].current_hp > 140);
-    assert_eq!(state.sides[0].team[0].item_id, 0); // consumed
+    assert_eq!(state.sides[0].team[0].item_id, 0);
     assert!(validate_hash(&state, &keys));
 }
-
-// ── Hook 22: Lum Berry cures status ──────────────────────────────
 
 #[test]
 fn test_lum_berry_cures_status() {
@@ -225,19 +198,14 @@ fn test_lum_berry_no_cure_if_healthy() {
 
     check_berry_activation(&mut state, &keys, 0, 0);
 
-    // Should NOT be consumed
     assert_eq!(state.sides[0].team[0].item_id, ITEM_LUM_BERRY);
 }
-
-// ── Hook 23: Rocky Helmet 1/6 contact damage ─────────────────────
 
 #[test]
 fn test_rocky_helmet_flag() {
     let itm = item(417); // Rocky Helmet
     assert!(itm.has(ItemFlag::ROCKY_HELMET));
 }
-
-// ── EOT: Leftovers 1/16 heal ─────────────────────────────────────
 
 #[test]
 fn test_leftovers_eot_heal() {
@@ -249,12 +217,9 @@ fn test_leftovers_eot_heal() {
 
     end_of_turn(&mut state, &keys);
 
-    // 300 / 16 = 18 → heals to 218
-    assert_eq!(state.sides[0].team[0].current_hp, 218);
+    assert_eq!(state.sides[0].team[0].current_hp, 218); // 300/16 = 18 heal
     assert!(validate_hash(&state, &keys));
 }
-
-// ── EOT: Sticky Barb 1/8 self-damage ─────────────────────────────
 
 #[test]
 fn test_sticky_barb_eot_damage() {
@@ -266,29 +231,22 @@ fn test_sticky_barb_eot_damage() {
 
     end_of_turn(&mut state, &keys);
 
-    // 300 / 8 = 37 → 300 - 37 = 263
-    assert_eq!(state.sides[0].team[0].current_hp, 263);
+    assert_eq!(state.sides[0].team[0].current_hp, 263); // 300/8 = 37 damage
     assert!(validate_hash(&state, &keys));
 }
-
-// ── Choice Band locks move ────────────────────────────────────────
 
 #[test]
 fn test_choice_lock_restricts_moves() {
     let (mut state, _) = setup();
     state.sides[0].team[0].item_id = 68; // Choice Band
-    // Simulate choice lock: set choice_locked_move to move slot 0 (move_id=1)
     state.sides[0].active.choice_locked_move = 1;
     state.phase = PHASE_ACTIONS;
 
     let actions = legal_actions(&state, 0);
-    // Should only have 1 move (the locked one) + switches
     let move_actions: Vec<u8> = actions.as_slice().iter().copied().filter(|&a| a < ACTION_SWITCH_0).collect();
     assert_eq!(move_actions.len(), 1);
     assert_eq!(move_actions[0], 0); // slot 0 which has move_id=1
 }
-
-// ── Assault Vest blocks Status moves ──────────────────────────────
 
 #[test]
 fn test_assault_vest_blocks_status() {
@@ -298,27 +256,15 @@ fn test_assault_vest_blocks_status() {
 
     let actions = legal_actions(&state, 0);
 
-    // Need to check that no Status-category moves are in the list
-    // The test setup has moves [1, 2, 3, 4] - need to check which are Status
-    // For this test, the key thing is that the filter is applied.
-    // If any move is Status category, it should be excluded.
-    // Since generic move IDs may all be non-Status, let's verify the filter
-    // doesn't exclude physical/special moves
     let move_actions: Vec<u8> = actions.as_slice().iter().copied().filter(|&a| a < ACTION_SWITCH_0).collect();
-    // At minimum, moves should be present (they're likely Physical/Special)
     assert!(!move_actions.is_empty() || actions.as_slice().contains(&ACTION_STRUGGLE));
 }
-
-// ── Weakness Policy: +2 Atk/SpA on SE hit ────────────────────────
 
 #[test]
 fn test_weakness_policy_item_exists() {
     let itm = item(ITEM_WEAKNESS_POLICY);
-    // Weakness Policy should exist in the item table
     assert_ne!(itm.flags, 0);
 }
-
-// ── Berry Juice: heals 20 HP at ≤50% ─────────────────────────────
 
 #[test]
 fn test_berry_juice_heals() {
@@ -334,8 +280,6 @@ fn test_berry_juice_heals() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ── Starf Berry: +2 random stat at ≤25% ──────────────────────────
-
 #[test]
 fn test_starf_berry_boosts() {
     let (mut state, keys) = setup();
@@ -345,7 +289,6 @@ fn test_starf_berry_boosts() {
 
     check_berry_activation(&mut state, &keys, 0, 0);
 
-    // Should have consumed berry and applied +2 to some stat
     assert_eq!(state.sides[0].team[0].item_id, 0);
     let boosts = &state.sides[0].active.boosts;
     let total_boost: i8 = boosts.iter().sum();
@@ -353,16 +296,11 @@ fn test_starf_berry_boosts() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ── Shell Bell: 1/8 heal of damage dealt ──────────────────────────
-
 #[test]
 fn test_shell_bell_item_exists() {
     let itm = item(ITEM_SHELL_BELL);
-    // Shell Bell should exist (no flags, handled by ID match in move_exec)
-    assert_eq!(itm.type_param, 0xFF); // no type param
+    assert_eq!(itm.type_param, 0xFF);
 }
-
-// ── Throat Spray: +1 SpA on sound move ────────────────────────────
 
 #[test]
 fn test_throat_spray_item_exists() {

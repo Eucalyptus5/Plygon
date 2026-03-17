@@ -41,13 +41,12 @@ fn generate_full_actions(state: &BattleState, side: usize) -> ActionList {
     let mut list = ActionList::new();
     // Recharging: forced to skip turn, no choices at all (no moves, no switches)
     if state.sides[side].active.has_volatile(VOL_RECHARGING) {
-        list.push(ACTION_STRUGGLE); // forced placeholder action
+        list.push(ACTION_STRUGGLE);
         return list;
     }
     let move_count = generate_legal_moves(state, side, &mut list);
     if move_count == 0 { list.push(ACTION_STRUGGLE); }
     generate_legal_switches(state, side, &mut list);
-    // Tera: available once per battle per side, only during PHASE_ACTIONS
     if can_tera(state, side) {
         list.push(ACTION_TERA);
     }
@@ -62,7 +61,7 @@ fn can_tera(state: &BattleState, side: usize) -> bool {
     let mon = state.active_mon(side);
     if mon.is_fainted() { return false; }
     if mon.is_terastallized() { return false; }
-    if mon.tera_type == 0 { return false; } // no tera type set
+    if mon.tera_type == 0 { return false; }
     true
 }
 
@@ -203,13 +202,11 @@ mod tests {
     #[test]
     fn test_charging_restricts_to_charged_move() {
         let mut s = make_state();
-        // Simulate charging: VOL_CHARGING set, last_move = move in slot 1 (521)
         s.sides[0].active.volatile_flags |= VOL_CHARGING;
-        s.sides[0].active.last_move = 521; // Volt Switch in slot 1
+        s.sides[0].active.last_move = 521;
         let a = legal_actions(&s, 0);
-        // Should only offer 1 move action (the charged move slot) and NO switches
         assert_eq!(a.count, 1);
-        assert_eq!(a.actions[0], 1); // slot 1
+        assert_eq!(a.actions[0], 1);
         assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0));
     }
 
@@ -217,9 +214,8 @@ mod tests {
     fn test_charging_blocks_switches() {
         let mut s = make_state();
         s.sides[0].active.volatile_flags |= VOL_CHARGING;
-        s.sides[0].active.last_move = 85; // slot 0
+        s.sides[0].active.last_move = 85;
         let a = legal_actions(&s, 0);
-        // No switch options when charging
         assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0));
     }
 
@@ -227,11 +223,10 @@ mod tests {
     fn test_move_locked_restricts_to_locked_move() {
         let mut s = make_state();
         s.sides[0].active.volatile_flags |= VOL_MOVE_LOCKED;
-        s.sides[0].active.last_move = 447; // slot 2
+        s.sides[0].active.last_move = 447;
         let a = legal_actions(&s, 0);
-        // Only the locked move, no switches
         assert_eq!(a.count, 1);
-        assert_eq!(a.actions[0], 2); // slot 2
+        assert_eq!(a.actions[0], 2);
     }
 
     #[test]
@@ -241,7 +236,6 @@ mod tests {
         // so test in PHASE_SWITCH_P1 (the actual phase after faint_sweep)
         s.phase = PHASE_SWITCH_P1;
         let a = legal_actions(&s, 0);
-        // Should only have switch targets (2 bench mons alive)
         assert_eq!(a.count, 2);
         assert!(a.as_slice().iter().all(|&x| x >= ACTION_SWITCH_0));
     }

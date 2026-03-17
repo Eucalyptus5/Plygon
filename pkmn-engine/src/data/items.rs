@@ -3,9 +3,6 @@
 //! Follows the same pattern as moves.rs: a compact struct with a flags
 //! bitmask, indexed by item ID from the GEN_ITEMS static array.
 
-
-// ── Flags (u32 — 32 boolean properties) ───────────────────────────────
-
 #[allow(non_snake_case)]
 pub mod ItemFlag {
     // Damage calc: stat modifiers
@@ -58,8 +55,6 @@ pub mod ItemFlag {
     pub const IS_CHOICE: u32 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }
 
-// ── ItemData struct (8 bytes) ─────────────────────────────────────────
-
 /// Compact item data: flags bitmask + type parameter for type-specific items.
 /// 8 bytes with #[repr(C)], zero padding.
 #[derive(Copy, Clone)]
@@ -100,8 +95,6 @@ impl ItemData {
         self.forme_species != 0 && self.forme_species == holder_base_species
     }
 }
-
-// ── Accessor ──────────────────────────────────────────────────────────
 
 /// Item lookup by ID.  Returns &NONE for id=0 or out-of-range.
 #[inline(always)]

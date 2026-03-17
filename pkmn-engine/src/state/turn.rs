@@ -17,9 +17,7 @@ use crate::state::move_exec::execute_move;
 use crate::data::moves::MoveFlags;
 use crate::data::types::Type;
 
-// ── Action decoding ─────────────────────────────────────────────────
-
-/// Decoded action.  Move variant carries the resolved move_id so we
+/// Decoded action. Move variant carries the resolved move_id so we
 /// never call `effective_moves` twice for the same action.
 #[derive(Clone, Copy, Debug)]
 pub enum ActionKind {
@@ -39,7 +37,7 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
         }
         4..=9 => ActionKind::Switch { target: action - 4 },
         ACTION_TERA => {
-            // Tera + use move 0 (MCTS simplification: tera is combined with move 0)
+            // MCTS simplification: tera is combined with move 0
             let move_id = effective_moves(state, side)[0];
             ActionKind::Tera { move_id }
         }
@@ -47,15 +45,11 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
     }
 }
 
-// ── Ordered action pair ─────────────────────────────────────────────
-
 #[derive(Clone, Copy)]
 struct OrderedAction {
     side: usize,
     action: ActionKind,
 }
-
-// ── Turn order resolution ───────────────────────────────────────────
 
 /// Compute effective speed for turn order comparison.
 #[inline]
@@ -83,7 +77,6 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         speed *= 2;
     }
 
-    // Weather speed abilities: 2× in matching weather
     match ability {
         data_bridge::ABILITY_CHLOROPHYLL
             if matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN)
@@ -105,7 +98,7 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         _ => {}
     }
 
-    // Paradox abilities (Protosynthesis/Quark Drive) Spe boost
+    // Protosynthesis/Quark Drive Spe boost
     let paradox_stat = state.sides[side].active._padding[3] >> 4;
     if paradox_stat == (SPE as u8 + 1) {
         speed = speed * 3 / 2; // 1.5× for Spe
@@ -194,7 +187,6 @@ fn resolve_order(
         return (a, b);
     }
 
-    // Quick Draw: 30% chance to go first with damaging moves
     let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
         let md = data_bridge::move_hot(move_id);
         md.category != MoveCategory::Status
@@ -221,8 +213,6 @@ fn resolve_order(
 
     if a_faster { (a, b) } else { (b, a) }
 }
-
-// ── Action execution dispatch ───────────────────────────────────────
 
 #[inline]
 fn execute_action(
@@ -255,15 +245,10 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let slot = state.sides[side].active_index as usize;
     let mon = &mut state.sides[side].team[slot];
     if mon.is_fainted() || mon.is_terastallized() { return; }
-    // Set terastallized flag
     mon.flags |= MON_FLAG_TERASTALLIZED;
-    // Mark tera as used for this side
     state.sides[side]._padding[0] |= 1;
-    // Zobrist update for tera
-    state.zobrist ^= keys.species[side][slot][0]; // simple hash perturbation
+    state.zobrist ^= keys.species[side][slot][0];
 }
-
-// ── Faint sweep & phase transitions ─────────────────────────────────
 
 fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
     let p1_alive = (0..6).any(|i| {
@@ -298,8 +283,6 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
     set_phase(state, keys, phase);
 }
 
-// ── Main entry point ────────────────────────────────────────────────
-
 pub fn execute_turn(
     state: &mut BattleState,
     keys: &ZobristKeys,
@@ -311,32 +294,26 @@ pub fn execute_turn(
     let act1 = decode_action(state, 1, action_p2);
     let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
 
-    // Determine raw action byte for second mover (needed for turn resumption)
     let second_raw = if second.side == 0 { action_p1 } else { action_p2 };
 
-    // Execute first action
     execute_action(state, keys, first.side, &first.action, rng);
 
-    // --- Faint check after Move 1 ---
-    // If either side fainted, pause for forced replacement before continuing.
+    // Faint after move 1: pause for forced replacement before continuing
     if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
         state.set_turn_resume(SUBPHASE_AFTER_MOVE1, second.side, second_raw);
         faint_sweep(state, keys);
         return;
     }
 
-    // No faints: execute second action
     execute_action(state, keys, second.side, &second.action, rng);
 
-    // --- Faint check after Move 2 ---
     if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
         state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
         faint_sweep(state, keys);
         return;
     }
 
-    // Check for mid-turn VOL_MUST_SWITCH (pivot moves) — if a side has
-    // MUST_SWITCH set, we need to transition to switch phase BEFORE end-of-turn
+    // Pivot moves: transition to switch phase before end-of-turn
     let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
     let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
     if p1_pivot || p2_pivot {
@@ -358,7 +335,6 @@ pub fn execute_switch_turn(
 ) {
     let phase = state.phase;
 
-    // Perform the replacement switches
     if phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 0, action_p1) {
             perform_switch(state, keys, 0, target as usize);
@@ -374,11 +350,9 @@ pub fn execute_switch_turn(
 
     match subphase {
         SUBPHASE_AFTER_MOVE1 => {
-            // Check if replacement fainted from entry hazards (chain replacement)
             faint_sweep(state, keys);
             if state.phase != PHASE_ACTIONS { return; }
 
-            // Execute Move 2 if the second mover was NOT the side that was replaced
             let second_side = state.second_mover_side();
             let second_raw = state.pending_action();
 
@@ -394,14 +368,12 @@ pub fn execute_switch_turn(
                 execute_action(state, keys, second_side, &second_action, rng);
             }
 
-            // Faint check after Move 2
             if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
                 state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
                 faint_sweep(state, keys);
                 return;
             }
 
-            // Pivot check
             let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
             let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
             if p1_pivot || p2_pivot {
@@ -416,11 +388,9 @@ pub fn execute_switch_turn(
         }
 
         SUBPHASE_AFTER_MOVE2 => {
-            // Check if replacement fainted from entry hazards
             faint_sweep(state, keys);
             if state.phase != PHASE_ACTIONS { return; }
 
-            // Pivot check (could have been set by Move 2)
             let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
             let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
             if p1_pivot || p2_pivot {
@@ -435,7 +405,6 @@ pub fn execute_switch_turn(
         }
 
         _ => {
-            // SUBPHASE_NORMAL: legacy behavior for pivot/must-switch
             faint_sweep(state, keys);
         }
     }

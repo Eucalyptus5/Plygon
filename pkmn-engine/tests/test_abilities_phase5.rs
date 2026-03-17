@@ -44,8 +44,6 @@ fn setup() -> (BattleState, ZobristKeys) {
     (state, keys)
 }
 
-// ── Hook 6: Huge Power doubles Atk ──────────────────────────────
-
 #[test]
 fn test_huge_power_doubles_atk() {
     let a = ability_atk_stat_mod(
@@ -54,7 +52,6 @@ fn test_huge_power_doubles_atk() {
     );
     assert_eq!(a, 300);
 
-    // Doesn't affect special
     let a = ability_atk_stat_mod(
         150, ABILITY_HUGE_POWER, MoveCategory::Special, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
@@ -62,11 +59,8 @@ fn test_huge_power_doubles_atk() {
     assert_eq!(a, 150);
 }
 
-// ── Hook 6: Defeatist halves Atk at ≤50% HP ────────────────────
-
 #[test]
 fn test_defeatist_halves_atk() {
-    // At full HP: no penalty
     let a = ability_atk_stat_mod(
         200, ABILITY_DEFEATIST, MoveCategory::Physical, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
@@ -80,8 +74,6 @@ fn test_defeatist_halves_atk() {
     );
     assert_eq!(a, 100);
 }
-
-// ── Hook 6: Stakeout doubles vs freshly switched ────────────────
 
 #[test]
 fn test_stakeout_doubles_vs_switched() {
@@ -100,8 +92,6 @@ fn test_stakeout_doubles_vs_switched() {
     assert_eq!(a, 100);
 }
 
-// ── Hook 6: Solar Power 1.5x SpA in Sun ────────────────────────
-
 #[test]
 fn test_solar_power_in_sun() {
     let a = ability_atk_stat_mod(
@@ -110,15 +100,12 @@ fn test_solar_power_in_sun() {
     );
     assert_eq!(a, 300); // 1.5×
 
-    // Not in sun: no boost
     let a = ability_atk_stat_mod(
         200, ABILITY_SOLAR_POWER, MoveCategory::Special, STATUS_NONE,
         Type::Fire, WEATHER_NONE, 300, 300, 0, 0,
     );
     assert_eq!(a, 200);
 }
-
-// ── Hook 8: Marvel Scale 1.5x Def with status ──────────────────
 
 #[test]
 fn test_marvel_scale_with_status() {
@@ -128,15 +115,12 @@ fn test_marvel_scale_with_status() {
     );
     assert_eq!(d, 300); // 1.5×
 
-    // No status: no boost
     let d = ability_def_stat_mod(
         200, ABILITY_MARVEL_SCALE, MoveCategory::Physical, Type::Normal,
         STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
     );
     assert_eq!(d, 200);
 }
-
-// ── Hook 11: Technician 1.5x on ≤60 BP ─────────────────────────
 
 #[test]
 fn test_technician_on_weak_move() {
@@ -155,13 +139,10 @@ fn test_technician_on_weak_move() {
     let (n, d) = ability_power_mod(&state, &md, 0, 40);
     assert_eq!((n, d), (6144, 4096)); // 1.5×
 
-    // 70 BP: no boost
     let md70 = MoveData { base_power: 70, ..md };
     let (n, d) = ability_power_mod(&state, &md70, 0, 70);
     assert_eq!((n, d), (4096, 4096));
 }
-
-// ── Hook 11: Sharpness 1.5x on slicing moves ───────────────────
 
 #[test]
 fn test_sharpness_slicing() {
@@ -181,8 +162,6 @@ fn test_sharpness_slicing() {
     assert_eq!((n, d), (6144, 4096)); // 1.5×
 }
 
-// ── Hook 13: Multiscale halves at full HP ───────────────────────
-
 #[test]
 fn test_multiscale_halves_at_full_hp() {
     let mut state = BattleState::default();
@@ -199,13 +178,10 @@ fn test_multiscale_halves_at_full_hp() {
     let (n, d) = defender_ability_final_mod(&state, &md, 1, 8);
     assert_eq!((n, d), (2048, 4096)); // 0.5×
 
-    // Not at full HP: no reduction
     state.sides[1].team[0].current_hp = 299;
     let (n, d) = defender_ability_final_mod(&state, &md, 1, 8);
     assert_eq!((n, d), (4096, 4096));
 }
-
-// ── Hook 13: Neuroforce 1.25x on SE ────────────────────────────
 
 #[test]
 fn test_neuroforce_on_se() {
@@ -215,8 +191,6 @@ fn test_neuroforce_on_se() {
     let (n, d) = attacker_ability_final_mod(ABILITY_NEUROFORCE, 4); // neutral
     assert_eq!((n, d), (4096, 4096));
 }
-
-// ── Hook 13: Filter reduces SE damage by 25% ───────────────────
 
 #[test]
 fn test_filter_super_effective() {
@@ -252,8 +226,6 @@ fn test_filter_neutral() {
     assert_eq!((n, d), (4096, 4096)); // no reduction
 }
 
-// ── Hook 13: Tinted Lens doubles NVE damage ────────────────────
-
 #[test]
 fn test_tinted_lens_nve() {
     let (n, d) = attacker_ability_final_mod(ABILITY_TINTED_LENS, 2); // NVE
@@ -265,8 +237,6 @@ fn test_tinted_lens_neutral_no_boost() {
     let (n, d) = attacker_ability_final_mod(ABILITY_TINTED_LENS, 4); // neutral
     assert_eq!((n, d), (4096, 4096)); // no boost
 }
-
-// ── Hook 13: Punk Rock halves Sound received ────────────────────
 
 #[test]
 fn test_punk_rock_defender() {
@@ -285,22 +255,14 @@ fn test_punk_rock_defender() {
     assert_eq!((n, d), (2048, 4096)); // 0.5×
 }
 
-// ── Hook 17: Serene Grace doubles secondary chance ──────────────
-
 #[test]
 fn test_serene_grace_doubles_secondary() {
     let (mut state, keys) = setup();
     state.sides[0].team[0].ability_id = ABILITY_SERENE_GRACE;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    // Use a move with 10% secondary chance (e.g. Flamethrower = 30% burn)
-    // We test via calc_modifiers path — Serene Grace is checked in apply_secondary
-    // For a proper test, we'd need to verify burn rate doubles
-    // Instead verify the ability constant is correct
     assert_eq!(ABILITY_SERENE_GRACE, 32);
 }
-
-// ── Hook 17: Sheer Force skips secondary + Life Orb ─────────────
 
 #[test]
 fn test_sheer_force_skips_life_orb_recoil() {
@@ -319,14 +281,8 @@ fn test_sheer_force_skips_life_orb_recoil() {
         ..Default::default()
     };
 
-    // Calc damage with a move that has secondary effects
-    // Sheer Force + Life Orb: no recoil when secondary_chance > 0
-    // The actual test depends on move data being populated
-    // Verify the constant is wired up
     assert_eq!(ABILITY_SHEER_FORCE, 125);
 }
-
-// ── Hook 18: Weak Armor on physical hit ─────────────────────────
 
 #[test]
 fn test_weak_armor_interaction() {
@@ -334,13 +290,8 @@ fn test_weak_armor_interaction() {
     state.sides[1].team[0].ability_id = ABILITY_WEAK_ARMOR;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    // Simulate a physical hit on side 1
-    // Weak Armor: -1 Def, +2 Spe
-    // This is tested through move execution
     assert_eq!(ABILITY_WEAK_ARMOR, 133);
 }
-
-// ── EOT: Speed Boost ────────────────────────────────────────────
 
 #[test]
 fn test_speed_boost_at_eot() {
@@ -354,8 +305,6 @@ fn test_speed_boost_at_eot() {
     assert_eq!(state.sides[0].active.boosts[SPE], 1);
     assert!(validate_hash(&state, &keys));
 }
-
-// ── EOT: Moody ──────────────────────────────────────────────────
 
 #[test]
 fn test_moody_at_eot() {
@@ -373,8 +322,6 @@ fn test_moody_at_eot() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ── EOT: Bad Dreams ─────────────────────────────────────────────
-
 #[test]
 fn test_bad_dreams_damages_sleeper() {
     let (mut state, keys) = setup();
@@ -385,12 +332,9 @@ fn test_bad_dreams_damages_sleeper() {
 
     end_of_turn(&mut state, &keys);
 
-    // 1/8 of 300 = 37
     assert_eq!(state.sides[1].team[0].current_hp, 300 - 37);
     assert!(validate_hash(&state, &keys));
 }
-
-// ── EOT: Dry Skin damage in Sun, heal in Rain ──────────────────
 
 #[test]
 fn test_dry_skin_eot() {
@@ -414,39 +358,23 @@ fn test_dry_skin_eot() {
     assert_eq!(state.sides[0].team[0].current_hp, 237);
 }
 
-// ── Speed: Chlorophyll doubles speed in Sun ─────────────────────
-
 #[test]
 fn test_chlorophyll_doubles_speed_in_sun() {
     let (mut state, _keys) = setup();
     state.sides[0].team[0].ability_id = ABILITY_CHLOROPHYLL;
     state.sides[0].team[0].stats[SPE] = 100;
 
-    // No sun: normal speed
-    // resolve_speed is private, so test indirectly via turn order
-    // Side 0: Spe=100 with Chlorophyll in Sun
-    // Side 1: Spe=200 without
     state.sides[1].team[0].stats[SPE] = 150;
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
 
-    // With Chlorophyll in Sun, side 0 has effective 200 Spe
-    // Side 1 has 150 Spe → side 0 should move first
-    // We verify this via execute_turn: side 0 uses move 0, side 1 uses move 0
-    // If side 0 moves first, its MOV_THIS_TURN will be set when side 1 moves
     assert_eq!(ABILITY_CHLOROPHYLL, 34);
 }
 
-// ── Priority: Prankster adds +1 to Status ───────────────────────
-
 #[test]
 fn test_prankster_adds_priority() {
-    // Prankster gives +1 priority to Status moves
-    // In our implementation, action_priority is private, so we test via constants
     assert_eq!(ABILITY_PRANKSTER, 158);
 }
-
-// ── Paradox: Protosynthesis activates in Sun ────────────────────
 
 #[test]
 fn test_protosynthesis_activates_in_sun() {
@@ -481,8 +409,6 @@ fn test_protosynthesis_activates_in_sun() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ── After-KO: Moxie +1 Atk on KO ──────────────────────────────
-
 #[test]
 fn test_moxie_boosts_on_ko() {
     assert_eq!(ABILITY_MOXIE, 153);
@@ -490,21 +416,15 @@ fn test_moxie_boosts_on_ko() {
     assert_eq!(ABILITY_GRIM_NEIGH, 265);
 }
 
-// ── Defender ability: Toxic Debris sets spikes on physical hit ──
-
 #[test]
 fn test_toxic_debris_constant() {
     assert_eq!(ABILITY_TOXIC_DEBRIS, 295);
 }
 
-// ── Defender ability: Seed Sower sets terrain ───────────────────
-
 #[test]
 fn test_seed_sower_constant() {
     assert_eq!(ABILITY_SEED_SOWER, 269);
 }
-
-// ── Full integration: Intimidate + Weak Armor ───────────────────
 
 #[test]
 fn test_intimidate_then_weak_armor() {
@@ -537,15 +457,11 @@ fn test_intimidate_then_weak_armor() {
     state.phase = PHASE_ACTIONS;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    // Switch side 0 to Intimidate mon
     perform_switch(&mut state, &keys, 0, 1);
 
-    // Side 1 should have -1 Atk from Intimidate
     assert_eq!(state.sides[1].active.boosts[ATK], -1);
     assert!(validate_hash(&state, &keys));
 }
-
-// ── Supreme Overlord scales with fainted allies ─────────────────
 
 #[test]
 fn test_supreme_overlord_scaling() {
@@ -582,8 +498,6 @@ fn test_supreme_overlord_scaling() {
     assert_eq!(d, 4096);
 }
 
-// ── Water Bubble: 2x Water attack, 0.5x Fire received ──────��───
-
 #[test]
 fn test_water_bubble_attacker() {
     let a = ability_atk_stat_mod(
@@ -592,7 +506,6 @@ fn test_water_bubble_attacker() {
     );
     assert_eq!(a, 400); // 2×
 
-    // Non-Water: no boost
     let a = ability_atk_stat_mod(
         200, ABILITY_WATER_BUBBLE, MoveCategory::Special, STATUS_NONE,
         Type::Fire, WEATHER_NONE, 300, 300, 0, 0,
@@ -617,26 +530,20 @@ fn test_water_bubble_defender() {
     assert_eq!((n, d), (2048, 4096)); // 0.5×
 }
 
-// ── Slow Start halves for 5 turns ───────────────────────────────
-
 #[test]
 fn test_slow_start() {
-    // turns_active < 5: halved
     let a = ability_atk_stat_mod(
         200, ABILITY_SLOW_START, MoveCategory::Physical, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 3, 0,
     );
     assert_eq!(a, 100);
 
-    // turns_active >= 5: normal
     let a = ability_atk_stat_mod(
         200, ABILITY_SLOW_START, MoveCategory::Physical, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 5, 0,
     );
     assert_eq!(a, 200);
 }
-
-// ── Hydration cures status in Rain ──────────────────────────────
 
 #[test]
 fn test_hydration_in_rain() {
@@ -653,8 +560,6 @@ fn test_hydration_in_rain() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ── Rain Dish heals in Rain ─────────────────────────────────────
-
 #[test]
 fn test_rain_dish_heals() {
     let (mut state, keys) = setup();
@@ -666,12 +571,9 @@ fn test_rain_dish_heals() {
 
     end_of_turn(&mut state, &keys);
 
-    // 1/16 of 300 = 18
     assert_eq!(state.sides[0].team[0].current_hp, 218);
     assert!(validate_hash(&state, &keys));
 }
-
-// ── Ice Body heals in Snow ──────────────────────────────────────
 
 #[test]
 fn test_ice_body_heals_in_snow() {
@@ -684,12 +586,9 @@ fn test_ice_body_heals_in_snow() {
 
     end_of_turn(&mut state, &keys);
 
-    // 1/16 of 300 = 18
     assert_eq!(state.sides[0].team[0].current_hp, 218);
     assert!(validate_hash(&state, &keys));
 }
-
-// ── Grass Pelt 1.5x Def in Grassy Terrain ───────────────────────
 
 #[test]
 fn test_grass_pelt_in_grassy_terrain() {
@@ -699,15 +598,12 @@ fn test_grass_pelt_in_grassy_terrain() {
     );
     assert_eq!(d, 300); // 1.5×
 
-    // No terrain: no boost
     let d = ability_def_stat_mod(
         200, ABILITY_GRASS_PELT, MoveCategory::Physical, Type::Normal,
         STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
     );
     assert_eq!(d, 200);
 }
-
-// ── Sand Force 1.3x Rock/Ground/Steel in Sand ──────────────────
 
 #[test]
 fn test_sand_force_in_sand() {
@@ -727,13 +623,10 @@ fn test_sand_force_in_sand() {
     let (n, d) = ability_power_mod(&state, &md, 0, 80);
     assert_eq!((n, d), (5325, 4096)); // 1.3×
 
-    // Normal type: no boost
     let md_normal = MoveData { move_type: Type::Normal, ..md };
     let (n, d) = ability_power_mod(&state, &md_normal, 0, 80);
     assert_eq!((n, d), (4096, 4096));
 }
-
-// ── Gorilla Tactics 1.5x Atk (always, physical only) ──��────────
 
 #[test]
 fn test_gorilla_tactics() {
@@ -743,15 +636,12 @@ fn test_gorilla_tactics() {
     );
     assert_eq!(a, 300); // 1.5×
 
-    // Special: no boost
     let a = ability_atk_stat_mod(
         200, ABILITY_GORILLA_TACTICS, MoveCategory::Special, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
     );
     assert_eq!(a, 200);
 }
-
-// ── Hook 6: Pure Power doubles physical Atk ────────────────────
 
 #[test]
 fn test_pure_power_doubles_atk() {
@@ -761,15 +651,12 @@ fn test_pure_power_doubles_atk() {
     );
     assert_eq!(a, 300);
 
-    // Special: no boost
     let a = ability_atk_stat_mod(
         150, ABILITY_PURE_POWER, MoveCategory::Special, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
     );
     assert_eq!(a, 150);
 }
-
-// ── Hook 6: Guts 1.5x physical Atk with status ────────────────
 
 #[test]
 fn test_guts_boosts_atk_with_status() {
@@ -802,8 +689,6 @@ fn test_guts_boosts_atk_with_status() {
     assert_eq!(a, 200);
 }
 
-// ── Guts suppresses burn penalty ───────────────────────────────
-
 #[test]
 fn test_guts_no_burn_penalty() {
     // Burned + Guts → no penalty
@@ -811,8 +696,6 @@ fn test_guts_no_burn_penalty() {
     // Burned without Guts → 0.5×
     assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0), (2048, 4096));
 }
-
-// ── Hook 6: Hustle 1.5x physical Atk ──────────────────────────
 
 #[test]
 fn test_hustle_boosts_physical() {
@@ -822,15 +705,12 @@ fn test_hustle_boosts_physical() {
     );
     assert_eq!(a, 300);
 
-    // Special: no boost
     let a = ability_atk_stat_mod(
         200, ABILITY_HUSTLE, MoveCategory::Special, STATUS_NONE,
         Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
     );
     assert_eq!(a, 200);
 }
-
-// ── Hook 8: Fur Coat doubles physical Def ──────────────────────
 
 #[test]
 fn test_fur_coat_doubles_def() {
@@ -840,15 +720,12 @@ fn test_fur_coat_doubles_def() {
     );
     assert_eq!(d, 400);
 
-    // Special: no boost
     let d = ability_def_stat_mod(
         200, ABILITY_FUR_COAT, MoveCategory::Special, Type::Normal,
         STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
     );
     assert_eq!(d, 200);
 }
-
-// ── Hook 8: Ice Scales doubles SpD vs special moves ─────────────
 
 #[test]
 fn test_ice_scales_special_def() {
@@ -859,7 +736,6 @@ fn test_ice_scales_special_def() {
     );
     assert_eq!(d, 400);
 
-    // Physical move: no boost
     let d = ability_def_stat_mod(
         200, ABILITY_ICE_SCALES, MoveCategory::Physical, Type::Normal,
         STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,

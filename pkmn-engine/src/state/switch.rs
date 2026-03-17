@@ -22,7 +22,6 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
         state.sides[side].team[idx].flags |= MON_FLAG_HERO_ACTIVATED;
     }
 
-    // Clear volatiles from Zobrist
     let flags = state.sides[side].active.volatile_flags;
     for bit in 0..32u32 {
         if flags & (1 << bit) != 0 { state.zobrist ^= keys.volatile_bit[side][bit as usize]; }
@@ -140,7 +139,6 @@ pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, 
     switch_out(state, keys, side);
     switch_in(state, keys, side, new_index);
 
-    // Restore Baton Pass state onto the new active
     if is_baton_pass {
         for stat in 0..7 {
             if saved_boosts[stat] != 0 {
@@ -166,7 +164,6 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
 
     let sc = state.sides[side].side_conditions;
 
-    // Stealth Rock
     if sc.hazard_flags & HAZARD_STEALTH_ROCK != 0 {
         let (t1, t2) = effective_types(state, side);
         // Convert u8 back to Type for the effectiveness call.
@@ -213,26 +210,24 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
     let ability = effective_ability(state, side);
     let opp = 1 - side;
     match ability {
-        // -- Intimidate (blocked by Mist) --
+        // Blocked by Mist
         data_bridge::ABILITY_INTIMIDATE  => {
             if state.sides[opp].side_conditions.mist_turns() == 0 {
                 apply_boost(state, keys, opp, ATK, -1);
             }
         }
 
-        // -- Weather setters --
         data_bridge::ABILITY_DRIZZLE     => { set_weather(state, keys, WEATHER_RAIN, 5); }
         data_bridge::ABILITY_DROUGHT     => { set_weather(state, keys, WEATHER_SUN, 5); }
         data_bridge::ABILITY_SAND_STREAM => { set_weather(state, keys, WEATHER_SAND, 5); }
         data_bridge::ABILITY_SNOW_WARNING=> { set_weather(state, keys, WEATHER_SNOW, 5); }
 
-        // -- Terrain setters --
         data_bridge::ABILITY_ELECTRIC_SURGE => { set_terrain(state, keys, TERRAIN_ELECTRIC, 5); }
         data_bridge::ABILITY_GRASSY_SURGE  => { set_terrain(state, keys, TERRAIN_GRASSY, 5); }
         data_bridge::ABILITY_MISTY_SURGE   => { set_terrain(state, keys, TERRAIN_MISTY, 5); }
         data_bridge::ABILITY_PSYCHIC_SURGE => { set_terrain(state, keys, TERRAIN_PSYCHIC, 5); }
 
-        // -- Download: +1 Atk if foe SpD < Def, else +1 SpA --
+        // +1 SpA if foe SpD < Def, else +1 Atk
         data_bridge::ABILITY_DOWNLOAD => {
             let opp_def = state.active_mon(opp).stats[DEF] as u32;
             let opp_spd = state.active_mon(opp).stats[SPD] as u32;
@@ -243,7 +238,6 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             }
         }
 
-        // -- Trace: copy opponent's ability --
         data_bridge::ABILITY_TRACE => {
             let opp_ability = effective_ability(state, opp);
             if opp_ability != 0
@@ -255,7 +249,6 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             }
         }
 
-        // -- Imposter: transform into opponent --
         data_bridge::ABILITY_IMPOSTER => {
             let opp_mon = state.active_mon(opp);
             if opp_mon.current_hp > 0 {
@@ -282,34 +275,26 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             }
         }
 
-        // -- Neutralizing Gas: suppress all other abilities --
         data_bridge::ABILITY_NEUTRALIZING_GAS => {
-            // Set VOL_ABILITY_SUPPRESSED on opponent
             set_volatile(state, keys, opp, VOL_ABILITY_SUPPRESSED);
         }
 
-        // -- Intrepid Sword: +1 Atk --
         data_bridge::ABILITY_INTREPID_SWORD => {
             apply_boost(state, keys, side, ATK, 1);
         }
 
-        // -- Dauntless Shield: +1 Def --
         data_bridge::ABILITY_DAUNTLESS_SHIELD => {
             apply_boost(state, keys, side, DEF, 1);
         }
 
-        // -- Hospitality: heal ally 25% (in singles, heal self) --
+        // No-op in singles (targets partner slot)
         data_bridge::ABILITY_HOSPITALITY => {
-            // In singles, this is a no-op (targets partner slot).
-            // For our purposes, skip.
         }
 
-        // -- Supersweet Syrup: -1 Eva on opponent --
         data_bridge::ABILITY_SUPERSWEET_SYRUP => {
             apply_boost(state, keys, opp, EVA, -1);
         }
 
-        // -- Embody Aspect variants --
         data_bridge::ABILITY_EMBODY_ASPECT_TEAL => {
             apply_boost(state, keys, side, SPE, 1);
         }
@@ -323,7 +308,6 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             apply_boost(state, keys, side, DEF, 1);
         }
 
-        // -- Protosynthesis / Quark Drive: identify best stat and set boost --
         data_bridge::ABILITY_PROTOSYNTHESIS => {
             activate_paradox_ability(state, keys, side,
                 matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN));
@@ -333,8 +317,6 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
                 state.field.terrain == TERRAIN_ELECTRIC);
         }
 
-        // -- Unnerve / Air Lock / Cloud Nine: passive effects, no switch-in action --
-        // These are checked by other systems (berry activation, weather damage).
         _ => {}
     }
 }
@@ -369,7 +351,6 @@ fn activate_paradox_ability(
     }
 }
 
-// ── Hazard management helpers ───────────────────────────────────────
 
 pub fn add_spikes(state: &mut BattleState, side: usize) {
     let sc = &mut state.sides[side].side_conditions;
@@ -498,7 +479,6 @@ mod tests {
         assert!(validate_hash(&state, &keys));
     }
 
-    // ── Step 8: Terrain seed tests ─────────────────────────────
 
     #[test]
     fn test_terrain_seed_no_trigger_without_terrain() {
@@ -514,7 +494,6 @@ mod tests {
         assert_eq!(state.sides[0].active.boosts[DEF], 0);
     }
 
-    // ── Phase 3: Intimidate, hazard damage, switch-out abilities ──
 
     #[test]
     fn test_intimidate_lowers_opponent_atk() {

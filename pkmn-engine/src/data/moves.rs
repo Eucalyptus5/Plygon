@@ -47,7 +47,6 @@ pub enum VarPower {
     RisingVoltage = 19, // 2× if Electric Terrain + target grounded
 }
 
-// ── Self-effect enum ────────────────────────────────────────────────
 // Encodes guaranteed self-stat changes, crash damage, and other effects
 // that apply to the attacker after a damaging move lands.
 // Stored in MoveData.self_effect (byte 15).
@@ -81,7 +80,6 @@ pub enum SelfEffect {
     ThawSelf        = 20,  // Scald, Steam Eruption (non-Fire moves that thaw user)
 }
 
-// ── Move effect enum ────────────────────────────────────────────────
 // Replaces hardcoded move IDs in the executor.  Populated by the data
 // generation pipeline.  MoveEffect::None means "no special dispatch."
 

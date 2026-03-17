@@ -61,8 +61,6 @@ fn setup() -> (BattleState, ZobristKeys) {
 
 fn dummy_rng(_max: u32) -> u32 { 0 }
 
-// ─── 1. BellyDrum: +6 Atk, -50% HP ───────────────────────────────
-
 #[test]
 fn test_belly_drum_boost_and_hp_cost() {
     let (mut state, keys) = setup();
@@ -80,8 +78,6 @@ fn test_belly_drum_boost_and_hp_cost() {
     assert_eq!(state.sides[0].active.boosts[ATK], 6);
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 2. Taunt blocks Status moves ────────────────────────────────
 
 #[test]
 fn test_taunt_blocks_status_moves() {
@@ -108,8 +104,6 @@ fn test_taunt_blocks_status_moves() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── 3. Encore locks to last move ────────────────────────────────
-
 #[test]
 fn test_encore_locks_to_last_move() {
     let (mut state, keys) = setup();
@@ -130,8 +124,6 @@ fn test_encore_locks_to_last_move() {
     assert_eq!(move_actions[0], 0, "Encore should lock to slot 0 (Pound)");
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 4. Disable prevents specific move ───────────────────────────
 
 #[test]
 fn test_disable_prevents_specific_move() {
@@ -156,8 +148,6 @@ fn test_disable_prevents_specific_move() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── 5. Struggle when all moves restricted ───────────────────────
-
 #[test]
 fn test_struggle_when_all_moves_restricted() {
     let (mut state, keys) = setup();
@@ -172,8 +162,6 @@ fn test_struggle_when_all_moves_restricted() {
         "Should have no regular move actions");
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 6. Perish Song KOs at counter 0 ─────────────────────────────
 
 #[test]
 fn test_perish_song_kos_at_counter_0() {
@@ -199,8 +187,6 @@ fn test_perish_song_kos_at_counter_0() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── 7. Destiny Bond KOs attacker ────────────────────────────────
-
 #[test]
 fn test_destiny_bond_kos_attacker() {
     let (mut state, keys) = setup();
@@ -222,8 +208,6 @@ fn test_destiny_bond_kos_attacker() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── 8. Trick swaps items ────────────────────────────────────────
-
 #[test]
 fn test_trick_swaps_items() {
     let (mut state, keys) = setup();
@@ -241,8 +225,6 @@ fn test_trick_swaps_items() {
     assert_eq!(state.sides[1].team[0].item_id, 100, "Side 1 should have item 100");
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 9. Tailwind doubles speed ───────────────────────────────────
 
 #[test]
 fn test_tailwind_doubles_speed() {
@@ -267,8 +249,6 @@ fn test_tailwind_doubles_speed() {
     assert_eq!(state.sides[0].team[0].current_hp, 0,
         "Side 0 should be fainted (side 1 faster with Tailwind)");
 }
-
-// ─── 10. Gravity blocks Fly ──────────────────────────────────────
 
 #[test]
 fn test_gravity_blocks_fly() {
@@ -310,8 +290,6 @@ fn test_gravity_blocks_fly() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── 11. Aegislash forme toggle ──────────────────────────────────
-
 #[test]
 fn test_aegislash_forme_toggle() {
     let keys = ZobristKeys::new(42);
@@ -348,8 +326,6 @@ fn test_aegislash_forme_toggle() {
     assert_eq!(effective_stat(&state, 0, DEF), 280);
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 12. Tera changes type and STAB calc ─────────────────────────
 
 #[test]
 fn test_tera_stab_calculation() {
@@ -389,8 +365,6 @@ fn test_tera_stab_calculation() {
     assert_eq!((num, den), (4096, 4096), "Tera: no match should be 1×");
 }
 
-// ─── 13. ACTION_TERA appears in legal moves once ─────────────────
-
 #[test]
 fn test_tera_legal_action_once() {
     let (mut state, keys) = setup();
@@ -411,8 +385,6 @@ fn test_tera_legal_action_once() {
     let tera_count2 = actions2.as_slice().iter().filter(|&&a| a == ACTION_TERA).count();
     assert_eq!(tera_count2, 0, "ACTION_TERA should not appear after tera used");
 }
-
-// ─── 14. Mid-turn faint from recoil triggers forced replacement ──
 
 #[test]
 fn test_mid_turn_faint_triggers_switch_phase() {
@@ -449,8 +421,6 @@ fn test_mid_turn_faint_triggers_switch_phase() {
     }
 }
 
-// ─── 15. Single faint after Move 1 triggers PHASE_SWITCH ─────────
-
 #[test]
 fn test_single_faint_triggers_switch_phase() {
     let (mut state, keys) = setup();
@@ -469,8 +439,6 @@ fn test_single_faint_triggers_switch_phase() {
         "Should be in SUBPHASE_AFTER_MOVE1");
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 16. Both faint simultaneously → PHASE_SWITCH_BOTH ──────────
 
 #[test]
 fn test_both_faint_triggers_switch_both() {
@@ -503,8 +471,6 @@ fn test_both_faint_triggers_switch_both() {
     assert!(state.active_mon(1).current_hp > 0, "P2 replacement should be alive");
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 17. Forced switch resumes turn — Move 2 still executes ─────
 
 #[test]
 fn test_forced_switch_resumes_turn() {
@@ -542,8 +508,6 @@ fn test_forced_switch_resumes_turn() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── 18. Forced switch legal moves: only switches, no moves ─────
-
 #[test]
 fn test_forced_switch_legal_moves_only_switches() {
     let (mut state, keys) = setup();
@@ -566,8 +530,6 @@ fn test_forced_switch_legal_moves_only_switches() {
     assert!(actions_p1.as_slice().is_empty(),
         "Side 0 should have no actions during PHASE_SWITCH_P2");
 }
-
-// ─── 19. Replacement does NOT execute the fainted mon's move ────
 
 #[test]
 fn test_replacement_does_not_act() {
@@ -592,8 +554,6 @@ fn test_replacement_does_not_act() {
     assert_eq!(state.phase, PHASE_ACTIONS);
     assert!(validate_hash(&state, &keys));
 }
-
-// ─── 20. Faint after Move 2 also triggers switch phase ──────────
 
 #[test]
 fn test_faint_after_move2_triggers_switch() {
@@ -623,8 +583,6 @@ fn test_faint_after_move2_triggers_switch() {
     assert!(validate_hash(&state, &keys));
 }
 
-// ─── Trick Room inverts speed ────────────────────────────────────
-
 #[test]
 fn test_trick_room_inverts_speed() {
     let (mut state, keys) = setup();
@@ -640,8 +598,6 @@ fn test_trick_room_inverts_speed() {
     assert_eq!(state.sides[0].team[0].current_hp, 0,
         "Side 0 should be fainted (side 1 moves first under Trick Room)");
 }
-
-// ─── Trick Room does not affect priority ─────────────────────────
 
 #[test]
 fn test_trick_room_no_affect_priority() {

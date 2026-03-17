@@ -33,7 +33,6 @@ fn test_chain_mod() {
 
 #[test]
 fn test_weather_modifier() {
-    // WEATHER_NONE=0, SUN=1, RAIN=2, SAND=3, SNOW=4, HARSH_SUN=5, HEAVY_RAIN=6, STRONG_WINDS=7
     assert_eq!(weather_modifier(1, Type::Fire), (6144, 4096)); // Sun + Fire
     assert_eq!(weather_modifier(1, Type::Water), (2048, 4096)); // Sun + Water
     
@@ -51,24 +50,18 @@ fn test_screen_modifier() {
     state.sides[1].side_conditions.light_screen_turns = 3;
     state.sides[1].side_conditions.aurora_veil_turns = 3;
     
-    // def_side is 1, not 0!
-    // Physical hits Reflect (and Aurora Veil)
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false), (2048, 4096)); // Halves
-    
-    // Special hits Light Screen (and Aurora Veil)
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false), (2048, 4096)); // Halves
-    
-    // Crit overrides screen
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false), (2048, 4096));
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false), (2048, 4096));
+
+    // Crits ignore screens
     assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, true), (4096, 4096));
-    
-    // Status ignores screen
-    // Wait, Aurora Veil affects status? No, Aurora Veil returns 2048/4096 for ANY category if > 0.
-    // Let's clear aurora veil to test normal Reflect/Light Screen, and test Aurora Veil separately.
+
+    // Clear Aurora Veil to test Reflect/Light Screen independently
     state.sides[1].side_conditions.aurora_veil_turns = 0;
     
     assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false), (2048, 4096));
     assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false), (2048, 4096));
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Status, false), (4096, 4096)); // ignored
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Status, false), (4096, 4096));
 }
 
 #[test]
@@ -180,8 +173,6 @@ fn test_resolve_power() {
     assert_eq!(resolve_power(&state, &md, 0, 1), 20); // full HP -> min power 20
 }
 
-// ── Phase 2: Stat-override move tests ────────────────────────────
-
 #[test]
 fn test_foul_play_uses_target_atk() {
     let mut state = setup();
@@ -267,8 +258,6 @@ fn test_psyshock_uses_spa_vs_def() {
     assert!(res_def_boosted.damage < res.damage);
 }
 
-// ── Phase 2: WeatherBall tests ───────────────────────────────────
-
 #[test]
 fn test_weather_ball_type_and_power() {
     let mut state = setup();
@@ -302,8 +291,6 @@ fn test_weather_ball_type_and_power() {
     assert_eq!(resolve_move_type(&state, md, 0), Type::Ice);
 }
 
-// ── Phase 2: TerrainPulse tests ──────────────────────────────────
-
 #[test]
 fn test_terrain_pulse_type_and_power() {
     let mut state = setup();
@@ -335,8 +322,6 @@ fn test_terrain_pulse_type_and_power() {
     assert_eq!(resolve_move_type(&state, md, 0), Type::Fairy);
 }
 
-// ── Phase 2: Weather accuracy tests ──────────────────────────────
-
 #[test]
 fn test_thunder_accuracy_in_rain() {
     // Thunder has WeatherAccRain effect, 70% base accuracy
@@ -346,8 +331,6 @@ fn test_thunder_accuracy_in_rain() {
     assert_eq!(md.effect, MoveEffect::WeatherAccRain);
     assert_eq!(md.accuracy, 70);
 }
-
-// ── Phase 2: StoredPower scaling test ────────────────────────────
 
 #[test]
 fn test_stored_power_scaling_with_boosts() {
@@ -376,8 +359,6 @@ fn test_stored_power_scaling_with_boosts() {
     assert_eq!(resolve_power(&state, md, 0, 1), 255);
 }
 
-// ── Phase 2: Eruption scaling test ───────────────────────────────
-
 #[test]
 fn test_eruption_scaling_with_hp() {
     let mut state = setup();
@@ -405,7 +386,6 @@ fn test_eruption_scaling_with_hp() {
     assert_eq!(resolve_power(&state, md, 0, 1), 1);
 }
 
-// ── Phase 2: Grassy Glide priority test ──────────────────────────
 // (Priority is tested via turn order, not calc_modifiers.
 //  Verify the MoveEffect is set correctly.)
 

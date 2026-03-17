@@ -15,23 +15,19 @@ use crate::data::types::Type;
 /// Level factor: (2 * 100 / 5 + 2) = 42 at level 100.
 const LEVEL_FACTOR: u32 = 42;
 
-// ── Result struct ─────────────────────────────────────────────────────
-
 /// Everything the caller needs to know about a damage calculation.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DamageResult {
-    pub damage: u16,         // total damage to apply
-    pub effectiveness: u8,   // 0/2/4/8/16 from type chart
+    pub damage: u16,
+    pub effectiveness: u8, // 0/2/4/8/16 from type chart
     pub crit: bool,
-    pub hits: u8,            // 1 normally, 2-5 for multi-hit
+    pub hits: u8,
     pub type_immune: bool,
-    pub drain_heal: u16,     // HP attacker recovers from drain
-    pub recoil_damage: u16,  // HP attacker loses to recoil
+    pub drain_heal: u16,
+    pub recoil_damage: u16,
     pub hits_substitute: bool,
-    pub item_consumed: bool, // resist berry / gem popped
+    pub item_consumed: bool,
 }
-
-// ── Main entry point ──────────────────────────────────────────────────
 
 /// Calculate damage for an attack.
 ///
@@ -53,16 +49,11 @@ pub fn calc_damage(
     let def_side = 1 - atk_side;
     let md = data_bridge::move_hot(move_id);
 
-    // Status moves deal no damage
     if md.category == MoveCategory::Status {
         return DamageResult::default();
     }
 
-    // ── Struggle special case ──────────────────────────────────────
     if move_id == 0 || md.base_power == 0 {
-        // This handles Struggle (move_id 165 in Showdown, but also any
-        // zero-power move).  For actual Struggle, the caller passes
-        // ACTION_STRUGGLE which should be mapped to the Struggle move ID.
         return calc_struggle(state, atk_side);
     }
 
@@ -76,10 +67,8 @@ pub fn calc_damage(
 
     let mut result = DamageResult::default();
 
-    // ── Resolve effective move type (WeatherBall, TerrainPulse) ─────
     let (move_type, ate_boost) = resolve_move_type_with_ability(state, md, atk_side, atk_ability);
 
-    // ── Type effectiveness ─────────────────────────────────────────
     let (def_t1, def_t2) = effective_types(state, def_side);
     let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
     let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
@@ -102,39 +91,33 @@ pub fn calc_damage(
 
     result.effectiveness = eff;
 
-    // Immunity check (type chart)
     if eff == 0 {
         result.type_immune = true;
         return result;
     }
 
-    // Ability-based type immunity (Water Absorb, Volt Absorb, Levitate, etc.)
     if let Some(heal) = ability_immunity(state, def_side, move_type) {
         result.type_immune = true;
-        result.drain_heal = heal; // attacker doesn't heal; defender does (caller handles)
+        result.drain_heal = heal;
         return result;
     }
 
-    // Ability-based flag immunity (Bulletproof, Soundproof, Overcoat, Wind Rider)
     if ability_flag_immunity(state, def_side, md.flags).is_some() {
         result.type_immune = true;
         return result;
     }
 
-    // ── Resolve power ──────────────────────────────────────────────
     let base_power = resolve_power(state, md, atk_side, def_side);
     let mut power = base_power as u32;
 
-    // Ability power mods
     let (ap_n, ap_d) = ability_power_mod(state, md, atk_side, base_power);
     power = chain_mod(power, ap_n, ap_d);
 
-    // -ate ability boost: 1.2× when type was changed by Galvanize/Pixilate/etc.
+    // -ate ability boost (Galvanize/Pixilate/etc.): 1.2×
     if ate_boost {
         power = chain_mod(power, 4915, 4096); // 1.2×
     }
 
-    // Item power mods (type boost, gem, Life Orb, Muscle Band, Wise Glasses, etc.)
     let (ip_n, ip_d) = item_power_mod(
         atk_item, atk_mon.item_id, move_type, md.category, md.flags,
         state.sides[atk_side].active.consec_move_count,
@@ -144,7 +127,6 @@ pub fn calc_damage(
         result.item_consumed = true;
     }
 
-    // Move-effect power mods (Knock Off, Expanding Force, Psyblade, Solar Beam)
     let (mp_n, mp_d) = move_effect_power_mod(state, md, atk_side, def_side);
     power = chain_mod(power, mp_n, mp_d);
 
@@ -153,16 +135,10 @@ pub fn calc_damage(
         power *= 2;
     }
 
-    // ── Resolve A and D stats ──────────────────────────────────────
     let is_physical = md.category == MoveCategory::Physical;
-
-    // Default stat indices
     let (mut atk_stat_idx, mut def_stat_idx) = if is_physical { (ATK, DEF) } else { (SPA, SPD) };
-
-    // Which side provides the offensive stat (normally atk_side)
     let mut atk_stat_side = atk_side;
 
-    // Stat-override moves
     match md.effect {
         // Photon (Psyshock/Psystrike/Secret Sword): SpA vs Def
         MoveEffect::Photon => { def_stat_idx = DEF; }
@@ -176,7 +152,6 @@ pub fn calc_damage(
     let mut a = effective_stat(state, atk_stat_side, atk_stat_idx);
     let mut d = effective_stat(state, def_side, def_stat_idx);
 
-    // ── Crit check (blocked by Lucky Chant) ─────────────────────
     let c_stage = crit_stage(state, atk_side, md);
     let is_crit = if state.sides[def_side].side_conditions.lucky_chant_turns() > 0 {
         false
@@ -185,18 +160,17 @@ pub fn calc_damage(
     };
     result.crit = is_crit;
 
-    // Apply boost stages (crits modify which stages are used)
+    // Crits ignore unfavorable boost stages
     let atk_stage = state.sides[atk_stat_side].active.boosts[atk_stat_idx];
     let def_stage = def_active.boosts[def_stat_idx];
     if is_crit {
-        a = boosted_stat(a, atk_stage.max(0));  // ignore negative atk boosts
-        d = boosted_stat(d, def_stage.min(0));  // ignore positive def boosts
+        a = boosted_stat(a, atk_stage.max(0));
+        d = boosted_stat(d, def_stage.min(0));
     } else {
         a = boosted_stat(a, atk_stage);
         d = boosted_stat(d, def_stage);
     }
 
-    // ── Ability stat mods ──────────────────────────────────────────
     a = ability_atk_stat_mod(
         a, atk_ability, md.category, atk_mon.status,
         move_type, state.field.weather,
@@ -209,7 +183,7 @@ pub fn calc_damage(
         def_mon.status, state.field.weather, state.field.terrain,
     );
 
-    // Paradox ability stat boosts (Protosynthesis/Quark Drive): 1.3× for non-Spe stats
+    // Protosynthesis/Quark Drive: 1.3× for non-Spe stats
     let atk_paradox = state.sides[atk_side].active._padding[3] >> 4;
     if atk_paradox > 0 {
         let boosted_stat = (atk_paradox - 1) as usize;
@@ -225,8 +199,6 @@ pub fn calc_damage(
         }
     }
 
-    // ── Item stat mods ─────────────────────────────────────────────
-    // Hook 7: ITEM_ATK_STAT_MOD
     if is_physical && atk_item.has(ItemFlag::CHOICE_ATK) { a = (a as u32 * 3 / 2) as u16; }
     if !is_physical && atk_item.has(ItemFlag::CHOICE_SPA) { a = (a as u32 * 3 / 2) as u16; }
     // Thick Club: 2× Atk for Marowak/Cubone
@@ -242,7 +214,6 @@ pub fn calc_damage(
         if sp == data_bridge::SPECIES_PIKACHU { a *= 2; }
     }
 
-    // Hook 9: ITEM_DEF_STAT_MOD
     if !is_physical && def_item.has(ItemFlag::ASSAULT_VEST) { d = (d as u32 * 3 / 2) as u16; }
     if def_item.has(ItemFlag::EVIOLITE) {
         // Eviolite: 1.5× both defenses for NFE mons.  Caller/data should track NFE.
@@ -255,56 +226,44 @@ pub fn calc_damage(
         if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
     }
 
-    // ── Weather defensive stat boosts ──────────────────────────────
     d = weather_def_stat_mod(d, state.field.weather, md.category, def_t1, def_t2);
 
-    // Prevent division by zero
     if d == 0 { d = 1; }
     if power == 0 { return result; }
 
-    // ── Multi-hit ──────────────────────────────────────────────────
     let num_hits = resolve_hits(md, atk_ability, rng_fn);
     result.hits = num_hits;
 
-    // ── Core damage loop ───────────────────────────────────────────
     let mut total_damage: u32 = 0;
 
     for _ in 0..num_hits {
-        // Base formula
         let mut dmg: u32 = (LEVEL_FACTOR * power * a as u32 / d as u32) / 50 + 2;
 
-        // 1. Weather modifier
         let (wn, wd) = weather_modifier(state.field.weather, move_type);
-        if wn == 0 { return result; } // move nullified (Harsh Sun vs Water)
+        if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
         dmg = chain_mod(dmg, wn, wd);
 
-        // 2. Critical hit
         if is_crit {
             let (cn, cd) = crit_multiplier(atk_ability);
             dmg = chain_mod(dmg, cn, cd);
         }
 
-        // 3. Random roll (85-100, i.e. multiply by (85 + rng(16)) / 100)
+        // Random roll: 85-100%
         let roll = 85 + rng_fn(16);
         dmg = dmg * roll / 100;
 
-        // 4. STAB
         let (sn, sd) = stab_modifier(state, atk_side, move_type);
         dmg = chain_mod(dmg, sn, sd);
 
-        // 5. Type effectiveness
-        // eff is in 4× scale: 0=immune, 2=0.5×, 4=1×, 8=2×, 16=4×
+        // eff is in 4x scale: 0=immune, 2=0.5x, 4=1x, 8=2x, 16=4x
         dmg = dmg * eff as u32 / 4;
 
-        // 6. Burn
         let (bn, bd) = burn_modifier(atk_mon.status, md.category, atk_ability);
         dmg = chain_mod(dmg, bn, bd);
 
-        // 7. Screen
         let (scn, scd) = screen_modifier(state, def_side, md.category, is_crit);
         dmg = chain_mod(dmg, scn, scd);
 
-        // 8. Final modifier chain (abilities + items)
         let (dan, dad) = defender_ability_final_mod(state, md, def_side, eff);
         dmg = chain_mod(dmg, dan, dad);
 
@@ -315,7 +274,6 @@ pub fn calc_damage(
         dmg = chain_mod(dmg, ifn, ifd);
         if berry_consumed { result.item_consumed = true; }
 
-        // Minimum 1 damage (if not immune)
         if dmg == 0 { dmg = 1; }
 
         total_damage += dmg;
@@ -323,7 +281,6 @@ pub fn calc_damage(
 
     result.damage = total_damage.min(u16::MAX as u32) as u16;
 
-    // ── Substitute check ───────────────────────────────────────────
     if def_active.has_volatile(VOL_SUBSTITUTE)
         && md.flags & MoveFlags::SOUND == 0
         && md.flags & MoveFlags::BYPASSSUB == 0
@@ -331,7 +288,6 @@ pub fn calc_damage(
         result.hits_substitute = true;
     }
 
-    // ── Drain / recoil ─────────────────────────────────────────────
     if md.drain > 0 {
         result.drain_heal = (result.damage as u32 * md.drain as u32 / 100) as u16;
     }
@@ -349,8 +305,6 @@ pub fn calc_damage(
 
     result
 }
-
-// ── Struggle ──────────────────────────────────────────────────────────
 
 /// Struggle: typeless, 50 power, no STAB, no effectiveness, 1/4 max HP recoil.
 fn calc_struggle(state: &BattleState, atk_side: usize) -> DamageResult {
@@ -376,8 +330,6 @@ fn calc_struggle(state: &BattleState, atk_side: usize) -> DamageResult {
         ..Default::default()
     }
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -562,8 +514,6 @@ mod tests {
             Type::Normal, WEATHER_NONE, 300, 300, 0, 0);
         assert_eq!(a, 150);
     }
-
-    // ── Step 1: Freeze-Dry effectiveness tests ──────────────
 
     #[test]
     fn test_freeze_dry_vs_water() {
