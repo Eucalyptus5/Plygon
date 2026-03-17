@@ -1115,6 +1115,11 @@ pub fn execute_move(
         }
     }
 
+    // Attraction: 50% chance to skip turn
+    if state.sides[atk_side].active.is_attracted() {
+        if rng(2) == 0 { break 'exec; }
+    }
+
     // ── PP and bookkeeping (skip on charge turn 2) ──────────
 
     if !is_charge_turn2 {
@@ -1156,12 +1161,12 @@ pub fn execute_move(
     if !is_struggle && !is_charge_turn2 && !is_move_locked {
         let atk_ability = effective_ability(state, atk_side);
         if (atk_ability == data_bridge::ABILITY_PROTEAN || atk_ability == data_bridge::ABILITY_LIBERO)
-            && state.sides[atk_side].active._padding[3] == 0
+            && state.sides[atk_side].active._padding[3] & 1 == 0
         {
             let new_type = md.move_type as u8;
             state.sides[atk_side].active.override_types = [new_type, new_type];
             set_volatile(state, keys, atk_side, VOL_TYPES_OVERRIDDEN);
-            state.sides[atk_side].active._padding[3] = 1; // once per switch-in
+            state.sides[atk_side].active._padding[3] |= 1; // once per switch-in
         }
     }
 
@@ -1409,7 +1414,11 @@ pub fn execute_move(
         }
     }
 
-    // ── Apply damage ────────────────────────────────────────────
+    // ── Apply damage ───────────────────────────────────────��────
+
+    let pre_damage_hp = if !result.hits_substitute {
+        state.sides[def_side].team[def_slot].current_hp
+    } else { 0 };
 
     if result.hits_substitute {
         let sub = &mut state.sides[def_side].active.substitute_hp;
@@ -1557,9 +1566,8 @@ pub fn execute_move(
             data_bridge::ABILITY_BERSERK => {
                 let m = state.sides[def_side].team[def_slot].max_hp;
                 let hp = state.sides[def_side].team[def_slot].current_hp;
-                // The damage already happened, so check if HP crossed the 50% threshold
-                // We approximate: if HP ≤ 50% after damage, trigger
-                if hp > 0 && hp * 2 <= m {
+                // Must cross the 50% threshold (was above, now at/below)
+                if hp > 0 && hp * 2 <= m && pre_damage_hp * 2 > m {
                     apply_boost(state, keys, def_side, SPA, 1);
                 }
             }
@@ -1753,6 +1761,16 @@ pub fn execute_move(
                     _ => {}
                 }
             }
+
+            // Cute Charm: 30% attract on contact
+            if def_ability == data_bridge::ABILITY_CUTE_CHARM
+                && !state.sides[atk_side].team[atk_slot].is_fainted()
+                && !state.sides[atk_side].active.is_attracted()
+            {
+                if rng(100) < 30 {
+                    state.sides[atk_side].active.set_attracted(true);
+                }
+            }
         }
     }
 
@@ -1870,7 +1888,7 @@ pub fn execute_move(
         {
             let def_ability = effective_ability(state, def_side);
             if def_ability == data_bridge::ABILITY_INNARDS_OUT {
-                deal_damage(state, keys, atk_side, atk_slot, final_damage);
+                deal_damage(state, keys, atk_side, atk_slot, pre_damage_hp);
             }
         }
 
@@ -4128,6 +4146,118 @@ mod tests {
         execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].side_conditions.safeguard_turns(), 0);
         assert_eq!(state.sides[1].side_conditions.mist_turns(), 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_good_as_gold_blocks_status() {
+        use crate::data::MOVE_WILL_O_WISP;
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_GOOD_AS_GOLD;
+        state.sides[0].team[0].moves[0] = MOVE_WILL_O_WISP as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
+
+        // Good as Gold blocks status moves — no burn applied
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    // ── After-damage ability tests (Hooks 18-19) ────────────────
+
+    #[test]
+    fn test_mummy_overwrite() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_MUMMY;
+        state.sides[0].team[0].ability_id = 100; // arbitrary non-Mummy ability
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Pound is Contact → triggers Mummy
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.sides[0].active.override_ability, data_bridge::ABILITY_MUMMY);
+        assert!(state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_toxic_debris_sets_spikes() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_TOXIC_DEBRIS;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let spikes_before = state.sides[0].side_conditions.toxic_spikes;
+        // Pound is Physical → triggers Toxic Debris on attacker's side
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[0].side_conditions.toxic_spikes > spikes_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_poison_touch_contact() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_POISON_TOUCH;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // fixed_rng(0): rng(100)==0 < 30 → triggers
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].team[0].status, STATUS_POISON);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_berserk_threshold_crossing() {
+        // Case A: HP crosses 50% threshold → should trigger
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_BERSERK;
+        state.sides[1].team[0].max_hp = 300;
+        state.sides[1].team[0].current_hp = 160; // 160/300 > 50%
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        let hp_after = state.sides[1].team[0].current_hp;
+        if hp_after > 0 && hp_after * 2 <= 300 {
+            // HP crossed threshold → Berserk should have fired
+            assert_eq!(state.sides[1].active.boosts[SPA], 1,
+                "Berserk should trigger when HP crosses below 50%");
+        }
+
+        // Case B: already below 50% → should NOT trigger
+        let (mut state2, keys2) = setup();
+        state2.sides[1].team[0].ability_id = data_bridge::ABILITY_BERSERK;
+        state2.sides[1].team[0].max_hp = 300;
+        state2.sides[1].team[0].current_hp = 100; // 100/300 < 50%
+        state2.zobrist = compute_full_hash(&state2, &keys2);
+
+        execute_move(&mut state2, &keys2, 0, 1, 0, &mut fixed_rng(99));
+
+        assert_eq!(state2.sides[1].active.boosts[SPA], 0,
+            "Berserk should NOT trigger when already below 50%");
+    }
+
+    #[test]
+    fn test_innards_out_damage() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_INNARDS_OUT;
+        state.sides[1].team[0].current_hp = 50;
+        state.sides[1].team[0].max_hp = 300;
+        // High ATK to guarantee overkill on 50 HP
+        state.sides[0].team[0].stats[ATK] = 500;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let atk_hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        // Defender should faint
+        assert!(state.sides[1].team[0].is_fainted());
+        // Innards Out should deal exactly 50 (pre-damage HP), not overkill
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before - 50);
         assert!(validate_hash(&state, &keys));
     }
 }

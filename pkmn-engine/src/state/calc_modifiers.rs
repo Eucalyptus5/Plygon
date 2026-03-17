@@ -6,7 +6,7 @@
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemData, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
-use crate::data::moves::{MoveData, MoveFlags, MoveEffect, VarPower};
+use crate::data::moves::{MoveData, MoveFlags, MoveEffect, SelfEffect, VarPower};
 use crate::data::types::Type;
 
 // ── 4096-scale chain helper ───────────────────────────────────────────
@@ -239,7 +239,7 @@ pub fn ability_power_mod(
 
     match ability {
         data_bridge::ABILITY_TECHNICIAN if power <= 60 => (6144, 4096), // 1.5×
-        data_bridge::ABILITY_RECKLESS if md.drain < 0 => (4915, 4096), // 1.2×
+        data_bridge::ABILITY_RECKLESS if md.drain < 0 || md.self_effect == SelfEffect::CrashDamage => (4915, 4096), // 1.2×
         data_bridge::ABILITY_IRON_FIST if md.flags & MoveFlags::PUNCH != 0 => (4915, 4096),
         data_bridge::ABILITY_MEGA_LAUNCHER if md.flags & MoveFlags::PULSE != 0 => (6144, 4096),
         data_bridge::ABILITY_STRONG_JAW if md.flags & MoveFlags::BITE != 0 => (6144, 4096),
@@ -269,19 +269,16 @@ pub fn ability_power_mod(
             && state.sides[atk_side].active.has_volatile(VOL_FLASH_FIRE) => (6144, 4096),
 
         // Supreme Overlord: 1.1× per fainted ally (max 5)
+        // Exact Showdown lookup table (abilities.ts:4649) — values are NOT evenly spaced
         data_bridge::ABILITY_SUPREME_OVERLORD => {
             let slot = state.sides[atk_side].active_index as usize;
             let fainted = (0..6).filter(|&i| {
                 i != slot
                     && state.sides[atk_side].team[i].species_id != 0
                     && state.sides[atk_side].team[i].current_hp == 0
-            }).count() as u32;
-            if fainted > 0 {
-                // 4096, 4506, 4915, 5325, 5734, 6144 for 0-5 fainted
-                (4096 + fainted * 410, 4096)
-            } else {
-                (4096, 4096)
-            }
+            }).count().min(5);
+            const POW_MOD: [u32; 6] = [4096, 4506, 4915, 5325, 5734, 6144];
+            (POW_MOD[fainted], 4096)
         }
 
         _ => (4096, 4096),
@@ -974,5 +971,188 @@ mod tests {
         // Snow → 0.5×
         state.field.weather = WEATHER_SNOW;
         assert_eq!(move_effect_power_mod(&state, &md, 0, 1), (2048, 4096));
+    }
+
+    // ── Hook 11: Ability power modifier tests ────────────────────
+
+    fn make_state_with_ability(ability: u16) -> BattleState {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[0].team[0].ability_id = ability;
+        state.sides[0].team[0].current_hp = 300;
+        state.sides[0].team[0].max_hp = 300;
+        state.sides[1].team[0].species_id = 2;
+        state.sides[1].team[0].current_hp = 300;
+        state.sides[1].team[0].max_hp = 300;
+        state
+    }
+
+    #[test]
+    fn test_technician_60bp() {
+        let state = make_state_with_ability(data_bridge::ABILITY_TECHNICIAN);
+        let md = MoveData {
+            base_power: 60,
+            category: MoveCategory::Physical,
+            move_type: Type::Normal,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 60), (6144, 4096)); // 1.5×
+    }
+
+    #[test]
+    fn test_technician_61bp_no_boost() {
+        let state = make_state_with_ability(data_bridge::ABILITY_TECHNICIAN);
+        let md = MoveData {
+            base_power: 61,
+            category: MoveCategory::Physical,
+            move_type: Type::Normal,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 61), (4096, 4096)); // no boost
+    }
+
+    #[test]
+    fn test_iron_fist_punch() {
+        let state = make_state_with_ability(data_bridge::ABILITY_IRON_FIST);
+        let md = MoveData {
+            base_power: 75,
+            flags: MoveFlags::PUNCH,
+            category: MoveCategory::Physical,
+            move_type: Type::Fighting,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 75), (4915, 4096)); // 1.2×
+    }
+
+    #[test]
+    fn test_strong_jaw_bite() {
+        let state = make_state_with_ability(data_bridge::ABILITY_STRONG_JAW);
+        let md = MoveData {
+            base_power: 80,
+            flags: MoveFlags::BITE,
+            category: MoveCategory::Physical,
+            move_type: Type::Dark,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 80), (6144, 4096)); // 1.5×
+    }
+
+    #[test]
+    fn test_sheer_force_boost_no_secondary() {
+        let state = make_state_with_ability(data_bridge::ABILITY_SHEER_FORCE);
+        let md = MoveData {
+            base_power: 80,
+            secondary_chance: 30,
+            category: MoveCategory::Physical,
+            move_type: Type::Normal,
+            ..unsafe { core::mem::zeroed() }
+        };
+        // Power gets 1.3× boost
+        assert_eq!(ability_power_mod(&state, &md, 0, 80), (5325, 4096));
+        // Secondary suppression is tested in move_exec tests (Hook 17)
+    }
+
+    #[test]
+    fn test_sand_force_in_sand() {
+        let mut state = make_state_with_ability(data_bridge::ABILITY_SAND_FORCE);
+        state.field.weather = WEATHER_SAND;
+        let md = MoveData {
+            base_power: 80,
+            category: MoveCategory::Physical,
+            move_type: Type::Rock,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 80), (5325, 4096)); // 1.3×
+    }
+
+    #[test]
+    fn test_sand_force_no_sand() {
+        let state = make_state_with_ability(data_bridge::ABILITY_SAND_FORCE);
+        // No sandstorm — weather is WEATHER_NONE by default
+        let md = MoveData {
+            base_power: 80,
+            category: MoveCategory::Physical,
+            move_type: Type::Rock,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 80), (4096, 4096)); // no boost
+    }
+
+    #[test]
+    fn test_tough_claws_contact() {
+        let state = make_state_with_ability(data_bridge::ABILITY_TOUGH_CLAWS);
+        let md = MoveData {
+            base_power: 90,
+            flags: MoveFlags::CONTACT,
+            category: MoveCategory::Physical,
+            move_type: Type::Normal,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 90), (5325, 4096)); // 1.3×
+    }
+
+    #[test]
+    fn test_reckless_crash_damage() {
+        let state = make_state_with_ability(data_bridge::ABILITY_RECKLESS);
+        // Crash damage move (e.g. High Jump Kick): drain=0, self_effect=CrashDamage
+        let md = MoveData {
+            base_power: 130,
+            category: MoveCategory::Physical,
+            move_type: Type::Fighting,
+            self_effect: SelfEffect::CrashDamage,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md, 0, 130), (4915, 4096)); // 1.2×
+
+        // Recoil move (e.g. Flare Blitz): drain=-33
+        let md_recoil = MoveData {
+            base_power: 120,
+            drain: -33,
+            category: MoveCategory::Physical,
+            move_type: Type::Fire,
+            ..unsafe { core::mem::zeroed() }
+        };
+        assert_eq!(ability_power_mod(&state, &md_recoil, 0, 120), (4915, 4096)); // 1.2×
+    }
+
+    #[test]
+    fn test_supreme_overlord_fainted() {
+        let mut state = make_state_with_ability(data_bridge::ABILITY_SUPREME_OVERLORD);
+        // Set up a team of 6 mons
+        for i in 0..6 {
+            state.sides[0].team[i].species_id = (i + 1) as u16;
+            state.sides[0].team[i].current_hp = 300;
+            state.sides[0].team[i].max_hp = 300;
+        }
+        state.sides[0].active_index = 0;
+
+        let md = MoveData {
+            base_power: 80,
+            category: MoveCategory::Physical,
+            move_type: Type::Normal,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // Exact Showdown lookup table values
+        let expected: [(usize, u32); 6] = [
+            (0, 4096), (1, 4506), (2, 4915), (3, 5325), (4, 5734), (5, 6144),
+        ];
+
+        for (faint_count, expected_num) in expected {
+            // Reset all allies to alive
+            for i in 1..6 {
+                state.sides[0].team[i].current_hp = 300;
+            }
+            // Faint the first `faint_count` allies (slots 1..=faint_count)
+            for i in 1..=faint_count {
+                state.sides[0].team[i].current_hp = 0;
+            }
+            assert_eq!(
+                ability_power_mod(&state, &md, 0, 80),
+                (expected_num, 4096),
+                "Supreme Overlord with {} fainted should be ({}, 4096)",
+                faint_count, expected_num,
+            );
+        }
     }
 }

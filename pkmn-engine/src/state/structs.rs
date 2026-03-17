@@ -235,7 +235,7 @@ pub struct ActiveMon {
     // _padding[0]: baton_pass flag (1 = Baton Pass switch pending, preserve boosts/volatiles)
     // _padding[1]: charge location (0=none, 1=air, 2=underground, 3=underwater, 4=vanished)
     // _padding[2]: move-lock turns remaining (Outrage/Thrash: 0=not locked, 1-2=turns left)
-    // _padding[3]: protean_activated (1 = Protean/Libero already fired this switch-in)
+    // _padding[3]: bit 0 = protean_activated, bit 1 = attracted, bits 4-7 = paradox stat+1
     // _padding[4]: shield bits (bit 0 = Disguise broken, bit 1 = Ice Face broken, bit 2 = charge),
     //              bind_turns (bits 3-6: 0-15 turns remaining for partial trap)
     pub _padding: [u8; 5],
@@ -430,6 +430,14 @@ impl ActiveMon {
     #[inline(always)]
     pub fn set_bind_turns(&mut self, turns: u8) {
         self._padding[4] = (self._padding[4] & 0x07) | ((turns & 0x0F) << 3);
+    }
+
+    #[inline(always)]
+    pub fn is_attracted(&self) -> bool { self._padding[3] & 2 != 0 }
+
+    #[inline(always)]
+    pub fn set_attracted(&mut self, val: bool) {
+        if val { self._padding[3] |= 2; } else { self._padding[3] &= !2; }
     }
 
     #[inline(always)]

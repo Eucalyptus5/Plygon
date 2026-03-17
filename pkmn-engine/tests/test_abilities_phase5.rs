@@ -216,6 +216,56 @@ fn test_neuroforce_on_se() {
     assert_eq!((n, d), (4096, 4096));
 }
 
+// ── Hook 13: Filter reduces SE damage by 25% ───────────────────
+
+#[test]
+fn test_filter_super_effective() {
+    let mut state = BattleState::default();
+    state.sides[1].team[0].species_id = 1;
+    state.sides[1].team[0].ability_id = ABILITY_FILTER;
+    state.sides[1].team[0].max_hp = 300;
+    state.sides[1].team[0].current_hp = 300;
+
+    let md = MoveData {
+        base_power: 80, category: MoveCategory::Physical,
+        move_type: Type::Normal,
+        ..unsafe { core::mem::zeroed() }
+    };
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8); // SE
+    assert_eq!((n, d), (3072, 4096)); // 0.75×
+}
+
+#[test]
+fn test_filter_neutral() {
+    let mut state = BattleState::default();
+    state.sides[1].team[0].species_id = 1;
+    state.sides[1].team[0].ability_id = ABILITY_FILTER;
+    state.sides[1].team[0].max_hp = 300;
+    state.sides[1].team[0].current_hp = 300;
+
+    let md = MoveData {
+        base_power: 80, category: MoveCategory::Physical,
+        move_type: Type::Normal,
+        ..unsafe { core::mem::zeroed() }
+    };
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4); // neutral
+    assert_eq!((n, d), (4096, 4096)); // no reduction
+}
+
+// ── Hook 13: Tinted Lens doubles NVE damage ────────────────────
+
+#[test]
+fn test_tinted_lens_nve() {
+    let (n, d) = attacker_ability_final_mod(ABILITY_TINTED_LENS, 2); // NVE
+    assert_eq!((n, d), (8192, 4096)); // 2×
+}
+
+#[test]
+fn test_tinted_lens_neutral_no_boost() {
+    let (n, d) = attacker_ability_final_mod(ABILITY_TINTED_LENS, 4); // neutral
+    assert_eq!((n, d), (4096, 4096)); // no boost
+}
+
 // ── Hook 13: Punk Rock halves Sound received ────────────────────
 
 #[test]
@@ -527,8 +577,8 @@ fn test_supreme_overlord_scaling() {
     };
 
     let (n, d) = ability_power_mod(&state, &md, 0, 80);
-    // 2 fainted → 4096 + 2*410 = 4916
-    assert_eq!(n, 4916);
+    // 2 fainted → exact Showdown value: 4915
+    assert_eq!(n, 4915);
     assert_eq!(d, 4096);
 }
 
@@ -793,6 +843,25 @@ fn test_fur_coat_doubles_def() {
     // Special: no boost
     let d = ability_def_stat_mod(
         200, ABILITY_FUR_COAT, MoveCategory::Special, Type::Normal,
+        STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
+    );
+    assert_eq!(d, 200);
+}
+
+// ── Hook 8: Ice Scales doubles SpD vs special moves ─────────────
+
+#[test]
+fn test_ice_scales_special_def() {
+    // Special move: 2× defense
+    let d = ability_def_stat_mod(
+        200, ABILITY_ICE_SCALES, MoveCategory::Special, Type::Normal,
+        STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
+    );
+    assert_eq!(d, 400);
+
+    // Physical move: no boost
+    let d = ability_def_stat_mod(
+        200, ABILITY_ICE_SCALES, MoveCategory::Physical, Type::Normal,
         STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
     );
     assert_eq!(d, 200);
