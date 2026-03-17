@@ -94,6 +94,10 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
     if active.has_volatile(VOL_MOVE_LOCKED) {
         for i in 0..4 {
             if moves[i] == active.last_move && moves[i] != 0 && effective_pp(state, side, i) > 0 {
+                // Disable can hit mid-Outrage: if locked move is also disabled, Struggle
+                if active.disabled_move != 0 && active.disabled_move == moves[i] {
+                    return 0;
+                }
                 list.push(i as u8); return 1;
             }
         }
@@ -103,6 +107,20 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
     if active.encore_turns > 0 && active.encore_move != 0 {
         for i in 0..4 {
             if moves[i] == active.encore_move && effective_pp(state, side, i) > 0 {
+                // Stacking: encored move may also be blocked by Disable, Taunt, or Assault Vest
+                if active.disabled_move != 0 && active.disabled_move == moves[i] {
+                    return 0;
+                }
+                if active.taunt_turns > 0 {
+                    let md = data_bridge::move_hot(moves[i]);
+                    if md.category == MoveCategory::Status { return 0; }
+                }
+                if data_bridge::item(state.sides[side].team[state.sides[side].active_index as usize].item_id)
+                    .has(data_bridge::ItemFlag::ASSAULT_VEST)
+                {
+                    let md = data_bridge::move_hot(moves[i]);
+                    if md.category == MoveCategory::Status { return 0; }
+                }
                 list.push(i as u8); return 1;
             }
         }

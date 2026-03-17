@@ -297,3 +297,76 @@ fn test_active_mon_not_switch_target() {
         assert_ne!(a.actions[i as usize], ACTION_SWITCH_0);
     }
 }
+
+#[test]
+fn test_encore_plus_disable_forces_struggle() {
+    let mut state = setup();
+    // Encore move 3 (slot 2), and also Disable move 3
+    state.sides[0].active.encore_move = 3;
+    state.sides[0].active.encore_turns = 2;
+    state.sides[0].active.disabled_move = 3;
+    state.sides[0].active.disable_turns = 3;
+
+    let a = legal_actions(&state, 0);
+    // Encored move is disabled -> Struggle + 5 switches = 6
+    assert_eq!(a.actions[0], ACTION_STRUGGLE);
+    assert_eq!(a.count, 6);
+}
+
+#[test]
+fn test_encore_plus_taunt_on_status_forces_struggle() {
+    let mut state = setup();
+    // Swords Dance (14) is Status. Set it as the encored move.
+    state.sides[0].team[0].moves[0] = 14;
+    state.sides[0].active.encore_move = 14;
+    state.sides[0].active.encore_turns = 2;
+    state.sides[0].active.taunt_turns = 2;
+
+    let a = legal_actions(&state, 0);
+    // Encored Status move blocked by Taunt -> Struggle + 5 switches
+    assert_eq!(a.actions[0], ACTION_STRUGGLE);
+    assert_eq!(a.count, 6);
+}
+
+#[test]
+fn test_encore_plus_assault_vest_on_status_forces_struggle() {
+    let mut state = setup();
+    // Swords Dance (14) is Status. Encore it while holding Assault Vest.
+    state.sides[0].team[0].moves[0] = 14;
+    state.sides[0].team[0].item_id = 581; // Assault Vest
+    state.sides[0].active.encore_move = 14;
+    state.sides[0].active.encore_turns = 2;
+
+    let a = legal_actions(&state, 0);
+    // Encored Status move blocked by Assault Vest -> Struggle + 5 switches
+    assert_eq!(a.actions[0], ACTION_STRUGGLE);
+    assert_eq!(a.count, 6);
+}
+
+#[test]
+fn test_multiple_restrictions_stack() {
+    let mut state = setup();
+    // Move 0 = Swords Dance (14, Status), moves 1-3 = 2, 3, 4
+    state.sides[0].team[0].moves[0] = 14;
+    state.sides[0].active.taunt_turns = 2;    // blocks Status (slot 0)
+    state.sides[0].active.disabled_move = 2;  // blocks move 2 (slot 1)
+
+    let a = legal_actions(&state, 0);
+    // Slot 0 blocked by Taunt, slot 1 blocked by Disable -> slots 2,3 + 5 switches = 7
+    assert_eq!(a.count, 7);
+    assert_eq!(a.actions[0], ACTION_MOVE_0 + 2);
+    assert_eq!(a.actions[1], ACTION_MOVE_0 + 3);
+}
+
+#[test]
+fn test_move_locked_plus_disable_struggle() {
+    let mut state = setup();
+    state.sides[0].active.set_volatile(VOL_MOVE_LOCKED);
+    state.sides[0].active.last_move = 1;     // locked to move 1 (slot 0)
+    state.sides[0].active.disabled_move = 1;  // same move disabled
+
+    let a = legal_actions(&state, 0);
+    // Locked move is disabled -> Struggle, no switches (move-lock blocks switching)
+    assert_eq!(a.count, 1);
+    assert_eq!(a.actions[0], ACTION_STRUGGLE);
+}

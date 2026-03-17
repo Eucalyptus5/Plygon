@@ -700,3 +700,100 @@ fn test_gorilla_tactics() {
     );
     assert_eq!(a, 200);
 }
+
+// ── Hook 6: Pure Power doubles physical Atk ────────────────────
+
+#[test]
+fn test_pure_power_doubles_atk() {
+    let a = ability_atk_stat_mod(
+        150, ABILITY_PURE_POWER, MoveCategory::Physical, STATUS_NONE,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 300);
+
+    // Special: no boost
+    let a = ability_atk_stat_mod(
+        150, ABILITY_PURE_POWER, MoveCategory::Special, STATUS_NONE,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 150);
+}
+
+// ── Hook 6: Guts 1.5x physical Atk with status ────────────────
+
+#[test]
+fn test_guts_boosts_atk_with_status() {
+    // Burned + Physical → 1.5×
+    let a = ability_atk_stat_mod(
+        200, ABILITY_GUTS, MoveCategory::Physical, STATUS_BURN,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 300);
+
+    // Poisoned + Physical → 1.5×
+    let a = ability_atk_stat_mod(
+        200, ABILITY_GUTS, MoveCategory::Physical, STATUS_POISON,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 300);
+
+    // No status → no boost
+    let a = ability_atk_stat_mod(
+        200, ABILITY_GUTS, MoveCategory::Physical, STATUS_NONE,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 200);
+
+    // Burned + Special → no boost (physical only)
+    let a = ability_atk_stat_mod(
+        200, ABILITY_GUTS, MoveCategory::Special, STATUS_BURN,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 200);
+}
+
+// ── Guts suppresses burn penalty ───────────────────────────────
+
+#[test]
+fn test_guts_no_burn_penalty() {
+    // Burned + Guts → no penalty
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, ABILITY_GUTS), (4096, 4096));
+    // Burned without Guts → 0.5×
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0), (2048, 4096));
+}
+
+// ── Hook 6: Hustle 1.5x physical Atk ──────────────────────────
+
+#[test]
+fn test_hustle_boosts_physical() {
+    let a = ability_atk_stat_mod(
+        200, ABILITY_HUSTLE, MoveCategory::Physical, STATUS_NONE,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 300);
+
+    // Special: no boost
+    let a = ability_atk_stat_mod(
+        200, ABILITY_HUSTLE, MoveCategory::Special, STATUS_NONE,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+    );
+    assert_eq!(a, 200);
+}
+
+// ── Hook 8: Fur Coat doubles physical Def ──────────────────────
+
+#[test]
+fn test_fur_coat_doubles_def() {
+    let d = ability_def_stat_mod(
+        200, ABILITY_FUR_COAT, MoveCategory::Physical, Type::Normal,
+        STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
+    );
+    assert_eq!(d, 400);
+
+    // Special: no boost
+    let d = ability_def_stat_mod(
+        200, ABILITY_FUR_COAT, MoveCategory::Special, Type::Normal,
+        STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
+    );
+    assert_eq!(d, 200);
+}
