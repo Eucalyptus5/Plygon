@@ -94,6 +94,9 @@ pub const MON_FLAG_FEMALE: u8       = 1 << 1;
 pub const MON_FLAG_TRANSFORMED: u8  = 1 << 2;
 // Palafin: Zero to Hero triggered
 pub const MON_FLAG_HERO_ACTIVATED: u8 = 1 << 3;
+pub const MON_FLAG_SWORD_BOOSTED: u8  = 1 << 4;
+pub const MON_FLAG_SHIELD_BOOSTED: u8 = 1 << 5;
+pub const MON_FLAG_SYRUP_TRIGGERED: u8 = 1 << 6;
 
 pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;
@@ -103,6 +106,7 @@ pub const SIDE_LUNAR_DANCE: u8   = 1 << 4;
 
 pub const FIELD_MAGIC_ROOM: u8  = 1 << 0;
 pub const FIELD_WONDER_ROOM: u8 = 1 << 1;
+pub const FIELD_WEATHER_SUPPRESSED: u8 = 1 << 2;
 
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
@@ -232,6 +236,22 @@ pub struct SideState {
     pub side_conditions: SideConditions,
     pub active_index: u8,
     pub _padding: [u8; 3],
+}
+
+impl SideState {
+    // _padding[1..3] stores the item_id of the last berry consumed by the active mon.
+    // Cleared on switch-out. Used by Harvest to restore consumed berries at EOT.
+    #[inline(always)]
+    pub fn last_consumed_berry(&self) -> u16 {
+        u16::from_le_bytes([self._padding[1], self._padding[2]])
+    }
+
+    #[inline(always)]
+    pub fn set_last_consumed_berry(&mut self, id: u16) {
+        let bytes = id.to_le_bytes();
+        self._padding[1] = bytes[0];
+        self._padding[2] = bytes[1];
+    }
 }
 
 /// The complete mutable battle state.  ≤ 640 bytes.

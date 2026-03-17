@@ -77,16 +77,17 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         speed *= 2;
     }
 
+    let weather = effective_weather(state);
     match ability {
         data_bridge::ABILITY_CHLOROPHYLL
-            if matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+            if matches!(weather, WEATHER_SUN | WEATHER_HARSH_SUN)
             => { speed *= 2; }
         data_bridge::ABILITY_SWIFT_SWIM
-            if matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN)
+            if matches!(weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN)
             => { speed *= 2; }
-        data_bridge::ABILITY_SAND_RUSH if state.field.weather == WEATHER_SAND
+        data_bridge::ABILITY_SAND_RUSH if weather == WEATHER_SAND
             => { speed *= 2; }
-        data_bridge::ABILITY_SLUSH_RUSH if state.field.weather == WEATHER_SNOW
+        data_bridge::ABILITY_SLUSH_RUSH if weather == WEATHER_SNOW
             => { speed *= 2; }
         data_bridge::ABILITY_SURGE_SURFER if state.field.terrain == TERRAIN_ELECTRIC
             => { speed *= 2; }
@@ -248,6 +249,16 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     mon.flags |= MON_FLAG_TERASTALLIZED;
     state.sides[side]._padding[0] |= 1;
     state.zobrist ^= keys.species[side][slot][0];
+
+    // Embody Aspect: boost stat on Terastallization
+    let ability = effective_ability(state, side);
+    match ability {
+        data_bridge::ABILITY_EMBODY_ASPECT_TEAL => { apply_boost(state, keys, side, SPE, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING => { apply_boost(state, keys, side, SPD, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME => { apply_boost(state, keys, side, ATK, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE => { apply_boost(state, keys, side, DEF, 1); }
+        _ => {}
+    }
 }
 
 fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {

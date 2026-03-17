@@ -51,7 +51,7 @@ fn accuracy_check(
     // Weather-dependent accuracy overrides (applied before anything else)
     // Thunder / Hurricane: 100% in rain, 50% in sun
     if md.effect == MoveEffect::WeatherAccRain {
-        match state.field.weather {
+        match effective_weather(state) {
             WEATHER_RAIN | WEATHER_HEAVY_RAIN => return true,
             WEATHER_SUN | WEATHER_HARSH_SUN => {
                 // Override accuracy to 50, then fall through to normal check
@@ -62,7 +62,7 @@ fn accuracy_check(
     }
     // Blizzard: 100% in snow/hail
     if md.effect == MoveEffect::WeatherAccSnow {
-        if state.field.weather == WEATHER_SNOW {
+        if effective_weather(state) == WEATHER_SNOW {
             return true;
         }
     }
@@ -82,7 +82,7 @@ fn accuracy_check(
 
     // Weather-dependent accuracy: Thunder/Hurricane have 50% in sun
     let base_acc = if md.effect == MoveEffect::WeatherAccRain
-        && matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+        && matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN)
     {
         50u32
     } else {
@@ -99,10 +99,10 @@ fn accuracy_check(
     }
     if atk_ability == data_bridge::ABILITY_VICTORY_STAR { accuracy = accuracy * 11 / 10; }
 
-    if def_ability == data_bridge::ABILITY_SAND_VEIL && state.field.weather == WEATHER_SAND {
+    if def_ability == data_bridge::ABILITY_SAND_VEIL && effective_weather(state) == WEATHER_SAND {
         accuracy = accuracy * 4 / 5;
     }
-    if def_ability == data_bridge::ABILITY_SNOW_CLOAK && state.field.weather == WEATHER_SNOW {
+    if def_ability == data_bridge::ABILITY_SNOW_CLOAK && effective_weather(state) == WEATHER_SNOW {
         accuracy = accuracy * 4 / 5;
     }
 
@@ -315,7 +315,7 @@ fn execute_status_move(
             state.sides[atk_side].side_conditions.light_screen_turns = screen_duration(state, atk_side);
         }
         MoveEffect::AuroraVeil => {
-            if state.field.weather == WEATHER_SNOW {
+            if effective_weather(state) == WEATHER_SNOW {
                 state.sides[atk_side].side_conditions.aurora_veil_turns = screen_duration(state, atk_side);
             }
         }
@@ -741,8 +741,8 @@ fn execute_protect(
 #[inline]
 fn weather_skips_charge(state: &BattleState, md: &MoveData) -> bool {
     match md.effect {
-        MoveEffect::SolarBeam => matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN),
-        MoveEffect::ChargeElectroShot => matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN),
+        MoveEffect::SolarBeam => matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN),
+        MoveEffect::ChargeElectroShot => matches!(effective_weather(state), WEATHER_RAIN | WEATHER_HEAVY_RAIN),
         _ => false,
     }
 }
@@ -808,6 +808,17 @@ pub fn check_berry_activation(
 ) {
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
+
+    // Unnerve / As One: opponent cannot eat berries
+    let opp_ability = effective_ability(state, 1 - side);
+    if matches!(opp_ability,
+        data_bridge::ABILITY_UNNERVE
+        | data_bridge::ABILITY_AS_ONE_GLASTRIER
+        | data_bridge::ABILITY_AS_ONE_SPECTRIER
+    ) {
+        return;
+    }
+
     let item_id = mon.item_id;
     let item = data_bridge::item(item_id);
 
@@ -879,6 +890,8 @@ pub fn check_berry_activation(
 /// Consume a berry and trigger Unburden if applicable.
 #[inline]
 fn consume_berry(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize) {
+    let item_id = state.sides[side].team[slot].item_id;
+    state.sides[side].set_last_consumed_berry(item_id);
     consume_item(state, keys, side, slot);
     if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
         set_volatile(state, keys, side, VOL_UNBURDEN);
@@ -1421,8 +1434,10 @@ pub fn execute_move(
                 set_volatile(state, keys, atk_side, VOL_UNBURDEN);
             }
         }
-        let def_itm = data_bridge::item(state.active_mon(def_side).item_id);
+        let def_item_id = state.active_mon(def_side).item_id;
+        let def_itm = data_bridge::item(def_item_id);
         if def_itm.has(ItemFlag::RESIST_BERRY) {
+            state.sides[def_side].set_last_consumed_berry(def_item_id);
             consume_item(state, keys, def_side, def_slot);
             if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
                 set_volatile(state, keys, def_side, VOL_UNBURDEN);

@@ -2,7 +2,7 @@
 
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag};
-use crate::state::accessors::{effective_ability, effective_types, effective_stat, effective_species, effective_moves, is_grounded};
+use crate::state::accessors::{effective_ability, effective_weather, effective_types, effective_stat, effective_species, effective_moves, is_grounded};
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 
@@ -22,6 +22,29 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
         state.sides[side].team[idx].flags |= MON_FLAG_HERO_ACTIVATED;
     }
 
+    // Air Lock / Cloud Nine: clear weather suppression if opponent doesn't also suppress
+    if ability == data_bridge::ABILITY_AIR_LOCK || ability == data_bridge::ABILITY_CLOUD_NINE {
+        let opp = 1 - side;
+        let opp_ability = effective_ability(state, opp);
+        if opp_ability != data_bridge::ABILITY_AIR_LOCK && opp_ability != data_bridge::ABILITY_CLOUD_NINE {
+            state.field.field_flags &= !FIELD_WEATHER_SUPPRESSED;
+        }
+    }
+
+    // Neutralizing Gas: re-trigger opponent's switch-in ability
+    if ability == data_bridge::ABILITY_NEUTRALIZING_GAS {
+        let opp = 1 - side;
+        clear_volatile(state, keys, opp, VOL_ABILITY_SUPPRESSED);
+        let opp_slot = state.sides[opp].active_index as usize;
+        if !state.sides[opp].team[opp_slot].is_fainted() {
+            let opp_ability = effective_ability(state, opp);
+            // Imposter only fires on actual switch-in, not ability reactivation
+            if opp_ability != data_bridge::ABILITY_IMPOSTER {
+                apply_switch_in_ability(state, keys, opp);
+            }
+        }
+    }
+
     let flags = state.sides[side].active.volatile_flags;
     for bit in 0..32u32 {
         if flags & (1 << bit) != 0 { state.zobrist ^= keys.volatile_bit[side][bit as usize]; }
@@ -31,6 +54,7 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
         if boosts[stat] != 0 { state.zobrist ^= keys.boosts[side][stat][(boosts[stat] + 6) as usize]; }
     }
     state.sides[side].active.zero();
+    state.sides[side].set_last_consumed_berry(0);
 }
 
 pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) {
@@ -206,14 +230,77 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     }
 }
 
+#[inline]
+fn is_untraceable(ability: u16) -> bool {
+    matches!(ability,
+        0
+        | data_bridge::ABILITY_AS_ONE_GLASTRIER
+        | data_bridge::ABILITY_AS_ONE_SPECTRIER
+        | data_bridge::ABILITY_BATTLE_BOND
+        | data_bridge::ABILITY_COMATOSE
+        | data_bridge::ABILITY_COMMANDER
+        | data_bridge::ABILITY_DISGUISE
+        | data_bridge::ABILITY_EMBODY_ASPECT_TEAL
+        | data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING
+        | data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME
+        | data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE
+        | data_bridge::ABILITY_FLOWER_GIFT
+        | data_bridge::ABILITY_FORECAST
+        | data_bridge::ABILITY_GULP_MISSILE
+        | data_bridge::ABILITY_HUNGER_SWITCH
+        | data_bridge::ABILITY_ICE_FACE
+        | data_bridge::ABILITY_ILLUSION
+        | data_bridge::ABILITY_IMPOSTER
+        | data_bridge::ABILITY_MULTITYPE
+        | data_bridge::ABILITY_NEUTRALIZING_GAS
+        | data_bridge::ABILITY_POISON_PUPPETEER
+        | data_bridge::ABILITY_POWER_CONSTRUCT
+        | data_bridge::ABILITY_POWER_OF_ALCHEMY
+        | data_bridge::ABILITY_PROTOSYNTHESIS
+        | data_bridge::ABILITY_QUARK_DRIVE
+        | data_bridge::ABILITY_RECEIVER
+        | data_bridge::ABILITY_RKS_SYSTEM
+        | data_bridge::ABILITY_SCHOOLING
+        | data_bridge::ABILITY_SHIELDS_DOWN
+        | data_bridge::ABILITY_STANCE_CHANGE
+        | data_bridge::ABILITY_TERA_SHIFT
+        | data_bridge::ABILITY_TERA_SHELL
+        | data_bridge::ABILITY_TERAFORM_ZERO
+        | data_bridge::ABILITY_TRACE
+        | data_bridge::ABILITY_ZEN_MODE
+        | data_bridge::ABILITY_ZERO_TO_HERO
+    )
+}
+
 fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let ability = effective_ability(state, side);
     let opp = 1 - side;
     match ability {
-        // Blocked by Mist
         data_bridge::ABILITY_INTIMIDATE  => {
-            if state.sides[opp].side_conditions.mist_turns() == 0 {
-                apply_boost(state, keys, opp, ATK, -1);
+            let opp_ability = effective_ability(state, opp);
+            if !state.sides[opp].active.has_volatile(VOL_SUBSTITUTE) {
+                if opp_ability == data_bridge::ABILITY_GUARD_DOG {
+                    // Guard Dog reverses Intimidate into +1 Atk (bypasses Mist)
+                    apply_boost(state, keys, opp, ATK, 1);
+                } else {
+                    let blocked = matches!(opp_ability,
+                        data_bridge::ABILITY_CLEAR_BODY
+                        | data_bridge::ABILITY_WHITE_SMOKE
+                        | data_bridge::ABILITY_FULL_METAL_BODY
+                        | data_bridge::ABILITY_INNER_FOCUS
+                        | data_bridge::ABILITY_OBLIVIOUS
+                        | data_bridge::ABILITY_OWN_TEMPO
+                        | data_bridge::ABILITY_SCRAPPY
+                        | data_bridge::ABILITY_HYPER_CUTTER
+                    ) || state.sides[opp].side_conditions.mist_turns() > 0;
+                    if !blocked {
+                        apply_boost(state, keys, opp, ATK, -1);
+                    }
+                }
+            }
+            // Rattled: +1 Speed when targeted by Intimidate, regardless of blocking
+            if opp_ability == data_bridge::ABILITY_RATTLED {
+                apply_boost(state, keys, opp, SPE, 1);
             }
         }
 
@@ -221,6 +308,10 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
         data_bridge::ABILITY_DROUGHT     => { set_weather(state, keys, WEATHER_SUN, 5); }
         data_bridge::ABILITY_SAND_STREAM => { set_weather(state, keys, WEATHER_SAND, 5); }
         data_bridge::ABILITY_SNOW_WARNING=> { set_weather(state, keys, WEATHER_SNOW, 5); }
+
+        data_bridge::ABILITY_AIR_LOCK | data_bridge::ABILITY_CLOUD_NINE => {
+            state.field.field_flags |= FIELD_WEATHER_SUPPRESSED;
+        }
 
         data_bridge::ABILITY_ELECTRIC_SURGE => { set_terrain(state, keys, TERRAIN_ELECTRIC, 5); }
         data_bridge::ABILITY_GRASSY_SURGE  => { set_terrain(state, keys, TERRAIN_GRASSY, 5); }
@@ -240,12 +331,11 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
 
         data_bridge::ABILITY_TRACE => {
             let opp_ability = effective_ability(state, opp);
-            if opp_ability != 0
-                && opp_ability != data_bridge::ABILITY_TRACE
-                && opp_ability != data_bridge::ABILITY_IMPOSTER
-            {
+            if opp_ability != 0 && !is_untraceable(opp_ability) {
                 state.sides[side].active.override_ability = opp_ability;
                 set_volatile(state, keys, side, VOL_ABILITY_OVERRIDDEN);
+                // Trigger the traced ability's switch-in effect
+                apply_switch_in_ability(state, keys, side);
             }
         }
 
@@ -280,11 +370,19 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
         }
 
         data_bridge::ABILITY_INTREPID_SWORD => {
-            apply_boost(state, keys, side, ATK, 1);
+            let slot = state.sides[side].active_index as usize;
+            if state.sides[side].team[slot].flags & MON_FLAG_SWORD_BOOSTED == 0 {
+                state.sides[side].team[slot].flags |= MON_FLAG_SWORD_BOOSTED;
+                apply_boost(state, keys, side, ATK, 1);
+            }
         }
 
         data_bridge::ABILITY_DAUNTLESS_SHIELD => {
-            apply_boost(state, keys, side, DEF, 1);
+            let slot = state.sides[side].active_index as usize;
+            if state.sides[side].team[slot].flags & MON_FLAG_SHIELD_BOOSTED == 0 {
+                state.sides[side].team[slot].flags |= MON_FLAG_SHIELD_BOOSTED;
+                apply_boost(state, keys, side, DEF, 1);
+            }
         }
 
         // No-op in singles (targets partner slot)
@@ -292,25 +390,18 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
         }
 
         data_bridge::ABILITY_SUPERSWEET_SYRUP => {
-            apply_boost(state, keys, opp, EVA, -1);
-        }
-
-        data_bridge::ABILITY_EMBODY_ASPECT_TEAL => {
-            apply_boost(state, keys, side, SPE, 1);
-        }
-        data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING => {
-            apply_boost(state, keys, side, SPD, 1);
-        }
-        data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME => {
-            apply_boost(state, keys, side, ATK, 1);
-        }
-        data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE => {
-            apply_boost(state, keys, side, DEF, 1);
+            let slot = state.sides[side].active_index as usize;
+            if state.sides[side].team[slot].flags & MON_FLAG_SYRUP_TRIGGERED == 0 {
+                state.sides[side].team[slot].flags |= MON_FLAG_SYRUP_TRIGGERED;
+                if !state.sides[opp].active.has_volatile(VOL_SUBSTITUTE) {
+                    apply_boost(state, keys, opp, EVA, -1);
+                }
+            }
         }
 
         data_bridge::ABILITY_PROTOSYNTHESIS => {
             activate_paradox_ability(state, keys, side,
-                matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN));
+                matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN));
         }
         data_bridge::ABILITY_QUARK_DRIVE => {
             activate_paradox_ability(state, keys, side,

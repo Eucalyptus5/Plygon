@@ -742,3 +742,111 @@ fn test_ice_scales_special_def() {
     );
     assert_eq!(d, 200);
 }
+
+#[test]
+fn test_harvest_restores_berry_in_sun() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_HARVEST;
+    state.sides[0].team[0].item_id = 0; // no item
+    state.sides[0].set_last_consumed_berry(ITEM_SITRUS_BERRY);
+    state.field.weather = WEATHER_SUN;
+    state.field.weather_turns = 5;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
+    assert_eq!(state.sides[0].last_consumed_berry(), 0);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_harvest_no_restore_with_item() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_HARVEST;
+    state.sides[0].team[0].item_id = ITEM_SITRUS_BERRY; // already has item
+    state.sides[0].set_last_consumed_berry(ITEM_LUM_BERRY);
+    state.field.weather = WEATHER_SUN;
+    state.field.weather_turns = 5;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    // Should NOT replace existing item
+    assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
+    assert_eq!(state.sides[0].last_consumed_berry(), ITEM_LUM_BERRY);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_harvest_clears_on_switch() {
+    let (mut state, keys) = setup();
+    state.sides[0].set_last_consumed_berry(ITEM_SITRUS_BERRY);
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    perform_switch(&mut state, &keys, 0, 1);
+
+    assert_eq!(state.sides[0].last_consumed_berry(), 0);
+}
+
+#[test]
+fn test_poison_heal_heals() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_POISON_HEAL;
+    state.sides[0].team[0].status = STATUS_POISON;
+    state.sides[0].team[0].current_hp = 200;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    // No poison damage (1/8 = 37 skipped), heal 1/8 = 300/8 = 37
+    assert_eq!(state.sides[0].team[0].current_hp, 237);
+    assert_eq!(state.sides[0].team[0].status, STATUS_POISON);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_poison_heal_replaces_toxic() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_POISON_HEAL;
+    state.sides[0].team[0].status = STATUS_BAD_POISON;
+    state.sides[0].team[0].current_hp = 200;
+    state.sides[0].active.toxic_counter = 5;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    // Toxic damage (5*300/16 = 93) should NOT be applied; heal 300/8 = 37
+    assert_eq!(state.sides[0].team[0].current_hp, 237);
+    // Toxic counter should NOT increment (stayed at 5)
+    assert_eq!(state.sides[0].active.toxic_counter, 5);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_shed_skin_cures() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_SHED_SKIN;
+    state.sides[0].team[0].status = STATUS_PARALYSIS;
+    state.sides[0].active.turns_active = 0; // 0 % 3 == 0 → cures
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_shed_skin_no_cure() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_SHED_SKIN;
+    state.sides[0].team[0].status = STATUS_PARALYSIS;
+    state.sides[0].active.turns_active = 1; // 1 % 3 != 0 → no cure
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
+    assert!(validate_hash(&state, &keys));
+}

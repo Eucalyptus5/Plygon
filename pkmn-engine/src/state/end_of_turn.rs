@@ -51,8 +51,8 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
 }
 
 fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
-    let weather = state.field.weather;
-    if weather == WEATHER_NONE { return; }
+    if state.field.weather == WEATHER_NONE { return; }
+    let weather = effective_weather(state);
 
     if weather == WEATHER_SAND {
         for side in 0..2 {
@@ -102,16 +102,17 @@ fn step_status_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
     if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
 
     let status = state.sides[side].team[slot].status;
+    let is_poison_heal = effective_ability(state, side) == data_bridge::ABILITY_POISON_HEAL;
     match status {
         STATUS_BURN   => { deal_proportional_damage(state, keys, side, slot, 1, 16); }
-        STATUS_POISON => { deal_proportional_damage(state, keys, side, slot, 1, 8); }
-        STATUS_BAD_POISON => {
+        STATUS_POISON => { if !is_poison_heal { deal_proportional_damage(state, keys, side, slot, 1, 8); } }
+        STATUS_BAD_POISON => { if !is_poison_heal {
             let counter = state.sides[side].active.toxic_counter.max(1);
             let max_hp = state.sides[side].team[slot].max_hp;
             let damage = (max_hp as u32 * counter as u32 / 16).max(1) as u16;
             deal_damage(state, keys, side, slot, damage);
             state.sides[side].active.toxic_counter = counter.saturating_add(1);
-        }
+        } }
         _ => {}
     }
 }
@@ -333,7 +334,7 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_HYDRATION => {
-            if matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN)
+            if matches!(effective_weather(state), WEATHER_RAIN | WEATHER_HEAVY_RAIN)
                 && state.sides[side].team[slot].status != STATUS_NONE
             {
                 clear_status(state, keys, side, slot);
@@ -352,13 +353,13 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_SOLAR_POWER => {
-            if matches!(state.field.weather, WEATHER_SUN | WEATHER_HARSH_SUN) {
+            if matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN) {
                 let m = state.sides[side].team[slot].max_hp;
                 deal_damage(state, keys, side, slot, (m / 8).max(1));
             }
         }
         data_bridge::ABILITY_DRY_SKIN => {
-            match state.field.weather {
+            match effective_weather(state) {
                 WEATHER_SUN | WEATHER_HARSH_SUN => {
                     let m = state.sides[side].team[slot].max_hp;
                     deal_damage(state, keys, side, slot, (m / 8).max(1));
@@ -371,15 +372,25 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_RAIN_DISH => {
-            if matches!(state.field.weather, WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
+            if matches!(effective_weather(state), WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
                 let m = state.sides[side].team[slot].max_hp;
                 heal(state, keys, side, slot, m / 16);
             }
         }
         data_bridge::ABILITY_ICE_BODY => {
-            if state.field.weather == WEATHER_SNOW {
+            if effective_weather(state) == WEATHER_SNOW {
                 let m = state.sides[side].team[slot].max_hp;
                 heal(state, keys, side, slot, m / 16);
+            }
+        }
+        data_bridge::ABILITY_HARVEST => {
+            let berry_id = state.sides[side].last_consumed_berry();
+            if berry_id != 0 && state.sides[side].team[slot].item_id == 0 {
+                let in_sun = matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN);
+                if in_sun || (state.sides[side].active.turns_active % 2 == 0) {
+                    set_item(state, keys, side, slot, berry_id);
+                    state.sides[side].set_last_consumed_berry(0);
+                }
             }
         }
         _ => {}

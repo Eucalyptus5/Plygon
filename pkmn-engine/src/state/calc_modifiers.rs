@@ -233,7 +233,7 @@ pub fn ability_power_mod(
         data_bridge::ABILITY_PUNK_ROCK if md.flags & MoveFlags::SOUND != 0 => (5325, 4096), // 1.3×
         data_bridge::ABILITY_SAND_FORCE
             if matches!(md.move_type, Type::Rock | Type::Ground | Type::Steel)
-            && state.field.weather == WEATHER_SAND => (5325, 4096), // 1.3×
+            && effective_weather(state) == WEATHER_SAND => (5325, 4096), // 1.3×
         data_bridge::ABILITY_ANALYTIC
             if state.sides[1 - atk_side].active.has_volatile(VOL_MOVED_THIS_TURN)
             => (5325, 4096), // 1.3× if target already moved
@@ -595,7 +595,7 @@ pub fn resolve_move_type(
 ) -> Type {
     match md.effect {
         MoveEffect::WeatherBall => {
-            match state.field.weather {
+            match effective_weather(state) {
                 WEATHER_SUN | WEATHER_HARSH_SUN => Type::Fire,
                 WEATHER_RAIN | WEATHER_HEAVY_RAIN => Type::Water,
                 WEATHER_SAND => Type::Rock,
@@ -703,7 +703,7 @@ pub fn move_effect_power_mod(
 
         // Solar Beam / Solar Blade: 0.5× in rain, sand, snow
         MoveEffect::SolarBeam => {
-            match state.field.weather {
+            match effective_weather(state) {
                 WEATHER_RAIN | WEATHER_HEAVY_RAIN
                 | WEATHER_SAND | WEATHER_SNOW => (2048, 4096), // 0.5×
                 _ => (4096, 4096),
@@ -712,7 +712,7 @@ pub fn move_effect_power_mod(
 
         // Weather Ball: 2× power in any active weather
         MoveEffect::WeatherBall => {
-            match state.field.weather {
+            match effective_weather(state) {
                 WEATHER_SUN | WEATHER_HARSH_SUN
                 | WEATHER_RAIN | WEATHER_HEAVY_RAIN
                 | WEATHER_SAND | WEATHER_SNOW => (8192, 4096), // 2×

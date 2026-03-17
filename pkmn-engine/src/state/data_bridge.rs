@@ -272,6 +272,33 @@ pub const ABILITY_EMBODY_ASPECT_WELLSPRING: u16 = 302;
 pub const ABILITY_EMBODY_ASPECT_HEARTHFLAME: u16 = 303;
 pub const ABILITY_EMBODY_ASPECT_CORNERSTONE: u16 = 304;
 
+// -- Intimidate blockers --
+pub const ABILITY_CLEAR_BODY: u16     = 29;
+pub const ABILITY_WHITE_SMOKE: u16    = 73;
+pub const ABILITY_FULL_METAL_BODY: u16 = 230;
+pub const ABILITY_HYPER_CUTTER: u16   = 52;
+pub const ABILITY_INNER_FOCUS: u16    = 39;
+pub const ABILITY_OBLIVIOUS: u16      = 12;
+pub const ABILITY_OWN_TEMPO: u16      = 20;
+pub const ABILITY_SCRAPPY: u16        = 113;
+pub const ABILITY_GUARD_DOG: u16      = 275;
+
+// -- Untraceable abilities (not defined elsewhere) --
+pub const ABILITY_ILLUSION: u16       = 149;
+pub const ABILITY_MULTITYPE: u16      = 121;
+pub const ABILITY_FORECAST: u16       = 59;
+pub const ABILITY_COMATOSE: u16       = 213;
+pub const ABILITY_COMMANDER: u16      = 279;
+pub const ABILITY_HUNGER_SWITCH: u16  = 258;
+pub const ABILITY_POWER_CONSTRUCT: u16 = 211;
+pub const ABILITY_POWER_OF_ALCHEMY: u16 = 223;
+pub const ABILITY_RECEIVER: u16       = 222;
+pub const ABILITY_RKS_SYSTEM: u16     = 225;
+pub const ABILITY_TERA_SHIFT: u16     = 307;
+pub const ABILITY_TERA_SHELL: u16     = 308;
+pub const ABILITY_TERAFORM_ZERO: u16  = 309;
+pub const ABILITY_POISON_PUPPETEER: u16 = 310;
+
 // -- Switch-out abilities --
 pub const ABILITY_ZERO_TO_HERO: u16   = 278;
 

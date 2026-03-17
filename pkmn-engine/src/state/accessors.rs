@@ -20,6 +20,15 @@ pub fn effective_types(state: &BattleState, side: usize) -> (u8, u8) {
 }
 
 #[inline(always)]
+pub fn effective_weather(state: &BattleState) -> u8 {
+    if state.field.field_flags & FIELD_WEATHER_SUPPRESSED != 0 {
+        WEATHER_NONE
+    } else {
+        state.field.weather
+    }
+}
+
+#[inline(always)]
 pub fn effective_ability(state: &BattleState, side: usize) -> u16 {
     let active = &state.sides[side].active;
     if active.has_volatile(VOL_ABILITY_SUPPRESSED) { return 0; }

@@ -173,14 +173,14 @@ pub fn calc_damage(
 
     a = ability_atk_stat_mod(
         a, atk_ability, md.category, atk_mon.status,
-        move_type, state.field.weather,
+        move_type, effective_weather(state),
         atk_mon.current_hp, atk_mon.max_hp,
         state.sides[atk_side].active.turns_active,
         state.sides[def_side].active.turns_active,
     );
     d = ability_def_stat_mod(
         d, def_ability, md.category, move_type,
-        def_mon.status, state.field.weather, state.field.terrain,
+        def_mon.status, effective_weather(state), state.field.terrain,
     );
 
     // Protosynthesis/Quark Drive: 1.3× for non-Spe stats
@@ -226,7 +226,7 @@ pub fn calc_damage(
         if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
     }
 
-    d = weather_def_stat_mod(d, state.field.weather, md.category, def_t1, def_t2);
+    d = weather_def_stat_mod(d, effective_weather(state), md.category, def_t1, def_t2);
 
     if d == 0 { d = 1; }
     if power == 0 { return result; }
@@ -239,7 +239,7 @@ pub fn calc_damage(
     for _ in 0..num_hits {
         let mut dmg: u32 = (LEVEL_FACTOR * power * a as u32 / d as u32) / 50 + 2;
 
-        let (wn, wd) = weather_modifier(state.field.weather, move_type);
+        let (wn, wd) = weather_modifier(effective_weather(state), move_type);
         if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
         dmg = chain_mod(dmg, wn, wd);
 
