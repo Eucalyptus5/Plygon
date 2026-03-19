@@ -31,6 +31,7 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     for side in 0..2 { step_yawn(state, keys, side); }          // 12d
     step_volatile_counters(state, keys);                         // 13
     for side in 0..2 { step_perish_song(state, keys, side); }    // 14
+    step_soul_heart(state, keys);                               // 14b
     for side in 0..2 { step_eot_abilities(state, keys, side); }  // 15
     for side in 0..2 {                                           // 16
         state.sides[side].active.turns_active = state.sides[side].active.turns_active.saturating_add(1);
@@ -405,6 +406,19 @@ fn step_moody(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let drop_stat = (t + 1) % 5;
     apply_boost(state, keys, side, boost_stat, 2);
     apply_boost(state, keys, side, drop_stat, -1);
+}
+
+fn step_soul_heart(state: &mut BattleState, keys: &ZobristKeys) {
+    for fainted_side in 0..2 {
+        let fs = state.sides[fainted_side].active_index as usize;
+        if !state.sides[fainted_side].team[fs].is_fainted() { continue; }
+        let other = 1 - fainted_side;
+        let os = state.sides[other].active_index as usize;
+        if state.sides[other].team[os].is_fainted() { continue; }
+        if effective_ability(state, other) == data_bridge::ABILITY_SOUL_HEART {
+            apply_boost(state, keys, other, SPA, 1);
+        }
+    }
 }
 
 #[cfg(test)]

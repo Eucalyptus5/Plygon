@@ -1013,6 +1013,14 @@ fn is_cantsuppress_ability(ability: u16) -> bool {
     )
 }
 
+fn foe_pokemon_left(state: &BattleState, side: usize) -> bool {
+    let opp = 1 - side;
+    (0..6).any(|i| {
+        state.sides[opp].team[i].species_id != 0
+            && state.sides[opp].team[i].current_hp > 0
+    })
+}
+
 /// Execute a single move.
 ///
 /// `move_id`: the actual move ID (from `effective_moves`), or 0 for Struggle.
@@ -1847,17 +1855,39 @@ pub fn execute_move(
                     apply_boost(state, keys, atk_side, SPA, 1);
                 }
                 data_bridge::ABILITY_BATTLE_BOND => {
-                    apply_boost(state, keys, atk_side, ATK, 1);
-                    apply_boost(state, keys, atk_side, SPA, 1);
-                    apply_boost(state, keys, atk_side, SPE, 1);
+                    let mon = &state.sides[atk_side].team[atk_slot];
+                    if mon.species_id == data_bridge::SPECIES_GRENINJA_BOND
+                        && mon.flags & MON_FLAG_BOND_TRIGGERED == 0
+                        && mon.flags & MON_FLAG_TRANSFORMED == 0
+                        && foe_pokemon_left(state, atk_side)
+                    {
+                        apply_boost(state, keys, atk_side, ATK, 1);
+                        apply_boost(state, keys, atk_side, SPA, 1);
+                        apply_boost(state, keys, atk_side, SPE, 1);
+                        state.sides[atk_side].team[atk_slot].flags |= MON_FLAG_BOND_TRIGGERED;
+                    }
                 }
                 data_bridge::ABILITY_BEAST_BOOST => {
-                    // Boost the highest raw stat
+                    // Boost the highest raw stat; ties favor Atk > Def > SpA > SpD > Spe
                     let stats = &state.sides[atk_side].team[atk_slot].stats;
-                    let best = (0..5).max_by_key(|&i| stats[i]).unwrap_or(ATK);
+                    let mut best = 0usize;
+                    for i in 1..5 {
+                        if stats[i] > stats[best] {
+                            best = i;
+                        }
+                    }
                     apply_boost(state, keys, atk_side, best, 1);
                 }
                 _ => {}
+            }
+        }
+
+        // Soul-Heart: +1 SpA when any Pokemon faints
+        for side in 0..2 {
+            let s = state.sides[side].active_index as usize;
+            if state.sides[side].team[s].is_fainted() { continue; }
+            if effective_ability(state, side) == data_bridge::ABILITY_SOUL_HEART {
+                apply_boost(state, keys, side, SPA, 1);
             }
         }
     }
@@ -4217,5 +4247,134 @@ mod tests {
 
         // Galvanize gives 1.2× power boost AND STAB (1.5×), so damage should be ~1.8× higher
         assert!(dmg_with > dmg_without, "ate STAB damage {} should exceed non-STAB {}", dmg_with, dmg_without);
+    }
+
+    #[test]
+    fn test_chilling_neigh_atk() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_CHILLING_NEIGH;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+    }
+
+    #[test]
+    fn test_grim_neigh_spa() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_GRIM_NEIGH;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[SPA], 1);
+    }
+
+    #[test]
+    fn test_as_one_glastrier_atk() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_AS_ONE_GLASTRIER;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+    }
+
+    #[test]
+    fn test_as_one_spectrier_spa() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_AS_ONE_SPECTRIER;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[SPA], 1);
+    }
+
+    #[test]
+    fn test_beast_boost_tiebreak() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_BEAST_BOOST;
+        state.sides[0].team[0].stats = [200, 200, 200, 200, 200];
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[DEF], 0);
+    }
+
+    #[test]
+    fn test_battle_bond_boosts_once() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_BATTLE_BOND;
+        state.sides[0].team[0].species_id = data_bridge::SPECIES_GRENINJA_BOND;
+        state.sides[1].team[0].current_hp = 1;
+        state.sides[1].team[1].species_id = 25;
+        state.sides[1].team[1].current_hp = 100;
+        state.sides[1].team[1].max_hp = 100;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[SPA], 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], 1);
+        assert!(state.sides[0].team[0].flags & MON_FLAG_BOND_TRIGGERED != 0);
+    }
+
+    #[test]
+    fn test_battle_bond_no_trigger_wrong_species() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_BATTLE_BOND;
+        state.sides[0].team[0].species_id = 658;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[ATK], 0);
+        assert_eq!(state.sides[0].active.boosts[SPA], 0);
+        assert_eq!(state.sides[0].active.boosts[SPE], 0);
+    }
+
+    #[test]
+    fn test_soul_heart_on_ko() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_SOUL_HEART;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].active.boosts[SPA], 1);
+    }
+
+    #[test]
+    fn test_soul_heart_not_on_self_faint() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_SOUL_HEART;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[1].active.boosts[SPA], 0);
     }
 }

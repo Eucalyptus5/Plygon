@@ -97,6 +97,7 @@ pub const MON_FLAG_HERO_ACTIVATED: u8 = 1 << 3;
 pub const MON_FLAG_SWORD_BOOSTED: u8  = 1 << 4;
 pub const MON_FLAG_SHIELD_BOOSTED: u8 = 1 << 5;
 pub const MON_FLAG_SYRUP_TRIGGERED: u8 = 1 << 6;
+pub const MON_FLAG_BOND_TRIGGERED: u8 = 1 << 7;
 
 pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;

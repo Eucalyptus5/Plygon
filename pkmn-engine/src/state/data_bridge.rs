@@ -212,6 +212,7 @@ pub const ABILITY_GRIM_NEIGH: u16    = 265;
 pub const ABILITY_AS_ONE_GLASTRIER: u16 = 266;
 pub const ABILITY_AS_ONE_SPECTRIER: u16 = 267;
 pub const ABILITY_BATTLE_BOND: u16   = 210;
+pub const ABILITY_SOUL_HEART: u16    = 220;
 
 // -- Multi-hit --
 pub const ABILITY_SKILL_LINK: u16    = 92;
@@ -346,6 +347,7 @@ pub const SPECIES_SILVALLY: u16 = 773;
 pub const SPECIES_ZACIAN: u16 = 888;
 pub const SPECIES_ZAMAZENTA: u16 = 889;
 pub const SPECIES_OGERPON: u16 = 1017;
+pub const SPECIES_GRENINJA_BOND: u16 = 1230;
 
 /// Map any species/forme ID to its base national-dex species number.
 #[inline(always)]
