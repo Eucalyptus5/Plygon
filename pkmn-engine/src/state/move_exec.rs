@@ -990,6 +990,29 @@ fn apply_self_effect(
     }
 }
 
+/// Returns true if the ability cannot be suppressed/overwritten by Mummy or Lingering Aroma.
+#[inline]
+fn is_cantsuppress_ability(ability: u16) -> bool {
+    matches!(ability,
+        data_bridge::ABILITY_AS_ONE_GLASTRIER
+        | data_bridge::ABILITY_AS_ONE_SPECTRIER
+        | data_bridge::ABILITY_BATTLE_BOND
+        | data_bridge::ABILITY_COMATOSE
+        | data_bridge::ABILITY_DISGUISE
+        | data_bridge::ABILITY_GULP_MISSILE
+        | data_bridge::ABILITY_ICE_FACE
+        | data_bridge::ABILITY_MULTITYPE
+        | data_bridge::ABILITY_POWER_CONSTRUCT
+        | data_bridge::ABILITY_RKS_SYSTEM
+        | data_bridge::ABILITY_SCHOOLING
+        | data_bridge::ABILITY_SHIELDS_DOWN
+        | data_bridge::ABILITY_STANCE_CHANGE
+        | data_bridge::ABILITY_TERA_SHIFT
+        | data_bridge::ABILITY_ZEN_MODE
+        | data_bridge::ABILITY_ZERO_TO_HERO
+    )
+}
+
 /// Execute a single move.
 ///
 /// `move_id`: the actual move ID (from `effective_moves`), or 0 for Struggle.
@@ -1529,7 +1552,9 @@ pub fn execute_move(
             data_bridge::ABILITY_MUMMY if md.flags & MoveFlags::CONTACT != 0 => {
                 if !state.sides[atk_side].team[atk_slot].is_fainted() {
                     let atk_ab = effective_ability(state, atk_side);
-                    if atk_ab != data_bridge::ABILITY_MUMMY && atk_ab != 0 {
+                    if atk_ab != data_bridge::ABILITY_MUMMY && atk_ab != 0
+                        && !is_cantsuppress_ability(atk_ab)
+                    {
                         state.sides[atk_side].active.override_ability = data_bridge::ABILITY_MUMMY;
                         set_volatile(state, keys, atk_side, VOL_ABILITY_OVERRIDDEN);
                     }
@@ -1538,7 +1563,9 @@ pub fn execute_move(
             data_bridge::ABILITY_LINGERING_AROMA if md.flags & MoveFlags::CONTACT != 0 => {
                 if !state.sides[atk_side].team[atk_slot].is_fainted() {
                     let atk_ab = effective_ability(state, atk_side);
-                    if atk_ab != data_bridge::ABILITY_LINGERING_AROMA && atk_ab != 0 {
+                    if atk_ab != data_bridge::ABILITY_LINGERING_AROMA && atk_ab != 0
+                        && !is_cantsuppress_ability(atk_ab)
+                    {
                         state.sides[atk_side].active.override_ability = data_bridge::ABILITY_LINGERING_AROMA;
                         set_volatile(state, keys, atk_side, VOL_ABILITY_OVERRIDDEN);
                     }
@@ -3727,7 +3754,7 @@ mod tests {
             &state, &md, 0, data_bridge::ABILITY_LIQUID_VOICE,
         );
         assert_eq!(new_type, Type::Water);
-        assert!(boost);
+        assert!(!boost); // Liquid Voice has no power boost (unlike -ate abilities)
     }
 
     #[test]
@@ -4134,5 +4161,61 @@ mod tests {
         // Innards Out should deal exactly 50 (pre-damage HP), not overkill
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before - 50);
         assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_lingering_aroma_overwrite() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_LINGERING_AROMA;
+        state.sides[0].team[0].ability_id = 100; // arbitrary ability
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Pound is Contact → triggers Lingering Aroma
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.sides[0].active.override_ability, data_bridge::ABILITY_LINGERING_AROMA);
+        assert!(state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mummy_no_overwrite_cantsuppress() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_MUMMY;
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_STANCE_CHANGE;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Pound is Contact, but Stance Change is cantsuppress
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert_ne!(state.sides[0].active.override_ability, data_bridge::ABILITY_MUMMY);
+        assert!(!state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_ate_stab() {
+        // Attacker is Pikachu (Electric-type, species 25) with Galvanize.
+        // Pound (Normal/Physical/Contact) gets converted to Electric → STAB applies.
+        // Defender is Snorlax (Normal-type, species 143) — neutral to Electric.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_GALVANIZE;
+        state.sides[1].team[0].species_id = 143; // Snorlax (Normal) — neutral to Electric
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before_with = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(85));
+        let dmg_with = hp_before_with - state.sides[1].team[0].current_hp;
+
+        // Same setup without Galvanize (no STAB, no -ate boost)
+        let (mut state2, keys2) = setup();
+        state2.sides[0].team[0].ability_id = 0;
+        state2.sides[1].team[0].species_id = 143;
+        state2.zobrist = compute_full_hash(&state2, &keys2);
+        let hp_before_without = state2.sides[1].team[0].current_hp;
+        execute_move(&mut state2, &keys2, 0, 1, 0, &mut fixed_rng(85));
+        let dmg_without = hp_before_without - state2.sides[1].team[0].current_hp;
+
+        // Galvanize gives 1.2× power boost AND STAB (1.5×), so damage should be ~1.8× higher
+        assert!(dmg_with > dmg_without, "ate STAB damage {} should exceed non-STAB {}", dmg_with, dmg_without);
     }
 }

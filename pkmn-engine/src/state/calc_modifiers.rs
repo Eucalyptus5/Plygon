@@ -635,11 +635,11 @@ pub fn resolve_move_type_with_ability(
         return (Type::Normal, base_type != Type::Normal);
     }
 
-    // Liquid Voice: Sound-flagged moves become Water (1.2×)
+    // Liquid Voice: Sound-flagged moves become Water (no power boost)
     if atk_ability == data_bridge::ABILITY_LIQUID_VOICE
         && md.flags & MoveFlags::SOUND != 0
     {
-        return (Type::Water, true);
+        return (Type::Water, false);
     }
 
     // -ate abilities: Normal → specific type (1.2×)
