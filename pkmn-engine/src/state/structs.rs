@@ -105,9 +105,7 @@ pub const HAZARD_STICKY_WEB: u8   = 1 << 1;
 pub const SIDE_HEALING_WISH: u8  = 1 << 3;
 pub const SIDE_LUNAR_DANCE: u8   = 1 << 4;
 
-pub const FIELD_MAGIC_ROOM: u8  = 1 << 0;
-pub const FIELD_WONDER_ROOM: u8 = 1 << 1;
-pub const FIELD_WEATHER_SUPPRESSED: u8 = 1 << 2;
+pub const FIELD_WEATHER_SUPPRESSED: u8 = 1 << 6;
 
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
@@ -227,6 +225,21 @@ pub struct FieldState {
     pub gravity_turns: u8,
     pub field_flags: u8,
     pub _padding: u8,
+}
+
+impl FieldState {
+    #[inline(always)]
+    pub fn magic_room_turns(&self) -> u8 { self.field_flags & 0x07 }
+    #[inline(always)]
+    pub fn set_magic_room_turns(&mut self, turns: u8) {
+        self.field_flags = (self.field_flags & !0x07) | (turns & 0x07);
+    }
+    #[inline(always)]
+    pub fn wonder_room_turns(&self) -> u8 { (self.field_flags >> 3) & 0x07 }
+    #[inline(always)]
+    pub fn set_wonder_room_turns(&mut self, turns: u8) {
+        self.field_flags = (self.field_flags & !(0x07 << 3)) | ((turns & 0x07) << 3);
+    }
 }
 
 /// One player's complete side state.

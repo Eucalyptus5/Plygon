@@ -942,3 +942,20 @@ fn test_encore_pp_early_termination() {
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");
     assert!(validate_hash(&state, &keys));
 }
+
+#[test]
+fn test_healing_wish_user_faints() {
+    let (mut state, keys) = setup();
+    // Give side 0 Healing Wish as move 0 (move ID 361)
+    state.sides[0].team[0].moves[0] = 361;
+    state.sides[0].team[0].pp[0] = 10;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 0, 361, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].team[0].current_hp, 0,
+        "Healing Wish user should faint");
+    assert!(state.sides[0].side_conditions.has_healing_wish(),
+        "Healing Wish flag should be set on the side");
+    assert!(validate_hash(&state, &keys));
+}

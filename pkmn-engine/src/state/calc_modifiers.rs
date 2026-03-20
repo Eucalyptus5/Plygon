@@ -157,8 +157,10 @@ pub fn crit_stage(state: &BattleState, atk_side: usize, md: &MoveData) -> u8 {
     let ability = effective_ability(state, atk_side);
     if ability == data_bridge::ABILITY_SUPER_LUCK { stage += 1; }
 
-    let item = data_bridge::item(mon.item_id);
-    if item.has(ItemFlag::CRIT_BOOST) { stage += 1; }
+    if state.field.magic_room_turns() == 0 {
+        let item = data_bridge::item(mon.item_id);
+        if item.has(ItemFlag::CRIT_BOOST) { stage += 1; }
+    }
 
     stage
 }
@@ -244,7 +246,7 @@ pub fn resolve_power(
             if def_mon.status != STATUS_NONE { 130 } else { 65 }
         }
         VarPower::Acrobatics => {
-            if atk_mon.item_id == 0 { 110 } else { 55 }
+            if atk_mon.item_id == 0 || state.field.magic_room_turns() > 0 { 110 } else { 55 }
         }
         VarPower::RisingVoltage => {
             // 2× if Electric Terrain and target is grounded
@@ -255,6 +257,10 @@ pub fn resolve_power(
             } else {
                 70
             }
+        }
+        VarPower::SpitUp => {
+            let count = state.sides[atk_side].active.stockpile & 0x7F;
+            if count == 0 { 0 } else { count * 100 }
         }
         _ => md.base_power,
     }

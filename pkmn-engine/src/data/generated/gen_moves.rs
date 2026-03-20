@@ -1407,7 +1407,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Curse, secondary_status:0,
         self_effect:SelfEffect::None },
     // [175] Flail
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
@@ -2052,10 +2052,10 @@ pub static GEN_MOVES: &[MoveData] = &[
     // [255] Spit Up
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Normal,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::SpitUp, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::SpitUp, secondary_status:0,
         self_effect:SelfEffect::None },
     // [256] Swallow
     MoveData { flags:MoveFlags::HEAL, base_power:0, accuracy:0,
@@ -2903,7 +2903,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::HealingWish, secondary_status:0,
         self_effect:SelfEffect::None },
     // [362] Brine
     MoveData { flags:MoveFlags::PROTECT, base_power:65, accuracy:100,
@@ -3703,7 +3703,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::LunarDance, secondary_status:0,
         self_effect:SelfEffect::None },
     // [462] Crush Grip
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
@@ -5999,7 +5999,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::NoRetreat, secondary_status:0,
         self_effect:SelfEffect::None },
     // [749] Tar Shot
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:100,
@@ -6215,7 +6215,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::ClangorousSoul, secondary_status:0,
         self_effect:SelfEffect::None },
     // [776] Body Press
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,
@@ -7071,7 +7071,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::TidyUp, secondary_status:0,
         self_effect:SelfEffect::None },
     // [883] Snowscape
     MoveData { flags:0, base_power:0, accuracy:0,

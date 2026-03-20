@@ -108,6 +108,7 @@ fn apply_switch_in_item(state: &mut BattleState, keys: &ZobristKeys, side: usize
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
+    if state.field.magic_room_turns() > 0 { return; }
     let item = data_bridge::item(mon.item_id);
 
     // Terrain seeds: boost stat + consume if matching terrain is active
@@ -183,7 +184,8 @@ pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, 
 fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
-    if data_bridge::item(mon.item_id).has(ItemFlag::HAZARD_IMMUNE) { return; }
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(mon.item_id).has(ItemFlag::HAZARD_IMMUNE) { return; }
     if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
 
     let sc = state.sides[side].side_conditions;
@@ -215,8 +217,10 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
         if is_poison {
             // Poison types absorb and remove Toxic Spikes
             state.sides[side].side_conditions.toxic_spikes = 0;
-        } else if !is_steel {
-            // Steel types are immune to poison; all others get poisoned
+        } else if !is_steel && state.sides[side].side_conditions.safeguard_turns() == 0
+            && !crate::state::forme::is_minior_meteor_forme(state, side)
+        {
+            // Steel types are immune to poison; Safeguard blocks status
             match sc.toxic_spikes {
                 1 => { set_status(state, keys, side, slot, STATUS_POISON, 0); }
                 _ => { set_status(state, keys, side, slot, STATUS_BAD_POISON, 0); }
@@ -225,7 +229,9 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     }
 
     // Sticky Web (grounded only)
-    if sc.hazard_flags & HAZARD_STICKY_WEB != 0 && is_grounded(state, side) {
+    if sc.hazard_flags & HAZARD_STICKY_WEB != 0 && is_grounded(state, side)
+        && state.sides[side].side_conditions.mist_turns() == 0
+    {
         apply_boost(state, keys, side, SPE, -1);
     }
 }
@@ -398,6 +404,13 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
                     apply_boost(state, keys, opp, EVA, -1);
                 }
             }
+        }
+
+        data_bridge::ABILITY_SCHOOLING => {
+            crate::state::forme::check_schooling(state, keys, side);
+        }
+        data_bridge::ABILITY_SHIELDS_DOWN => {
+            crate::state::forme::check_shields_down(state, keys, side);
         }
 
         data_bridge::ABILITY_PROTOSYNTHESIS => {
@@ -1087,5 +1100,51 @@ mod tests {
         // Drizzle replaced sun -> Protosynthesis deactivated
         assert_eq!(state.field.weather, WEATHER_RAIN);
         assert_eq!(state.sides[0].active.paradox_stat(), 0);
+    }
+
+    #[test]
+    fn test_safeguard_blocks_toxic_spikes() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 400, max_hp: 400,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 26, current_hp: 400, max_hp: 400,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].side_conditions.toxic_spikes = 1;
+        state.sides[0].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 0, 1);
+
+        // Safeguard blocks the poison from toxic spikes
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
+        // Toxic spikes remain on the field (not absorbed)
+        assert_eq!(state.sides[0].side_conditions.toxic_spikes, 1);
+    }
+
+    #[test]
+    fn test_mist_blocks_sticky_web() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 400, max_hp: 400,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 26, current_hp: 400, max_hp: 400,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
+        state.sides[0].side_conditions.set_mist_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 0, 1);
+
+        // Mist blocks the speed drop from sticky web
+        assert_eq!(state.sides[0].active.boosts[SPE], 0);
     }
 }

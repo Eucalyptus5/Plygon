@@ -113,6 +113,18 @@ pub fn set_gravity(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
     if was != (turns > 0) { state.zobrist ^= keys.gravity; }
 }
 
+pub fn set_magic_room(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
+    let was = state.field.magic_room_turns() > 0;
+    state.field.set_magic_room_turns(turns);
+    if was != (turns > 0) { state.zobrist ^= keys.magic_room; }
+}
+
+pub fn set_wonder_room(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
+    let was = state.field.wonder_room_turns() > 0;
+    state.field.set_wonder_room_turns(turns);
+    if was != (turns > 0) { state.zobrist ^= keys.wonder_room; }
+}
+
 pub fn consume_item(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize) {
     let mon = &mut state.sides[side].team[slot];
     if mon.item_id != 0 {
@@ -170,4 +182,43 @@ mod tests {
     #[test] fn test_boost_clamp() { let (mut s, k) = setup(); apply_boost(&mut s, &k, 0, ATK, 4); assert_eq!(apply_boost(&mut s, &k, 0, ATK, 4), 2); assert!(validate_hash(&s, &k)); }
     #[test] fn test_volatile() { let (mut s, k) = setup(); set_volatile(&mut s, &k, 0, VOL_SUBSTITUTE); assert!(s.sides[0].active.has_volatile(VOL_SUBSTITUTE)); clear_volatile(&mut s, &k, 0, VOL_SUBSTITUTE); assert!(validate_hash(&s, &k)); }
     #[test] fn test_weather() { let (mut s, k) = setup(); set_weather(&mut s, &k, WEATHER_RAIN, 5); clear_weather(&mut s, &k); assert!(validate_hash(&s, &k)); }
+
+    #[test]
+    fn test_magic_room_zobrist() {
+        let (mut s, k) = setup();
+        let h0 = s.zobrist;
+        set_magic_room(&mut s, &k, 5);
+        assert_ne!(s.zobrist, h0);
+        assert!(validate_hash(&s, &k));
+        set_magic_room(&mut s, &k, 0);
+        assert_eq!(s.zobrist, h0);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_wonder_room_zobrist() {
+        let (mut s, k) = setup();
+        let h0 = s.zobrist;
+        set_wonder_room(&mut s, &k, 5);
+        assert_ne!(s.zobrist, h0);
+        assert!(validate_hash(&s, &k));
+        set_wonder_room(&mut s, &k, 0);
+        assert_eq!(s.zobrist, h0);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_magic_room_toggle() {
+        let (mut s, k) = setup();
+        set_magic_room(&mut s, &k, 5);
+        assert_eq!(s.field.magic_room_turns(), 5);
+        // Refresh while active: just update turns, hash stays same (still active)
+        set_magic_room(&mut s, &k, 3);
+        assert_eq!(s.field.magic_room_turns(), 3);
+        assert!(validate_hash(&s, &k));
+        // Clear
+        set_magic_room(&mut s, &k, 0);
+        assert_eq!(s.field.magic_room_turns(), 0);
+        assert!(validate_hash(&s, &k));
+    }
 }

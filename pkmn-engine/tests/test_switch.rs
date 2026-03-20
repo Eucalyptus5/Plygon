@@ -589,3 +589,57 @@ fn test_embody_aspect_on_tera() {
     // Should NOT have +1 Atk on switch-in (it's now tied to Terastallization)
     assert_eq!(state2.sides[0].active.boosts[ATK], 0);
 }
+
+#[test]
+fn test_healing_wish_full_heal() {
+    let (mut state, keys) = setup();
+    // Mon at index 1 is damaged and has a status
+    state.sides[0].team[1].species_id = 1;
+    state.sides[0].team[1].current_hp = 50;
+    state.sides[0].team[1].max_hp = 300;
+    state.sides[0].team[1].status = STATUS_BURN;
+
+    // Set Healing Wish flag
+    state.sides[0].side_conditions.set_healing_wish(true);
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Switch to mon index 1
+    switch_in(&mut state, &keys, 0, 1);
+
+    assert_eq!(state.sides[0].team[1].current_hp, 300,
+        "Healing Wish should restore HP to max");
+    assert_eq!(state.sides[0].team[1].status, STATUS_NONE,
+        "Healing Wish should clear status");
+    assert!(!state.sides[0].side_conditions.has_healing_wish(),
+        "Healing Wish flag should be cleared after activation");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_lunar_dance_restores_pp() {
+    let (mut state, keys) = setup();
+    // Mon at index 1 is damaged, has a status, and has reduced PP
+    state.sides[0].team[1].species_id = 1;
+    state.sides[0].team[1].current_hp = 50;
+    state.sides[0].team[1].max_hp = 300;
+    state.sides[0].team[1].status = STATUS_POISON;
+    state.sides[0].team[1].moves = [1, 2, 3, 4];
+    state.sides[0].team[1].pp = [5, 10, 0, 3];
+
+    // Set Lunar Dance flag
+    state.sides[0].side_conditions.set_lunar_dance(true);
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Switch to mon index 1
+    switch_in(&mut state, &keys, 0, 1);
+
+    assert_eq!(state.sides[0].team[1].current_hp, 300,
+        "Lunar Dance should restore HP to max");
+    assert_eq!(state.sides[0].team[1].status, STATUS_NONE,
+        "Lunar Dance should clear status");
+    assert_eq!(state.sides[0].team[1].pp, [255, 255, 255, 255],
+        "Lunar Dance should restore all PP to max");
+    assert!(!state.sides[0].side_conditions.has_lunar_dance(),
+        "Lunar Dance flag should be cleared after activation");
+    assert!(validate_hash(&state, &keys));
+}

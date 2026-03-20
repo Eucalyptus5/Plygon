@@ -345,3 +345,49 @@ fn test_screen_expires() {
         "Trick Room should expire after 1 turn");
     assert!(validate_hash(&state, &keys));
 }
+
+#[test]
+fn test_wish_heals_after_2_turns() {
+    let (mut state, keys) = setup();
+    // Set up Wish: 2 turns remaining, will heal 150 HP
+    state.sides[0].side_conditions.wish_turns = 2;
+    state.sides[0].side_conditions.wish_hp = 150;
+    state.sides[0].team[0].current_hp = 100;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Turn 1: wish_turns decrements from 2 to 1, no heal yet
+    end_of_turn(&mut state, &keys);
+    assert_eq!(state.sides[0].team[0].current_hp, 100, "Should not heal on first EOT");
+    assert_eq!(state.sides[0].side_conditions.wish_turns, 1);
+
+    // Turn 2: wish_turns is 1, heal triggers
+    end_of_turn(&mut state, &keys);
+    assert_eq!(state.sides[0].team[0].current_hp, 250, "Should heal 150 HP on second EOT");
+    assert_eq!(state.sides[0].side_conditions.wish_turns, 0);
+    assert_eq!(state.sides[0].side_conditions.wish_hp, 0);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_wish_heals_current_mon() {
+    let (mut state, keys) = setup();
+    // Side 0 has a second mon
+    state.sides[0].team[1].species_id = 1;
+    state.sides[0].team[1].current_hp = 50;
+    state.sides[0].team[1].max_hp = 300;
+
+    // Wish is at 1 turn remaining (about to trigger), heals 150
+    state.sides[0].side_conditions.wish_turns = 1;
+    state.sides[0].side_conditions.wish_hp = 150;
+
+    // Switch to mon index 1 before EOT
+    state.sides[0].active_index = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    // Wish should heal the CURRENT active mon (index 1), not the original caster
+    assert_eq!(state.sides[0].team[1].current_hp, 200, "Wish should heal current active mon");
+    assert_eq!(state.sides[0].team[0].current_hp, 300, "Original mon should be untouched");
+    assert!(validate_hash(&state, &keys));
+}

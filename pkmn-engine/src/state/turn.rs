@@ -65,7 +65,9 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         speed /= 2;
     }
 
-    if data_bridge::item(mon.item_id).has(ItemFlag::CHOICE_SPE) {
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(mon.item_id).has(ItemFlag::CHOICE_SPE)
+    {
         speed = speed * 3 / 2;
     }
 

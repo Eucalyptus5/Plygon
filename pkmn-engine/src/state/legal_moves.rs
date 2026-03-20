@@ -4,13 +4,17 @@ use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::state::accessors::*;
 
-/// Move IDs that are blocked by Gravity.
-const GRAVITY_BLOCKED: [u16; 5] = [
+/// Move IDs that are blocked by Gravity (all moves with `gravity: 1` in Showdown).
+const GRAVITY_BLOCKED: [u16; 9] = [
     19,  // Fly
+    26,  // Jump Kick
+    136, // High Jump Kick
+    150, // Splash
     340, // Bounce
     393, // Magnet Rise
     477, // Telekinesis
     507, // Sky Drop
+    560, // Flying Press
 ];
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -114,11 +118,13 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
                     let md = data_bridge::move_hot(moves[i]);
                     if md.category == MoveCategory::Status { return 0; }
                 }
-                if data_bridge::item(state.sides[side].team[state.sides[side].active_index as usize].item_id)
-                    .has(data_bridge::ItemFlag::ASSAULT_VEST)
-                {
-                    let md = data_bridge::move_hot(moves[i]);
-                    if md.category == MoveCategory::Status { return 0; }
+                if state.field.magic_room_turns() == 0 {
+                    if data_bridge::item(state.sides[side].team[state.sides[side].active_index as usize].item_id)
+                        .has(data_bridge::ItemFlag::ASSAULT_VEST)
+                    {
+                        let md = data_bridge::move_hot(moves[i]);
+                        if md.category == MoveCategory::Status { return 0; }
+                    }
                 }
                 list.push(i as u8); return 1;
             }
@@ -134,15 +140,19 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
             let md = data_bridge::move_hot(moves[i]);
             if md.category == MoveCategory::Status { continue; }
         }
-        // Assault Vest: block Status-category moves
-        if data_bridge::item(state.sides[side].team[state.sides[side].active_index as usize].item_id)
-            .has(data_bridge::ItemFlag::ASSAULT_VEST)
-        {
-            let md = data_bridge::move_hot(moves[i]);
-            if md.category == MoveCategory::Status { continue; }
+        // Assault Vest: block Status-category moves (suppressed by Magic Room)
+        if state.field.magic_room_turns() == 0 {
+            if data_bridge::item(state.sides[side].team[state.sides[side].active_index as usize].item_id)
+                .has(data_bridge::ItemFlag::ASSAULT_VEST)
+            {
+                let md = data_bridge::move_hot(moves[i]);
+                if md.category == MoveCategory::Status { continue; }
+            }
         }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
-        if active.choice_locked_move != 0 && moves[i] != active.choice_locked_move { continue; }
+        // Choice lock: suppressed by Magic Room
+        if state.field.magic_room_turns() == 0
+            && active.choice_locked_move != 0 && moves[i] != active.choice_locked_move { continue; }
         // Gravity: block flying/levitation moves
         if state.field.gravity_turns > 0 && GRAVITY_BLOCKED.contains(&moves[i]) { continue; }
         let opp_active = &state.sides[opp].active;
@@ -238,5 +248,43 @@ mod tests {
         let a = legal_actions(&s, 0);
         assert_eq!(a.count, 2);
         assert!(a.as_slice().iter().all(|&x| x >= ACTION_SWITCH_0));
+    }
+
+    #[test]
+    fn test_gravity_blocks_fly() {
+        let mut s = make_state();
+        // Move slot 0 = 85, slot 1 = 521, slot 2 = 447, slot 3 = 417
+        // Replace slot 0 with Fly (19)
+        s.sides[0].team[0].moves[0] = 19;
+        s.field.gravity_turns = 5;
+        let a = legal_actions(&s, 0);
+        // Fly should be blocked, 3 other moves + 2 switches
+        assert!(!a.as_slice().iter().any(|&x| x == ACTION_MOVE_0));
+    }
+
+    #[test]
+    fn test_gravity_blocks_high_jump_kick() {
+        let mut s = make_state();
+        s.sides[0].team[0].moves[0] = 136; // High Jump Kick
+        s.field.gravity_turns = 5;
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().iter().any(|&x| x == ACTION_MOVE_0));
+    }
+
+    #[test]
+    fn test_magic_room_suspends_choice_lock() {
+        let mut s = make_state();
+        s.sides[0].active.choice_locked_move = 521; // locked to slot 1
+        // Without Magic Room: only slot 1 is legal
+        let a = legal_actions(&s, 0);
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 1);
+        assert_eq!(move_actions[0], 1);
+
+        // With Magic Room: choice lock suspended, all moves available
+        s.field.set_magic_room_turns(5);
+        let a = legal_actions(&s, 0);
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 4);
     }
 }

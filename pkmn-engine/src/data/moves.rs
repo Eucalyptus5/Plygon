@@ -45,6 +45,7 @@ pub enum VarPower {
     Hex        = 17,    // 2× if target has status
     Acrobatics = 18,    // 2× if attacker has no item
     RisingVoltage = 19, // 2× if Electric Terrain + target grounded
+    SpitUp        = 20, // 100 BP per stockpile layer
 }
 
 // Encodes guaranteed self-stat changes, crash damage, and other effects
@@ -204,6 +205,14 @@ pub enum MoveEffect {
     Swallow      = 93,  // Heal 25/50/100% by stockpile, reset
     TeraBlast    = 94,  // Physical or Special based on higher stat, Normal → Tera type
     PartialTrap  = 95,  // Bind, Wrap, Fire Spin, etc.: trap + EOT 1/8 damage
+    MagicRoom    = 96,  // Suppress all held item effects for 5 turns
+    WonderRoom   = 97,  // Swap Def and SpD for damage calc for 5 turns
+
+    // -- Phase 3 Task 07: Remaining SelfEffects --
+    ClangorousSoul = 98, // -33% HP, +1 all stats (fail if HP ≤ 33% or maxhp==1)
+    Curse          = 99, // Non-Ghost: +1 Atk/Def, -1 Spe; Ghost: -50% HP, curse volatile on target
+    NoRetreat      = 100, // +1 all stats, trap self (fail if already used)
+    TidyUp         = 101, // +1 Atk/Spe, clear hazards + subs from both sides
 }
 
 // Flags (16 bits)

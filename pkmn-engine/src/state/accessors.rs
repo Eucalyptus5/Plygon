@@ -89,7 +89,8 @@ pub fn is_grounded(state: &BattleState, side: usize) -> bool {
     if active.has_volatile(VOL_INGRAIN) { return true; }
     if has_type(state, side, Type::Flying as u8) { return false; }
     if effective_ability(state, side) == data_bridge::ABILITY_LEVITATE { return false; }
-    if data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::AIR_BALLOON) { return false; }
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::AIR_BALLOON) { return false; }
     if active.has_volatile(VOL_MAGNET_RISE) { return false; }
     if active.telekinesis_turns > 0 { return false; }
 
@@ -99,7 +100,8 @@ pub fn is_grounded(state: &BattleState, side: usize) -> bool {
 #[inline]
 pub fn is_trap_immune(state: &BattleState, side: usize) -> bool {
     if has_type(state, side, Type::Ghost as u8) { return true; }
-    data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::TRAP_IMMUNE)
+    state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::TRAP_IMMUNE)
 }
 
 #[cfg(test)]
@@ -116,5 +118,17 @@ mod tests {
         state.sides[0].active.override_pp = [5, 5, 5, 5];
         assert_eq!(effective_stat(&state, 0, ATK), 84);
         assert_eq!(effective_moves(&state, 0), [53, 126, 257, 394]);
+    }
+
+    #[test]
+    fn test_gravity_grounds_flying() {
+        use crate::data::types::Type;
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 18; // Pidgeot (Flying type)
+        // Without Gravity: Flying type is not grounded
+        assert!(!is_grounded(&state, 0));
+        // With Gravity: everything is grounded
+        state.field.gravity_turns = 5;
+        assert!(is_grounded(&state, 0));
     }
 }

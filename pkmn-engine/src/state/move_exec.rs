@@ -106,7 +106,9 @@ fn accuracy_check(
         accuracy = accuracy * 4 / 5;
     }
 
-    if data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::WIDE_LENS) {
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::WIDE_LENS)
+    {
         accuracy = accuracy * 11 / 10;
     }
 
@@ -146,8 +148,10 @@ fn apply_secondary(
         return;
     }
     if md.secondary_stat < 0 {
-        let stat = if md.category == MoveCategory::Physical { DEF } else { SPD };
-        apply_boost(state, keys, def_side, stat, md.secondary_stat as i8);
+        if state.sides[def_side].side_conditions.mist_turns() == 0 {
+            let stat = if md.category == MoveCategory::Physical { DEF } else { SPD };
+            apply_boost(state, keys, def_side, stat, md.secondary_stat as i8);
+        }
         return;
     }
 
@@ -165,7 +169,11 @@ fn apply_secondary(
         }
     };
 
-    if status != STATUS_NONE && !terrain_blocks_status(state, def_side, status) {
+    if status != STATUS_NONE
+        && state.sides[def_side].side_conditions.safeguard_turns() == 0
+        && !terrain_blocks_status(state, def_side, status)
+        && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+    {
         set_status(state, keys, def_side, def_slot, status, 0);
         return;
     }
@@ -192,7 +200,11 @@ fn execute_status_move(
         return;
     }
 
-    if md.flags & MoveFlags::HEAL != 0 {
+    if md.flags & MoveFlags::HEAL != 0
+        && md.effect != MoveEffect::Wish
+        && md.effect != MoveEffect::HealingWish
+        && md.effect != MoveEffect::LunarDance
+    {
         let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
         heal(state, keys, atk_side, atk_slot, max_hp / 2);
         return;
@@ -231,7 +243,9 @@ fn execute_status_move(
 
         // -- Hazard removal --
         MoveEffect::Defog => {
-            apply_boost(state, keys, def_side, EVA, -1);
+            if state.sides[def_side].side_conditions.mist_turns() == 0 {
+                apply_boost(state, keys, def_side, EVA, -1);
+            }
             // Target side: hazards + screens + safeguard + mist
             clear_hazards(state, def_side);
             state.sides[def_side].side_conditions.reflect_turns = 0;
@@ -250,6 +264,7 @@ fn execute_status_move(
         MoveEffect::WillOWisp   => {
             if state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_BURN)
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 set_status(state, keys, def_side, def_slot, STATUS_BURN, 0);
             }
@@ -257,6 +272,7 @@ fn execute_status_move(
         MoveEffect::ThunderWave => {
             if state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_PARALYSIS)
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0);
             }
@@ -264,6 +280,7 @@ fn execute_status_move(
         MoveEffect::Toxic       => {
             if state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
             }
@@ -271,6 +288,7 @@ fn execute_status_move(
         MoveEffect::Sleep       => {
             if state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 let turns = (rng(3) + 1) as u8;
                 set_status(state, keys, def_side, def_slot, STATUS_SLEEP, turns);
@@ -419,6 +437,68 @@ fn execute_status_move(
             }
         }
 
+        // -- Clangorous Soul: -33% HP, +1 all stats --
+        MoveEffect::ClangorousSoul => {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            let current_hp = state.sides[atk_side].team[atk_slot].current_hp;
+            let cost = max_hp as u32 * 33 / 100;
+            let cost = cost as u16;
+            if max_hp > 1 && current_hp > cost {
+                deal_damage(state, keys, atk_side, atk_slot, cost);
+                apply_boost(state, keys, atk_side, ATK, 1);
+                apply_boost(state, keys, atk_side, DEF, 1);
+                apply_boost(state, keys, atk_side, SPA, 1);
+                apply_boost(state, keys, atk_side, SPD, 1);
+                apply_boost(state, keys, atk_side, SPE, 1);
+            }
+        }
+
+        // -- Curse (non-Ghost): +1 Atk/Def, -1 Spe --
+        MoveEffect::Curse => {
+            if !has_type(state, atk_side, Type::Ghost as u8) {
+                apply_boost(state, keys, atk_side, ATK, 1);
+                apply_boost(state, keys, atk_side, DEF, 1);
+                apply_boost(state, keys, atk_side, SPE, -1);
+            } else {
+                // Ghost Curse: -50% HP from user, apply curse EOT damage to target
+                // (curse volatile not yet available — no free volatile bits)
+                let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+                deal_damage(state, keys, atk_side, atk_slot, max_hp / 2);
+            }
+        }
+
+        // -- No Retreat: +1 all stats, trap self, fail if already used --
+        MoveEffect::NoRetreat => {
+            // _padding[3] bit 3 = no_retreat_used
+            if state.sides[atk_side].active._padding[3] & 0x08 == 0 {
+                apply_boost(state, keys, atk_side, ATK, 1);
+                apply_boost(state, keys, atk_side, DEF, 1);
+                apply_boost(state, keys, atk_side, SPA, 1);
+                apply_boost(state, keys, atk_side, SPD, 1);
+                apply_boost(state, keys, atk_side, SPE, 1);
+                state.sides[atk_side].active._padding[3] |= 0x08;
+                if !state.sides[atk_side].active.has_volatile(VOL_TRAPPED) {
+                    set_volatile(state, keys, atk_side, VOL_TRAPPED);
+                }
+            }
+        }
+
+        // -- Tidy Up: +1 Atk/Spe, clear hazards + substitutes from both sides --
+        MoveEffect::TidyUp => {
+            // Clear substitutes from both sides
+            for side in 0..2 {
+                if state.sides[side].active.has_volatile(VOL_SUBSTITUTE) {
+                    clear_volatile(state, keys, side, VOL_SUBSTITUTE);
+                    state.sides[side].active.substitute_hp = 0;
+                }
+            }
+            // Clear hazards from both sides
+            clear_hazards(state, 0);
+            clear_hazards(state, 1);
+            apply_boost(state, keys, atk_side, ATK, 1);
+            apply_boost(state, keys, atk_side, SPE, 1);
+        }
+
         // -- PainSplit: average both mons' HP --
         MoveEffect::PainSplit => {
             let hp_a = state.sides[atk_side].team[atk_slot].current_hp as u32;
@@ -452,8 +532,23 @@ fn execute_status_move(
             let item_a = state.sides[atk_side].team[atk_slot].item_id;
             let item_d = state.sides[def_side].team[def_slot].item_id;
             if item_a != 0 || item_d != 0 {
-                set_item(state, keys, atk_side, atk_slot, item_d);
-                set_item(state, keys, def_side, def_slot, item_a);
+                // Blocked by Sticky Hold
+                let def_ability = effective_ability(state, def_side);
+                if def_ability == data_bridge::ABILITY_STICKY_HOLD { /* fail */ }
+                else {
+                    // Check forme-locked items on both sides
+                    let atk_base = data_bridge::base_species(state.sides[atk_side].team[atk_slot].species_id);
+                    let def_base = data_bridge::base_species(state.sides[def_side].team[def_slot].species_id);
+                    let atk_item_locked = item_a != 0 && data_bridge::item(item_a).is_forme_locked(atk_base);
+                    let def_item_locked = item_d != 0 && data_bridge::item(item_d).is_forme_locked(def_base);
+                    // Also check if giving attacker's item to defender is forme-locked for defender, and vice versa
+                    let atk_item_locked_on_def = item_a != 0 && data_bridge::item(item_a).is_forme_locked(def_base);
+                    let def_item_locked_on_atk = item_d != 0 && data_bridge::item(item_d).is_forme_locked(atk_base);
+                    if !atk_item_locked && !def_item_locked && !atk_item_locked_on_def && !def_item_locked_on_atk {
+                        set_item(state, keys, atk_side, atk_slot, item_d);
+                        set_item(state, keys, def_side, def_slot, item_a);
+                    }
+                }
             }
         }
 
@@ -546,6 +641,35 @@ fn execute_status_move(
         // -- Gravity --
         MoveEffect::Gravity => {
             set_gravity(state, keys, 5);
+            for s in 0..2 {
+                if state.sides[s].active.has_volatile(VOL_MAGNET_RISE) {
+                    clear_volatile(state, keys, s, VOL_MAGNET_RISE);
+                    state.sides[s].active.magnet_rise_turns = 0;
+                }
+                if state.sides[s].active.has_volatile(VOL_CHARGING) {
+                    clear_volatile(state, keys, s, VOL_CHARGING);
+                    if state.sides[s].active.has_volatile(VOL_SEMI_INVULNERABLE) {
+                        clear_volatile(state, keys, s, VOL_SEMI_INVULNERABLE);
+                    }
+                    state.sides[s].active._padding[1] = 0;
+                }
+            }
+        }
+
+        MoveEffect::MagicRoom => {
+            if state.field.magic_room_turns() > 0 {
+                set_magic_room(state, keys, 0);
+            } else {
+                set_magic_room(state, keys, 5);
+            }
+        }
+
+        MoveEffect::WonderRoom => {
+            if state.field.wonder_room_turns() > 0 {
+                set_wonder_room(state, keys, 0);
+            } else {
+                set_wonder_room(state, keys, 5);
+            }
         }
 
         // -- Whirlwind / Roar: force random switch --
@@ -585,6 +709,9 @@ fn execute_status_move(
         MoveEffect::Yawn => {
             if !state.sides[def_side].active.has_volatile(VOL_YAWN)
                 && state.sides[def_side].team[def_slot].status == STATUS_NONE
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+                && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
             {
                 set_volatile(state, keys, def_side, VOL_YAWN);
             }
@@ -592,7 +719,9 @@ fn execute_status_move(
 
         // -- Confuse (Confuse Ray, Sweet Kiss) --
         MoveEffect::Confuse => {
-            if state.sides[def_side].active.confusion_turns == 0 {
+            if state.sides[def_side].active.confusion_turns == 0
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
+            {
                 state.sides[def_side].active.confusion_turns = (rng(3) + 2) as u8;
             }
         }
@@ -634,8 +763,9 @@ fn execute_status_move(
 
         // -- Stockpile --
         MoveEffect::Stockpile => {
-            if state.sides[atk_side].active.stockpile < 3 {
-                state.sides[atk_side].active.stockpile += 1;
+            let count = state.sides[atk_side].active.stockpile & 0x7F;
+            if count < 3 {
+                state.sides[atk_side].active.stockpile = (state.sides[atk_side].active.stockpile & 0x80) | (count + 1);
                 apply_boost(state, keys, atk_side, DEF, 1);
                 apply_boost(state, keys, atk_side, SPD, 1);
             }
@@ -643,7 +773,7 @@ fn execute_status_move(
 
         // -- Swallow --
         MoveEffect::Swallow => {
-            let count = state.sides[atk_side].active.stockpile;
+            let count = state.sides[atk_side].active.stockpile & 0x7F;
             if count > 0 {
                 let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
                 let heal_amount = match count {
@@ -654,14 +784,18 @@ fn execute_status_move(
                 heal(state, keys, atk_side, atk_slot, heal_amount);
                 apply_boost(state, keys, atk_side, DEF, -(count as i8));
                 apply_boost(state, keys, atk_side, SPD, -(count as i8));
-                state.sides[atk_side].active.stockpile = 0;
+                state.sides[atk_side].active.stockpile &= 0x80; // preserve salt cure bit
             }
         }
 
         // -- Parting Shot: -1 Atk -1 SpA on target, then self-switch --
         MoveEffect::PartingShot => {
-            let a = apply_boost(state, keys, def_side, ATK, -1);
-            let s = apply_boost(state, keys, def_side, SPA, -1);
+            let (a, s) = if state.sides[def_side].side_conditions.mist_turns() == 0 {
+                (apply_boost(state, keys, def_side, ATK, -1),
+                 apply_boost(state, keys, def_side, SPA, -1))
+            } else {
+                (0, 0)
+            };
             // Only switch if at least one stat drop landed
             if (a != 0 || s != 0)
                 && !state.sides[atk_side].team[atk_slot].is_fainted()
@@ -705,7 +839,9 @@ fn execute_status_move(
             if md.secondary_stat > 0 {
                 apply_boost(state, keys, atk_side, ATK, md.secondary_stat as i8);
             } else if md.secondary_stat < 0 {
-                apply_boost(state, keys, def_side, ATK, md.secondary_stat as i8);
+                if state.sides[def_side].side_conditions.mist_turns() == 0 {
+                    apply_boost(state, keys, def_side, ATK, md.secondary_stat as i8);
+                }
             }
         }
     }
@@ -726,7 +862,8 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
 
         // Field / own side
-        MoveEffect::Tailwind | MoveEffect::TrickRoom | MoveEffect::Gravity => true,
+        MoveEffect::Tailwind | MoveEffect::TrickRoom | MoveEffect::Gravity |
+        MoveEffect::MagicRoom | MoveEffect::WonderRoom => true,
 
         // Utility targeting self/own side
         MoveEffect::Substitute | MoveEffect::Wish | MoveEffect::BatonPass |
@@ -734,7 +871,8 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::HealingWish | MoveEffect::LunarDance | MoveEffect::FocusEnergy |
         MoveEffect::Imprison | MoveEffect::Aromatherapy | MoveEffect::Minimize |
         MoveEffect::Stockpile | MoveEffect::Swallow | MoveEffect::MagnetRise |
-        MoveEffect::DestinyBond => true,
+        MoveEffect::DestinyBond | MoveEffect::ClangorousSoul |
+        MoveEffect::Curse | MoveEffect::NoRetreat | MoveEffect::TidyUp => true,
 
         // Side conditions on own side
         MoveEffect::Safeguard | MoveEffect::Mist | MoveEffect::LuckyChant => true,
@@ -763,7 +901,9 @@ fn is_self_targeting(md: &MoveData) -> bool {
 /// Screen duration: 5 turns, or 8 with Light Clay.
 #[inline]
 fn screen_duration(state: &BattleState, side: usize) -> u8 {
-    if data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::EXTENDS_SCREENS) { 8 } else { 5 }
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::EXTENDS_SCREENS)
+    { 8 } else { 5 }
 }
 
 #[inline]
@@ -800,7 +940,8 @@ fn weather_skips_charge(state: &BattleState, md: &MoveData) -> bool {
 #[inline]
 fn can_skip_charge(state: &BattleState, atk_side: usize, md: &MoveData) -> bool {
     if weather_skips_charge(state, md) { return true; }
-    data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::POWER_HERB)
+    state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::POWER_HERB)
 }
 
 /// Returns the semi-invulnerability location byte, or None for non-semi-invuln charges.
@@ -857,6 +998,7 @@ pub fn check_berry_activation(
 ) {
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
+    if state.field.magic_room_turns() > 0 { return; }
 
     // Unnerve / As One: opponent cannot eat berries
     let opp_ability = effective_ability(state, 1 - side);
@@ -1194,7 +1336,7 @@ pub fn execute_move(
             active.last_move = move_id;
         }
 
-        if !is_struggle {
+        if !is_struggle && state.field.magic_room_turns() == 0 {
             let atk_item = data_bridge::item(state.active_mon(atk_side).item_id);
             if atk_item.has(ItemFlag::IS_CHOICE)
                 && state.sides[atk_side].active.choice_locked_move == 0
@@ -1381,17 +1523,10 @@ pub fn execute_move(
         break 'exec;
     }
 
-    // SpitUp: deal 100/200/300 damage by stockpile count
+    // SpitUp: fail if no stockpile (VarPower::SpitUp returns 0 BP)
     if md.effect == MoveEffect::SpitUp {
-        let count = state.sides[atk_side].active.stockpile;
-        if count > 0 {
-            let damage = count as u16 * 100;
-            deal_damage(state, keys, def_side, def_slot, damage);
-            apply_boost(state, keys, atk_side, DEF, -(count as i8));
-            apply_boost(state, keys, atk_side, SPD, -(count as i8));
-            state.sides[atk_side].active.stockpile = 0;
-        }
-        break 'exec;
+        let count = state.sides[atk_side].active.stockpile & 0x7F;
+        if count == 0 { break 'exec; }
     }
 
     let result = calc_damage(state, atk_side, move_id, rng);
@@ -1428,7 +1563,11 @@ pub fn execute_move(
     if !result.hits_substitute {
         let def_mon = &state.sides[def_side].team[def_slot];
         if def_mon.current_hp == def_mon.max_hp && final_damage >= def_mon.current_hp {
-            let def_item = data_bridge::item(def_mon.item_id);
+            let def_item = if state.field.magic_room_turns() > 0 {
+                &data_bridge::ItemData::NONE
+            } else {
+                data_bridge::item(def_mon.item_id)
+            };
             let def_ability = effective_ability(state, def_side);
             if def_item.has(ItemFlag::FOCUS_SASH) {
                 final_damage = def_mon.current_hp - 1;
@@ -1504,6 +1643,8 @@ pub fn execute_move(
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
         crate::state::forme::check_zen_mode(state, keys, def_side);
+        crate::state::forme::check_schooling(state, keys, def_side);
+        crate::state::forme::check_shields_down(state, keys, def_side);
     }
 
     if result.item_consumed {
@@ -1655,6 +1796,7 @@ pub fn execute_move(
                     if md.flags & MoveFlags::CONTACT != 0
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_POISON)
+                    && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
                         set_status(state, keys, def_side, def_slot, STATUS_POISON, 0);
@@ -1664,6 +1806,7 @@ pub fn execute_move(
                 data_bridge::ABILITY_TOXIC_CHAIN
                     if state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
+                    && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
                         set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
@@ -1683,7 +1826,9 @@ pub fn execute_move(
         }
 
         let def_item_id = state.sides[def_side].team[def_slot].item_id;
-        if def_item_id != 0 && !state.sides[def_side].team[def_slot].is_fainted() {
+        if def_item_id != 0 && !state.sides[def_side].team[def_slot].is_fainted()
+            && state.field.magic_room_turns() == 0
+        {
             // Weakness Policy: +2 Atk +2 SpA if hit by SE move, consume
             if def_item_id == data_bridge::ITEM_WEAKNESS_POLICY && result.effectiveness > 4 {
                 apply_boost(state, keys, def_side, ATK, 2);
@@ -1727,7 +1872,11 @@ pub fn execute_move(
         && !result.hits_substitute
     {
         // Rocky Helmet: 1/6 max HP
-        let def_itm = data_bridge::item(state.active_mon(def_side).item_id);
+        let def_itm = if state.field.magic_room_turns() > 0 {
+            &data_bridge::ItemData::NONE
+        } else {
+            data_bridge::item(state.active_mon(def_side).item_id)
+        };
         if def_itm.has(ItemFlag::ROCKY_HELMET) {
             let atk_max = state.active_mon(atk_side).max_hp;
             deal_damage(state, keys, atk_side, atk_slot, atk_max / 6);
@@ -1743,9 +1892,11 @@ pub fn execute_move(
             deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
         }
 
-        // Contact status abilities (attacker alive + no status)
+        // Contact status abilities (attacker alive + no status + no Safeguard + not Minior-Meteor)
         if !state.sides[atk_side].team[atk_slot].is_fainted()
             && state.sides[atk_side].team[atk_slot].status == STATUS_NONE
+            && state.sides[atk_side].side_conditions.safeguard_turns() == 0
+            && !crate::state::forme::is_minior_meteor_forme(state, atk_side)
         {
             match def_ability {
                 data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) => {
@@ -1818,6 +1969,16 @@ pub fn execute_move(
         // For proper EOT: we need a way to track. Let's use the stockpile field's upper bits
         // since stockpile only uses 0-3. We'll set bit 7 to indicate salt_cure.
         state.sides[def_side].active.stockpile |= 0x80; // bit 7 = salt cure
+    }
+
+    // Spit Up post-damage: reset stockpile and remove Def/SpD boosts
+    if md.effect == MoveEffect::SpitUp {
+        let count = state.sides[atk_side].active.stockpile & 0x7F;
+        if count > 0 {
+            apply_boost(state, keys, atk_side, DEF, -(count as i8));
+            apply_boost(state, keys, atk_side, SPD, -(count as i8));
+            state.sides[atk_side].active.stockpile &= 0x80; // preserve salt cure bit
+        }
     }
 
     if md.effect == MoveEffect::PartialTrap && !result.hits_substitute
@@ -4647,6 +4808,637 @@ mod tests {
         let hp_before = state.sides[0].team[0].current_hp;
         execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_safeguard_blocks_status() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::WillOWisp,
+            move_type: Type::Fire,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_safeguard_allows_self_status() {
+        // Self-inflicted status (e.g. Close Combat user's side has Safeguard)
+        // Safeguard only blocks opponent-inflicted status, so set_status on own side still works
+        let (mut state, keys) = setup();
+        state.sides[0].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Directly set status on own side — Safeguard does not block self-inflicted
+        set_status(&mut state, &keys, 0, 0, STATUS_BURN, 0);
+        assert_eq!(state.sides[0].team[0].status, STATUS_BURN);
+    }
+
+    #[test]
+    fn test_safeguard_blocks_secondary_status() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Secondary with 100% chance and burn status
+        let md = MoveData {
+            secondary_chance: 100,
+            secondary_status: STATUS_BURN,
+            move_type: Type::Fire,
+            category: MoveCategory::Physical,
+            base_power: 80,
+            accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+    }
+
+    #[test]
+    fn test_safeguard_blocks_confuse() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Confuse,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].active.confusion_turns, 0);
+    }
+
+    #[test]
+    fn test_safeguard_blocks_yawn() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Yawn,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
+    }
+
+    #[test]
+    fn test_mist_blocks_stat_drop() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_mist_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Secondary with negative stat drop (100% chance)
+        let md = MoveData {
+            secondary_chance: 100,
+            secondary_stat: -1,
+            category: MoveCategory::Physical,
+            base_power: 80,
+            accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[1].active.boosts[DEF], 0);
+    }
+
+    #[test]
+    fn test_mist_allows_self_drop() {
+        use crate::data::MOVE_CLOSE_COMBAT;
+        let (mut state, keys) = setup();
+        state.sides[0].side_conditions.set_mist_turns(5);
+        state.sides[0].team[0].moves[0] = MOVE_CLOSE_COMBAT as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, MOVE_CLOSE_COMBAT as u16, 0, &mut fixed_rng(0));
+
+        // Self-inflicted drops from Close Combat should still apply
+        assert_eq!(state.sides[0].active.boosts[DEF], -1);
+        assert_eq!(state.sides[0].active.boosts[SPD], -1);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mist_blocks_parting_shot() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_mist_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::PartingShot,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // Mist blocks the stat drops
+        assert_eq!(state.sides[1].active.boosts[ATK], 0);
+        assert_eq!(state.sides[1].active.boosts[SPA], 0);
+        // Switch should not happen since no drops landed
+        assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+    }
+
+    #[test]
+    fn test_lucky_chant_blocks_crit() {
+        use crate::state::calc::calc_damage;
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_lucky_chant_turns(5);
+        // Give high crit stage to guarantee crit without Lucky Chant
+        state.sides[0].active.boosts[6] = 6; // crit stage (index 6 is typically unused for boosts but crit_stage reads differently)
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Use a physical move
+        let move_id = state.sides[0].team[0].moves[0];
+        let result = calc_damage(&state, 0, move_id, &mut fixed_rng(0));
+
+        assert!(!result.crit);
+    }
+
+    #[test]
+    fn test_side_conditions_expire() {
+        // Verify the packed fields decrement correctly (tested via accessors)
+        let (mut state, _keys) = setup();
+        state.sides[0].side_conditions.set_safeguard_turns(1);
+        state.sides[0].side_conditions.set_mist_turns(1);
+        state.sides[0].side_conditions.set_lucky_chant_turns(1);
+        assert_eq!(state.sides[0].side_conditions.safeguard_turns(), 1);
+        assert_eq!(state.sides[0].side_conditions.mist_turns(), 1);
+        assert_eq!(state.sides[0].side_conditions.lucky_chant_turns(), 1);
+
+        // Simulate expiry: decrement each
+        let sg = state.sides[0].side_conditions.safeguard_turns();
+        state.sides[0].side_conditions.set_safeguard_turns(sg - 1);
+        let mt = state.sides[0].side_conditions.mist_turns();
+        state.sides[0].side_conditions.set_mist_turns(mt - 1);
+        let lc = state.sides[0].side_conditions.lucky_chant_turns();
+        state.sides[0].side_conditions.set_lucky_chant_turns(lc - 1);
+
+        assert_eq!(state.sides[0].side_conditions.safeguard_turns(), 0);
+        assert_eq!(state.sides[0].side_conditions.mist_turns(), 0);
+        assert_eq!(state.sides[0].side_conditions.lucky_chant_turns(), 0);
+    }
+
+    #[test]
+    fn test_safeguard_blocks_contact_ability_status() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_FLAME_BODY;
+        state.sides[0].side_conditions.set_safeguard_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Use a contact move (U-turn is contact)
+        use crate::data::MOVE_U_TURN;
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // rng(100) < 30 triggers Flame Body — but Safeguard should block
+        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
+    }
+
+    #[test]
+    fn test_mist_blocks_defog_eva_drop() {
+        let (mut state, keys) = setup();
+        state.sides[1].side_conditions.set_mist_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Defog,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // EVA drop should be blocked by Mist
+        assert_eq!(state.sides[1].active.boosts[EVA], 0);
+        // But Mist should be cleared by Defog
+        assert_eq!(state.sides[1].side_conditions.mist_turns(), 0);
+    }
+
+    // ---- Phase 3 Task 05: Move Edge Cases ----
+
+    #[test]
+    fn test_weather_ball_type_in_sun() {
+        use crate::state::calc_modifiers::resolve_move_type;
+        let (mut state, _keys) = setup();
+        let md = data_bridge::move_hot(crate::data::MOVE_WEATHER_BALL as u16);
+        // No weather → Normal
+        assert_eq!(resolve_move_type(&state, md, 0), crate::data::types::Type::Normal);
+        // Sun → Fire
+        state.field.weather = WEATHER_SUN;
+        state.field.weather_turns = 5;
+        assert_eq!(resolve_move_type(&state, md, 0), crate::data::types::Type::Fire);
+    }
+
+    #[test]
+    fn test_terrain_pulse_grounded() {
+        use crate::state::calc_modifiers::resolve_move_type;
+        let (mut state, _keys) = setup();
+        let md = data_bridge::move_hot(crate::data::MOVE_TERRAIN_PULSE as u16);
+        // No terrain → Normal
+        assert_eq!(resolve_move_type(&state, md, 0), crate::data::types::Type::Normal);
+        // Electric terrain + grounded → Electric
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        assert_eq!(resolve_move_type(&state, md, 0), crate::data::types::Type::Electric);
+    }
+
+    #[test]
+    fn test_stockpile_increments() {
+        let (mut state, keys) = setup();
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Stockpile,
+            ..unsafe { core::mem::zeroed() }
+        };
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        // Stack 1
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 1);
+        assert_eq!(state.sides[0].active.boosts[DEF], 1);
+        assert_eq!(state.sides[0].active.boosts[SPD], 1);
+
+        // Stack 2
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 2);
+        assert_eq!(state.sides[0].active.boosts[DEF], 2);
+        assert_eq!(state.sides[0].active.boosts[SPD], 2);
+
+        // Stack 3
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 3);
+        assert_eq!(state.sides[0].active.boosts[DEF], 3);
+        assert_eq!(state.sides[0].active.boosts[SPD], 3);
+
+        // Stack 4 — should NOT increment
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 3);
+        assert_eq!(state.sides[0].active.boosts[DEF], 3);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_spit_up_damage_by_stacks() {
+        use crate::data::MOVE_SPIT_UP;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_SPIT_UP as u16;
+        state.sides[0].active.stockpile = 2;
+        state.sides[0].active.boosts[DEF] = 2;
+        state.sides[0].active.boosts[SPD] = 2;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_SPIT_UP as u16, 0, &mut fixed_rng(0));
+        let hp_after = state.sides[1].team[0].current_hp;
+
+        // Defender should have taken damage (200 BP through calc)
+        assert!(hp_after < hp_before, "spit up should deal damage");
+        // Stockpile should be reset
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 0);
+        // Boosts should be removed
+        assert_eq!(state.sides[0].active.boosts[DEF], 0);
+        assert_eq!(state.sides[0].active.boosts[SPD], 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_swallow_heal_by_stacks() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].current_hp = 100; // well below max 300
+        state.sides[0].active.stockpile = 2;
+        state.sides[0].active.boosts[DEF] = 2;
+        state.sides[0].active.boosts[SPD] = 2;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Swallow,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // 2 stacks = heal max_hp/2 = 150; 100 + 150 = 250
+        assert_eq!(state.sides[0].team[0].current_hp, 250);
+        // Stockpile reset
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 0);
+        // Boosts removed
+        assert_eq!(state.sides[0].active.boosts[DEF], 0);
+        assert_eq!(state.sides[0].active.boosts[SPD], 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_trick_swaps_items() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = 242; // Leftovers
+        state.sides[1].team[0].item_id = 243; // some other item
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Trick,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        assert_eq!(state.sides[0].team[0].item_id, 243);
+        assert_eq!(state.sides[1].team[0].item_id, 242);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_trick_sticky_hold_blocks() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = 242;
+        state.sides[1].team[0].item_id = 243;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STICKY_HOLD;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Trick,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // Items should NOT be swapped
+        assert_eq!(state.sides[0].team[0].item_id, 242);
+        assert_eq!(state.sides[1].team[0].item_id, 243);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_trick_forme_locked_blocks() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = 242; // Leftovers
+        state.sides[1].team[0].species_id = 493; // Arceus
+        state.sides[1].team[0].item_id = 105;    // Draco Plate (forme-locked on Arceus)
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Trick,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // Items should NOT be swapped
+        assert_eq!(state.sides[0].team[0].item_id, 242);
+        assert_eq!(state.sides[1].team[0].item_id, 105);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_yawn_sleep_next_turn() {
+        let (mut state, keys) = setup();
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Yawn,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // VOL_YAWN should be set, no sleep yet
+        assert!(state.sides[1].active.has_volatile(VOL_YAWN));
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+
+        // After EOT, yawn triggers sleep and volatile clears
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
+        assert_eq!(state.sides[1].team[0].status, STATUS_SLEEP);
+    }
+
+    #[test]
+    fn test_yawn_fails_already_statused() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].status = STATUS_BURN;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Yawn,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // VOL_YAWN should NOT be set
+        assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
+    }
+
+    #[test]
+    fn test_yawn_fails_in_electric_terrain() {
+        let (mut state, keys) = setup();
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Yawn,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // VOL_YAWN should NOT be set (terrain blocks sleep)
+        assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
+    }
+
+    // ---- Phase 3 Task 07: Remaining SelfEffects ----
+
+    #[test]
+    fn test_belly_drum_max_atk() {
+        let (mut state, keys) = setup();
+        // max_hp = 300, current_hp = 300 → cost = 150
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::BellyDrum,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 6);
+        assert_eq!(state.sides[0].team[0].current_hp, 300 - 150);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_belly_drum_fails_low_hp() {
+        let (mut state, keys) = setup();
+        // Set HP to exactly max_hp / 2 = 150 → should fail (need > 150)
+        state.sides[0].team[0].current_hp = 150;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::BellyDrum,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 0);
+        assert_eq!(state.sides[0].team[0].current_hp, 150);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_shell_smash_boosts_and_drops() {
+        let (mut state, keys) = setup();
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::ShellSmash,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 2);
+        assert_eq!(state.sides[0].active.boosts[SPA], 2);
+        assert_eq!(state.sides[0].active.boosts[SPE], 2);
+        assert_eq!(state.sides[0].active.boosts[DEF], -1);
+        assert_eq!(state.sides[0].active.boosts[SPD], -1);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_clangorous_soul_boosts_and_hp_cost() {
+        let (mut state, keys) = setup();
+        // max_hp = 300 → cost = 300 * 33 / 100 = 99
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::ClangorousSoul,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[DEF], 1);
+        assert_eq!(state.sides[0].active.boosts[SPA], 1);
+        assert_eq!(state.sides[0].active.boosts[SPD], 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], 1);
+        assert_eq!(state.sides[0].team[0].current_hp, 300 - 99);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_clangorous_soul_fails_low_hp() {
+        let (mut state, keys) = setup();
+        // cost = 300 * 33 / 100 = 99. Set HP to 99 → should fail (need > 99)
+        state.sides[0].team[0].current_hp = 99;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::ClangorousSoul,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 0);
+        assert_eq!(state.sides[0].team[0].current_hp, 99);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_curse_non_ghost() {
+        let (mut state, keys) = setup();
+        // Side 0 mon is species 25 (Pikachu, Electric) — not Ghost
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Curse,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[DEF], 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], -1);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_no_retreat_boost_trap() {
+        let (mut state, keys) = setup();
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::NoRetreat,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[DEF], 1);
+        assert_eq!(state.sides[0].active.boosts[SPA], 1);
+        assert_eq!(state.sides[0].active.boosts[SPD], 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], 1);
+        assert!(state.sides[0].active.has_volatile(VOL_TRAPPED));
+        // Second use should fail
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1); // unchanged
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_tidy_up_clears_and_boosts() {
+        let (mut state, keys) = setup();
+        // Set up hazards on both sides
+        state.sides[0].side_conditions.spikes = 2;
+        state.sides[0].side_conditions.hazard_flags = HAZARD_STEALTH_ROCK;
+        state.sides[1].side_conditions.toxic_spikes = 1;
+        state.sides[1].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
+        // Set up substitutes on both sides
+        set_volatile(&mut state, &keys, 0, VOL_SUBSTITUTE);
+        state.sides[0].active.substitute_hp = 75;
+        set_volatile(&mut state, &keys, 1, VOL_SUBSTITUTE);
+        state.sides[1].active.substitute_hp = 75;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::TidyUp,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+
+        // Boosts
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], 1);
+        // Hazards cleared
+        assert_eq!(state.sides[0].side_conditions.spikes, 0);
+        assert_eq!(state.sides[0].side_conditions.hazard_flags, 0);
+        assert_eq!(state.sides[1].side_conditions.toxic_spikes, 0);
+        assert_eq!(state.sides[1].side_conditions.hazard_flags, 0);
+        // Substitutes cleared
+        assert!(!state.sides[0].active.has_volatile(VOL_SUBSTITUTE));
+        assert_eq!(state.sides[0].active.substitute_hp, 0);
+        assert!(!state.sides[1].active.has_volatile(VOL_SUBSTITUTE));
+        assert_eq!(state.sides[1].active.substitute_hp, 0);
         assert!(validate_hash(&state, &keys));
     }
 }

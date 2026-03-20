@@ -43,6 +43,8 @@ pub struct ZobristKeys {
     pub terrain: [u64; NUM_TERRAINS],
     pub trick_room: u64,
     pub gravity: u64,
+    pub magic_room: u64,
+    pub wonder_room: u64,
     pub phase: [u64; 5],
 }
 
@@ -79,10 +81,13 @@ impl ZobristKeys {
         let mut terrain = [0u64; NUM_TERRAINS]; rng.fill(&mut terrain);
         let trick_room = rng.next();
         let gravity = rng.next();
+        let magic_room = rng.next();
+        let wonder_room = rng.next();
         let mut phase = [0u64; 5]; rng.fill(&mut phase);
 
         Self { species, hp_bucket, status, item, active_index, boosts,
-               volatile_bit, weather, terrain, trick_room, gravity, phase }
+               volatile_bit, weather, terrain, trick_room, gravity,
+               magic_room, wonder_room, phase }
     }
 }
 
@@ -123,6 +128,8 @@ pub fn compute_full_hash(state: &BattleState, keys: &ZobristKeys) -> u64 {
     h ^= keys.terrain[state.field.terrain as usize];
     if state.field.trick_room_turns > 0 { h ^= keys.trick_room; }
     if state.field.gravity_turns > 0 { h ^= keys.gravity; }
+    if state.field.magic_room_turns() > 0 { h ^= keys.magic_room; }
+    if state.field.wonder_room_turns() > 0 { h ^= keys.wonder_room; }
     h ^= keys.phase[state.phase as usize];
     h
 }

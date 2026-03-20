@@ -6,6 +6,7 @@ use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 use crate::state::forme;
+use crate::state::calc_modifiers::terrain_blocks_status;
 
 pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_weather(state, keys);                                   // 1
@@ -155,8 +156,10 @@ fn step_binding_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     // Magic Guard blocks damage but counter still ticks
     if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
 
-    let opp_item_id = state.sides[1-side].team[state.sides[1-side].active_index as usize].item_id;
-    let has_band = data_bridge::item(opp_item_id).has(ItemFlag::BINDING_BOOST);
+    let has_band = if state.field.magic_room_turns() == 0 {
+        let opp_item_id = state.sides[1-side].team[state.sides[1-side].active_index as usize].item_id;
+        data_bridge::item(opp_item_id).has(ItemFlag::BINDING_BOOST)
+    } else { false };
     let (n, d) = if has_band { (1, 6) } else { (1, 8) };
     deal_proportional_damage(state, keys, side, slot, n, d);
 }
@@ -183,6 +186,7 @@ fn step_grassy_terrain(state: &mut BattleState, keys: &ZobristKeys) {
 fn step_item_healing(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let slot = state.sides[side].active_index as usize;
     if state.sides[side].team[slot].is_fainted() { return; }
+    if state.field.magic_room_turns() > 0 { return; }
     let itm = data_bridge::item(state.sides[side].team[slot].item_id);
     if itm.has(ItemFlag::LEFTOVERS) {
         let m = state.sides[side].team[slot].max_hp;
@@ -256,8 +260,10 @@ fn step_yawn(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     // Yawn puts the target to sleep the turn after it's used
     clear_volatile(state, keys, side, VOL_YAWN);
     if state.sides[side].team[slot].status == STATUS_NONE {
-        // Check safeguard
-        if state.sides[side].side_conditions.safeguard_turns() == 0 {
+        if state.sides[side].side_conditions.safeguard_turns() == 0
+            && !crate::state::forme::is_minior_meteor_forme(state, side)
+            && !terrain_blocks_status(state, side, STATUS_SLEEP)
+        {
             set_status(state, keys, side, slot, STATUS_SLEEP, 2); // 1-3 turns
         }
     }
@@ -300,6 +306,14 @@ fn step_volatile_counters(state: &mut BattleState, keys: &ZobristKeys) {
     if state.field.gravity_turns > 0 {
         state.field.gravity_turns -= 1;
         if state.field.gravity_turns == 0 { state.zobrist ^= keys.gravity; }
+    }
+    if state.field.magic_room_turns() > 0 {
+        let new_turns = state.field.magic_room_turns() - 1;
+        set_magic_room(state, keys, new_turns);
+    }
+    if state.field.wonder_room_turns() > 0 {
+        let new_turns = state.field.wonder_room_turns() - 1;
+        set_wonder_room(state, keys, new_turns);
     }
 }
 
@@ -687,5 +701,93 @@ mod tests {
 
         // Flying-type (not grounded) doesn't heal
         assert_eq!(s.sides[0].team[0].current_hp, 100);
+    }
+
+    #[test]
+    fn test_gravity_expires() {
+        let (mut s, k) = setup();
+        set_gravity(&mut s, &k, 1);
+        assert!(s.field.gravity_turns > 0);
+        step_volatile_counters(&mut s, &k);
+        assert_eq!(s.field.gravity_turns, 0);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_magic_room_expires() {
+        let (mut s, k) = setup();
+        set_magic_room(&mut s, &k, 1);
+        assert!(s.field.magic_room_turns() > 0);
+        step_volatile_counters(&mut s, &k);
+        assert_eq!(s.field.magic_room_turns(), 0);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_wonder_room_expires() {
+        let (mut s, k) = setup();
+        set_wonder_room(&mut s, &k, 1);
+        assert!(s.field.wonder_room_turns() > 0);
+        step_volatile_counters(&mut s, &k);
+        assert_eq!(s.field.wonder_room_turns(), 0);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_magic_room_suppresses_item_healing() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].item_id = 145; // Flame Orb
+        set_magic_room(&mut s, &k, 5);
+        s.zobrist = compute_full_hash(&s, &k);
+        step_item_healing(&mut s, &k, 0);
+        // Magic Room suppresses Flame Orb — no burn
+        assert_eq!(s.sides[0].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_field_flags_packing() {
+        let mut f = FieldState::default();
+        f.set_magic_room_turns(5);
+        assert_eq!(f.magic_room_turns(), 5);
+        assert_eq!(f.wonder_room_turns(), 0);
+
+        f.set_wonder_room_turns(3);
+        assert_eq!(f.magic_room_turns(), 5);
+        assert_eq!(f.wonder_room_turns(), 3);
+
+        // Weather suppressed flag doesn't interfere
+        f.field_flags |= FIELD_WEATHER_SUPPRESSED;
+        assert_eq!(f.magic_room_turns(), 5);
+        assert_eq!(f.wonder_room_turns(), 3);
+        assert!(f.field_flags & FIELD_WEATHER_SUPPRESSED != 0);
+    }
+
+    #[test]
+    fn test_side_conditions_expire_after_eot() {
+        let (mut s, _k) = setup();
+        s.sides[0].side_conditions.set_safeguard_turns(1);
+        s.sides[0].side_conditions.set_mist_turns(1);
+        s.sides[0].side_conditions.set_lucky_chant_turns(1);
+
+        step_side_condition_expiry(&mut s, 0);
+
+        assert_eq!(s.sides[0].side_conditions.safeguard_turns(), 0);
+        assert_eq!(s.sides[0].side_conditions.mist_turns(), 0);
+        assert_eq!(s.sides[0].side_conditions.lucky_chant_turns(), 0);
+    }
+
+    #[test]
+    fn test_safeguard_does_not_block_flame_orb() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].item_id = 145; // Flame Orb
+        s.sides[0].side_conditions.set_safeguard_turns(5);
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_item_healing(&mut s, &k, 0);
+
+        // Flame Orb is self-inflicted — Safeguard does not block
+        assert_eq!(s.sides[0].team[0].status, STATUS_BURN);
+        assert!(validate_hash(&s, &k));
     }
 }
