@@ -602,4 +602,66 @@ mod tests {
         assert!(!s.sides[0].active.has_volatile(VOL_PERISH_SONG)); // cleared
         assert!(validate_hash(&s, &k));
     }
+
+    #[test]
+    fn test_terrain_expires() {
+        let (mut s, k) = setup();
+        s.field.terrain = TERRAIN_ELECTRIC;
+        s.field.terrain_turns = 1;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_terrain_expiry(&mut s, &k);
+
+        assert_eq!(s.field.terrain, TERRAIN_NONE);
+        assert_eq!(s.field.terrain_turns, 0);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_terrain_countdown_not_expired() {
+        let (mut s, k) = setup();
+        s.field.terrain = TERRAIN_PSYCHIC;
+        s.field.terrain_turns = 3;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_terrain_expiry(&mut s, &k);
+
+        assert_eq!(s.field.terrain, TERRAIN_PSYCHIC);
+        assert_eq!(s.field.terrain_turns, 2);
+    }
+
+    #[test]
+    fn test_grassy_terrain_healing() {
+        let (mut s, k) = setup();
+        s.field.terrain = TERRAIN_GRASSY;
+        s.field.terrain_turns = 5;
+        // Reduce HP so healing is visible
+        s.sides[0].team[0].current_hp = 100;
+        s.sides[1].team[0].current_hp = 100;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_grassy_terrain(&mut s, &k);
+
+        // Both grounded mons heal 1/16 max HP = 200/16 = 12
+        assert_eq!(s.sides[0].team[0].current_hp, 112);
+        assert_eq!(s.sides[1].team[0].current_hp, 112);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_grassy_terrain_no_heal_flying() {
+        let (mut s, k) = setup();
+        s.field.terrain = TERRAIN_GRASSY;
+        s.field.terrain_turns = 5;
+        s.sides[0].team[0].current_hp = 100;
+        // Make side 0 Flying-type (not grounded)
+        s.sides[0].active.override_types = [Type::Flying as u8, Type::Flying as u8];
+        s.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        s.zobrist = compute_full_hash(&s, &k);
+
+        step_grassy_terrain(&mut s, &k);
+
+        // Flying-type (not grounded) doesn't heal
+        assert_eq!(s.sides[0].team[0].current_hp, 100);
+    }
 }

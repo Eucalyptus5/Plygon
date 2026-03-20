@@ -12,7 +12,7 @@ use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 use crate::state::calc::calc_damage;
-use crate::state::calc_modifiers::{ability_type_immunity, ability_flag_immunity, good_as_gold_immunity, priority_block_immunity, AbilityImmunityEffect};
+use crate::state::calc_modifiers::{ability_type_immunity, ability_flag_immunity, good_as_gold_immunity, priority_block_immunity, terrain_blocks_status, AbilityImmunityEffect};
 use crate::state::forme::{apply_battle_forme, revert_battle_forme};
 use crate::state::switch::{
     set_stealth_rock, add_spikes, add_toxic_spikes, set_sticky_web, clear_hazards,
@@ -165,7 +165,7 @@ fn apply_secondary(
         }
     };
 
-    if status != STATUS_NONE {
+    if status != STATUS_NONE && !terrain_blocks_status(state, def_side, status) {
         set_status(state, keys, def_side, def_slot, status, 0);
         return;
     }
@@ -245,24 +245,32 @@ fn execute_status_move(
             clear_terrain(state, keys);
         }
 
-        // -- Status infliction (blocked by Safeguard) --
+        // -- Status infliction (blocked by Safeguard / terrain) --
         MoveEffect::WillOWisp   => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !terrain_blocks_status(state, def_side, STATUS_BURN)
+            {
                 set_status(state, keys, def_side, def_slot, STATUS_BURN, 0);
             }
         }
         MoveEffect::ThunderWave => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !terrain_blocks_status(state, def_side, STATUS_PARALYSIS)
+            {
                 set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0);
             }
         }
         MoveEffect::Toxic       => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
+            {
                 set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
             }
         }
         MoveEffect::Sleep       => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0 {
+            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
+            {
                 let turns = (rng(3) + 1) as u8;
                 set_status(state, keys, def_side, def_slot, STATUS_SLEEP, turns);
             }
@@ -1602,6 +1610,7 @@ pub fn execute_move(
                 data_bridge::ABILITY_POISON_TOUCH
                     if md.flags & MoveFlags::CONTACT != 0
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
+                    && !terrain_blocks_status(state, def_side, STATUS_POISON)
                     => {
                     if rng(100) < 30 {
                         set_status(state, keys, def_side, def_slot, STATUS_POISON, 0);
@@ -1610,6 +1619,7 @@ pub fn execute_move(
                 // Toxic Chain: 30% toxic on any hit
                 data_bridge::ABILITY_TOXIC_CHAIN
                     if state.sides[def_side].team[def_slot].status == STATUS_NONE
+                    && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
                     => {
                     if rng(100) < 30 {
                         set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
@@ -1695,28 +1705,28 @@ pub fn execute_move(
                 && state.sides[atk_side].team[atk_slot].status == STATUS_NONE
             {
                 match def_ability {
-                    data_bridge::ABILITY_FLAME_BODY => {
+                    data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) => {
                         if rng(100) < 30 {
                             set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0);
                         }
                     }
-                    data_bridge::ABILITY_STATIC => {
+                    data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) => {
                         if rng(100) < 30 {
                             set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
                         }
                     }
-                    data_bridge::ABILITY_POISON_POINT => {
+                    data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) => {
                         if rng(100) < 30 {
                             set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
                         }
                     }
                     data_bridge::ABILITY_EFFECT_SPORE => {
                         let roll = rng(100);
-                        if roll < 10 {
+                        if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
                             set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 1) as u8);
-                        } else if roll < 20 {
+                        } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) {
                             set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
-                        } else if roll < 30 {
+                        } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) {
                             set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
                         }
                     }
@@ -4376,5 +4386,84 @@ mod tests {
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[1].active.boosts[SPA], 0);
+    }
+
+    #[test]
+    fn test_electric_terrain_no_sleep() {
+        use crate::data::MOVE_SPORE;
+        let (mut state, keys) = setup();
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, MOVE_SPORE as u16, 0, &mut fixed_rng(0));
+
+        // Grounded mon should not be put to sleep
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_misty_terrain_no_status() {
+        use crate::data::MOVE_WILL_O_WISP;
+        let (mut state, keys) = setup();
+        state.field.terrain = TERRAIN_MISTY;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        execute_move(&mut state, &keys, 0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
+
+        // Grounded mon should not be burned
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_psychic_terrain_blocks_priority() {
+        use crate::data::MOVE_QUICK_ATTACK;
+        let (mut state, keys) = setup();
+        state.field.terrain = TERRAIN_PSYCHIC;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
+
+        // Priority move should fail against grounded target
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_psychic_terrain_allows_normal_priority() {
+        use crate::data::MOVE_SURF;
+        let (mut state, keys) = setup();
+        state.field.terrain = TERRAIN_PSYCHIC;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
+
+        // Normal priority move should work
+        assert!(state.sides[1].team[0].current_hp < hp_before);
+    }
+
+    #[test]
+    fn test_psychic_terrain_no_block_flying_target() {
+        use crate::data::MOVE_QUICK_ATTACK;
+        let (mut state, keys) = setup();
+        state.field.terrain = TERRAIN_PSYCHIC;
+        state.field.terrain_turns = 5;
+        // Make defender Flying (not grounded)
+        state.sides[1].active.override_types = [Type::Flying as u8, Type::Flying as u8];
+        state.sides[1].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
+
+        // Non-grounded target should still take priority damage
+        assert!(state.sides[1].team[0].current_hp < hp_before);
     }
 }

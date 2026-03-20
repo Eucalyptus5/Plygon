@@ -243,6 +243,9 @@ pub fn calc_damage(
         if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
         dmg = chain_mod(dmg, wn, wd);
 
+        let (tn, td) = terrain_modifier(state, atk_side, def_side, move_type, move_id);
+        dmg = chain_mod(dmg, tn, td);
+
         if is_crit {
             let (cn, cd) = crit_multiplier(atk_ability);
             dmg = chain_mod(dmg, cn, cd);

@@ -8,6 +8,7 @@ use crate::state::data_bridge::{self, ItemData, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
 use crate::data::moves::{MoveData, MoveFlags, MoveEffect, SelfEffect, VarPower};
 use crate::data::types::Type;
+use crate::data::{MOVE_EARTHQUAKE, MOVE_BULLDOZE, MOVE_MAGNITUDE};
 
 /// Apply a (num, den) modifier to a value, flooring the result.
 #[inline(always)]
@@ -26,6 +27,52 @@ pub fn weather_modifier(weather: u8, move_type: Type) -> (u32, u32) {
         (WEATHER_RAIN, Type::Fire)         => (2048, 4096),
         (WEATHER_HARSH_SUN, Type::Water)   => (0, 4096),     // nullified
         (WEATHER_HEAVY_RAIN, Type::Fire)   => (0, 4096),
+        _ => (4096, 4096),
+    }
+}
+
+/// Returns (num, den) in 4096-scale for terrain's effect on move damage.
+/// Checks attacker grounding for type boosts, defender grounding for
+/// Misty Dragon-type weakening and Grassy Earthquake/Bulldoze/Magnitude weakening.
+#[inline]
+pub fn terrain_modifier(
+    state: &BattleState, atk_side: usize, def_side: usize,
+    move_type: Type, move_id: u16,
+) -> (u32, u32) {
+    match state.field.terrain {
+        TERRAIN_ELECTRIC => {
+            if move_type == Type::Electric && is_grounded(state, atk_side) {
+                (5325, 4096) // 1.3×
+            } else {
+                (4096, 4096)
+            }
+        }
+        TERRAIN_GRASSY => {
+            let mid = move_id as usize;
+            if (mid == MOVE_EARTHQUAKE || mid == MOVE_BULLDOZE || mid == MOVE_MAGNITUDE)
+                && is_grounded(state, def_side)
+            {
+                (2048, 4096) // 0.5×
+            } else if move_type == Type::Grass && is_grounded(state, atk_side) {
+                (5325, 4096) // 1.3×
+            } else {
+                (4096, 4096)
+            }
+        }
+        TERRAIN_PSYCHIC => {
+            if move_type == Type::Psychic && is_grounded(state, atk_side) {
+                (5325, 4096) // 1.3×
+            } else {
+                (4096, 4096)
+            }
+        }
+        TERRAIN_MISTY => {
+            if move_type == Type::Dragon && is_grounded(state, def_side) {
+                (2048, 4096) // 0.5×
+            } else {
+                (4096, 4096)
+            }
+        }
         _ => (4096, 4096),
     }
 }
@@ -539,22 +586,38 @@ pub fn ability_flag_immunity(
     }
 }
 
+/// Check if terrain blocks a status condition on the target.
+/// Electric Terrain: blocks sleep on grounded mons.
+/// Misty Terrain: blocks all status on grounded mons.
+#[inline]
+pub fn terrain_blocks_status(state: &BattleState, side: usize, status: u8) -> bool {
+    match state.field.terrain {
+        TERRAIN_ELECTRIC => status == STATUS_SLEEP && is_grounded(state, side),
+        TERRAIN_MISTY => status != STATUS_NONE && is_grounded(state, side),
+        _ => false,
+    }
+}
+
 /// Check if Good as Gold blocks a status move (non-self-targeting).
 #[inline]
 pub fn good_as_gold_immunity(state: &BattleState, def_side: usize) -> bool {
     effective_ability(state, def_side) == data_bridge::ABILITY_GOOD_AS_GOLD
 }
 
-/// Check if Dazzling / Queenly Majesty / Armor Tail blocks a priority move.
+/// Check if Dazzling / Queenly Majesty / Armor Tail / Psychic Terrain blocks a priority move.
 #[inline]
 pub fn priority_block_immunity(state: &BattleState, def_side: usize, priority: i8) -> bool {
     if priority <= 0 { return false; }
     let ability = effective_ability(state, def_side);
-    matches!(ability,
+    if matches!(ability,
         data_bridge::ABILITY_DAZZLING |
         data_bridge::ABILITY_QUEENLY_MAJESTY |
         data_bridge::ABILITY_ARMOR_TAIL
-    )
+    ) {
+        return true;
+    }
+    // Psychic Terrain blocks priority moves against grounded targets
+    state.field.terrain == TERRAIN_PSYCHIC && is_grounded(state, def_side)
 }
 
 /// Legacy wrapper used by calc_damage (returns Option<u16> for backward compat).
@@ -1108,5 +1171,154 @@ mod tests {
                 faint_count, expected_num,
             );
         }
+    }
+
+    #[test]
+    fn test_electric_terrain_boost() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        // No terrain → no boost
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Electric, 1), (4096, 4096));
+
+        // Electric Terrain + Electric type + grounded → 1.3×
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Electric, 1), (5325, 4096));
+
+        // Non-Electric type → no boost
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Normal, 1), (4096, 4096));
+    }
+
+    #[test]
+    fn test_grassy_terrain_boost() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        state.field.terrain = TERRAIN_GRASSY;
+        state.field.terrain_turns = 5;
+
+        // Grass type + grounded → 1.3×
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Grass, 1), (5325, 4096));
+
+        // Earthquake weakened when defender grounded → 0.5×
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Ground, MOVE_EARTHQUAKE as u16), (2048, 4096));
+
+        // Bulldoze also weakened
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Ground, MOVE_BULLDOZE as u16), (2048, 4096));
+    }
+
+    #[test]
+    fn test_psychic_terrain_boost() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        state.field.terrain = TERRAIN_PSYCHIC;
+        state.field.terrain_turns = 5;
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Psychic, 1), (5325, 4096));
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Normal, 1), (4096, 4096));
+    }
+
+    #[test]
+    fn test_misty_terrain_dragon_weaken() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        state.field.terrain = TERRAIN_MISTY;
+        state.field.terrain_turns = 5;
+
+        // Dragon type on grounded defender → 0.5×
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Dragon, 1), (2048, 4096));
+
+        // Non-Dragon → no change
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Fire, 1), (4096, 4096));
+    }
+
+    #[test]
+    fn test_terrain_not_grounded() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        // Make attacker Flying-type (not grounded) via override_types
+        state.sides[0].active.override_types = [Type::Flying as u8, Type::Flying as u8];
+        state.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+
+        // Flying-type attacker doesn't get Electric Terrain boost
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Electric, 1), (4096, 4096));
+
+        // Make defender Flying for Misty
+        state.field.terrain = TERRAIN_MISTY;
+        state.sides[1].active.override_types = [Type::Flying as u8, Type::Flying as u8];
+        state.sides[1].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        assert_eq!(terrain_modifier(&state, 0, 1, Type::Dragon, 1), (4096, 4096));
+    }
+
+    #[test]
+    fn test_terrain_blocks_status_electric() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+
+        // No terrain → no block
+        assert!(!terrain_blocks_status(&state, 0, STATUS_SLEEP));
+
+        // Electric Terrain blocks sleep for grounded
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        assert!(terrain_blocks_status(&state, 0, STATUS_SLEEP));
+        assert!(!terrain_blocks_status(&state, 0, STATUS_BURN)); // only sleep
+    }
+
+    #[test]
+    fn test_terrain_blocks_status_misty() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+
+        state.field.terrain = TERRAIN_MISTY;
+        state.field.terrain_turns = 5;
+
+        // Misty blocks all statuses for grounded
+        assert!(terrain_blocks_status(&state, 0, STATUS_BURN));
+        assert!(terrain_blocks_status(&state, 0, STATUS_PARALYSIS));
+        assert!(terrain_blocks_status(&state, 0, STATUS_POISON));
+        assert!(terrain_blocks_status(&state, 0, STATUS_BAD_POISON));
+        assert!(terrain_blocks_status(&state, 0, STATUS_SLEEP));
+        assert!(terrain_blocks_status(&state, 0, STATUS_FREEZE));
+
+        // Flying-type → not grounded → not blocked
+        state.sides[0].active.override_types = [Type::Flying as u8, Type::Flying as u8];
+        state.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        assert!(!terrain_blocks_status(&state, 0, STATUS_BURN));
+    }
+
+    #[test]
+    fn test_psychic_terrain_priority_block() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[1].team[0].species_id = 2;
+
+        // No terrain → no block
+        assert!(!priority_block_immunity(&state, 1, 1));
+
+        // Psychic Terrain + grounded defender → blocks priority
+        state.field.terrain = TERRAIN_PSYCHIC;
+        state.field.terrain_turns = 5;
+        assert!(priority_block_immunity(&state, 1, 1));
+
+        // Zero or negative priority → not blocked
+        assert!(!priority_block_immunity(&state, 1, 0));
+        assert!(!priority_block_immunity(&state, 1, -1));
+
+        // Flying defender → not grounded → not blocked
+        state.sides[1].active.override_types = [Type::Flying as u8, Type::Flying as u8];
+        state.sides[1].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        assert!(!priority_block_immunity(&state, 1, 1));
     }
 }
