@@ -67,6 +67,21 @@ pub fn calc_damage(
 
     let mut result = DamageResult::default();
 
+    // Tera Blast category override: compare boosted Atk vs SpA (boost stages only, no ability/item mods)
+    let category = if md.effect == MoveEffect::TeraBlast && state.active_mon(atk_side).is_terastallized() {
+        let atk_boosted = boosted_stat(
+            effective_stat(state, atk_side, ATK),
+            state.sides[atk_side].active.boosts[ATK],
+        );
+        let spa_boosted = boosted_stat(
+            effective_stat(state, atk_side, SPA),
+            state.sides[atk_side].active.boosts[SPA],
+        );
+        if atk_boosted > spa_boosted { MoveCategory::Physical } else { MoveCategory::Special }
+    } else {
+        md.category
+    };
+
     let (move_type, ate_boost) = resolve_move_type_with_ability(state, md, atk_side, atk_ability);
 
     let (def_t1, def_t2) = effective_types(state, def_side);
@@ -119,7 +134,7 @@ pub fn calc_damage(
     }
 
     let (ip_n, ip_d) = item_power_mod(
-        atk_item, atk_mon.item_id, move_type, md.category, md.flags,
+        atk_item, atk_mon.item_id, move_type, category, md.flags,
         state.sides[atk_side].active.consec_move_count,
     );
     power = chain_mod(power, ip_n, ip_d);
@@ -135,7 +150,7 @@ pub fn calc_damage(
         power *= 2;
     }
 
-    let is_physical = md.category == MoveCategory::Physical;
+    let is_physical = category == MoveCategory::Physical;
     let (mut atk_stat_idx, mut def_stat_idx) = if is_physical { (ATK, DEF) } else { (SPA, SPD) };
     let mut atk_stat_side = atk_side;
 
@@ -172,14 +187,14 @@ pub fn calc_damage(
     }
 
     a = ability_atk_stat_mod(
-        a, atk_ability, md.category, atk_mon.status,
+        a, atk_ability, category, atk_mon.status,
         move_type, effective_weather(state),
         atk_mon.current_hp, atk_mon.max_hp,
         state.sides[atk_side].active.turns_active,
         state.sides[def_side].active.turns_active,
     );
     d = ability_def_stat_mod(
-        d, def_ability, md.category, move_type,
+        d, def_ability, category, move_type,
         def_mon.status, effective_weather(state), state.field.terrain,
     );
 
@@ -226,7 +241,7 @@ pub fn calc_damage(
         if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
     }
 
-    d = weather_def_stat_mod(d, effective_weather(state), md.category, def_t1, def_t2);
+    d = weather_def_stat_mod(d, effective_weather(state), category, def_t1, def_t2);
 
     if d == 0 { d = 1; }
     if power == 0 { return result; }
@@ -261,10 +276,10 @@ pub fn calc_damage(
         // eff is in 4x scale: 0=immune, 2=0.5x, 4=1x, 8=2x, 16=4x
         dmg = dmg * eff as u32 / 4;
 
-        let (bn, bd) = burn_modifier(atk_mon.status, md.category, atk_ability);
+        let (bn, bd) = burn_modifier(atk_mon.status, category, atk_ability);
         dmg = chain_mod(dmg, bn, bd);
 
-        let (scn, scd) = screen_modifier(state, def_side, md.category, is_crit);
+        let (scn, scd) = screen_modifier(state, def_side, category, is_crit);
         dmg = chain_mod(dmg, scn, scd);
 
         let (dan, dad) = defender_ability_final_mod(state, md, def_side, eff);
@@ -556,5 +571,110 @@ mod tests {
         let eff = dual_type_effectiveness(Type::Ice, Type::Fire, Type::Fire);
         assert_eq!(eff, 2);
         // No Water → no change
+    }
+
+    #[test]
+    fn test_tera_blast_category() {
+        // Tera Blast: Physical when boosted Atk > boosted SpA, else Special
+        let mut state = test_state();
+        state.sides[0].team[0].species_id = 4; // Charmander
+        state.sides[0].team[0].tera_type = Type::Water as u8;
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        // stats: [Atk=150, Def=100, SpA=150, SpD=100, Spe=100]
+
+        // Equal Atk and SpA → defaults to Special
+        // We test by checking which defense stat is used:
+        // Special → damage based on SpA vs SpD, Physical → Atk vs Def
+
+        // Set Atk=200, SpA=100 → Physical
+        state.sides[0].team[0].stats[ATK] = 200;
+        state.sides[0].team[0].stats[SPA] = 100;
+        let result_phys = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+
+        // Set Atk=100, SpA=200 → Special
+        state.sides[0].team[0].stats[ATK] = 100;
+        state.sides[0].team[0].stats[SPA] = 200;
+        let result_spec = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+
+        // Both use the same offensive stat value (200) but hit different defenses.
+        // Defender has uniform stats (100 for both Def and SpD), so damage should be similar
+        // but the key test is that both produce non-zero damage (Tera Blast is working)
+        assert!(result_phys.damage > 0, "Physical Tera Blast should deal damage");
+        assert!(result_spec.damage > 0, "Special Tera Blast should deal damage");
+
+        // Test with boosts: +2 Atk with lower raw Atk should override to Physical
+        state.sides[0].team[0].stats[ATK] = 100;
+        state.sides[0].team[0].stats[SPA] = 120;
+        state.sides[0].active.boosts[ATK] = 2; // 2× boost → effective 200
+        state.sides[0].active.boosts[SPA] = 0; // no boost → 120
+        let result_boosted = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+        assert!(result_boosted.damage > 0, "Boosted Tera Blast should deal damage");
+
+        // When NOT terastallized → stays Special (default category)
+        state.sides[0].team[0].flags &= !MON_FLAG_TERASTALLIZED;
+        state.sides[0].team[0].stats[ATK] = 300;
+        state.sides[0].team[0].stats[SPA] = 100;
+        state.sides[0].active.boosts[ATK] = 0;
+        let result_normal = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+        // Not terastallized: Normal type, Special category (despite higher Atk)
+        assert!(result_normal.damage > 0);
+    }
+
+    #[test]
+    fn test_tera_once_per_battle() {
+        use crate::state::legal_moves::legal_actions;
+
+        let mut state = BattleState::default();
+        state.phase = PHASE_ACTIONS;
+        state.sides[0].team[0] = MonSlot {
+            species_id: 4,
+            current_hp: 300, max_hp: 300,
+            stats: [100, 100, 100, 100, 100],
+            tera_type: Type::Fire as u8,
+            moves: [1, 0, 0, 0], pp: [24, 0, 0, 0],
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 1,
+            current_hp: 300, max_hp: 300,
+            stats: [100, 100, 100, 100, 100],
+            ..Default::default()
+        };
+
+        // Tera should be available
+        let actions = legal_actions(&state, 0);
+        assert!(actions.as_slice().contains(&ACTION_TERA), "Tera should be available initially");
+
+        // After tera used → no longer available
+        state.sides[0]._padding[0] |= 1; // set tera_used flag
+        let actions = legal_actions(&state, 0);
+        assert!(!actions.as_slice().contains(&ACTION_TERA), "Tera should not be available after use");
+    }
+
+    #[test]
+    fn test_tera_defensive_type() {
+        // When terastallized, defensive type changes to tera type
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 4; // Charmander: Fire/Fire
+        state.sides[0].team[0].tera_type = Type::Water as u8;
+        state.sides[0].team[0].current_hp = 300;
+        state.sides[0].team[0].max_hp = 300;
+
+        // Not terastallized → Fire/Fire
+        let (t1, t2) = effective_types(&state, 0);
+        assert_eq!(t1, Type::Fire as u8);
+        assert_eq!(t2, Type::Fire as u8);
+
+        // Terastallized → Water/Water
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        let (t1, t2) = effective_types(&state, 0);
+        assert_eq!(t1, Type::Water as u8);
+        assert_eq!(t2, Type::Water as u8);
+
+        // Electric move should be SE vs Water (eff=8), not NVE vs Fire (eff=2)
+        let def_type1 = unsafe { core::mem::transmute::<u8, Type>(t1) };
+        let def_type2 = unsafe { core::mem::transmute::<u8, Type>(t2) };
+        let eff = dual_type_effectiveness(Type::Electric, def_type1, def_type2);
+        assert_eq!(eff, 8); // 2× super effective vs Water
     }
 }

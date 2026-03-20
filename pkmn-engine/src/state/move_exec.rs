@@ -1484,7 +1484,9 @@ pub fn execute_move(
         }
     }
 
-    if !state.sides[def_side].team[def_slot].is_fainted() {
+    if !state.sides[def_side].team[def_slot].is_fainted()
+        && !result.hits_substitute
+    {
         apply_secondary(state, keys, atk_side, def_side, md, rng);
     }
 
@@ -1680,68 +1682,66 @@ pub fn execute_move(
     if md.flags & MoveFlags::CONTACT != 0
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && !state.sides[def_side].team[def_slot].is_fainted()
+        && !result.hits_substitute
     {
-        // Rocky Helmet: 1/6 max HP (triggers even through substitute)
+        // Rocky Helmet: 1/6 max HP
         let def_itm = data_bridge::item(state.active_mon(def_side).item_id);
         if def_itm.has(ItemFlag::ROCKY_HELMET) {
             let atk_max = state.active_mon(atk_side).max_hp;
             deal_damage(state, keys, atk_side, atk_slot, atk_max / 6);
         }
 
-        // Ability-based contact aftermath (only on direct hit, not through sub)
-        if !result.hits_substitute {
-            let def_ability = effective_ability(state, def_side);
+        let def_ability = effective_ability(state, def_side);
 
-            // Rough Skin / Iron Barbs: 1/8 max HP
-            if def_ability == data_bridge::ABILITY_ROUGH_SKIN
-                || def_ability == data_bridge::ABILITY_IRON_BARBS
-            {
-                let atk_max = state.active_mon(atk_side).max_hp;
-                deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
-            }
+        // Rough Skin / Iron Barbs: 1/8 max HP
+        if def_ability == data_bridge::ABILITY_ROUGH_SKIN
+            || def_ability == data_bridge::ABILITY_IRON_BARBS
+        {
+            let atk_max = state.active_mon(atk_side).max_hp;
+            deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
+        }
 
-            // Contact status abilities (attacker alive + no status)
-            if !state.sides[atk_side].team[atk_slot].is_fainted()
-                && state.sides[atk_side].team[atk_slot].status == STATUS_NONE
-            {
-                match def_ability {
-                    data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) => {
-                        if rng(100) < 30 {
-                            set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0);
-                        }
+        // Contact status abilities (attacker alive + no status)
+        if !state.sides[atk_side].team[atk_slot].is_fainted()
+            && state.sides[atk_side].team[atk_slot].status == STATUS_NONE
+        {
+            match def_ability {
+                data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) => {
+                    if rng(100) < 30 {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0);
                     }
-                    data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) => {
-                        if rng(100) < 30 {
-                            set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
-                        }
-                    }
-                    data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) => {
-                        if rng(100) < 30 {
-                            set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
-                        }
-                    }
-                    data_bridge::ABILITY_EFFECT_SPORE => {
-                        let roll = rng(100);
-                        if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
-                            set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 1) as u8);
-                        } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) {
-                            set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
-                        } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) {
-                            set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
-                        }
-                    }
-                    _ => {}
                 }
-            }
-
-            // Cute Charm: 30% attract on contact
-            if def_ability == data_bridge::ABILITY_CUTE_CHARM
-                && !state.sides[atk_side].team[atk_slot].is_fainted()
-                && !state.sides[atk_side].active.is_attracted()
-            {
-                if rng(100) < 30 {
-                    state.sides[atk_side].active.set_attracted(true);
+                data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) => {
+                    if rng(100) < 30 {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
+                    }
                 }
+                data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) => {
+                    if rng(100) < 30 {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
+                    }
+                }
+                data_bridge::ABILITY_EFFECT_SPORE => {
+                    let roll = rng(100);
+                    if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 1) as u8);
+                    } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
+                    } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Cute Charm: 30% attract on contact
+        if def_ability == data_bridge::ABILITY_CUTE_CHARM
+            && !state.sides[atk_side].team[atk_slot].is_fainted()
+            && !state.sides[atk_side].active.is_attracted()
+        {
+            if rng(100) < 30 {
+                state.sides[atk_side].active.set_attracted(true);
             }
         }
     }
@@ -4465,5 +4465,146 @@ mod tests {
 
         // Non-grounded target should still take priority damage
         assert!(state.sides[1].team[0].current_hp < hp_before);
+    }
+
+    // === Task 12: Pivot, Substitute, Contact Aftermath ===
+
+    #[test]
+    fn test_uturn_switch_after_damage() {
+        use crate::data::MOVE_U_TURN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < hp_before);
+        assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_uturn_no_switch_no_bench() {
+        use crate::data::MOVE_U_TURN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.sides[0].team[1].current_hp = 0;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_uturn_miss_no_switch() {
+        use crate::data::MOVE_U_TURN;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        // +6 evasion makes accuracy 100 → effective 33, rng(100)=99 → miss
+        state.sides[1].active.boosts[EVA] = 6;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before);
+        assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_parting_shot_stat_drop_switch() {
+        let (mut state, keys) = setup();
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::PartingShot,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].active.boosts[ATK], -1);
+        assert_eq!(state.sides[1].active.boosts[SPA], -1);
+        assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_substitute_blocks_damage() {
+        let (mut state, keys) = setup();
+        state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
+        state.sides[1].active.substitute_hp = 200;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before);
+        assert!(state.sides[1].active.substitute_hp < 200);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_substitute_breaks() {
+        let (mut state, keys) = setup();
+        state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
+        state.sides[1].active.substitute_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        assert!(!state.sides[1].active.has_volatile(VOL_SUBSTITUTE));
+        assert_eq!(state.sides[1].active.substitute_hp, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_substitute_blocks_secondary() {
+        use crate::data::MOVE_SCALD;
+        let (mut state, keys) = setup();
+        state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
+        state.sides[1].active.substitute_hp = 500;
+        state.sides[0].team[0].moves[0] = MOVE_SCALD as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].active.substitute_hp < 500);
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_sound_bypasses_substitute() {
+        use crate::data::MOVE_BOOMBURST;
+        let (mut state, keys) = setup();
+        state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
+        state.sides[1].active.substitute_hp = 100;
+        state.sides[0].team[0].moves[0] = MOVE_BOOMBURST as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_BOOMBURST as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < hp_before);
+        assert_eq!(state.sides[1].active.substitute_hp, 100);
+        assert!(state.sides[1].active.has_volatile(VOL_SUBSTITUTE));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_rocky_helmet_contact() {
+        use crate::data::MOVE_U_TURN;
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = 417; // Rocky Helmet
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        let helmet_damage = 300 / 6; // 50
+        assert!(hp_before - state.sides[0].team[0].current_hp >= helmet_damage as u16);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_rocky_helmet_no_contact() {
+        use crate::data::MOVE_SCALD;
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = 417; // Rocky Helmet
+        state.sides[0].team[0].moves[0] = MOVE_SCALD as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
     }
 }

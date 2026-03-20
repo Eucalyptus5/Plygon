@@ -679,6 +679,14 @@ pub fn resolve_move_type(
                 md.move_type
             }
         }
+        MoveEffect::TeraBlast => {
+            let mon = state.active_mon(atk_side);
+            if mon.is_terastallized() {
+                unsafe { core::mem::transmute::<u8, Type>(mon.tera_type) }
+            } else {
+                md.move_type
+            }
+        }
         _ => md.move_type,
     }
 }
@@ -1320,5 +1328,81 @@ mod tests {
         state.sides[1].active.override_types = [Type::Flying as u8, Type::Flying as u8];
         state.sides[1].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
         assert!(!priority_block_immunity(&state, 1, 1));
+    }
+
+    #[test]
+    fn test_tera_stab_matching_type() {
+        // Charmander (Fire/Fire), tera type = Fire, terastallized
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 4; // Charmander: Fire/Fire
+        state.sides[0].team[0].tera_type = Type::Fire as u8;
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[0].team[0].current_hp = 300;
+        state.sides[0].team[0].max_hp = 300;
+
+        // Fire move on Fire tera matching original Fire → 2.0× STAB
+        assert_eq!(stab_modifier(&state, 0, Type::Fire), (8192, 4096));
+    }
+
+    #[test]
+    fn test_tera_stab_new_type() {
+        // Charmander (Fire/Fire), tera type = Water (doesn't match original)
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 4; // Charmander: Fire/Fire
+        state.sides[0].team[0].tera_type = Type::Water as u8;
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[0].team[0].current_hp = 300;
+        state.sides[0].team[0].max_hp = 300;
+
+        // Water move matches tera but not original → 1.5× STAB
+        assert_eq!(stab_modifier(&state, 0, Type::Water), (6144, 4096));
+        // Fire move matches original but not tera → 1.5× STAB
+        assert_eq!(stab_modifier(&state, 0, Type::Fire), (6144, 4096));
+        // Grass matches neither → no STAB
+        assert_eq!(stab_modifier(&state, 0, Type::Grass), (4096, 4096));
+    }
+
+    #[test]
+    fn test_tera_stab_adaptability() {
+        // Charmander (Fire/Fire) with Adaptability, tera type = Fire
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 4;
+        state.sides[0].team[0].tera_type = Type::Fire as u8;
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_ADAPTABILITY;
+        state.sides[0].team[0].current_hp = 300;
+        state.sides[0].team[0].max_hp = 300;
+
+        // Fire matches both tera and original → 2.25× with Adaptability
+        assert_eq!(stab_modifier(&state, 0, Type::Fire), (9216, 4096));
+
+        // Now tera type = Water (doesn't match original)
+        state.sides[0].team[0].tera_type = Type::Water as u8;
+        // Water matches tera only → 2.0× with Adaptability
+        assert_eq!(stab_modifier(&state, 0, Type::Water), (8192, 4096));
+    }
+
+    #[test]
+    fn test_tera_blast_type_changes() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 4;
+        state.sides[0].team[0].tera_type = Type::Water as u8;
+        state.sides[0].team[0].current_hp = 300;
+        state.sides[0].team[0].max_hp = 300;
+
+        let md = MoveData {
+            effect: MoveEffect::TeraBlast,
+            move_type: Type::Normal,
+            category: MoveCategory::Special,
+            base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        // Not terastallized → Normal type
+        assert_eq!(resolve_move_type(&state, &md, 0), Type::Normal);
+
+        // Terastallized → Water type
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        assert_eq!(resolve_move_type(&state, &md, 0), Type::Water);
     }
 }
