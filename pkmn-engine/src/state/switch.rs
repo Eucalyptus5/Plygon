@@ -304,19 +304,20 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             }
         }
 
-        data_bridge::ABILITY_DRIZZLE     => { set_weather(state, keys, WEATHER_RAIN, 5); }
-        data_bridge::ABILITY_DROUGHT     => { set_weather(state, keys, WEATHER_SUN, 5); }
-        data_bridge::ABILITY_SAND_STREAM => { set_weather(state, keys, WEATHER_SAND, 5); }
-        data_bridge::ABILITY_SNOW_WARNING=> { set_weather(state, keys, WEATHER_SNOW, 5); }
+        data_bridge::ABILITY_DRIZZLE     => { set_weather(state, keys, WEATHER_RAIN, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_DROUGHT     => { set_weather(state, keys, WEATHER_SUN, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_SAND_STREAM => { set_weather(state, keys, WEATHER_SAND, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_SNOW_WARNING=> { set_weather(state, keys, WEATHER_SNOW, 5); check_paradox_deactivation(state); }
 
         data_bridge::ABILITY_AIR_LOCK | data_bridge::ABILITY_CLOUD_NINE => {
             state.field.field_flags |= FIELD_WEATHER_SUPPRESSED;
+            check_paradox_deactivation(state);
         }
 
-        data_bridge::ABILITY_ELECTRIC_SURGE => { set_terrain(state, keys, TERRAIN_ELECTRIC, 5); }
-        data_bridge::ABILITY_GRASSY_SURGE  => { set_terrain(state, keys, TERRAIN_GRASSY, 5); }
-        data_bridge::ABILITY_MISTY_SURGE   => { set_terrain(state, keys, TERRAIN_MISTY, 5); }
-        data_bridge::ABILITY_PSYCHIC_SURGE => { set_terrain(state, keys, TERRAIN_PSYCHIC, 5); }
+        data_bridge::ABILITY_ELECTRIC_SURGE => { set_terrain(state, keys, TERRAIN_ELECTRIC, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_GRASSY_SURGE  => { set_terrain(state, keys, TERRAIN_GRASSY, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_MISTY_SURGE   => { set_terrain(state, keys, TERRAIN_MISTY, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_PSYCHIC_SURGE => { set_terrain(state, keys, TERRAIN_PSYCHIC, 5); check_paradox_deactivation(state); }
 
         // +1 SpA if foe SpD < Def, else +1 Atk
         data_bridge::ABILITY_DOWNLOAD => {
@@ -421,17 +422,16 @@ fn activate_paradox_ability(
     let mon = &state.sides[side].team[slot];
 
     // Determine if ability should activate
-    const ITEM_BOOSTER_ENERGY: u16 = 1880;
-    let from_booster = !field_active && mon.item_id == ITEM_BOOSTER_ENERGY;
+    let from_booster = !field_active && mon.item_id == data_bridge::ITEM_BOOSTER_ENERGY;
     if !field_active && !from_booster { return; }
 
-    // Find highest raw stat (0=Atk, 1=Def, 2=SpA, 3=SpD, 4=Spe)
+    // Find highest stat accounting for stat stages (Showdown getBestStat(false, true))
     let stats = &mon.stats;
-    let best = (0..5).max_by_key(|&i| stats[i]).unwrap_or(0);
+    let boosts = &state.sides[side].active.boosts;
+    let best = (0..5).max_by_key(|&i| boosted_stat(stats[i], boosts[i])).unwrap_or(0);
 
-    // Encode in upper nibble of _padding[3]: stat+1 (1-5)
-    state.sides[side].active._padding[3] =
-        (state.sides[side].active._padding[3] & 0x0F) | (((best as u8) + 1) << 4);
+    // Store paradox stat+1 and fromBooster flag in _padding[3]
+    state.sides[side].active.set_paradox(best as u8 + 1, from_booster);
 
     // Consume Booster Energy if it was the trigger
     if from_booster {
@@ -442,6 +442,30 @@ fn activate_paradox_ability(
     }
 }
 
+/// After any weather/terrain change, check if Protosynthesis/Quark Drive should deactivate.
+/// Only deactivates field-sourced boosts (not Booster Energy).
+pub fn check_paradox_deactivation(state: &mut BattleState) {
+    for side in 0..2 {
+        let slot = state.sides[side].active_index as usize;
+        if state.sides[side].team[slot].is_fainted() { continue; }
+        if state.sides[side].active.paradox_stat() == 0 { continue; }
+        if state.sides[side].active.paradox_from_booster() { continue; }
+
+        let ability = effective_ability(state, side);
+        let should_deactivate = match ability {
+            data_bridge::ABILITY_PROTOSYNTHESIS => {
+                !matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN)
+            }
+            data_bridge::ABILITY_QUARK_DRIVE => {
+                state.field.terrain != TERRAIN_ELECTRIC
+            }
+            _ => true, // ability changed/suppressed — deactivate
+        };
+        if should_deactivate {
+            state.sides[side].active.clear_paradox();
+        }
+    }
+}
 
 pub fn add_spikes(state: &mut BattleState, side: usize) {
     let sc = &mut state.sides[side].side_conditions;
@@ -848,5 +872,220 @@ mod tests {
 
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
         assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_protosynthesis_sun_boost() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [150, 100, 120, 110, 130], // Atk highest
+            ability_id: data_bridge::ABILITY_PROTOSYNTHESIS,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.field.weather = WEATHER_SUN;
+        state.field.weather_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 0, 0);
+
+        assert_eq!(state.sides[0].active.paradox_stat(), ATK as u8 + 1);
+        assert!(!state.sides[0].active.paradox_from_booster());
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_protosynthesis_booster_energy() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100, 100, 150, 100, 100], // SpA highest
+            ability_id: data_bridge::ABILITY_PROTOSYNTHESIS,
+            item_id: data_bridge::ITEM_BOOSTER_ENERGY,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        // No sun — triggers Booster Energy consumption
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 0, 0);
+
+        assert_eq!(state.sides[0].active.paradox_stat(), SPA as u8 + 1);
+        assert!(state.sides[0].active.paradox_from_booster());
+        assert_eq!(state.sides[0].team[0].item_id, 0); // consumed
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_quark_drive_electric_terrain() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100, 100, 100, 100, 160], // Spe highest
+            ability_id: data_bridge::ABILITY_QUARK_DRIVE,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 0, 0);
+
+        assert_eq!(state.sides[0].active.paradox_stat(), SPE as u8 + 1);
+        assert!(!state.sides[0].active.paradox_from_booster());
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_paradox_deactivates_weather_end() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [150, 100, 120, 110, 130],
+            ability_id: data_bridge::ABILITY_PROTOSYNTHESIS,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        // Activate paradox from sun
+        state.sides[0].active.set_paradox(ATK as u8 + 1, false);
+        // Sun about to expire
+        state.field.weather = WEATHER_SUN;
+        state.field.weather_turns = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+
+        // Weather expired, paradox should deactivate
+        assert_eq!(state.field.weather, WEATHER_NONE);
+        assert_eq!(state.sides[0].active.paradox_stat(), 0);
+    }
+
+    #[test]
+    fn test_paradox_booster_persists_weather_end() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [150, 100, 120, 110, 130],
+            ability_id: data_bridge::ABILITY_PROTOSYNTHESIS,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        // Activated from Booster Energy (item already consumed)
+        state.sides[0].active.set_paradox(ATK as u8 + 1, true);
+        state.field.weather = WEATHER_SUN;
+        state.field.weather_turns = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+
+        // Weather expired but Booster Energy boost persists
+        assert_eq!(state.field.weather, WEATHER_NONE);
+        assert_eq!(state.sides[0].active.paradox_stat(), ATK as u8 + 1);
+        assert!(state.sides[0].active.paradox_from_booster());
+    }
+
+    #[test]
+    fn test_paradox_no_activate_without_condition() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [150, 100, 120, 110, 130],
+            ability_id: data_bridge::ABILITY_PROTOSYNTHESIS,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        // No sun, no Booster Energy
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 0, 0);
+
+        assert_eq!(state.sides[0].active.paradox_stat(), 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_paradox_deactivates_terrain_end() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100, 100, 100, 100, 160],
+            ability_id: data_bridge::ABILITY_QUARK_DRIVE,
+            ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        // Activate paradox from Electric Terrain
+        state.sides[0].active.set_paradox(SPE as u8 + 1, false);
+        state.field.terrain = TERRAIN_ELECTRIC;
+        state.field.terrain_turns = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+
+        assert_eq!(state.field.terrain, TERRAIN_NONE);
+        assert_eq!(state.sides[0].active.paradox_stat(), 0);
+    }
+
+    #[test]
+    fn test_drizzle_deactivates_protosynthesis() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        // Side 0: Protosynthesis mon active in sun
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [150, 100, 120, 110, 130],
+            ability_id: data_bridge::ABILITY_PROTOSYNTHESIS,
+            ..Default::default()
+        };
+        state.sides[0].active.set_paradox(ATK as u8 + 1, false);
+        // Side 1: Drizzle mon switching in
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[1].team[1] = MonSlot {
+            species_id: 60, current_hp: 200, max_hp: 200,
+            stats: [100; 5],
+            ability_id: data_bridge::ABILITY_DRIZZLE,
+            ..Default::default()
+        };
+        state.field.weather = WEATHER_SUN;
+        state.field.weather_turns = 5;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        perform_switch(&mut state, &keys, 1, 1);
+
+        // Drizzle replaced sun -> Protosynthesis deactivated
+        assert_eq!(state.field.weather, WEATHER_RAIN);
+        assert_eq!(state.sides[0].active.paradox_stat(), 0);
     }
 }

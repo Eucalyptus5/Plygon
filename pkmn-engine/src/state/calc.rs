@@ -198,18 +198,18 @@ pub fn calc_damage(
         def_mon.status, effective_weather(state), state.field.terrain,
     );
 
-    // Protosynthesis/Quark Drive: 1.3× for non-Spe stats
-    let atk_paradox = state.sides[atk_side].active._padding[3] >> 4;
-    if atk_paradox > 0 {
-        let boosted_stat = (atk_paradox - 1) as usize;
-        if boosted_stat == atk_stat_idx && boosted_stat != SPE {
+    // Protosynthesis/Quark Drive: 1.3× for non-Spe stats (suppressed by Neutralizing Gas)
+    let atk_paradox = state.sides[atk_side].active.paradox_stat();
+    if atk_paradox > 0 && !state.sides[atk_side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
+        let boosted = (atk_paradox - 1) as usize;
+        if boosted == atk_stat_idx && boosted != SPE {
             a = (a as u32 * 5325 / 4096) as u16; // 1.3×
         }
     }
-    let def_paradox = state.sides[def_side].active._padding[3] >> 4;
-    if def_paradox > 0 {
-        let boosted_stat = (def_paradox - 1) as usize;
-        if boosted_stat == def_stat_idx && boosted_stat != SPE {
+    let def_paradox = state.sides[def_side].active.paradox_stat();
+    if def_paradox > 0 && !state.sides[def_side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
+        let boosted = (def_paradox - 1) as usize;
+        if boosted == def_stat_idx && boosted != SPE {
             d = (d as u32 * 5325 / 4096) as u16; // 1.3×
         }
     }

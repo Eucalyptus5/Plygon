@@ -70,7 +70,10 @@ fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
 
     if state.field.weather_turns > 0 && state.field.weather_turns != 255 {
         state.field.weather_turns -= 1;
-        if state.field.weather_turns == 0 { clear_weather(state, keys); }
+        if state.field.weather_turns == 0 {
+            clear_weather(state, keys);
+            crate::state::switch::check_paradox_deactivation(state);
+        }
     }
 }
 
@@ -78,7 +81,10 @@ fn step_terrain_expiry(state: &mut BattleState, keys: &ZobristKeys) {
     if state.field.terrain == TERRAIN_NONE { return; }
     if state.field.terrain_turns > 0 {
         state.field.terrain_turns -= 1;
-        if state.field.terrain_turns == 0 { clear_terrain(state, keys); }
+        if state.field.terrain_turns == 0 {
+            clear_terrain(state, keys);
+            crate::state::switch::check_paradox_deactivation(state);
+        }
     }
 }
 
@@ -265,7 +271,25 @@ fn step_volatile_counters(state: &mut BattleState, keys: &ZobristKeys) {
         dec!(magnet_rise_turns); dec!(telekinesis_turns); dec!(heal_block_turns);
         if a.encore_turns == 0 && a.encore_move != 0 { a.encore_move = 0; }
         if a.disable_turns == 0 && a.disabled_move != 0 { a.disabled_move = 0; }
-        if a.magnet_rise_turns == 0 && a.has_volatile(VOL_MAGNET_RISE) {
+        // Encore early termination: end if encored move has 0 PP (Showdown onResidual)
+        if state.sides[side].active.encore_turns > 0 {
+            let enc_move = state.sides[side].active.encore_move;
+            if enc_move != 0 {
+                let moves = effective_moves(state, side);
+                let mut has_pp = false;
+                for i in 0..4 {
+                    if moves[i] == enc_move && effective_pp(state, side, i) > 0 {
+                        has_pp = true;
+                        break;
+                    }
+                }
+                if !has_pp {
+                    state.sides[side].active.encore_turns = 0;
+                    state.sides[side].active.encore_move = 0;
+                }
+            }
+        }
+        if state.sides[side].active.magnet_rise_turns == 0 && state.sides[side].active.has_volatile(VOL_MAGNET_RISE) {
             clear_volatile(state, keys, side, VOL_MAGNET_RISE);
         }
     }

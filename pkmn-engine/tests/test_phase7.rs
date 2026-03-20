@@ -617,3 +617,328 @@ fn test_trick_room_no_affect_priority() {
     assert_eq!(state.sides[1].team[0].current_hp, 0,
         "Side 1 should be fainted (priority overrides Trick Room)");
 }
+
+// ── Phase 2 Task 13: Encore, Disable, Taunt, Torment ──
+
+#[test]
+fn test_encore_forces_move() {
+    let (mut state, keys) = setup();
+    // Side 0 used Pound (move 1) last turn
+    state.sides[0].active.last_move = 1;
+    // Side 0 has already moved this turn
+    set_volatile(&mut state, &keys, 0, VOL_MOVED_THIS_TURN);
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Side 1 uses Encore (227) on side 0
+    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.encore_move, 1, "Encore should lock to Pound");
+    assert_eq!(state.sides[0].active.encore_turns, 4, "Target already moved => duration 4");
+
+    // Legal actions should only include the encored move slot
+    let actions = legal_actions(&state, 0);
+    let move_actions: Vec<u8> = actions.as_slice().iter()
+        .copied().filter(|&a| a <= 3).collect();
+    assert_eq!(move_actions.len(), 1);
+    assert_eq!(move_actions[0], 0, "Only slot 0 (Pound) should be legal");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_encore_fails_no_last_move() {
+    let (mut state, keys) = setup();
+    // Side 0 has no last move
+    state.sides[0].active.last_move = 0;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.encore_move, 0, "Encore should fail with no last_move");
+    assert_eq!(state.sides[0].active.encore_turns, 0);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_encore_expires() {
+    let (mut state, keys) = setup();
+    // Set encore manually with 1 turn remaining
+    state.sides[0].active.encore_move = 1;
+    state.sides[0].active.encore_turns = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].active.encore_turns, 0, "Encore should expire");
+    assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_encore_duration_user_faster() {
+    let (mut state, keys) = setup();
+    // Side 0 has last_move = Pound, has NOT moved this turn (user is faster)
+    state.sides[0].active.last_move = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.encore_turns, 3, "Target hasn't moved => duration 3");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_encore_fails_failencore_move() {
+    let (mut state, keys) = setup();
+    // Side 0's last move was Encore itself (227) — should fail
+    state.sides[0].active.last_move = 227;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.encore_move, 0, "Encore should fail on failencore moves");
+    assert_eq!(state.sides[0].active.encore_turns, 0);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_encore_fails_zero_pp() {
+    let (mut state, keys) = setup();
+    // Side 0 used Pound last turn, but Pound now has 0 PP
+    state.sides[0].active.last_move = 1;
+    state.sides[0].team[0].pp[0] = 0; // Pound in slot 0 has 0 PP
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.encore_move, 0, "Encore should fail with 0 PP");
+    assert_eq!(state.sides[0].active.encore_turns, 0);
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_disable_blocks_move() {
+    let (mut state, keys) = setup();
+    // Side 0 used Thunderbolt (85) last turn
+    state.sides[0].active.last_move = 85;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Side 1 uses Disable (50) on side 0
+    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.disabled_move, 85);
+    assert!(state.sides[0].active.disable_turns > 0);
+
+    // Thunderbolt (slot 1) should not be in legal actions
+    let actions = legal_actions(&state, 0);
+    let move_actions: Vec<u8> = actions.as_slice().iter()
+        .copied().filter(|&a| a <= 3).collect();
+    assert!(!move_actions.contains(&1), "Disabled move slot 1 should not be legal");
+    assert!(move_actions.len() >= 2, "Other moves should remain legal");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_disable_expires() {
+    let (mut state, keys) = setup();
+    state.sides[0].active.disabled_move = 85;
+    state.sides[0].active.disable_turns = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].active.disable_turns, 0, "Disable should expire");
+    assert_eq!(state.sides[0].active.disabled_move, 0, "Disabled move should be cleared");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_disable_duration_turn_order() {
+    let (mut state, keys) = setup();
+    // Target already moved this turn
+    state.sides[0].active.last_move = 85;
+    set_volatile(&mut state, &keys, 0, VOL_MOVED_THIS_TURN);
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+    assert_eq!(state.sides[0].active.disable_turns, 5, "Target already moved => duration 5");
+
+    // Reset and test when target hasn't moved
+    let (mut state2, keys2) = setup();
+    state2.sides[0].active.last_move = 85;
+    state2.zobrist = compute_full_hash(&state2, &keys2);
+
+    execute_move(&mut state2, &keys2, 1, 50, 0, &mut dummy_rng);
+    assert_eq!(state2.sides[0].active.disable_turns, 4, "Target hasn't moved => duration 4");
+    assert!(validate_hash(&state2, &keys2));
+}
+
+#[test]
+fn test_disable_fails_no_last_move() {
+    let (mut state, keys) = setup();
+    state.sides[0].active.last_move = 0;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.disabled_move, 0, "Disable should fail with no last_move");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_disable_fails_zero_pp() {
+    let (mut state, keys) = setup();
+    state.sides[0].active.last_move = 1; // Pound
+    state.sides[0].team[0].pp[0] = 0; // Pound has 0 PP
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.disabled_move, 0, "Disable should fail with 0 PP");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_taunt_blocks_status() {
+    let (mut state, keys) = setup();
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Side 1 uses Taunt (269) on side 0
+    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+
+    assert!(state.sides[0].active.taunt_turns > 0, "Taunt should set taunt_turns");
+
+    // Side 0 moves: [1(Pound), 85(Thunderbolt), 269(Taunt), 227(Encore)]
+    // Taunt and Encore are Status — they should be blocked
+    let actions = legal_actions(&state, 0);
+    let move_actions: Vec<u8> = actions.as_slice().iter()
+        .copied().filter(|&a| a <= 3).collect();
+    // Only Pound (slot 0) and Thunderbolt (slot 1) should be legal
+    assert!(move_actions.contains(&0), "Pound should be legal under Taunt");
+    assert!(move_actions.contains(&1), "Thunderbolt should be legal under Taunt");
+    assert!(!move_actions.contains(&2), "Taunt (Status) should be blocked");
+    assert!(!move_actions.contains(&3), "Encore (Status) should be blocked");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_taunt_expires() {
+    let (mut state, keys) = setup();
+    state.sides[0].active.taunt_turns = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].active.taunt_turns, 0, "Taunt should expire");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_taunt_duration_turn_order() {
+    let (mut state, keys) = setup();
+    // Target on field for >0 turns and already moved this turn
+    state.sides[0].active.turns_active = 1;
+    set_volatile(&mut state, &keys, 0, VOL_MOVED_THIS_TURN);
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+    assert_eq!(state.sides[0].active.taunt_turns, 4, "activeTurns>0 && already moved => 4");
+
+    // First turn on field (turns_active == 0) — even if moved, no +1
+    let (mut state2, keys2) = setup();
+    state2.sides[0].active.turns_active = 0;
+    set_volatile(&mut state2, &keys2, 0, VOL_MOVED_THIS_TURN);
+    state2.zobrist = compute_full_hash(&state2, &keys2);
+
+    execute_move(&mut state2, &keys2, 1, 269, 0, &mut dummy_rng);
+    assert_eq!(state2.sides[0].active.taunt_turns, 3, "First turn on field => 3 even if moved");
+    assert!(validate_hash(&state2, &keys2));
+}
+
+#[test]
+fn test_taunt_fails_already_taunted() {
+    let (mut state, keys) = setup();
+    state.sides[0].active.taunt_turns = 2;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].active.taunt_turns, 2, "Should not re-apply Taunt");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_torment_blocks_repeat() {
+    let (mut state, keys) = setup();
+    // Apply Torment to side 0
+    set_volatile(&mut state, &keys, 0, VOL_TORMENT);
+    // Side 0's last move was Pound (1, slot 0)
+    state.sides[0].active.last_move = 1;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let actions = legal_actions(&state, 0);
+    let move_actions: Vec<u8> = actions.as_slice().iter()
+        .copied().filter(|&a| a <= 3).collect();
+    assert!(!move_actions.contains(&0), "Torment should block repeat of Pound (slot 0)");
+    assert!(move_actions.len() >= 2, "Other moves should remain legal");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_torment_clears_on_switch() {
+    let (mut state, keys) = setup();
+    set_volatile(&mut state, &keys, 0, VOL_TORMENT);
+    assert!(state.sides[0].active.has_volatile(VOL_TORMENT));
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Switch side 0 to slot 1
+    pkmn_engine::state::switch::switch_out(&mut state, &keys, 0);
+    pkmn_engine::state::switch::switch_in(&mut state, &keys, 0, 1);
+
+    assert!(!state.sides[0].active.has_volatile(VOL_TORMENT),
+        "Torment should be cleared on switch");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_torment_via_move() {
+    let (mut state, keys) = setup();
+    // Give side 1 Torment (259) in slot 0
+    state.sides[1].team[0].moves[0] = 259;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 259, 0, &mut dummy_rng);
+
+    assert!(state.sides[0].active.has_volatile(VOL_TORMENT),
+        "Torment move should set VOL_TORMENT");
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_torment_fails_already_set() {
+    let (mut state, keys) = setup();
+    set_volatile(&mut state, &keys, 0, VOL_TORMENT);
+    let hash_before = state.zobrist;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 1, 259, 0, &mut dummy_rng);
+
+    // Should still have Torment, hash unchanged (no double-toggle)
+    assert!(state.sides[0].active.has_volatile(VOL_TORMENT));
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_encore_pp_early_termination() {
+    let (mut state, keys) = setup();
+    // Set encore with 3 turns remaining, but the encored move has 0 PP
+    state.sides[0].active.encore_move = 1; // Pound
+    state.sides[0].active.encore_turns = 3;
+    state.sides[0].team[0].pp[0] = 0; // Pound has 0 PP
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].active.encore_turns, 0, "Encore should end early with 0 PP");
+    assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");
+    assert!(validate_hash(&state, &keys));
+}

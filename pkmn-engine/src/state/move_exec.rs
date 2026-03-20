@@ -243,6 +243,7 @@ fn execute_status_move(
             clear_hazards(state, atk_side);
             // Clear terrain
             clear_terrain(state, keys);
+            crate::state::switch::check_paradox_deactivation(state);
         }
 
         // -- Status infliction (blocked by Safeguard / terrain) --
@@ -361,7 +362,13 @@ fn execute_status_move(
 
         // -- Taunt --
         MoveEffect::Taunt => {
-            state.sides[def_side].active.taunt_turns = 3;
+            if state.sides[def_side].active.taunt_turns == 0 {
+                // Showdown: duration 3, +1 if target.activeTurns && !willMove(target)
+                let dur = if state.sides[def_side].active.turns_active > 0
+                    && state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+                { 4 } else { 3 };
+                state.sides[def_side].active.taunt_turns = dur;
+            }
         }
 
         // -- Leech Seed --
@@ -374,9 +381,28 @@ fn execute_status_move(
         // -- Encore --
         MoveEffect::Encore => {
             let last = state.sides[def_side].active.last_move;
-            if last != 0 {
-                state.sides[def_side].active.encore_move = last;
-                state.sides[def_side].active.encore_turns = 3;
+            // Fail if no last move, or last move has failencore flag
+            if last != 0
+                && last != 227 // Encore
+                && last != 144 // Transform
+                && last != 102 // Mimic
+                && last != 166 // Sketch
+                && last != 118 // Metronome
+            {
+                // Check that the encored move has PP > 0
+                let moves = effective_moves(state, def_side);
+                let mut has_pp = false;
+                for i in 0..4 {
+                    if moves[i] == last && effective_pp(state, def_side, i) > 0 {
+                        has_pp = true;
+                        break;
+                    }
+                }
+                if has_pp {
+                    state.sides[def_side].active.encore_move = last;
+                    let dur = if state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 4 } else { 3 };
+                    state.sides[def_side].active.encore_turns = dur;
+                }
             }
         }
 
@@ -431,18 +457,33 @@ fn execute_status_move(
             }
         }
 
-        // -- Disable: prevent last-used move for 4 turns --
+        // -- Disable: prevent last-used move for 4-5 turns --
         MoveEffect::Disable => {
             let last = state.sides[def_side].active.last_move;
             if last != 0 && state.sides[def_side].active.disabled_move == 0 {
-                state.sides[def_side].active.disabled_move = last;
-                state.sides[def_side].active.disable_turns = 4;
+                // Check that the move has PP > 0
+                let moves = effective_moves(state, def_side);
+                let mut has_pp = false;
+                for i in 0..4 {
+                    if moves[i] == last && effective_pp(state, def_side, i) > 0 {
+                        has_pp = true;
+                        break;
+                    }
+                }
+                if has_pp {
+                    state.sides[def_side].active.disabled_move = last;
+                    // Showdown: duration 5, -1 if target hasn't moved yet (willMove)
+                    let dur = if state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 5 } else { 4 };
+                    state.sides[def_side].active.disable_turns = dur;
+                }
             }
         }
 
         // -- Torment --
         MoveEffect::Torment => {
-            set_volatile(state, keys, def_side, VOL_TORMENT);
+            if !state.sides[def_side].active.has_volatile(VOL_TORMENT) {
+                set_volatile(state, keys, def_side, VOL_TORMENT);
+            }
         }
 
         // -- HealingWish: user faints, next switch-in fully heals --
@@ -1559,6 +1600,7 @@ pub fn execute_move(
             // Seed Sower: any hit → set Grassy Terrain
             data_bridge::ABILITY_SEED_SOWER => {
                 set_terrain(state, keys, TERRAIN_GRASSY, 5);
+                crate::state::switch::check_paradox_deactivation(state);
             }
             // Cotton Down: any hit → lower attacker's Spe by 1
             data_bridge::ABILITY_COTTON_DOWN => {

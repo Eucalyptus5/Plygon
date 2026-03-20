@@ -99,9 +99,9 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         _ => {}
     }
 
-    // Protosynthesis/Quark Drive Spe boost
-    let paradox_stat = state.sides[side].active._padding[3] >> 4;
-    if paradox_stat == (SPE as u8 + 1) {
+    // Protosynthesis/Quark Drive Spe boost (suppressed by Neutralizing Gas)
+    let paradox_stat = state.sides[side].active.paradox_stat();
+    if paradox_stat == (SPE as u8 + 1) && !state.sides[side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
         speed = speed * 3 / 2; // 1.5× for Spe
     }
 

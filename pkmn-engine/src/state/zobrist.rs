@@ -3,7 +3,7 @@
 use crate::state::structs::*;
 
 const NUM_SPECIES: usize = 1500;
-const NUM_ITEMS: usize = 1500;
+const NUM_ITEMS: usize = 1881;
 const HP_BUCKETS: usize = 8;
 const NUM_STATUSES: usize = 7;
 const BOOST_STAGES: usize = 13;

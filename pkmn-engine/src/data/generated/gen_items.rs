@@ -6,9 +6,9 @@
 use crate::data::items::ItemData;
 use crate::data::items::ItemFlag as F;
 
-pub static GEN_ITEMS: [ItemData; 762] = {
+pub static GEN_ITEMS: [ItemData; 1881] = {
     const N: ItemData = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    let mut t = [N; 762];
+    let mut t = [N; 1881];
     // [  4] Adamant Orb
     t[4] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 60, forme_species: 0 };
     // [  5] Aguav Berry
@@ -628,6 +628,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[759] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 1017 };
     // [760] Hearthflame Mask
     t[760] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 1017 };
+    // [1880] Booster Energy
+    t[1880] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 0, forme_species: 0 };
 
     t
 };
