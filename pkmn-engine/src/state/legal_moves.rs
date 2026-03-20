@@ -3,6 +3,7 @@
 use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::state::accessors::*;
+use crate::data::moves::MoveFlags;
 
 /// Move IDs that are blocked by Gravity (all moves with `gravity: 1` in Showdown).
 const GRAVITY_BLOCKED: [u16; 9] = [
@@ -126,6 +127,10 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
                         if md.category == MoveCategory::Status { return 0; }
                     }
                 }
+                if active.heal_block_turns > 0 {
+                    let md = data_bridge::move_hot(moves[i]);
+                    if md.flags & MoveFlags::HEAL != 0 { return 0; }
+                }
                 list.push(i as u8); return 1;
             }
         }
@@ -148,6 +153,10 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
                 let md = data_bridge::move_hot(moves[i]);
                 if md.category == MoveCategory::Status { continue; }
             }
+        }
+        if active.heal_block_turns > 0 {
+            let md = data_bridge::move_hot(moves[i]);
+            if md.flags & MoveFlags::HEAL != 0 { continue; }
         }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
         // Choice lock: suppressed by Magic Room
@@ -269,6 +278,153 @@ mod tests {
         s.field.gravity_turns = 5;
         let a = legal_actions(&s, 0);
         assert!(!a.as_slice().iter().any(|&x| x == ACTION_MOVE_0));
+    }
+
+    #[test]
+    fn test_all_restricted_struggle_only() {
+        let mut s = make_state();
+        // Disable all moves via Taunt (blocks Status) + make all moves Status category
+        // Easier: set all PP to 0
+        s.sides[0].team[0].pp = [0; 4];
+        let a = legal_actions(&s, 0);
+        // Should have Struggle + 2 switches
+        assert!(a.as_slice().contains(&ACTION_STRUGGLE));
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert!(move_actions.is_empty());
+    }
+
+    #[test]
+    fn test_trapped_no_switch() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_TRAPPED;
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0 && x <= ACTION_SWITCH_5));
+    }
+
+    #[test]
+    fn test_assault_vest_no_status() {
+        let mut s = make_state();
+        // Moves: [85]=Thunderbolt, [521]=Volt Switch, [447]=Grass Knot, [417]=Nasty Plot (Status)
+        s.sides[0].team[0].item_id = 581; // Assault Vest
+        let a = legal_actions(&s, 0);
+        // Nasty Plot (slot 3, Status) should be blocked
+        assert!(!a.as_slice().contains(&3u8)); // ACTION_MOVE_3 = 3
+        // Other 3 moves should be available
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 3);
+    }
+
+    #[test]
+    fn test_phase_switch_only_switches() {
+        let mut s = make_state();
+        s.phase = PHASE_SWITCH_P1;
+        let a = legal_actions(&s, 0);
+        assert!(a.as_slice().iter().all(|&x| x >= ACTION_SWITCH_0));
+        assert!(!a.as_slice().contains(&ACTION_TERA));
+    }
+
+    #[test]
+    fn test_heal_block_excludes_healing_moves() {
+        let mut s = make_state();
+        // Replace slot 0 with Recover (105, has HEAL flag)
+        s.sides[0].team[0].moves[0] = 105;
+        s.sides[0].active.heal_block_turns = 3;
+        let a = legal_actions(&s, 0);
+        // Recover (slot 0) should be blocked
+        assert!(!a.as_slice().contains(&0u8));
+        // Other moves still available
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 3);
+    }
+
+    #[test]
+    fn test_bound_no_switch() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_BOUND;
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0 && x <= ACTION_SWITCH_5));
+    }
+
+    #[test]
+    fn test_ingrain_no_switch() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_INGRAIN;
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().iter().any(|&x| x >= ACTION_SWITCH_0 && x <= ACTION_SWITCH_5));
+    }
+
+    #[test]
+    fn test_game_over_no_actions() {
+        let mut s = make_state();
+        s.phase = PHASE_GAME_OVER;
+        let a = legal_actions(&s, 0);
+        assert!(a.is_empty());
+    }
+
+    #[test]
+    fn test_struggle_plus_trapped() {
+        // All moves restricted + trapped = Struggle only, no switches
+        let mut s = make_state();
+        s.sides[0].team[0].pp = [0; 4];
+        s.sides[0].active.volatile_flags |= VOL_TRAPPED;
+        let a = legal_actions(&s, 0);
+        assert_eq!(a.count, 1);
+        assert_eq!(a.actions[0], ACTION_STRUGGLE);
+    }
+
+    #[test]
+    fn test_disable_excludes_move() {
+        let mut s = make_state();
+        s.sides[0].active.disabled_move = 85; // Disable Thunderbolt (slot 0)
+        s.sides[0].active.disable_turns = 3;
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().contains(&0u8)); // slot 0 blocked
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 3);
+    }
+
+    #[test]
+    fn test_torment_excludes_last_move() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_TORMENT;
+        s.sides[0].active.last_move = 521; // Last used Volt Switch (slot 1)
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().contains(&1u8)); // slot 1 blocked
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 3);
+    }
+
+    #[test]
+    fn test_encore_restricts_to_one_move() {
+        let mut s = make_state();
+        s.sides[0].active.encore_turns = 3;
+        s.sides[0].active.encore_move = 85; // Encore'd into Thunderbolt (slot 0)
+        let a = legal_actions(&s, 0);
+        let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
+        assert_eq!(move_actions.len(), 1);
+        assert_eq!(move_actions[0], 0);
+    }
+
+    #[test]
+    fn test_recharging_struggle_only() {
+        let mut s = make_state();
+        s.sides[0].active.volatile_flags |= VOL_RECHARGING;
+        let a = legal_actions(&s, 0);
+        // Recharging: forced to pass (Struggle action), no switches
+        assert_eq!(a.count, 1);
+        assert_eq!(a.actions[0], ACTION_STRUGGLE);
+    }
+
+    #[test]
+    fn test_imprison_blocks_shared_moves() {
+        let mut s = make_state();
+        // Set up opponent with Imprison and sharing Thunderbolt (85)
+        s.sides[1].team[0] = MonSlot { species_id: 2, current_hp: 200, max_hp: 200,
+            moves: [85, 100, 200, 300], pp: [24; 4], ..Default::default() };
+        s.sides[1].active.volatile_flags |= VOL_IMPRISON;
+        let a = legal_actions(&s, 0);
+        // Thunderbolt (slot 0) shared with opponent -> blocked
+        assert!(!a.as_slice().contains(&0u8));
     }
 
     #[test]
