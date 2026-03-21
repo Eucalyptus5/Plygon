@@ -472,3 +472,79 @@ fn test_legal_moves_during_charging() {
     assert_eq!(actions.actions[0], 0);
     assert!(!actions.as_slice().iter().any(|&a| a >= ACTION_SWITCH_0));
 }
+
+#[test]
+fn test_random_battles_no_panics() {
+    // Move pools: mix of Physical, Special, Status, Healing, multi-turn, pivot
+    const MOVE_POOLS: [[u16; 4]; 6] = [
+        [85, 89, 14, 105],    // Thunderbolt, Earthquake, Swords Dance, Recover
+        [53, 58, 182, 261],   // Flamethrower, Ice Beam, Protect, Will-O-Wisp
+        [57, 200, 92, 19],    // Surf, Outrage, Toxic, Fly
+        [63, 369, 85, 53],    // Hyper Beam, U-Turn, Thunderbolt, Flamethrower
+        [89, 105, 58, 182],   // Earthquake, Recover, Ice Beam, Protect
+        [57, 14, 261, 200],   // Surf, Swords Dance, Will-O-Wisp, Outrage
+    ];
+
+    for battle_idx in 0..200u64 {
+        let mut state = BattleState::default();
+        let keys = ZobristKeys::new(battle_idx);
+        let mut seed = battle_idx.wrapping_mul(6364136223846793005).wrapping_add(1);
+
+        for side in 0..2 {
+            for i in 0..6 {
+                let pool_idx = ((side * 3 + i) + battle_idx as usize) % 6;
+                state.sides[side].team[i] = MonSlot {
+                    species_id: (i as u16 + 1) + (side as u16 * 10),
+                    current_hp: 300,
+                    max_hp: 300,
+                    stats: [120, 100, 100, 100, 80 + (i as u16 * 5)],
+                    moves: MOVE_POOLS[pool_idx],
+                    pp: [24, 24, 24, 24],
+                    tera_type: if i == 0 { Type::Fire as u8 } else { 0 },
+                    ..Default::default()
+                };
+                // Give some mons Assault Vest to exercise that path
+                if i == 2 && side == 0 {
+                    state.sides[side].team[i].item_id = 581;
+                }
+            }
+        }
+
+        state.phase = PHASE_ACTIONS;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let mut rng = move |max: u32| -> u32 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((seed >> 33) as u32) % max.max(1)
+        };
+
+        for _turn in 0..500 {
+            if state.is_game_over() { break; }
+
+            let a1 = legal_actions(&state, 0);
+            let a2 = legal_actions(&state, 1);
+
+            if state.phase == PHASE_ACTIONS {
+                assert!(!a1.is_empty(), "battle {battle_idx}: p1 has no actions in PHASE_ACTIONS");
+                assert!(!a2.is_empty(), "battle {battle_idx}: p2 has no actions in PHASE_ACTIONS");
+                let act1 = a1.actions[rng(a1.count as u32) as usize];
+                let act2 = a2.actions[rng(a2.count as u32) as usize];
+                execute_turn(&mut state, &keys, act1, act2, &mut rng);
+            } else if state.phase == PHASE_SWITCH_P1 {
+                assert!(!a1.is_empty(), "battle {battle_idx}: p1 has no switch targets");
+                let act1 = a1.actions[rng(a1.count as u32) as usize];
+                execute_switch_turn(&mut state, &keys, act1, 0, &mut rng);
+            } else if state.phase == PHASE_SWITCH_P2 {
+                assert!(!a2.is_empty(), "battle {battle_idx}: p2 has no switch targets");
+                let act2 = a2.actions[rng(a2.count as u32) as usize];
+                execute_switch_turn(&mut state, &keys, 0, act2, &mut rng);
+            } else if state.phase == PHASE_SWITCH_BOTH {
+                assert!(!a1.is_empty(), "battle {battle_idx}: p1 has no switch targets (both)");
+                assert!(!a2.is_empty(), "battle {battle_idx}: p2 has no switch targets (both)");
+                let act1 = a1.actions[rng(a1.count as u32) as usize];
+                let act2 = a2.actions[rng(a2.count as u32) as usize];
+                execute_switch_turn(&mut state, &keys, act1, act2, &mut rng);
+            }
+        }
+    }
+}
