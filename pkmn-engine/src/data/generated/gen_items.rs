@@ -1,22 +1,25 @@
-//! Generated item data table.
+//! Generated item data table — do not edit by hand.
 //!
-//! Item IDs match Pokémon Showdown's numbering.
-//! Populated entries have flags set; all others are ItemData::NONE (flags=0).
+//! Regenerate with: `python3 codegen.py --items`
+//!
+//! Indexed by Showdown spritenum. The array is sparse: most slots are N
+//! (ItemData::NONE). Only items with engine-relevant flags or forme_species
+//! locks get populated entries.
+//!
+//! To add a new item: add it to SPECIFIC_ITEMS in codegen.py, then re-run.
 
 use crate::data::items::ItemData;
 use crate::data::items::ItemFlag as F;
 
-pub static GEN_ITEMS: [ItemData; 1881] = {
+pub static GEN_ITEMS: [ItemData; 762] = {
     const N: ItemData = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    let mut t = [N; 1881];
+    let mut t = [N; 762];
     // [  4] Adamant Orb
     t[4] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 60, forme_species: 0 };
     // [  5] Aguav Berry
     t[5] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [  6] Air Balloon
     t[6] = ItemData { flags: F::AIR_BALLOON | F::CONSUMABLE, type_param: 0xFF, power_param: 10, forme_species: 0 };
-    // [ 22] Berry Juice
-    t[22] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [ 10] Apicot Berry
     t[10] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::PINCH_BERRY, type_param: 3, power_param: 0, forme_species: 0 };
     // [ 13] Aspear Berry
@@ -37,6 +40,8 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[44] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [ 53] Bug Gem
     t[53] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 11, power_param: 0, forme_species: 0 };
+    // [ 54] Burn Drive
+    t[54] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
     // [ 61] Charcoal
     t[61] = ItemData { flags: F::TYPE_BOOST, type_param: 1, power_param: 30, forme_species: 0 };
     // [ 62] Charti Berry
@@ -47,6 +52,8 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[65] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [ 66] Chilan Berry
     t[66] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 0, power_param: 0, forme_species: 0 };
+    // [ 67] Chill Drive
+    t[67] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
     // [ 68] Choice Band
     t[68] = ItemData { flags: F::CHOICE_ATK, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [ 69] Choice Scarf
@@ -61,12 +68,12 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[78] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 15, power_param: 0, forme_species: 0 };
     // [ 81] Cornn Berry
     t[81] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [ 93] Deep Sea Scale
-    t[93] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [ 86] Custap Berry
     t[86] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [ 89] Dark Gem
     t[89] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 15, power_param: 0, forme_species: 0 };
+    // [103] Douse Drive
+    t[103] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
     // [105] Draco Plate
     t[105] = ItemData { flags: F::TYPE_BOOST, type_param: 14, power_param: 0, forme_species: 493 };
     // [106] Dragon Fang
@@ -149,8 +156,6 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[248] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::PINCH_BERRY, type_param: 0, power_param: 0, forme_species: 0 };
     // [249] Life Orb
     t[249] = ItemData { flags: F::LIFE_ORB, type_param: 0xFF, power_param: 30, forme_species: 0 };
-    // [251] Light Ball
-    t[251] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [252] Light Clay
     t[252] = ItemData { flags: F::EXTENDS_SCREENS, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [262] Lum Berry
@@ -175,8 +180,6 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[291] = ItemData { flags: F::TYPE_BOOST, type_param: 10, power_param: 0, forme_species: 493 };
     // [292] Miracle Seed
     t[292] = ItemData { flags: F::TYPE_BOOST, type_param: 4, power_param: 30, forme_species: 0 };
-    // [297] Muscle Band
-    t[297] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [300] Mystic Water
     t[300] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 30, forme_species: 0 };
     // [302] Nanab Berry
@@ -249,8 +252,8 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[436] = ItemData { flags: F::TYPE_BOOST, type_param: 9, power_param: 50, forme_species: 0 };
     // [437] Shed Shell
     t[437] = ItemData { flags: F::TRAP_IMMUNE, type_param: 0xFF, power_param: 10, forme_species: 0 };
-    // [438] Shell Bell
-    t[438] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [442] Shock Drive
+    t[442] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
     // [443] Shuca Berry
     t[443] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 8, power_param: 0, forme_species: 0 };
     // [444] Silk Scarf
@@ -277,16 +280,12 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[472] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [473] Steel Gem
     t[473] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 16, power_param: 0, forme_species: 0 };
-    // [476] Sticky Barb
-    t[476] = ItemData { flags: 0, type_param: 0xFF, power_param: 80, forme_species: 0 };
     // [477] Stone Plate
     t[477] = ItemData { flags: F::TYPE_BOOST, type_param: 12, power_param: 0, forme_species: 493 };
     // [486] Tamato Berry
     t[486] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [487] Tanga Berry
     t[487] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 11, power_param: 0, forme_species: 0 };
-    // [491] Thick Club
-    t[491] = ItemData { flags: 0, type_param: 0xFF, power_param: 90, forme_species: 0 };
     // [515] Toxic Orb
     t[515] = ItemData { flags: F::TOXIC_ORB, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [516] Toxic Plate
@@ -307,8 +306,6 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[537] = ItemData { flags: F::WIDE_LENS, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [538] Wiki Berry
     t[538] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [539] Wise Glasses
-    t[539] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [544] Clefablite
     t[544] = ItemData { flags: F::MEGA_STONE, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [545] Victreebelite
@@ -533,6 +530,8 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[658] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [659] Pikashunium Z
     t[659] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [663] Protective Pads
+    t[663] = ItemData { flags: F::PROTECTIVE_PADS, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [664] Electric Seed
     t[664] = ItemData { flags: F::CONSUMABLE | F::TERRAIN_SEED, type_param: 1, power_param: 10, forme_species: 0 };
     // [665] Psychic Seed
@@ -541,46 +540,6 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[666] = ItemData { flags: F::CONSUMABLE | F::TERRAIN_SEED, type_param: 4, power_param: 10, forme_species: 0 };
     // [667] Grassy Seed
     t[667] = ItemData { flags: F::CONSUMABLE | F::TERRAIN_SEED, type_param: 2, power_param: 10, forme_species: 0 };
-    // [685] Solganium Z
-    t[685] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [686] Lunalium Z
-    t[686] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [687] Ultranecrozium Z
-    t[687] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [688] Mimikium Z
-    t[688] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [689] Lycanium Z
-    t[689] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [690] Kommonium Z
-    t[690] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
-    // [713] Throat Spray
-    t[713] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 30, forme_species: 0 };
-    // [715] Heavy-Duty Boots
-    t[715] = ItemData { flags: F::HAZARD_IMMUNE, type_param: 0xFF, power_param: 80, forme_species: 0 };
-    // [741] Adamant Crystal
-    t[741] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 0, forme_species: 483 };
-    // [742] Lustrous Globe
-    t[742] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 0, forme_species: 484 };
-    // [743] Griseous Core
-    t[743] = ItemData { flags: F::TYPE_BOOST, type_param: 13, power_param: 0, forme_species: 487 };
-    // [749] Punching Glove
-    t[749] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, forme_species: 0 };
-    // [754] Fairy Feather
-    t[754] = ItemData { flags: F::TYPE_BOOST, type_param: 17, power_param: 10, forme_species: 0 };
-
-    // ── Forme-locked items (no engine flags, only forme_species) ──
-
-    // Drives → Genesect (649)
-    // [ 54] Burn Drive
-    t[54] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
-    // [ 67] Chill Drive
-    t[67] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
-    // [103] Douse Drive
-    t[103] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
-    // [442] Shock Drive
-    t[442] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 649 };
-
-    // Memories → Silvally (773)
     // [668] Fighting Memory
     t[668] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 773 };
     // [669] Flying Memory
@@ -615,22 +574,56 @@ pub static GEN_ITEMS: [ItemData; 1881] = {
     t[683] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 773 };
     // [684] Fairy Memory
     t[684] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 773 };
-
-    // Rusted Sword → Zacian (888)
+    // [685] Solganium Z
+    t[685] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [686] Lunalium Z
+    t[686] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [687] Ultranecrozium Z
+    t[687] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [688] Mimikium Z
+    t[688] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [689] Lycanium Z
+    t[689] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [690] Kommonium Z
+    t[690] = ItemData { flags: F::Z_CRYSTAL, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [698] Rusted Sword
     t[698] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 888 };
-    // Rusted Shield → Zamazenta (889)
+    // [699] Rusted Shield
     t[699] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 889 };
-
-    // Ogerpon Masks → Ogerpon (1017)
+    // [713] Throat Spray
+    t[713] = ItemData { flags: F::CONSUMABLE | F::THROAT_SPRAY, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [715] Heavy-Duty Boots
+    t[715] = ItemData { flags: F::HAZARD_IMMUNE, type_param: 0xFF, power_param: 80, forme_species: 0 };
+    // [718] Utility Umbrella
+    t[718] = ItemData { flags: F::UTILITY_UMBRELLA, type_param: 0xFF, power_param: 60, forme_species: 0 };
+    // [741] Adamant Crystal
+    t[741] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 0, forme_species: 483 };
+    // [742] Lustrous Globe
+    t[742] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 0, forme_species: 484 };
+    // [743] Griseous Core
+    t[743] = ItemData { flags: F::TYPE_BOOST, type_param: 13, power_param: 0, forme_species: 487 };
+    // [745] Booster Energy
+    t[745] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [746] Ability Shield
+    t[746] = ItemData { flags: F::ABILITY_SHIELD, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [747] Clear Amulet
+    t[747] = ItemData { flags: F::CLEAR_AMULET, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [748] Mirror Herb
+    t[748] = ItemData { flags: F::CONSUMABLE | F::MIRROR_HERB, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [749] Punching Glove
+    t[749] = ItemData { flags: F::PUNCHING_GLOVE, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [750] Covert Cloak
+    t[750] = ItemData { flags: F::COVERT_CLOAK, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [751] Loaded Dice
+    t[751] = ItemData { flags: F::LOADED_DICE, type_param: 0xFF, power_param: 30, forme_species: 0 };
+    // [754] Fairy Feather
+    t[754] = ItemData { flags: F::TYPE_BOOST, type_param: 17, power_param: 10, forme_species: 0 };
     // [758] Cornerstone Mask
-    t[758] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 1017 };
+    t[758] = ItemData { flags: 0, type_param: 0xFF, power_param: 60, forme_species: 1017 };
     // [759] Wellspring Mask
-    t[759] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 1017 };
+    t[759] = ItemData { flags: 0, type_param: 0xFF, power_param: 60, forme_species: 1017 };
     // [760] Hearthflame Mask
-    t[760] = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 1017 };
-    // [1880] Booster Energy
-    t[1880] = ItemData { flags: F::CONSUMABLE, type_param: 0xFF, power_param: 0, forme_species: 0 };
-
+    t[760] = ItemData { flags: 0, type_param: 0xFF, power_param: 60, forme_species: 1017 };
     t
 };
 

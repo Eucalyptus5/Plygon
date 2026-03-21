@@ -6,62 +6,73 @@
 #[allow(non_snake_case)]
 pub mod ItemFlag {
     // Damage calc: stat modifiers
-    pub const CHOICE_ATK: u32       = 1 << 0;
-    pub const CHOICE_SPA: u32       = 1 << 1;
-    pub const CHOICE_SPE: u32       = 1 << 2;
-    pub const ASSAULT_VEST: u32     = 1 << 3;
-    pub const EVIOLITE: u32         = 1 << 4;
+    pub const CHOICE_ATK: u64       = 1 << 0;
+    pub const CHOICE_SPA: u64       = 1 << 1;
+    pub const CHOICE_SPE: u64       = 1 << 2;
+    pub const ASSAULT_VEST: u64     = 1 << 3;
+    pub const EVIOLITE: u64         = 1 << 4;
 
     // Damage calc: damage modifiers
-    pub const LIFE_ORB: u32         = 1 << 5;
-    pub const EXPERT_BELT: u32      = 1 << 6;
-    pub const TYPE_BOOST: u32       = 1 << 7;
-    pub const RESIST_BERRY: u32     = 1 << 8;
-    pub const METRONOME: u32        = 1 << 9;
+    pub const LIFE_ORB: u64         = 1 << 5;
+    pub const EXPERT_BELT: u64      = 1 << 6;
+    pub const TYPE_BOOST: u64       = 1 << 7;
+    pub const RESIST_BERRY: u64     = 1 << 8;
+    pub const METRONOME: u64        = 1 << 9;
 
     // Crit / accuracy
-    pub const CRIT_BOOST: u32       = 1 << 10;
-    pub const WIDE_LENS: u32        = 1 << 11;
+    pub const CRIT_BOOST: u64       = 1 << 10;
+    pub const WIDE_LENS: u64        = 1 << 11;
 
     // Defensive
-    pub const FOCUS_SASH: u32       = 1 << 12;
-    pub const AIR_BALLOON: u32      = 1 << 13;
-    pub const SAFETY_GOGGLES: u32   = 1 << 14;
-    pub const ROCKY_HELMET: u32     = 1 << 15;
+    pub const FOCUS_SASH: u64       = 1 << 12;
+    pub const AIR_BALLOON: u64      = 1 << 13;
+    pub const SAFETY_GOGGLES: u64   = 1 << 14;
+    pub const ROCKY_HELMET: u64     = 1 << 15;
 
     // End-of-turn
-    pub const LEFTOVERS: u32        = 1 << 16;
-    pub const BLACK_SLUDGE: u32     = 1 << 17;
-    pub const FLAME_ORB: u32        = 1 << 18;
-    pub const TOXIC_ORB: u32        = 1 << 19;
+    pub const LEFTOVERS: u64        = 1 << 16;
+    pub const BLACK_SLUDGE: u64     = 1 << 17;
+    pub const FLAME_ORB: u64        = 1 << 18;
+    pub const TOXIC_ORB: u64        = 1 << 19;
 
     // Switch / hazard
-    pub const HAZARD_IMMUNE: u32    = 1 << 20;
-    pub const TRAP_IMMUNE: u32      = 1 << 21;
-    pub const EXTENDS_SCREENS: u32  = 1 << 22;
-    pub const BINDING_BOOST: u32    = 1 << 23;
+    pub const HAZARD_IMMUNE: u64    = 1 << 20;
+    pub const TRAP_IMMUNE: u64      = 1 << 21;
+    pub const EXTENDS_SCREENS: u64  = 1 << 22;
+    pub const BINDING_BOOST: u64    = 1 << 23;
 
     // Berry / consumable / seed
-    pub const TERRAIN_SEED: u32     = 1 << 24;
-    pub const IS_BERRY: u32         = 1 << 25;
-    pub const PINCH_BERRY: u32      = 1 << 26;
-    pub const MEGA_STONE: u32       = 1 << 27;
-    pub const Z_CRYSTAL: u32        = 1 << 28;
-    pub const CONSUMABLE: u32       = 1 << 29;
-    pub const GEM: u32              = 1 << 30;
-    pub const POWER_HERB: u32       = 1 << 31;
+    pub const TERRAIN_SEED: u64     = 1 << 24;
+    pub const IS_BERRY: u64         = 1 << 25;
+    pub const PINCH_BERRY: u64      = 1 << 26;
+    pub const MEGA_STONE: u64       = 1 << 27;
+    pub const Z_CRYSTAL: u64        = 1 << 28;
+    pub const CONSUMABLE: u64       = 1 << 29;
+    pub const GEM: u64              = 1 << 30;
+    pub const POWER_HERB: u64       = 1 << 31;
+
+    // Gen 9 items
+    pub const LOADED_DICE: u64       = 1 << 32;
+    pub const COVERT_CLOAK: u64      = 1 << 33;
+    pub const CLEAR_AMULET: u64      = 1 << 34;
+    pub const ABILITY_SHIELD: u64    = 1 << 35;
+    pub const PUNCHING_GLOVE: u64    = 1 << 36;
+    pub const MIRROR_HERB: u64       = 1 << 37;
+    pub const UTILITY_UMBRELLA: u64  = 1 << 38;
+    pub const THROAT_SPRAY: u64      = 1 << 39;
+    pub const PROTECTIVE_PADS: u64   = 1 << 40;
 
     // Convenience masks
-    pub const IS_CHOICE: u32 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
+    pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }
 
 /// Compact item data: flags bitmask + type parameter for type-specific items.
-/// 8 bytes with #[repr(C)], zero padding.
+/// 16 bytes with #[repr(C)] (u64 alignment adds 4 bytes padding).
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ItemData {
-    pub flags: u32,
-    pub type_param: u8,   // Type as u8 for type-boost/resist/gem items, 0xFF = N/A
+    pub flags: u64,
+    pub type_param: u8,   // Overloaded: type ID for boost/resist/gem; stat index for pinch berries; terrain ID (1-4) for seeds; 0xFF = N/A
     pub power_param: u8,  // Fling base power
     /// Base species ID that locks this item (e.g. 493 for Arceus Plates).
     /// 0 = not forme-locked.  Knock Off / Thief cannot remove the item when
@@ -69,7 +80,7 @@ pub struct ItemData {
     pub forme_species: u16,
 }
 
-const _: () = assert!(core::mem::size_of::<ItemData>() == 8);
+const _: () = assert!(core::mem::size_of::<ItemData>() == 16);
 
 impl ItemData {
     pub const NONE: Self = Self {
@@ -78,7 +89,7 @@ impl ItemData {
 
     /// Check if a flag is set.
     #[inline(always)]
-    pub fn has(&self, flag: u32) -> bool {
+    pub fn has(&self, flag: u64) -> bool {
         self.flags & flag != 0
     }
 

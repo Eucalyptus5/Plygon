@@ -15,7 +15,7 @@ fn test_struct_sizes() {
     assert_eq!(size_of::<SideState>(), 304);
     assert!(size_of::<BattleState>() <= 640);
     assert_eq!(size_of::<MonBuildData>(), 13);
-    assert_eq!(size_of::<ItemData>(), 8);
+    assert_eq!(size_of::<ItemData>(), 16);
     assert_eq!(size_of::<MoveData>(), 16);
     assert_eq!(size_of::<MoveMeta>(), 2);
 }

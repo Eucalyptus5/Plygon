@@ -28,13 +28,7 @@ TYPE_MAP = {
     "Steel": 16, "Fairy": 17,
 }
 
-TYPE_RUST = {
-    0: "Type::Normal", 1: "Type::Fire", 2: "Type::Water", 3: "Type::Electric",
-    4: "Type::Grass", 5: "Type::Ice", 6: "Type::Fighting", 7: "Type::Poison",
-    8: "Type::Ground", 9: "Type::Flying", 10: "Type::Psychic", 11: "Type::Bug",
-    12: "Type::Rock", 13: "Type::Ghost", 14: "Type::Dragon", 15: "Type::Dark",
-    16: "Type::Steel", 17: "Type::Fairy",
-}
+TYPE_RUST = {v: f"Type::{k}" for k, v in TYPE_MAP.items()}
 
 STATUS_MAP = {
     "brn": 1, "par": 2, "psn": 3, "tox": 4, "slp": 5, "frz": 6,
@@ -656,15 +650,91 @@ def gen_moves():
 # Item codegen
 # ═══════════════════════════════════════════════════════════════════
 
-# Showdown item key → (flags, type_param, power_param) mapping
-# These are items with special engine flags that can't be auto-detected.
+# Forme-locked items: Showdown key → base species ID.
+# These items cannot be removed from the species they're locked to
+# (e.g. Knock Off, Trick, Thief are blocked).
+FORME_LOCKED = {
+    # Arceus Plates (493)
+    "dracoplate": 493, "dreadplate": 493, "earthplate": 493,
+    "fistplate": 493, "flameplate": 493, "icicleplate": 493,
+    "insectplate": 493, "ironplate": 493, "meadowplate": 493,
+    "mindplate": 493, "pixieplate": 493, "skyplate": 493,
+    "splashplate": 493, "spookyplate": 493, "stoneplate": 493,
+    "toxicplate": 493, "zapplate": 493,
+    # Giratina (487)
+    "griseousorb": 487, "griseouscore": 487,
+    # Genesect Drives (649)
+    "burndrive": 649, "chilldrive": 649, "dousedrive": 649, "shockdrive": 649,
+    # Silvally Memories (773)
+    "fightingmemory": 773, "flyingmemory": 773, "poisonmemory": 773,
+    "groundmemory": 773, "rockmemory": 773, "bugmemory": 773,
+    "ghostmemory": 773, "steelmemory": 773, "firememory": 773,
+    "watermemory": 773, "grassmemory": 773, "electricmemory": 773,
+    "psychicmemory": 773, "icememory": 773, "dragonmemory": 773,
+    "darkmemory": 773, "fairymemory": 773,
+    # Zacian / Zamazenta (888 / 889)
+    "rustedsword": 888, "rustedshield": 889,
+    # Dialga (483) / Palkia (484) / Giratina Origin (487)
+    "adamantcrystal": 483, "lustrousglobe": 484,
+    # Ogerpon Masks (1017)
+    "cornerstonemask": 1017, "wellspringmask": 1017, "hearthflamemask": 1017,
+}
+
+# Items with engine flags that can't be auto-detected from Showdown TS patterns.
+# Showdown key → tuple of ItemFlag constant names.
+SPECIFIC_ITEMS = {
+    "choiceband": ("CHOICE_ATK",),
+    "choicescarf": ("CHOICE_SPE",),
+    "choicespecs": ("CHOICE_SPA",),
+    "assaultvest": ("ASSAULT_VEST",),
+    "eviolite": ("EVIOLITE",),
+    "lifeorb": ("LIFE_ORB",),
+    "expertbelt": ("EXPERT_BELT",),
+    "metronome": ("METRONOME",),
+    "razorclaw": ("CRIT_BOOST",),
+    "scopelens": ("CRIT_BOOST",),
+    "widelens": ("WIDE_LENS",),
+    "focussash": ("FOCUS_SASH", "CONSUMABLE"),
+    "airballoon": ("AIR_BALLOON", "CONSUMABLE"),
+    "safetygoggles": ("SAFETY_GOGGLES",),
+    "rockyhelmet": ("ROCKY_HELMET",),
+    "leftovers": ("LEFTOVERS",),
+    "blacksludge": ("BLACK_SLUDGE",),
+    "flameorb": ("FLAME_ORB",),
+    "toxicorb": ("TOXIC_ORB",),
+    "heavydutyboots": ("HAZARD_IMMUNE",),
+    "shedshell": ("TRAP_IMMUNE",),
+    "lightclay": ("EXTENDS_SCREENS",),
+    "bindingband": ("BINDING_BOOST",),
+    "powerherb": ("POWER_HERB", "CONSUMABLE"),
+    "protectivepads": ("PROTECTIVE_PADS",),
+    "loadeddice": ("LOADED_DICE",),
+    "covertcloak": ("COVERT_CLOAK",),
+    "clearamulet": ("CLEAR_AMULET",),
+    "abilityshield": ("ABILITY_SHIELD",),
+    "punchingglove": ("PUNCHING_GLOVE",),
+    "mirrorherb": ("MIRROR_HERB", "CONSUMABLE"),
+    "utilityumbrella": ("UTILITY_UMBRELLA",),
+    "throatspray": ("THROAT_SPRAY", "CONSUMABLE"),
+    "boosterenergy": ("CONSUMABLE",),
+    "weaknesspolicy": ("CONSUMABLE",),
+}
+
+# Terrain seed type_param encoding — matches switch.rs terrain activation logic.
+TERRAIN_ID = {
+    "electricterrain": 1,
+    "grassyterrain": 2,
+    "psychicterrain": 3,
+    "mistyterrain": 4,
+}
+
 
 def gen_items():
     """Generate gen_items.rs from items.ts."""
     text = (SD / "items.ts").read_text(encoding="utf-8")
     entries = parse_ts_object(text)
 
-    items = {}  # spritenum → (key, name, flags_set, type_param, fling_bp)
+    items = {}  # spritenum → (key, name, flags_set, type_param, fling_bp, forme_species)
     max_num = 0
 
     for key, block in entries.items():
@@ -770,47 +840,14 @@ def gen_items():
                         break
 
         # Terrain seeds
-        if "Seed" in name_raw and ("electricterrain" in block or "grassyterrain" in block
-                                    or "psychicterrain" in block or "mistyterrain" in block):
-            flags.add("TERRAIN_SEED")
-            flags.add("CONSUMABLE")
-            if "electricterrain" in block:
-                type_param = 1
-            elif "grassyterrain" in block:
-                type_param = 2
-            elif "psychicterrain" in block:
-                type_param = 3
-            elif "mistyterrain" in block:
-                type_param = 4
+        if "Seed" in name_raw:
+            for terrain_key, terrain_id in TERRAIN_ID.items():
+                if terrain_key in block:
+                    flags.add("TERRAIN_SEED")
+                    flags.add("CONSUMABLE")
+                    type_param = terrain_id
+                    break
 
-        # Specific well-known items
-        SPECIFIC_ITEMS = {
-            "choiceband": ("CHOICE_ATK",),
-            "choicescarf": ("CHOICE_SPE",),
-            "choicespecs": ("CHOICE_SPA",),
-            "assaultvest": ("ASSAULT_VEST",),
-            "eviolite": ("EVIOLITE",),
-            "lifeorb": ("LIFE_ORB",),
-            "expertbelt": ("EXPERT_BELT",),
-            "metronome": ("METRONOME",),
-            "razorclaw": ("CRIT_BOOST",),
-            "scopelens": ("CRIT_BOOST",),
-            "widelens": ("WIDE_LENS",),
-            "focussash": ("FOCUS_SASH", "CONSUMABLE"),
-            "airballoon": ("AIR_BALLOON", "CONSUMABLE"),
-            "safetygoggles": ("SAFETY_GOGGLES",),
-            "rockyhelmet": ("ROCKY_HELMET",),
-            "leftovers": ("LEFTOVERS",),
-            "blacksludge": ("BLACK_SLUDGE",),
-            "flameorb": ("FLAME_ORB",),
-            "toxicorb": ("TOXIC_ORB",),
-            "heavydutyboots": ("HAZARD_IMMUNE",),
-            "shedshell": ("TRAP_IMMUNE",),
-            "lightclay": ("EXTENDS_SCREENS",),
-            "bindingband": ("BINDING_BOOST",),
-            "powerherb": ("POWER_HERB", "CONSUMABLE"),
-            "protectivepads": (),  # no engine flag yet
-        }
         if key in SPECIFIC_ITEMS:
             for f in SPECIFIC_ITEMS[key]:
                 flags.add(f)
@@ -818,42 +855,53 @@ def gen_items():
         if is_berry:
             flags.add("IS_BERRY")
 
+        forme_species = FORME_LOCKED.get(key, 0)
+
         if num not in items:
-            items[num] = (key, name_raw, flags, type_param, fling_bp)
+            items[num] = (key, name_raw, flags, type_param, fling_bp, forme_species)
 
     # Cap at 716 or max_num+1
     slots = max(max_num + 1, 716)
 
     out = []
-    out.append("//! Generated item data table.")
+    out.append("//! Generated item data table — do not edit by hand.")
     out.append("//!")
-    out.append("//! Item IDs match Pok\u00e9mon Showdown's numbering.")
-    out.append("//! Populated entries have flags set; all others are ItemData::NONE (flags=0).")
+    out.append("//! Regenerate with: `python3 codegen.py --items`")
+    out.append("//!")
+    out.append("//! Indexed by Showdown spritenum. The array is sparse: most slots are N")
+    out.append("//! (ItemData::NONE). Only items with engine-relevant flags or forme_species")
+    out.append("//! locks get populated entries.")
+    out.append("//!")
+    out.append("//! To add a new item: add it to SPECIFIC_ITEMS in codegen.py, then re-run.")
     out.append("")
     out.append("use crate::data::items::ItemData;")
     out.append("use crate::data::items::ItemFlag as F;")
     out.append("")
     out.append(f"pub static GEN_ITEMS: [ItemData; {slots}] = {{")
-    out.append("    const N: ItemData = ItemData { flags: 0, type_param: 0xFF, power_param: 0, _padding: [0; 2] };")
+    out.append("    const N: ItemData = ItemData { flags: 0, type_param: 0xFF, power_param: 0, forme_species: 0 };")
     out.append(f"    let mut t = [N; {slots}];")
 
     for num in sorted(items.keys()):
-        key, name_raw, flags, type_param, fling_bp = items[num]
-        if not flags:
-            continue  # Skip items with no engine-relevant flags
+        key, name_raw, flags, type_param, fling_bp, forme_species = items[num]
+        if not flags and forme_species == 0:
+            continue  # Skip items with no engine-relevant flags and no forme lock
 
-        flag_parts = sorted(flags)
-        flags_str = " | ".join(f"F::{f}" for f in flag_parts)
+        if flags:
+            flag_parts = sorted(flags)
+            flags_str = " | ".join(f"F::{f}" for f in flag_parts)
+        else:
+            flags_str = "0"
         tp = type_param if type_param != 0xFF else "0xFF"
         out.append(f"    // [{num:>3}] {name_raw}")
-        out.append(f"    t[{num}] = ItemData {{ flags: {flags_str}, type_param: {tp}, power_param: {fling_bp}, _padding: [0; 2] }};")
+        out.append(f"    t[{num}] = ItemData {{ flags: {flags_str}, type_param: {tp}, power_param: {fling_bp}, forme_species: {forme_species} }};")
 
     out.append("    t")
     out.append("};")
     out.append("")
 
     (OUT / "gen_items.rs").write_text("\n".join(out) + "\n", encoding="utf-8")
-    print(f"Wrote {OUT / 'gen_items.rs'}: {len([n for n in items if items[n][2]])} items with flags")
+    active = [n for n in items if items[n][2] or items[n][5]]
+    print(f"Wrote {OUT / 'gen_items.rs'}: {len(active)} items with flags or forme_species")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -861,6 +909,14 @@ def gen_items():
 # ═══════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    gen_moves()
-    gen_items()
+    import argparse
+    p = argparse.ArgumentParser(description="Generate gen_moves.rs and/or gen_items.rs")
+    p.add_argument("--moves", action="store_true", help="regenerate gen_moves.rs only")
+    p.add_argument("--items", action="store_true", help="regenerate gen_items.rs only")
+    args = p.parse_args()
+    both = not args.moves and not args.items
+    if both or args.moves:
+        gen_moves()
+    if both or args.items:
+        gen_items()
     print("Done.")

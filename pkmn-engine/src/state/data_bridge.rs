@@ -333,7 +333,7 @@ pub const ITEM_WEAKNESS_POLICY: u16 = 609;
 pub const ITEM_WIKI_BERRY: u16 = 538;
 pub const ITEM_WISE_GLASSES: u16 = 539;
 pub const ITEM_PUNCHING_GLOVE: u16 = 749;
-pub const ITEM_BOOSTER_ENERGY: u16 = 1880;
+pub const ITEM_BOOSTER_ENERGY: u16 = 745;
 
 pub const SPECIES_PIKACHU: u16 = 25;
 pub const SPECIES_CUBONE: u16 = 104;
