@@ -79,7 +79,7 @@ fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         speed *= 2;
     }
 
-    let weather = effective_weather(state);
+    let weather = effective_weather_for(state, side);
     match ability {
         data_bridge::ABILITY_CHLOROPHYLL
             if matches!(weather, WEATHER_SUN | WEATHER_HARSH_SUN)

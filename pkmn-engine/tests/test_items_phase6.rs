@@ -307,3 +307,135 @@ fn test_throat_spray_item_exists() {
     let itm = item(ITEM_THROAT_SPRAY);
     assert_ne!(itm.type_param, 0); // should have power_param set
 }
+
+// --- Utility Umbrella ---
+
+#[test]
+fn test_utility_umbrella_blocks_rain_dish() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_RAIN_DISH;
+    state.sides[0].team[0].item_id = ITEM_UTILITY_UMBRELLA;
+    state.sides[0].team[0].current_hp = 200;
+    state.field.weather = WEATHER_RAIN;
+    state.field.weather_turns = 5;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].team[0].current_hp, 200); // no healing
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_utility_umbrella_blocks_dry_skin_sun_damage() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_DRY_SKIN;
+    state.sides[0].team[0].item_id = ITEM_UTILITY_UMBRELLA;
+    state.field.weather = WEATHER_SUN;
+    state.field.weather_turns = 5;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let hp_before = state.sides[0].team[0].current_hp;
+    end_of_turn(&mut state, &keys);
+
+    assert_eq!(state.sides[0].team[0].current_hp, hp_before); // no sun damage
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_utility_umbrella_no_effect_on_snow() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].ability_id = ABILITY_ICE_BODY;
+    state.sides[0].team[0].item_id = ITEM_UTILITY_UMBRELLA;
+    state.sides[0].team[0].current_hp = 200;
+    state.field.weather = WEATHER_SNOW;
+    state.field.weather_turns = 5;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    end_of_turn(&mut state, &keys);
+
+    // Snow is NOT blocked by Utility Umbrella — Ice Body healing should apply
+    assert!(state.sides[0].team[0].current_hp > 200);
+    assert!(validate_hash(&state, &keys));
+}
+
+// --- Loaded Dice ---
+
+#[test]
+fn test_loaded_dice_minimum_4_hits() {
+    use pkmn_engine::data::moves::MoveData;
+    let md = MoveData {
+        multihit: (5 << 4) | 2, base_power: 25,
+        ..unsafe { core::mem::zeroed() }
+    };
+    for seed in 0..100u32 {
+        let hits = resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut |n| seed % n);
+        assert!(hits >= 4, "Loaded Dice produced {hits} hits (seed={seed})");
+        assert!(hits <= 5);
+    }
+}
+
+#[test]
+fn test_loaded_dice_no_effect_fixed_hits() {
+    use pkmn_engine::data::moves::MoveData;
+    let md = MoveData {
+        multihit: (3 << 4) | 3, base_power: 25,
+        ..unsafe { core::mem::zeroed() }
+    };
+    let hits = resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut |_| 0);
+    assert_eq!(hits, 3);
+}
+
+#[test]
+fn test_loaded_dice_no_effect_skill_link() {
+    use pkmn_engine::data::moves::MoveData;
+    let md = MoveData {
+        multihit: (5 << 4) | 2, base_power: 25,
+        ..unsafe { core::mem::zeroed() }
+    };
+    let hits = resolve_hits(&md, ABILITY_SKILL_LINK, ItemFlag::LOADED_DICE, &mut |_| 0);
+    assert_eq!(hits, 5);
+}
+
+#[test]
+fn test_no_loaded_dice_can_hit_2() {
+    use pkmn_engine::data::moves::MoveData;
+    let md = MoveData {
+        multihit: (5 << 4) | 2, base_power: 25,
+        ..unsafe { core::mem::zeroed() }
+    };
+    let hits = resolve_hits(&md, 0, 0, &mut |_| 0);
+    assert_eq!(hits, 2);
+}
+
+#[test]
+fn test_mirror_herb_copies_swords_dance_integration() {
+    use pkmn_engine::state::move_exec::execute_move;
+    use pkmn_engine::data::MOVE_SWORDS_DANCE;
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves[0] = MOVE_SWORDS_DANCE as u16;
+    state.sides[1].team[0].item_id = ITEM_MIRROR_HERB;
+    state.zobrist = compute_full_hash(&state, &keys);
+    execute_move(&mut state, &keys, 0, MOVE_SWORDS_DANCE as u16, 0, &mut |_| 0);
+    assert_eq!(state.sides[0].active.boosts[ATK], 2);
+    assert_eq!(state.sides[1].active.boosts[ATK], 2);
+    assert_eq!(state.sides[1].team[0].item_id, 0); // consumed
+    assert!(validate_hash(&state, &keys));
+}
+
+#[test]
+fn test_mirror_herb_copies_dragon_dance_integration() {
+    use pkmn_engine::state::move_exec::execute_move;
+    use pkmn_engine::data::MOVE_DRAGON_DANCE;
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves[0] = MOVE_DRAGON_DANCE as u16;
+    state.sides[1].team[0].item_id = ITEM_MIRROR_HERB;
+    state.zobrist = compute_full_hash(&state, &keys);
+    execute_move(&mut state, &keys, 0, MOVE_DRAGON_DANCE as u16, 0, &mut |_| 0);
+    assert_eq!(state.sides[0].active.boosts[ATK], 1);
+    assert_eq!(state.sides[0].active.boosts[SPE], 1);
+    assert_eq!(state.sides[1].active.boosts[ATK], 1);
+    assert_eq!(state.sides[1].active.boosts[SPE], 1);
+    assert_eq!(state.sides[1].team[0].item_id, 0);
+    assert!(validate_hash(&state, &keys));
+}

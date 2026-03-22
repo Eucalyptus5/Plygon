@@ -373,7 +373,7 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_HYDRATION => {
-            if matches!(effective_weather(state), WEATHER_RAIN | WEATHER_HEAVY_RAIN)
+            if matches!(effective_weather_for(state, side), WEATHER_RAIN | WEATHER_HEAVY_RAIN)
                 && state.sides[side].team[slot].status != STATUS_NONE
             {
                 clear_status(state, keys, side, slot);
@@ -392,13 +392,13 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_SOLAR_POWER => {
-            if matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN) {
+            if matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN) {
                 let m = state.sides[side].team[slot].max_hp;
                 deal_damage(state, keys, side, slot, (m / 8).max(1));
             }
         }
         data_bridge::ABILITY_DRY_SKIN => {
-            match effective_weather(state) {
+            match effective_weather_for(state, side) {
                 WEATHER_SUN | WEATHER_HARSH_SUN => {
                     let m = state.sides[side].team[slot].max_hp;
                     deal_damage(state, keys, side, slot, (m / 8).max(1));
@@ -411,13 +411,13 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_RAIN_DISH => {
-            if matches!(effective_weather(state), WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
+            if matches!(effective_weather_for(state, side), WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
                 let m = state.sides[side].team[slot].max_hp;
                 heal(state, keys, side, slot, m / 16);
             }
         }
         data_bridge::ABILITY_ICE_BODY => {
-            if effective_weather(state) == WEATHER_SNOW {
+            if effective_weather_for(state, side) == WEATHER_SNOW {
                 let m = state.sides[side].team[slot].max_hp;
                 heal(state, keys, side, slot, m / 16);
             }
@@ -425,7 +425,7 @@ fn step_eot_abilities(
         data_bridge::ABILITY_HARVEST => {
             let berry_id = state.sides[side].last_consumed_berry();
             if berry_id != 0 && state.sides[side].team[slot].item_id == 0 {
-                let in_sun = matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN);
+                let in_sun = matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN);
                 if in_sun || (state.sides[side].active.turns_active % 2 == 0) {
                     set_item(state, keys, side, slot, berry_id);
                     state.sides[side].set_last_consumed_berry(0);

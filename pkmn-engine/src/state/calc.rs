@@ -199,14 +199,14 @@ pub fn calc_damage(
 
     a = ability_atk_stat_mod(
         a, atk_ability, category, atk_mon.status,
-        move_type, effective_weather(state),
+        move_type, effective_weather_for(state, atk_side),
         atk_mon.current_hp, atk_mon.max_hp,
         state.sides[atk_side].active.turns_active,
         state.sides[def_side].active.turns_active,
     );
     d = ability_def_stat_mod(
         d, def_ability, category, move_type,
-        def_mon.status, effective_weather(state), state.field.terrain,
+        def_mon.status, effective_weather_for(state, def_side), state.field.terrain,
     );
 
     // Protosynthesis/Quark Drive: 1.3× for non-Spe stats (suppressed by Neutralizing Gas)
@@ -250,12 +250,12 @@ pub fn calc_damage(
         if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
     }
 
-    d = weather_def_stat_mod(d, effective_weather(state), category, def_t1, def_t2);
+    d = weather_def_stat_mod(d, effective_weather_for(state, def_side), category, def_t1, def_t2);
 
     if d == 0 { d = 1; }
     if power == 0 { return result; }
 
-    let num_hits = resolve_hits(md, atk_ability, rng_fn);
+    let num_hits = resolve_hits(md, atk_ability, atk_item.flags, rng_fn);
     result.hits = num_hits;
 
     let mut total_damage: u32 = 0;
@@ -263,7 +263,7 @@ pub fn calc_damage(
     for _ in 0..num_hits {
         let mut dmg: u32 = (LEVEL_FACTOR * power * a as u32 / d as u32) / 50 + 2;
 
-        let (wn, wd) = weather_modifier(effective_weather(state), move_type);
+        let (wn, wd) = weather_modifier(effective_weather_for(state, atk_side), move_type);
         if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
         dmg = chain_mod(dmg, wn, wd);
 
@@ -527,7 +527,7 @@ mod tests {
             multihit: (5 << 4) | 2, base_power: 25,
             ..unsafe { core::mem::zeroed() }
         };
-        let hits = resolve_hits(&md, data_bridge::ABILITY_SKILL_LINK, &mut fixed_rng(0));
+        let hits = resolve_hits(&md, data_bridge::ABILITY_SKILL_LINK, 0, &mut fixed_rng(0));
         assert_eq!(hits, 5); // Skill Link always max
     }
 

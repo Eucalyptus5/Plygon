@@ -508,13 +508,15 @@ pub fn item_final_mod(
 
 /// Determine the number of hits for a multi-hit move.
 #[inline]
-pub fn resolve_hits(md: &MoveData, ability: u16, rng: &mut impl FnMut(u32) -> u32) -> u8 {
+pub fn resolve_hits(md: &MoveData, ability: u16, item_flags: u64, rng: &mut impl FnMut(u32) -> u32) -> u8 {
     let lo = md.multihit_lo();
     let hi = md.multihit_hi();
     if lo == 0 { return 1; }
     if lo == hi { return lo; }
     if ability == data_bridge::ABILITY_SKILL_LINK { return hi; }
-    // 2-5 distribution: 35%, 35%, 15%, 15%
+    if item_flags & ItemFlag::LOADED_DICE != 0 {
+        return if rng(2) == 0 { 4 } else { 5 };
+    }
     match rng(100) {
         0..=34 => 2,
         35..=69 => 3,
@@ -664,7 +666,7 @@ pub fn resolve_move_type(
 ) -> Type {
     match md.effect {
         MoveEffect::WeatherBall => {
-            match effective_weather(state) {
+            match effective_weather_for(state, atk_side) {
                 WEATHER_SUN | WEATHER_HARSH_SUN => Type::Fire,
                 WEATHER_RAIN | WEATHER_HEAVY_RAIN => Type::Water,
                 WEATHER_SAND => Type::Rock,
@@ -780,16 +782,15 @@ pub fn move_effect_power_mod(
 
         // Solar Beam / Solar Blade: 0.5× in rain, sand, snow
         MoveEffect::SolarBeam => {
-            match effective_weather(state) {
+            match effective_weather_for(state, atk_side) {
                 WEATHER_RAIN | WEATHER_HEAVY_RAIN
                 | WEATHER_SAND | WEATHER_SNOW => (2048, 4096), // 0.5×
                 _ => (4096, 4096),
             }
         }
 
-        // Weather Ball: 2× power in any active weather
         MoveEffect::WeatherBall => {
-            match effective_weather(state) {
+            match effective_weather_for(state, atk_side) {
                 WEATHER_SUN | WEATHER_HARSH_SUN
                 | WEATHER_RAIN | WEATHER_HEAVY_RAIN
                 | WEATHER_SAND | WEATHER_SNOW => (8192, 4096), // 2×

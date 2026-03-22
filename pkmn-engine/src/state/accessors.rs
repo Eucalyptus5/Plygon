@@ -29,6 +29,20 @@ pub fn effective_weather(state: &BattleState) -> u8 {
 }
 
 #[inline(always)]
+pub fn effective_weather_for(state: &BattleState, side: usize) -> u8 {
+    let w = effective_weather(state);
+    if matches!(w, WEATHER_SUN | WEATHER_HARSH_SUN | WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
+        let mon = state.active_mon(side);
+        if mon.item_id != 0 && state.field.magic_room_turns() == 0
+            && data_bridge::item(mon.item_id).has(ItemFlag::UTILITY_UMBRELLA)
+        {
+            return WEATHER_NONE;
+        }
+    }
+    w
+}
+
+#[inline(always)]
 pub fn effective_ability(state: &BattleState, side: usize) -> u16 {
     let active = &state.sides[side].active;
     if active.has_volatile(VOL_ABILITY_SUPPRESSED) { return 0; }

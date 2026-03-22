@@ -2,6 +2,9 @@
 
 use crate::state::structs::*;
 use crate::state::zobrist::{ZobristKeys, hp_bucket};
+use crate::state::data_bridge;
+use crate::state::accessors::effective_ability;
+use crate::data::items::ItemFlag;
 
 pub fn deal_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize, amount: u16) {
     let mon = &mut state.sides[side].team[slot];
@@ -61,6 +64,72 @@ pub fn apply_boost(state: &mut BattleState, keys: &ZobristKeys, side: usize, sta
         if new != 0 { state.zobrist ^= keys.boosts[side][stat_index][(new + 6) as usize]; }
     }
     actual
+}
+
+/// Apply a negative stat change from an external source. Blocked by Clear Amulet.
+#[inline(always)]
+pub fn try_opponent_stat_drop(
+    state: &mut BattleState, keys: &ZobristKeys,
+    target: usize, stat: usize, stages: i8,
+) -> i8 {
+    if state.field.magic_room_turns() == 0 {
+        let item_id = state.active_mon(target).item_id;
+        if item_id != 0 && data_bridge::item(item_id).has(ItemFlag::CLEAR_AMULET) {
+            return 0;
+        }
+    }
+    apply_boost(state, keys, target, stat, stages)
+}
+
+#[inline(always)]
+fn mirror_herb_core(state: &mut BattleState, keys: &ZobristKeys, herb_side: usize) {
+    let herb_slot = state.sides[herb_side].active_index as usize;
+    consume_item(state, keys, herb_side, herb_slot);
+    if effective_ability(state, herb_side) == data_bridge::ABILITY_UNBURDEN {
+        set_volatile(state, keys, herb_side, VOL_UNBURDEN);
+    }
+}
+
+#[inline(always)]
+pub fn try_mirror_herb(
+    state: &mut BattleState, keys: &ZobristKeys,
+    boosted_side: usize, boosts: &[(usize, i8)],
+) {
+    let herb_side = 1 - boosted_side;
+    if state.field.magic_room_turns() != 0 { return; }
+    let herb_mon = state.active_mon(herb_side);
+    if herb_mon.item_id == 0 { return; }
+    if !data_bridge::item(herb_mon.item_id).has(ItemFlag::MIRROR_HERB) { return; }
+    let mut any = false;
+    for &(stat, stages) in boosts {
+        if stages > 0 {
+            apply_boost(state, keys, herb_side, stat, stages);
+            any = true;
+        }
+    }
+    if any { mirror_herb_core(state, keys, herb_side); }
+}
+
+#[inline(always)]
+pub fn check_mirror_herb_diff(
+    state: &mut BattleState, keys: &ZobristKeys,
+    boosted_side: usize, boosts_before: &[i8; 7],
+) {
+    let herb_side = 1 - boosted_side;
+    if state.field.magic_room_turns() != 0 { return; }
+    let herb_mon = state.active_mon(herb_side);
+    if herb_mon.item_id == 0 { return; }
+    if !data_bridge::item(herb_mon.item_id).has(ItemFlag::MIRROR_HERB) { return; }
+    let boosts_after = state.sides[boosted_side].active.boosts;
+    let mut any = false;
+    for i in 0..7 {
+        let diff = boosts_after[i] - boosts_before[i];
+        if diff > 0 {
+            apply_boost(state, keys, herb_side, i, diff);
+            any = true;
+        }
+    }
+    if any { mirror_herb_core(state, keys, herb_side); }
 }
 
 pub fn set_volatile(state: &mut BattleState, keys: &ZobristKeys, side: usize, flag: u32) {

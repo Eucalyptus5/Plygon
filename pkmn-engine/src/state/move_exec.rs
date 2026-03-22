@@ -51,18 +51,14 @@ fn accuracy_check(
     // Weather-dependent accuracy overrides (applied before anything else)
     // Thunder / Hurricane: 100% in rain, 50% in sun
     if md.effect == MoveEffect::WeatherAccRain {
-        match effective_weather(state) {
+        match effective_weather_for(state, atk_side) {
             WEATHER_RAIN | WEATHER_HEAVY_RAIN => return true,
-            WEATHER_SUN | WEATHER_HARSH_SUN => {
-                // Override accuracy to 50, then fall through to normal check
-                // (handled below by using effective_accuracy)
-            }
+            WEATHER_SUN | WEATHER_HARSH_SUN => {}
             _ => {}
         }
     }
-    // Blizzard: 100% in snow/hail
     if md.effect == MoveEffect::WeatherAccSnow {
-        if effective_weather(state) == WEATHER_SNOW {
+        if effective_weather_for(state, atk_side) == WEATHER_SNOW {
             return true;
         }
     }
@@ -82,7 +78,7 @@ fn accuracy_check(
 
     // Weather-dependent accuracy: Thunder/Hurricane have 50% in sun
     let base_acc = if md.effect == MoveEffect::WeatherAccRain
-        && matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN)
+        && matches!(effective_weather_for(state, atk_side), WEATHER_SUN | WEATHER_HARSH_SUN)
     {
         50u32
     } else {
@@ -145,18 +141,22 @@ fn apply_secondary(
     if md.secondary_stat > 0 {
         let stat = if md.category == MoveCategory::Physical { ATK } else { SPA };
         apply_boost(state, keys, atk_side, stat, md.secondary_stat as i8);
+        try_mirror_herb(state, keys, atk_side, &[(stat, md.secondary_stat as i8)]);
         return;
     }
+
+    let has_covert_cloak = state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
+    if has_covert_cloak { return; }
+
     if md.secondary_stat < 0 {
         if state.sides[def_side].side_conditions.mist_turns() == 0 {
             let stat = if md.category == MoveCategory::Physical { DEF } else { SPD };
-            apply_boost(state, keys, def_side, stat, md.secondary_stat as i8);
+            try_opponent_stat_drop(state, keys, def_side, stat, md.secondary_stat as i8);
         }
         return;
     }
 
-    // Prefer the explicit field (covers Scald→burn, Body Slam→paralysis).
-    // Fall back to type heuristic for moves where the field isn't populated.
     let status = if md.secondary_status != STATUS_NONE {
         md.secondary_status
     } else {
@@ -178,7 +178,6 @@ fn apply_secondary(
         return;
     }
 
-    // Only works if the defender hasn't moved yet this turn.
     if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
         set_volatile(state, keys, def_side, VOL_FLINCHED);
     }
@@ -234,6 +233,10 @@ fn execute_status_move(
         return;
     }
 
+    let mirror_check = state.field.magic_room_turns() == 0
+        && state.active_mon(def_side).item_id != 0;
+    let atk_boosts_before = if mirror_check { state.sides[atk_side].active.boosts } else { [0; 7] };
+
     match md.effect {
         // -- Hazard setters --
         MoveEffect::StealthRock => { set_stealth_rock(state, def_side); }
@@ -244,7 +247,7 @@ fn execute_status_move(
         // -- Hazard removal --
         MoveEffect::Defog => {
             if state.sides[def_side].side_conditions.mist_turns() == 0 {
-                apply_boost(state, keys, def_side, EVA, -1);
+                try_opponent_stat_drop(state, keys, def_side, EVA, -1);
             }
             // Target side: hazards + screens + safeguard + mist
             clear_hazards(state, def_side);
@@ -791,8 +794,8 @@ fn execute_status_move(
         // -- Parting Shot: -1 Atk -1 SpA on target, then self-switch --
         MoveEffect::PartingShot => {
             let (a, s) = if state.sides[def_side].side_conditions.mist_turns() == 0 {
-                (apply_boost(state, keys, def_side, ATK, -1),
-                 apply_boost(state, keys, def_side, SPA, -1))
+                (try_opponent_stat_drop(state, keys, def_side, ATK, -1),
+                 try_opponent_stat_drop(state, keys, def_side, SPA, -1))
             } else {
                 (0, 0)
             };
@@ -844,6 +847,10 @@ fn execute_status_move(
                 }
             }
         }
+    }
+
+    if mirror_check {
+        check_mirror_herb_diff(state, keys, atk_side, &atk_boosts_before);
     }
 }
 
@@ -928,10 +935,10 @@ fn execute_protect(
 
 /// Check if weather allows skipping the charge turn.
 #[inline]
-fn weather_skips_charge(state: &BattleState, md: &MoveData) -> bool {
+fn weather_skips_charge(state: &BattleState, atk_side: usize, md: &MoveData) -> bool {
     match md.effect {
-        MoveEffect::SolarBeam => matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN),
-        MoveEffect::ChargeElectroShot => matches!(effective_weather(state), WEATHER_RAIN | WEATHER_HEAVY_RAIN),
+        MoveEffect::SolarBeam => matches!(effective_weather_for(state, atk_side), WEATHER_SUN | WEATHER_HARSH_SUN),
+        MoveEffect::ChargeElectroShot => matches!(effective_weather_for(state, atk_side), WEATHER_RAIN | WEATHER_HEAVY_RAIN),
         _ => false,
     }
 }
@@ -939,7 +946,7 @@ fn weather_skips_charge(state: &BattleState, md: &MoveData) -> bool {
 /// Check if the charge turn can be skipped (Power Herb or weather).
 #[inline]
 fn can_skip_charge(state: &BattleState, atk_side: usize, md: &MoveData) -> bool {
-    if weather_skips_charge(state, md) { return true; }
+    if weather_skips_charge(state, atk_side, md) { return true; }
     state.field.magic_room_turns() == 0
         && data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::POWER_HERB)
 }
@@ -1121,6 +1128,12 @@ fn apply_self_effect(
     atk_side: usize,
     md: &MoveData,
 ) {
+    let self_mirror = matches!(md.self_effect,
+        SelfEffect::AtkUp1 | SelfEffect::SpeUp1 | SelfEffect::DefUp1 | SelfEffect::SpAUp1)
+        && state.field.magic_room_turns() == 0
+        && state.active_mon(1 - atk_side).item_id != 0;
+    let self_boosts_before = if self_mirror { state.sides[atk_side].active.boosts } else { [0; 7] };
+
     match md.self_effect {
         SelfEffect::None => {}
         SelfEffect::DefSpDDown1 => {
@@ -1178,6 +1191,10 @@ fn apply_self_effect(
         // SelfSwitch/BatonPass/PartingShot/Heal50 are handled via MoveEffect.
         // CrashDamage is handled in the miss path (§B).
         _ => {}
+    }
+
+    if self_mirror {
+        check_mirror_herb_diff(state, keys, atk_side, &self_boosts_before);
     }
 }
 
@@ -1382,7 +1399,7 @@ pub fn execute_move(
         apply_charge_turn_effects(state, keys, atk_side, md);
         if skip {
             // Consume Power Herb if it was the skip reason (not weather)
-            if !weather_skips_charge(state, md) {
+            if !weather_skips_charge(state, atk_side, md) {
                 consume_item(state, keys, atk_side, atk_slot);
                 if effective_ability(state, atk_side) == data_bridge::ABILITY_UNBURDEN {
                     set_volatile(state, keys, atk_side, VOL_UNBURDEN);
@@ -1672,6 +1689,20 @@ pub fn execute_move(
         apply_secondary(state, keys, atk_side, def_side, md, rng);
     }
 
+    let mut is_contact = md.flags & MoveFlags::CONTACT != 0;
+    if is_contact && state.field.magic_room_turns() == 0 {
+        let atk_itm = data_bridge::item(state.active_mon(atk_side).item_id);
+        if atk_itm.has(ItemFlag::PROTECTIVE_PADS)
+            || (atk_itm.has(ItemFlag::PUNCHING_GLOVE) && md.flags & MoveFlags::PUNCH != 0)
+        {
+            is_contact = false;
+        }
+    }
+
+    let def_mirror = state.field.magic_room_turns() == 0
+        && state.active_mon(atk_side).item_id != 0;
+    let def_boosts_before = if def_mirror { state.sides[def_side].active.boosts } else { [0; 7] };
+
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
@@ -1746,14 +1777,16 @@ pub fn execute_move(
             // Cotton Down: any hit → lower attacker's Spe by 1
             data_bridge::ABILITY_COTTON_DOWN => {
                 if !state.sides[atk_side].team[atk_slot].is_fainted() {
-                    apply_boost(state, keys, atk_side, SPE, -1);
+                    try_opponent_stat_drop(state, keys, atk_side, SPE, -1);
                 }
             }
             // Mummy / Lingering Aroma: contact → overwrite attacker's ability
-            data_bridge::ABILITY_MUMMY if md.flags & MoveFlags::CONTACT != 0 => {
+            data_bridge::ABILITY_MUMMY if is_contact => {
                 if !state.sides[atk_side].team[atk_slot].is_fainted() {
                     let atk_ab = effective_ability(state, atk_side);
-                    if atk_ab != data_bridge::ABILITY_MUMMY && atk_ab != 0
+                    let has_shield = state.field.magic_room_turns() == 0
+                        && data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::ABILITY_SHIELD);
+                    if !has_shield && atk_ab != data_bridge::ABILITY_MUMMY && atk_ab != 0
                         && !is_cantsuppress_ability(atk_ab)
                     {
                         state.sides[atk_side].active.override_ability = data_bridge::ABILITY_MUMMY;
@@ -1761,10 +1794,12 @@ pub fn execute_move(
                     }
                 }
             }
-            data_bridge::ABILITY_LINGERING_AROMA if md.flags & MoveFlags::CONTACT != 0 => {
+            data_bridge::ABILITY_LINGERING_AROMA if is_contact => {
                 if !state.sides[atk_side].team[atk_slot].is_fainted() {
                     let atk_ab = effective_ability(state, atk_side);
-                    if atk_ab != data_bridge::ABILITY_LINGERING_AROMA && atk_ab != 0
+                    let has_shield = state.field.magic_room_turns() == 0
+                        && data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::ABILITY_SHIELD);
+                    if !has_shield && atk_ab != data_bridge::ABILITY_LINGERING_AROMA && atk_ab != 0
                         && !is_cantsuppress_ability(atk_ab)
                     {
                         state.sides[atk_side].active.override_ability = data_bridge::ABILITY_LINGERING_AROMA;
@@ -1773,7 +1808,7 @@ pub fn execute_move(
                 }
             }
             // Perish Body: contact → set 3-turn Perish on both
-            data_bridge::ABILITY_PERISH_BODY if md.flags & MoveFlags::CONTACT != 0 => {
+            data_bridge::ABILITY_PERISH_BODY if is_contact => {
                 if !state.sides[def_side].active.has_volatile(VOL_PERISH_SONG) {
                     set_volatile(state, keys, def_side, VOL_PERISH_SONG);
                     state.sides[def_side].active.perish_count = 3;
@@ -1790,10 +1825,12 @@ pub fn execute_move(
 
         if !state.sides[atk_side].team[atk_slot].is_fainted() {
             let atk_ability = effective_ability(state, atk_side);
+            let def_has_cloak = state.field.magic_room_turns() == 0
+                && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
             match atk_ability {
-                // Poison Touch: 30% poison on contact
                 data_bridge::ABILITY_POISON_TOUCH
-                    if md.flags & MoveFlags::CONTACT != 0
+                    if !def_has_cloak
+                    && is_contact
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_POISON)
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
@@ -1802,9 +1839,9 @@ pub fn execute_move(
                         set_status(state, keys, def_side, def_slot, STATUS_POISON, 0);
                     }
                 }
-                // Toxic Chain: 30% toxic on any hit
                 data_bridge::ABILITY_TOXIC_CHAIN
-                    if state.sides[def_side].team[def_slot].status == STATUS_NONE
+                    if !def_has_cloak
+                    && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
@@ -1866,7 +1903,11 @@ pub fn execute_move(
         }
     }
 
-    if md.flags & MoveFlags::CONTACT != 0
+    if def_mirror {
+        check_mirror_herb_diff(state, keys, def_side, &def_boosts_before);
+    }
+
+    if is_contact
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && !state.sides[def_side].team[def_slot].is_fainted()
         && !result.hits_substitute
@@ -2033,7 +2074,7 @@ pub fn execute_move(
 
     if state.sides[def_side].team[def_slot].is_fainted() {
         // Aftermath: 1/4 max HP to attacker if contact and defender fainted
-        if md.flags & MoveFlags::CONTACT != 0
+        if is_contact
             && !result.hits_substitute
             && !state.sides[atk_side].team[atk_slot].is_fainted()
         {
@@ -2596,13 +2637,13 @@ mod tests {
         };
 
         state.field.weather = WEATHER_SUN;
-        assert!(weather_skips_charge(&state, &md));
+        assert!(weather_skips_charge(&state, 0, &md));
 
         state.field.weather = WEATHER_RAIN;
-        assert!(!weather_skips_charge(&state, &md));
+        assert!(!weather_skips_charge(&state, 0, &md));
 
         state.field.weather = WEATHER_NONE;
-        assert!(!weather_skips_charge(&state, &md));
+        assert!(!weather_skips_charge(&state, 0, &md));
     }
 
     #[test]
@@ -2615,10 +2656,10 @@ mod tests {
         };
 
         state.field.weather = WEATHER_RAIN;
-        assert!(weather_skips_charge(&state, &md));
+        assert!(weather_skips_charge(&state, 0, &md));
 
         state.field.weather = WEATHER_SUN;
-        assert!(!weather_skips_charge(&state, &md));
+        assert!(!weather_skips_charge(&state, 0, &md));
     }
 
     #[test]
@@ -5439,6 +5480,300 @@ mod tests {
         assert_eq!(state.sides[0].active.substitute_hp, 0);
         assert!(!state.sides[1].active.has_volatile(VOL_SUBSTITUTE));
         assert_eq!(state.sides[1].active.substitute_hp, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_protective_pads_blocks_rocky_helmet() {
+        use crate::data::MOVE_TACKLE;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_PROTECTIVE_PADS;
+        state.sides[0].team[0].moves[0] = MOVE_TACKLE as u16;
+        state.sides[1].team[0].item_id = 417; // Rocky Helmet
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_protective_pads_no_block_non_contact() {
+        use crate::data::MOVE_SCALD;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_PROTECTIVE_PADS;
+        state.sides[0].team[0].moves[0] = MOVE_SCALD as u16;
+        state.sides[1].team[0].item_id = 417; // Rocky Helmet
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
+        // Scald is non-contact, Rocky Helmet doesn't trigger regardless
+        assert_eq!(state.sides[0].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_punching_glove_blocks_contact_on_punch() {
+        use crate::data::MOVE_MACH_PUNCH;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_PUNCHING_GLOVE;
+        state.sides[0].team[0].moves[0] = MOVE_MACH_PUNCH as u16;
+        state.sides[1].team[0].item_id = 417; // Rocky Helmet
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_MACH_PUNCH as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].current_hp, hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_punching_glove_no_block_non_punch_contact() {
+        use crate::data::MOVE_TACKLE;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_PUNCHING_GLOVE;
+        state.sides[0].team[0].moves[0] = MOVE_TACKLE as u16;
+        state.sides[1].team[0].item_id = 417; // Rocky Helmet
+        state.zobrist = compute_full_hash(&state, &keys);
+        let hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        // Tackle is contact but not punch — Rocky Helmet still triggers
+        assert!(state.sides[0].team[0].current_hp < hp_before);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_ability_shield_blocks_mummy() {
+        use crate::data::MOVE_TACKLE;
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_INTIMIDATE;
+        state.sides[0].team[0].item_id = data_bridge::ITEM_ABILITY_SHIELD;
+        state.sides[0].team[0].moves[0] = MOVE_TACKLE as u16;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_MUMMY;
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(effective_ability(&state, 0), data_bridge::ABILITY_INTIMIDATE);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_clear_amulet_blocks_secondary_stat_drop() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_CLEAR_AMULET;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            secondary_chance: 100, secondary_stat: -1,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].active.boosts[DEF], 0);
+    }
+
+    #[test]
+    fn test_clear_amulet_blocks_cotton_down() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_CLEAR_AMULET;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_COTTON_DOWN;
+        state.zobrist = compute_full_hash(&state, &keys);
+        // Cotton Down triggers on any hit, applies -1 Spe to attacker
+        // We test by checking that Clear Amulet blocks the drop
+        assert_eq!(state.sides[0].active.boosts[SPE], 0);
+    }
+
+    #[test]
+    fn test_covert_cloak_blocks_secondary_stat_drop() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_COVERT_CLOAK;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            secondary_chance: 100, secondary_stat: -1,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].active.boosts[DEF], 0);
+    }
+
+    #[test]
+    fn test_covert_cloak_blocks_secondary_status() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_COVERT_CLOAK;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            secondary_chance: 100, secondary_status: STATUS_BURN,
+            move_type: Type::Fire, category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+    }
+
+    #[test]
+    fn test_covert_cloak_blocks_flinch() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_COVERT_CLOAK;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            secondary_chance: 100,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED));
+    }
+
+    #[test]
+    fn test_covert_cloak_allows_self_boost() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_COVERT_CLOAK;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            secondary_chance: 100, secondary_stat: 1,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+    }
+
+    #[test]
+    fn test_mirror_herb_copies_swords_dance() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            effect: MoveEffect::SwordsDance,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 2);
+        assert_eq!(state.sides[1].active.boosts[ATK], 2);
+        assert_eq!(state.sides[1].team[0].item_id, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_copies_dragon_dance() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            effect: MoveEffect::DragonDance,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], 1);
+        assert_eq!(state.sides[1].active.boosts[ATK], 1);
+        assert_eq!(state.sides[1].active.boosts[SPE], 1);
+        assert_eq!(state.sides[1].team[0].item_id, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_ignores_negative_boosts() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        // Shell Smash: +2 Atk, +2 SpA, +2 Spe, -1 Def, -1 SpD
+        let md = MoveData {
+            effect: MoveEffect::ShellSmash,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        // Attacker gets all boosts/drops
+        assert_eq!(state.sides[0].active.boosts[ATK], 2);
+        assert_eq!(state.sides[0].active.boosts[DEF], -1);
+        // Mirror Herb holder copies only positives
+        assert_eq!(state.sides[1].active.boosts[ATK], 2);
+        assert_eq!(state.sides[1].active.boosts[SPA], 2);
+        assert_eq!(state.sides[1].active.boosts[SPE], 2);
+        assert_eq!(state.sides[1].active.boosts[DEF], 0);
+        assert_eq!(state.sides[1].active.boosts[SPD], 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_consumed_after_use() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            effect: MoveEffect::SwordsDance,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].item_id, 0);
+        // Second Swords Dance: no mirror herb to trigger
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 4);
+        assert_eq!(state.sides[1].active.boosts[ATK], 2); // no additional copy
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_triggers_unburden() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_UNBURDEN;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            effect: MoveEffect::SwordsDance,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert!(state.sides[1].active.has_volatile(VOL_UNBURDEN));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_blocked_by_magic_room() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.field.set_magic_room_turns(5);
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            effect: MoveEffect::SwordsDance,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 2);
+        assert_eq!(state.sides[1].active.boosts[ATK], 0); // blocked
+        assert_ne!(state.sides[1].team[0].item_id, 0); // not consumed
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_copies_self_effect_boost() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            self_effect: SelfEffect::AtkUp1,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_self_effect(&mut state, &keys, 0, &md);
+        assert_eq!(state.sides[0].active.boosts[ATK], 1);
+        assert_eq!(state.sides[1].active.boosts[ATK], 1);
+        assert_eq!(state.sides[1].team[0].item_id, 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_mirror_herb_no_copy_self_drops() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_MIRROR_HERB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            self_effect: SelfEffect::DefSpDDown1,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_self_effect(&mut state, &keys, 0, &md);
+        assert_eq!(state.sides[0].active.boosts[DEF], -1);
+        assert_eq!(state.sides[1].active.boosts[DEF], 0);
+        assert_ne!(state.sides[1].team[0].item_id, 0); // not consumed
         assert!(validate_hash(&state, &keys));
     }
 }

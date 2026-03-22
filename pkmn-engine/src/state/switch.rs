@@ -2,7 +2,7 @@
 
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag};
-use crate::state::accessors::{effective_ability, effective_weather, effective_types, effective_stat, effective_species, effective_moves, is_grounded};
+use crate::state::accessors::{effective_ability, effective_weather_for, effective_types, effective_stat, effective_species, effective_moves, is_grounded};
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 
@@ -228,11 +228,10 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
         }
     }
 
-    // Sticky Web (grounded only)
     if sc.hazard_flags & HAZARD_STICKY_WEB != 0 && is_grounded(state, side)
         && state.sides[side].side_conditions.mist_turns() == 0
     {
-        apply_boost(state, keys, side, SPE, -1);
+        try_opponent_stat_drop(state, keys, side, SPE, -1);
     }
 }
 
@@ -281,6 +280,12 @@ fn is_untraceable(ability: u16) -> bool {
 fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let ability = effective_ability(state, side);
     let opp = 1 - side;
+    let side_mirror = state.field.magic_room_turns() == 0
+        && state.active_mon(opp).item_id != 0;
+    let opp_mirror = state.field.magic_room_turns() == 0
+        && state.active_mon(side).item_id != 0;
+    let side_boosts_before = if side_mirror { state.sides[side].active.boosts } else { [0; 7] };
+    let opp_boosts_before = if opp_mirror { state.sides[opp].active.boosts } else { [0; 7] };
     match ability {
         data_bridge::ABILITY_INTIMIDATE  => {
             let opp_ability = effective_ability(state, opp);
@@ -300,7 +305,7 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
                         | data_bridge::ABILITY_HYPER_CUTTER
                     ) || state.sides[opp].side_conditions.mist_turns() > 0;
                     if !blocked {
-                        apply_boost(state, keys, opp, ATK, -1);
+                        try_opponent_stat_drop(state, keys, opp, ATK, -1);
                     }
                 }
             }
@@ -373,7 +378,11 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
         }
 
         data_bridge::ABILITY_NEUTRALIZING_GAS => {
-            set_volatile(state, keys, opp, VOL_ABILITY_SUPPRESSED);
+            let has_shield = state.field.magic_room_turns() == 0
+                && data_bridge::item(state.active_mon(opp).item_id).has(ItemFlag::ABILITY_SHIELD);
+            if !has_shield {
+                set_volatile(state, keys, opp, VOL_ABILITY_SUPPRESSED);
+            }
         }
 
         data_bridge::ABILITY_INTREPID_SWORD => {
@@ -401,7 +410,7 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             if state.sides[side].team[slot].flags & MON_FLAG_SYRUP_TRIGGERED == 0 {
                 state.sides[side].team[slot].flags |= MON_FLAG_SYRUP_TRIGGERED;
                 if !state.sides[opp].active.has_volatile(VOL_SUBSTITUTE) {
-                    apply_boost(state, keys, opp, EVA, -1);
+                    try_opponent_stat_drop(state, keys, opp, EVA, -1);
                 }
             }
         }
@@ -415,7 +424,7 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
 
         data_bridge::ABILITY_PROTOSYNTHESIS => {
             activate_paradox_ability(state, keys, side,
-                matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN));
+                matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN));
         }
         data_bridge::ABILITY_QUARK_DRIVE => {
             activate_paradox_ability(state, keys, side,
@@ -424,6 +433,8 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
 
         _ => {}
     }
+    if side_mirror { check_mirror_herb_diff(state, keys, side, &side_boosts_before); }
+    if opp_mirror { check_mirror_herb_diff(state, keys, opp, &opp_boosts_before); }
 }
 
 /// Activate Protosynthesis or Quark Drive: find highest stat, encode in _padding[3].
@@ -467,7 +478,7 @@ pub fn check_paradox_deactivation(state: &mut BattleState) {
         let ability = effective_ability(state, side);
         let should_deactivate = match ability {
             data_bridge::ABILITY_PROTOSYNTHESIS => {
-                !matches!(effective_weather(state), WEATHER_SUN | WEATHER_HARSH_SUN)
+                !matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN)
             }
             data_bridge::ABILITY_QUARK_DRIVE => {
                 state.field.terrain != TERRAIN_ELECTRIC
@@ -1146,5 +1157,79 @@ mod tests {
 
         // Mist blocks the speed drop from sticky web
         assert_eq!(state.sides[0].active.boosts[SPE], 0);
+    }
+
+    #[test]
+    fn test_ability_shield_blocks_neutralizing_gas() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 6, current_hp: 200, max_hp: 200,
+            ability_id: data_bridge::ABILITY_NEUTRALIZING_GAS,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 300, max_hp: 300,
+            ability_id: data_bridge::ABILITY_INTIMIDATE,
+            item_id: data_bridge::ITEM_ABILITY_SHIELD,
+            stats: [100; 5], ..Default::default()
+        };
+        state.zobrist = compute_full_hash(&state, &keys);
+        perform_switch(&mut state, &keys, 0, 1);
+        assert!(!state.sides[1].active.has_volatile(VOL_ABILITY_SUPPRESSED));
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_clear_amulet_blocks_intimidate() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 6, current_hp: 200, max_hp: 200,
+            ability_id: data_bridge::ABILITY_INTIMIDATE,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 300, max_hp: 300,
+            item_id: data_bridge::ITEM_CLEAR_AMULET,
+            stats: [100; 5], ..Default::default()
+        };
+        state.zobrist = compute_full_hash(&state, &keys);
+        perform_switch(&mut state, &keys, 0, 1);
+        assert_eq!(state.sides[1].active.boosts[ATK], 0);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_clear_amulet_blocks_sticky_web() {
+        let keys = ZobristKeys::new(42);
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            item_id: data_bridge::ITEM_CLEAR_AMULET,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 6, current_hp: 200, max_hp: 200,
+            item_id: data_bridge::ITEM_CLEAR_AMULET,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 300, max_hp: 300,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
+        state.zobrist = compute_full_hash(&state, &keys);
+        perform_switch(&mut state, &keys, 0, 1);
+        assert_eq!(state.sides[0].active.boosts[SPE], 0);
+        assert!(validate_hash(&state, &keys));
     }
 }

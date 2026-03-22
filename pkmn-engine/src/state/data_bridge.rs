@@ -332,7 +332,14 @@ pub const ITEM_THROAT_SPRAY: u16 = 713;
 pub const ITEM_WEAKNESS_POLICY: u16 = 609;
 pub const ITEM_WIKI_BERRY: u16 = 538;
 pub const ITEM_WISE_GLASSES: u16 = 539;
+pub const ITEM_PROTECTIVE_PADS: u16 = 663;
+pub const ITEM_UTILITY_UMBRELLA: u16 = 718;
+pub const ITEM_ABILITY_SHIELD: u16 = 746;
+pub const ITEM_CLEAR_AMULET: u16 = 747;
+pub const ITEM_MIRROR_HERB: u16 = 748;
 pub const ITEM_PUNCHING_GLOVE: u16 = 749;
+pub const ITEM_COVERT_CLOAK: u16 = 750;
+pub const ITEM_LOADED_DICE: u16 = 751;
 pub const ITEM_BOOSTER_ENERGY: u16 = 745;
 
 pub const SPECIES_PIKACHU: u16 = 25;
