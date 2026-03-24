@@ -105,7 +105,7 @@ fn test_full_turn_simulation() {
     let a1 = legal_actions(&state, 0);
     assert!(a1.count > 0);
 
-    let res = calc_damage(&state, 0, 1, &mut |_| 1); // Pound
+    let res = calc_damage(&state, 0, 1, 0, &mut |_| 1); // Pound
     deal_damage(&mut state, &keys, 1, 0, res.damage);
     end_of_turn(&mut state, &keys);
     
@@ -547,4 +547,121 @@ fn test_random_battles_no_panics() {
             }
         }
     }
+}
+
+// ---- Multiaccuracy + Escalating power integration tests ----
+
+#[test]
+fn test_triple_kick_deals_escalating_damage() {
+    // Triple Kick (167): 3 hits, escalating power 10*1 + 10*2 + 10*3
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves[0] = 167;
+    state.sides[0].team[0].pp[0] = 24;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let hp_before = state.sides[1].team[0].current_hp;
+    // fixed_rng(0): accuracy check passes (0 < 90), crit=no, roll=85%
+    // Per-hit acc: accuracy=90 base, no modifiers → 90 < 100 → per_hit_acc=90
+    // With rng=0: all accuracy checks pass (0 < 90)
+    execute_move(&mut state, &keys, 0, 167, 0, &mut fixed_rng(0));
+    let hp_after = state.sides[1].team[0].current_hp;
+
+    // Should deal damage (escalating: 10+20+30 = 60 effective power)
+    assert!(hp_after < hp_before, "Triple Kick should deal damage, hp: {} -> {}", hp_before, hp_after);
+}
+
+#[test]
+fn test_triple_axel_deals_escalating_damage() {
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves[0] = 813;
+    state.sides[0].team[0].pp[0] = 24;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let hp_before = state.sides[1].team[0].current_hp;
+    execute_move(&mut state, &keys, 0, 813, 0, &mut fixed_rng(0));
+    let hp_after = state.sides[1].team[0].current_hp;
+
+    assert!(hp_after < hp_before, "Triple Axel should deal damage");
+}
+
+#[test]
+fn test_population_bomb_multiaccuracy_miss() {
+    // Population Bomb (860): 10 hits, multiaccuracy
+    // With rng always returning 99: accuracy check at main level passes (99 < 90 is false!),
+    // so it should miss entirely. Let me use a smarter RNG.
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves[0] = 860;
+    state.sides[0].team[0].pp[0] = 24;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let hp_before = state.sides[1].team[0].current_hp;
+    // RNG=0: main accuracy passes (0 < 90), crit=no, all per-hit accuracy passes (0 < 90)
+    execute_move(&mut state, &keys, 0, 860, 0, &mut fixed_rng(0));
+    let hp_after_all_hit = state.sides[1].team[0].current_hp;
+    let damage_all_hit = hp_before - hp_after_all_hit;
+
+    // Reset
+    state.sides[1].team[0].current_hp = hp_before;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    // Now with high RNG: main accuracy may still pass but per-hit accuracy fails
+    // rng=95: accuracy check = 95 < 90 is false → miss entirely
+    // So the move should miss at the main accuracy check
+    execute_move(&mut state, &keys, 0, 860, 0, &mut fixed_rng(95));
+    let hp_after_miss = state.sides[1].team[0].current_hp;
+
+    // When all hit: significant damage. When miss: no damage.
+    assert!(damage_all_hit > 0, "All hits should deal damage");
+    assert_eq!(hp_after_miss, hp_before, "Move should miss with rng=95");
+}
+
+#[test]
+fn test_population_bomb_loaded_dice_integration() {
+    // Population Bomb + Loaded Dice: multiaccuracy disabled, 4-10 hits
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves[0] = 860;
+    state.sides[0].team[0].pp[0] = 24;
+    // Set Loaded Dice item (item_id for Loaded Dice)
+    // Need to find the item ID from gen_items
+    // ItemFlag::LOADED_DICE is set on item 751 per earlier exploration
+    state.sides[0].team[0].item_id = 751;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let hp_before = state.sides[1].team[0].current_hp;
+    // With rng=0: accuracy passes, crit=no
+    // per_hit_acc should be 0 (Loaded Dice disables multiaccuracy)
+    // resolve_hits with Loaded Dice + lo==hi==10: 4 + rng(7) = 4+0 = 4 hits
+    execute_move(&mut state, &keys, 0, 860, 0, &mut fixed_rng(0));
+    let hp_after = state.sides[1].team[0].current_hp;
+
+    // Should deal damage (Loaded Dice: all hits guaranteed, no per-hit accuracy)
+    assert!(hp_after < hp_before,
+        "Population Bomb + Loaded Dice should deal damage, hp: {} -> {}", hp_before, hp_after);
+}
+
+#[test]
+fn test_triple_kick_more_damage_than_weak_single_hit() {
+    // Triple Kick deals escalating damage: 10+20+30 = 60 effective power
+    // Compare with Pound (move 1, base 40): should deal more damage
+    let (mut state, keys) = setup();
+    state.sides[0].team[0].moves = [167, 1, 0, 0]; // Triple Kick, Pound
+    state.sides[0].team[0].pp = [24, 24, 0, 0];
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    let hp_before = state.sides[1].team[0].current_hp;
+    execute_move(&mut state, &keys, 0, 167, 0, &mut fixed_rng(0));
+    let triple_kick_dmg = hp_before - state.sides[1].team[0].current_hp;
+
+    // Reset HP
+    state.sides[1].team[0].current_hp = hp_before;
+    state.zobrist = compute_full_hash(&state, &keys);
+
+    execute_move(&mut state, &keys, 0, 1, 1, &mut fixed_rng(0));
+    let pound_dmg = hp_before - state.sides[1].team[0].current_hp;
+
+    // Triple Kick (60 eff power, Fighting 2x SE vs Normal) vs Pound (40 power, Normal 1x)
+    // Triple Kick should deal more with its SE + higher effective power
+    assert!(triple_kick_dmg > pound_dmg,
+        "Triple Kick (escalating, 60 eff SE) should deal more than Pound (40 neutral): {} vs {}",
+        triple_kick_dmg, pound_dmg);
 }

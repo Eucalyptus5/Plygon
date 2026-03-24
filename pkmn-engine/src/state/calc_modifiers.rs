@@ -512,7 +512,12 @@ pub fn resolve_hits(md: &MoveData, ability: u16, item_flags: u64, rng: &mut impl
     let lo = md.multihit_lo();
     let hi = md.multihit_hi();
     if lo == 0 { return 1; }
-    if lo == hi { return lo; }
+    if lo == hi {
+        if item_flags & ItemFlag::LOADED_DICE != 0 && lo == 10 {
+            return 4 + rng(7) as u8; // 4-10 hits (Population Bomb)
+        }
+        return lo;
+    }
     if ability == data_bridge::ABILITY_SKILL_LINK { return hi; }
     if item_flags & ItemFlag::LOADED_DICE != 0 {
         return if rng(2) == 0 { 4 } else { 5 };

@@ -53,11 +53,11 @@ fn test_choice_band_physical() {
     let (mut state, _) = setup();
 
     // Baseline: no item, Pound (physical Normal, move_id=1)
-    let res_base = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_base = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
 
     // With Choice Band (item 68)
     state.sides[0].team[0].item_id = 68;
-    let res_band = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_band = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
 
     // Choice Band gives 1.5x Atk on physical moves
     assert!(res_band.damage > res_base.damage,
@@ -72,14 +72,14 @@ fn test_eviolite_def_spd() {
     let (mut state, _) = setup();
 
     // Physical baseline (Pound, move_id=1)
-    let res_phys_base = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_phys_base = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
     // Special baseline (Flamethrower, move_id=53)
-    let res_spec_base = calc_damage(&state, 0, 53, &mut no_crit_rng);
+    let res_spec_base = calc_damage(&state, 0, 53, 0, &mut no_crit_rng);
 
     // Give defender Eviolite (item 130)
     state.sides[1].team[0].item_id = 130;
-    let res_phys_evo = calc_damage(&state, 0, 1, &mut no_crit_rng);
-    let res_spec_evo = calc_damage(&state, 0, 53, &mut no_crit_rng);
+    let res_phys_evo = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
+    let res_spec_evo = calc_damage(&state, 0, 53, 0, &mut no_crit_rng);
 
     // Eviolite gives 1.5x Def and SpD — damage should be ~2/3
     assert!(res_phys_evo.damage < res_phys_base.damage,
@@ -96,12 +96,12 @@ fn test_life_orb_boost_and_recoil() {
     let (mut state, _) = setup();
 
     // Baseline: no item, Pound
-    let res_base = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_base = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
     assert_eq!(res_base.recoil_damage, 0);
 
     // With Life Orb (item 249)
     state.sides[0].team[0].item_id = 249;
-    let res_lo = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_lo = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
 
     // 1.3x damage boost (5324/4096)
     assert!(res_lo.damage > res_base.damage,
@@ -120,11 +120,11 @@ fn test_type_boost_item() {
     let (mut state, _) = setup();
 
     // Baseline: Fire Punch (move_id=7, Fire/Physical) without item
-    let res_base = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_base = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
 
     // With Charcoal (item 61, boosts Fire 1.2x)
     state.sides[0].team[0].item_id = 61;
-    let res_boost = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_boost = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
 
     assert!(res_boost.damage > res_base.damage,
         "Charcoal should boost Fire damage: {} vs {}", res_boost.damage, res_base.damage);
@@ -133,9 +133,9 @@ fn test_type_boost_item() {
         "Expected ~1.2x boost, got {:.3}x", ratio);
 
     // Wrong type should not boost: Pound (Normal) with Charcoal (Fire boost)
-    let res_wrong = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_wrong = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
     state.sides[0].team[0].item_id = 0;
-    let res_no_item = calc_damage(&state, 0, 1, &mut no_crit_rng);
+    let res_no_item = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
     assert_eq!(res_wrong.damage, res_no_item.damage,
         "Charcoal should not boost non-Fire moves");
 }
@@ -145,11 +145,11 @@ fn test_gem_boost_and_consume() {
     let (mut state, _) = setup();
 
     // Baseline: Fire Punch without item
-    let res_base = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_base = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
 
     // With Fire Gem (item 141)
     state.sides[0].team[0].item_id = 141;
-    let res_gem = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_gem = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
 
     // 1.3x damage boost (5325/4096)
     assert!(res_gem.damage > res_base.damage,
@@ -172,12 +172,12 @@ fn test_resist_berry_halves() {
     state.sides[1].active.set_volatile(VOL_TYPES_OVERRIDDEN);
 
     // Baseline: Fire Punch (move_id=7) vs Grass defender, no resist berry
-    let res_base = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_base = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
     assert!(res_base.effectiveness > 4, "Fire vs Grass should be SE");
 
     // Give defender Occa Berry (item 311, Fire resist berry)
     state.sides[1].team[0].item_id = 311;
-    let res_berry = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_berry = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
 
     // Resist berry halves SE damage
     assert!(res_berry.damage < res_base.damage,
@@ -229,12 +229,12 @@ fn test_expert_belt_se() {
     state.sides[1].active.set_volatile(VOL_TYPES_OVERRIDDEN);
 
     // Baseline: Fire Punch without Expert Belt
-    let res_base = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_base = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
     assert!(res_base.effectiveness > 4, "Fire vs Grass should be SE");
 
     // With Expert Belt (item 132)
     state.sides[0].team[0].item_id = 132;
-    let res_eb = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_eb = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
 
     // Expert Belt: 1.2x on SE moves
     assert!(res_eb.damage > res_base.damage,
@@ -246,9 +246,9 @@ fn test_expert_belt_se() {
     // Neutral move should NOT get Expert Belt boost
     // Override defender to Normal type (neutral vs Fire Punch)
     state.sides[1].active.override_types = [Type::Normal as u8, Type::Normal as u8];
-    let res_neutral = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_neutral = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
     state.sides[0].team[0].item_id = 0;
-    let res_neutral_no_item = calc_damage(&state, 0, 7, &mut no_crit_rng);
+    let res_neutral_no_item = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
     assert_eq!(res_neutral.damage, res_neutral_no_item.damage,
         "Expert Belt should not boost neutral moves");
 }

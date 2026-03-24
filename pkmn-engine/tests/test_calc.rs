@@ -26,7 +26,7 @@ fn test_status_moves() {
     let state = setup();
     // Swords Dance (14)
     let mut rng = |x| x / 2;
-    let res = calc_damage(&state, 0, 14, &mut rng);
+    let res = calc_damage(&state, 0, 14, 0, &mut rng);
     
     assert_eq!(res.damage, 0);
     assert!(!res.type_immune);
@@ -42,7 +42,7 @@ fn test_type_immune() {
     state.sides[1].active.override_types = [Type::Flying as u8, Type::Flying as u8];
     state.sides[1].active.set_volatile(VOL_TYPES_OVERRIDDEN);
     
-    let res = calc_damage(&state, 0, 89, &mut |x| x / 2);
+    let res = calc_damage(&state, 0, 89, 0, &mut |x| x / 2);
     
     assert_eq!(res.damage, 0);
     assert!(res.type_immune);
@@ -56,10 +56,10 @@ fn test_stab() {
     state.sides[0].active.override_types = [Type::Normal as u8, Type::Normal as u8];
     state.sides[0].active.set_volatile(VOL_TYPES_OVERRIDDEN);
     
-    let res_no_stab = calc_damage(&state, 0, 89, &mut |_| 0);
+    let res_no_stab = calc_damage(&state, 0, 89, 0, &mut |_| 0);
     
     state.sides[0].active.override_types = [Type::Ground as u8, Type::Ground as u8];
-    let res_stab = calc_damage(&state, 0, 89, &mut |_| 0);
+    let res_stab = calc_damage(&state, 0, 89, 0, &mut |_| 0);
     
     // STAB is ~1.5x. Truncation means it might be 1 off.
     assert!(res_stab.damage > res_no_stab.damage);
@@ -77,10 +77,10 @@ fn test_weather_damage() {
     state.sides[0].active.override_types = [Type::Normal as u8, Type::Normal as u8];
     state.sides[0].active.set_volatile(VOL_TYPES_OVERRIDDEN);
     
-    let res_sun = calc_damage(&state, 0, 52, &mut |x| 0);
+    let res_sun = calc_damage(&state, 0, 52, 0, &mut |x| 0);
     
     state.field.weather = WEATHER_RAIN;
-    let res_rain = calc_damage(&state, 0, 52, &mut |x| 0);
+    let res_rain = calc_damage(&state, 0, 52, 0, &mut |x| 0);
     
     assert!(res_sun.damage > res_rain.damage);
 }
@@ -92,12 +92,12 @@ fn test_weather_nullify() {
     state.field.weather_turns = 5;
     
     // Ember (52) - Fire
-    let res = calc_damage(&state, 0, 52, &mut |x| 0);
+    let res = calc_damage(&state, 0, 52, 0, &mut |x| 0);
     assert_eq!(res.damage, 0);
     
     state.field.weather = WEATHER_HARSH_SUN;
     // Water Gun (55) - Water
-    let res2 = calc_damage(&state, 0, 55, &mut |x| 0);
+    let res2 = calc_damage(&state, 0, 55, 0, &mut |x| 0);
     assert_eq!(res2.damage, 0);
 }
 
@@ -106,8 +106,8 @@ fn test_crit() {
     let state = setup();
     // Pound (1) - 40 BP
     
-    let res_no_crit = calc_damage(&state, 0, 1, &mut |_| 1); // 1 != 0, so no crit
-    let res_crit = calc_damage(&state, 0, 1, &mut |_| 0); // 0 = crit
+    let res_no_crit = calc_damage(&state, 0, 1, 0, &mut |_| 1); // 1 != 0, so no crit
+    let res_crit = calc_damage(&state, 0, 1, 0, &mut |_| 0); // 0 = crit
     
     assert!(res_crit.crit);
     assert!(!res_no_crit.crit);
@@ -124,8 +124,8 @@ fn test_crit_ignores_negative_atk_boost() {
     let mut rng_no_crit = |x| if x == 24 { 1 } else { 0 };
     let mut rng_crit = |x| 0;
     
-    let res_no_crit = calc_damage(&state, 0, 1, &mut rng_no_crit); 
-    let res_crit = calc_damage(&state, 0, 1, &mut rng_crit); 
+    let res_no_crit = calc_damage(&state, 0, 1, 0, &mut rng_no_crit); 
+    let res_crit = calc_damage(&state, 0, 1, 0, &mut rng_crit); 
     
     assert!(res_crit.crit);
     assert!(!res_no_crit.crit);
@@ -143,8 +143,8 @@ fn test_crit_ignores_positive_def_boost() {
     let mut rng_no_crit = |x| if x == 24 { 1 } else { 0 };
     let mut rng_crit = |x| 0;
     
-    let res_no_crit = calc_damage(&state, 0, 1, &mut rng_no_crit);
-    let res_crit = calc_damage(&state, 0, 1, &mut rng_crit);
+    let res_no_crit = calc_damage(&state, 0, 1, 0, &mut rng_no_crit);
+    let res_crit = calc_damage(&state, 0, 1, 0, &mut rng_crit);
     
     assert!(res_crit.crit);
     assert!(!res_no_crit.crit);
@@ -157,19 +157,19 @@ fn test_burn_halves_physical() {
     let mut state = setup();
     state.sides[0].team[0].status = STATUS_BURN;
     
-    let res_burn = calc_damage(&state, 0, 1, &mut |x| 1); // Pound
+    let res_burn = calc_damage(&state, 0, 1, 0, &mut |x| 1); // Pound
     
     state.sides[0].team[0].status = 0;
-    let res_no_burn = calc_damage(&state, 0, 1, &mut |x| 1);
+    let res_no_burn = calc_damage(&state, 0, 1, 0, &mut |x| 1);
     
     assert_eq!(res_burn.damage, res_no_burn.damage / 2);
     
     // Doesn't halve special (Water Gun 55)
     state.sides[0].team[0].status = STATUS_BURN;
-    let res_burn_sp = calc_damage(&state, 0, 55, &mut |x| 1);
+    let res_burn_sp = calc_damage(&state, 0, 55, 0, &mut |x| 1);
     
     state.sides[0].team[0].status = 0;
-    let res_no_burn_sp = calc_damage(&state, 0, 55, &mut |x| 1);
+    let res_no_burn_sp = calc_damage(&state, 0, 55, 0, &mut |x| 1);
     
     assert_eq!(res_burn_sp.damage, res_no_burn_sp.damage);
 }
@@ -180,10 +180,10 @@ fn test_screens() {
     state.sides[1].side_conditions.reflect_turns = 5;
     
     // Pound (1) - Physical
-    let res_screen = calc_damage(&state, 0, 1, &mut |x| 1);
+    let res_screen = calc_damage(&state, 0, 1, 0, &mut |x| 1);
     
     state.sides[1].side_conditions.reflect_turns = 0;
-    let res_no_screen = calc_damage(&state, 0, 1, &mut |x| 1);
+    let res_no_screen = calc_damage(&state, 0, 1, 0, &mut |x| 1);
     
     assert!(res_screen.damage < res_no_screen.damage);
 }
@@ -195,12 +195,12 @@ fn test_type_effectiveness_multiplier() {
     state.sides[1].active.override_types = [Type::Grass as u8, Type::Grass as u8];
     state.sides[1].active.set_volatile(VOL_TYPES_OVERRIDDEN);
     
-    let res_se = calc_damage(&state, 0, 52, &mut |x| 1);
+    let res_se = calc_damage(&state, 0, 52, 0, &mut |x| 1);
     assert!(res_se.effectiveness > 4); // 8 is SE
     
     // Fire vs Water
     state.sides[1].active.override_types = [Type::Water as u8, Type::Water as u8];
-    let res_nve = calc_damage(&state, 0, 52, &mut |x| 1);
+    let res_nve = calc_damage(&state, 0, 52, 0, &mut |x| 1);
     assert!(res_nve.effectiveness < 4); // 2 is NVE
     
     assert!(res_se.damage > res_nve.damage);
@@ -213,7 +213,7 @@ fn test_multihit() {
     // rng(100) -> 85+ gets 5 hits
     let mut rng = |x| if x == 100 { 85 } else { 0 };
     
-    let res = calc_damage(&state, 0, 3, &mut rng);
+    let res = calc_damage(&state, 0, 3, 0, &mut rng);
     assert_eq!(res.hits, 5);
 }
 
@@ -224,7 +224,7 @@ fn test_struggle() {
     
     // Struggle is ID 165, but wait, the prompt says "move_id=0 -> Struggle".
     // I will call `calc_damage` with move_id = 0, which triggers the bug!
-    let res = calc_damage(&state, 0, 0, &mut |x| 1);
+    let res = calc_damage(&state, 0, 0, 0, &mut |x| 1);
     
     // Struggle has 50 power. So damage > 0.
     // The bug returns DamageResult::default() -> damage = 0
@@ -240,7 +240,7 @@ fn test_struggle_real_id() {
     // Note: It doesn't enter `calc_struggle` because move_id != 0 and base_power != 0.
     // It evaluates normally. But wait, `calc_struggle` is special because it skips effectiveness.
     // Let's just test move_id 165.
-    let res = calc_damage(&state, 0, 165, &mut |x| 1);
+    let res = calc_damage(&state, 0, 165, 0, &mut |x| 1);
     assert!(res.damage > 0);
 }
 
@@ -249,12 +249,12 @@ fn test_drain_recoil() {
     let state = setup();
     
     // Absorb (71) - Drain 50%
-    let res_drain = calc_damage(&state, 0, 71, &mut |x| 1);
+    let res_drain = calc_damage(&state, 0, 71, 0, &mut |x| 1);
     assert!(res_drain.drain_heal > 0);
     assert_eq!(res_drain.drain_heal, (res_drain.damage as u32 * 50 / 100) as u16);
     
     // Take Down (36) - Recoil 25% (or Double-Edge 38 - Recoil 33%)
-    let res_recoil = calc_damage(&state, 0, 36, &mut |x| 1);
+    let res_recoil = calc_damage(&state, 0, 36, 0, &mut |x| 1);
     assert!(res_recoil.recoil_damage > 0);
 }
 
@@ -264,11 +264,11 @@ fn test_substitute() {
     state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
     
     // Pound (1)
-    let res = calc_damage(&state, 0, 1, &mut |x| 1);
+    let res = calc_damage(&state, 0, 1, 0, &mut |x| 1);
     assert!(res.hits_substitute);
     
     // Growl (45) - Sound move? No, Growl is Status. Let's use Bug Buzz (405) - Sound
-    let res_sound = calc_damage(&state, 0, 405, &mut |x| 1);
+    let res_sound = calc_damage(&state, 0, 405, 0, &mut |x| 1);
     assert!(!res_sound.hits_substitute); // bypasses substitute
 }
 
@@ -279,7 +279,7 @@ fn test_ability_immunity() {
     state.sides[1].team[0].current_hp = 100;
     
     // Water Gun (55)
-    let res = calc_damage(&state, 0, 55, &mut |x| 1);
+    let res = calc_damage(&state, 0, 55, 0, &mut |x| 1);
     
     assert!(res.type_immune);
     assert_eq!(res.damage, 0);
@@ -292,10 +292,10 @@ fn test_items() {
     
     // Choice Band (68) - 1.5x Atk
     state.sides[0].team[0].item_id = 68;
-    let res_band = calc_damage(&state, 0, 1, &mut |x| 1); // Pound
+    let res_band = calc_damage(&state, 0, 1, 0, &mut |x| 1); // Pound
     
     state.sides[0].team[0].item_id = 0;
-    let res_no_band = calc_damage(&state, 0, 1, &mut |x| 1);
+    let res_no_band = calc_damage(&state, 0, 1, 0, &mut |x| 1);
     
     assert!(res_band.damage > res_no_band.damage);
 }
@@ -306,20 +306,20 @@ fn test_light_screen_halves_special() {
     state.sides[1].side_conditions.light_screen_turns = 5;
 
     // Thunderbolt (85) - Special
-    let res_screen = calc_damage(&state, 0, 85, &mut |_| 1);
+    let res_screen = calc_damage(&state, 0, 85, 0, &mut |_| 1);
 
     state.sides[1].side_conditions.light_screen_turns = 0;
-    let res_no_screen = calc_damage(&state, 0, 85, &mut |_| 1);
+    let res_no_screen = calc_damage(&state, 0, 85, 0, &mut |_| 1);
 
     assert!(res_screen.damage < res_no_screen.damage,
         "Light Screen should halve special damage: {} vs {}", res_screen.damage, res_no_screen.damage);
 
     // Physical (Pound) should NOT be affected by Light Screen
     state.sides[1].side_conditions.light_screen_turns = 5;
-    let res_phys_screen = calc_damage(&state, 0, 1, &mut |_| 1);
+    let res_phys_screen = calc_damage(&state, 0, 1, 0, &mut |_| 1);
 
     state.sides[1].side_conditions.light_screen_turns = 0;
-    let res_phys_no_screen = calc_damage(&state, 0, 1, &mut |_| 1);
+    let res_phys_no_screen = calc_damage(&state, 0, 1, 0, &mut |_| 1);
 
     assert_eq!(res_phys_screen.damage, res_phys_no_screen.damage,
         "Light Screen should not affect physical damage");
@@ -331,17 +331,17 @@ fn test_aurora_veil_halves_both() {
 
     // Physical (Pound) with Aurora Veil
     state.sides[1].side_conditions.aurora_veil_turns = 5;
-    let res_phys_av = calc_damage(&state, 0, 1, &mut |_| 1);
+    let res_phys_av = calc_damage(&state, 0, 1, 0, &mut |_| 1);
     state.sides[1].side_conditions.aurora_veil_turns = 0;
-    let res_phys = calc_damage(&state, 0, 1, &mut |_| 1);
+    let res_phys = calc_damage(&state, 0, 1, 0, &mut |_| 1);
     assert!(res_phys_av.damage < res_phys.damage,
         "Aurora Veil should halve physical damage: {} vs {}", res_phys_av.damage, res_phys.damage);
 
     // Special (Thunderbolt) with Aurora Veil
     state.sides[1].side_conditions.aurora_veil_turns = 5;
-    let res_spec_av = calc_damage(&state, 0, 85, &mut |_| 1);
+    let res_spec_av = calc_damage(&state, 0, 85, 0, &mut |_| 1);
     state.sides[1].side_conditions.aurora_veil_turns = 0;
-    let res_spec = calc_damage(&state, 0, 85, &mut |_| 1);
+    let res_spec = calc_damage(&state, 0, 85, 0, &mut |_| 1);
     assert!(res_spec_av.damage < res_spec.damage,
         "Aurora Veil should halve special damage: {} vs {}", res_spec_av.damage, res_spec.damage);
 }
@@ -352,11 +352,11 @@ fn test_crit_bypasses_screens() {
 
     // Crit with Reflect active
     state.sides[1].side_conditions.reflect_turns = 5;
-    let res_crit_screen = calc_damage(&state, 0, 1, &mut |_| 0); // forces crit
+    let res_crit_screen = calc_damage(&state, 0, 1, 0, &mut |_| 0); // forces crit
 
     // Crit without Reflect
     state.sides[1].side_conditions.reflect_turns = 0;
-    let res_crit_no_screen = calc_damage(&state, 0, 1, &mut |_| 0); // forces crit
+    let res_crit_no_screen = calc_damage(&state, 0, 1, 0, &mut |_| 0); // forces crit
 
     assert!(res_crit_screen.crit, "Should be a crit");
     assert!(res_crit_no_screen.crit, "Should be a crit");

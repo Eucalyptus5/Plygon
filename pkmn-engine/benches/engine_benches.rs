@@ -408,7 +408,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("Vanilla Physical", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_v), black_box(0), black_box(1), &mut rng);
+            let result = calc_damage(black_box(&state_v), black_box(0), black_box(1), black_box(0), &mut rng);
             black_box(result);
         });
     });
@@ -417,7 +417,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("Vanilla Special", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_v), black_box(0), black_box(2), &mut rng);
+            let result = calc_damage(black_box(&state_v), black_box(0), black_box(2), black_box(0), &mut rng);
             black_box(result);
         });
     });
@@ -426,7 +426,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("With Abilities", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_ab), black_box(0), black_box(1), &mut rng);
+            let result = calc_damage(black_box(&state_ab), black_box(0), black_box(1), black_box(0), &mut rng);
             black_box(result);
         });
     });
@@ -435,7 +435,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("With Items", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_it), black_box(0), black_box(1), &mut rng);
+            let result = calc_damage(black_box(&state_it), black_box(0), black_box(1), black_box(0), &mut rng);
             black_box(result);
         });
     });
@@ -444,7 +444,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("Weather Boosted", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_w), black_box(0), black_box(1), &mut rng);
+            let result = calc_damage(black_box(&state_w), black_box(0), black_box(1), black_box(0), &mut rng);
             black_box(result);
         });
     });
@@ -455,7 +455,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("Burned Attacker", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_burn), black_box(0), black_box(1), &mut rng);
+            let result = calc_damage(black_box(&state_burn), black_box(0), black_box(1), black_box(0), &mut rng);
             black_box(result);
         });
     });
@@ -464,7 +464,7 @@ fn bench_calc_damage(c: &mut Criterion) {
     group.bench_function("Complex", |b| {
         b.iter(|| {
             let mut rng = deterministic_rng();
-            let result = calc_damage(black_box(&state_cx), black_box(0), black_box(1), &mut rng);
+            let result = calc_damage(black_box(&state_cx), black_box(0), black_box(1), black_box(0), &mut rng);
             black_box(result);
         });
     });

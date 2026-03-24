@@ -40,26 +40,28 @@ const ACC_NUM: [u32; 13] = [3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9];
 const ACC_DEN: [u32; 13] = [9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3];
 
 #[inline]
-fn accuracy_check(
+/// Compute the effective accuracy value for a move, accounting for all modifiers.
+/// Returns u32::MAX for guaranteed hits (accuracy=0, No Guard, weather bypass).
+/// Pure function — no RNG, no state mutation.
+#[inline]
+fn effective_accuracy(
     state: &BattleState,
     atk_side: usize,
     md: &MoveData,
-    rng: &mut impl FnMut(u32) -> u32,
-) -> bool {
-    if md.accuracy == 0 { return true; }
+) -> u32 {
+    if md.accuracy == 0 { return u32::MAX; }
 
-    // Weather-dependent accuracy overrides (applied before anything else)
-    // Thunder / Hurricane: 100% in rain, 50% in sun
+    // Weather-dependent accuracy overrides
     if md.effect == MoveEffect::WeatherAccRain {
         match effective_weather_for(state, atk_side) {
-            WEATHER_RAIN | WEATHER_HEAVY_RAIN => return true,
+            WEATHER_RAIN | WEATHER_HEAVY_RAIN => return u32::MAX,
             WEATHER_SUN | WEATHER_HARSH_SUN => {}
             _ => {}
         }
     }
     if md.effect == MoveEffect::WeatherAccSnow {
         if effective_weather_for(state, atk_side) == WEATHER_SNOW {
-            return true;
+            return u32::MAX;
         }
     }
 
@@ -70,13 +72,12 @@ fn accuracy_check(
     if atk_ability == data_bridge::ABILITY_NO_GUARD
         || def_ability == data_bridge::ABILITY_NO_GUARD
     {
-        return true;
+        return u32::MAX;
     }
 
     let acc_idx = (state.sides[atk_side].active.boosts[ACC] + 6) as usize;
     let eva_idx = (state.sides[def_side].active.boosts[EVA] + 6) as usize;
 
-    // Weather-dependent accuracy: Thunder/Hurricane have 50% in sun
     let base_acc = if md.effect == MoveEffect::WeatherAccRain
         && matches!(effective_weather_for(state, atk_side), WEATHER_SUN | WEATHER_HARSH_SUN)
     {
@@ -110,7 +111,18 @@ fn accuracy_check(
 
     if state.field.gravity_turns > 0 { accuracy = accuracy * 5 / 3; }
 
-    rng(100) < accuracy
+    accuracy
+}
+
+fn accuracy_check(
+    state: &BattleState,
+    atk_side: usize,
+    md: &MoveData,
+    rng: &mut impl FnMut(u32) -> u32,
+) -> bool {
+    let acc = effective_accuracy(state, atk_side, md);
+    if acc >= u32::MAX { return true; }
+    rng(100) < acc
 }
 
 #[inline]
@@ -1546,7 +1558,19 @@ pub fn execute_move(
         if count == 0 { break 'exec; }
     }
 
-    let result = calc_damage(state, atk_side, move_id, rng);
+    let per_hit_acc = match move_id {
+        167 | 813 | 860 => { // Triple Kick, Triple Axel, Population Bomb
+            let atk_item = data_bridge::item(state.active_mon(atk_side).item_id);
+            if atk_item.has(ItemFlag::LOADED_DICE) {
+                0 // Loaded Dice disables multiaccuracy
+            } else {
+                let acc = effective_accuracy(state, atk_side, md);
+                if acc >= 100 { 0 } else { acc }
+            }
+        }
+        _ => 0,
+    };
+    let result = calc_damage(state, atk_side, move_id, per_hit_acc, rng);
 
     if result.type_immune {
         apply_crash_if_needed(state, keys, atk_side, md);
@@ -5007,7 +5031,7 @@ mod tests {
 
         // Use a physical move
         let move_id = state.sides[0].team[0].moves[0];
-        let result = calc_damage(&state, 0, move_id, &mut fixed_rng(0));
+        let result = calc_damage(&state, 0, move_id, 0, &mut fixed_rng(0));
 
         assert!(!result.crit);
     }
@@ -5775,5 +5799,98 @@ mod tests {
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
         assert_ne!(state.sides[1].team[0].item_id, 0); // not consumed
         assert!(validate_hash(&state, &keys));
+    }
+
+    // ---- effective_accuracy tests ----
+
+    #[test]
+    fn test_effective_accuracy_base() {
+        let (state, _) = setup();
+        let md = MoveData { accuracy: 90, ..unsafe { core::mem::zeroed() } };
+        assert_eq!(effective_accuracy(&state, 0, &md), 90);
+    }
+
+    #[test]
+    fn test_effective_accuracy_guaranteed_zero() {
+        let (state, _) = setup();
+        let md = MoveData { accuracy: 0, ..unsafe { core::mem::zeroed() } };
+        assert_eq!(effective_accuracy(&state, 0, &md), u32::MAX);
+    }
+
+    #[test]
+    fn test_effective_accuracy_no_guard() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_NO_GUARD as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData { accuracy: 90, ..unsafe { core::mem::zeroed() } };
+        assert_eq!(effective_accuracy(&state, 0, &md), u32::MAX);
+    }
+
+    #[test]
+    fn test_effective_accuracy_defender_no_guard() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_NO_GUARD as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData { accuracy: 90, ..unsafe { core::mem::zeroed() } };
+        assert_eq!(effective_accuracy(&state, 0, &md), u32::MAX);
+    }
+
+    #[test]
+    fn test_effective_accuracy_compound_eyes() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_COMPOUND_EYES as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData { accuracy: 90, ..unsafe { core::mem::zeroed() } };
+        // 90 * 13/10 = 117
+        assert_eq!(effective_accuracy(&state, 0, &md), 117);
+    }
+
+    #[test]
+    fn test_effective_accuracy_gravity() {
+        let (mut state, _) = setup();
+        state.field.gravity_turns = 3;
+        let md = MoveData { accuracy: 90, ..unsafe { core::mem::zeroed() } };
+        // 90 * 5/3 = 150
+        assert_eq!(effective_accuracy(&state, 0, &md), 150);
+    }
+
+    #[test]
+    fn test_effective_accuracy_hustle_physical() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_HUSTLE as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            accuracy: 90,
+            category: MoveCategory::Physical,
+            ..unsafe { core::mem::zeroed() }
+        };
+        // 90 * 4/5 = 72
+        assert_eq!(effective_accuracy(&state, 0, &md), 72);
+    }
+
+    #[test]
+    fn test_effective_accuracy_hustle_special_unaffected() {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_HUSTLE as u16;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let md = MoveData {
+            accuracy: 90,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        // Hustle only affects Physical
+        assert_eq!(effective_accuracy(&state, 0, &md), 90);
+    }
+
+    #[test]
+    fn test_accuracy_check_refactored_still_works() {
+        let (state, _) = setup();
+        // accuracy=100 with rng=0 → 0 < 100 → hit
+        let md = MoveData { accuracy: 100, ..unsafe { core::mem::zeroed() } };
+        assert!(accuracy_check(&state, 0, &md, &mut fixed_rng(0)));
+
+        // accuracy=50 with rng=99 → 99 < 50 → false → miss
+        let md50 = MoveData { accuracy: 50, ..unsafe { core::mem::zeroed() } };
+        assert!(!accuracy_check(&state, 0, &md50, &mut fixed_rng(99)));
     }
 }

@@ -9,7 +9,7 @@ use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag, MoveCategory, MoveEffect};
 use crate::state::accessors::*;
 use crate::state::calc_modifiers::*;
-use crate::data::moves::MoveFlags;
+use crate::data::moves::{MoveFlags, VarPower};
 use crate::data::types::Type;
 
 /// Level factor: (2 * 100 / 5 + 2) = 42 at level 100.
@@ -44,6 +44,7 @@ pub fn calc_damage(
     state: &BattleState,
     atk_side: usize,
     move_id: u16,
+    per_hit_accuracy: u32,
     rng_fn: &mut impl FnMut(u32) -> u32,
 ) -> DamageResult {
     let def_side = 1 - atk_side;
@@ -260,8 +261,19 @@ pub fn calc_damage(
 
     let mut total_damage: u32 = 0;
 
-    for _ in 0..num_hits {
-        let mut dmg: u32 = (LEVEL_FACTOR * power * a as u32 / d as u32) / 50 + 2;
+    for hit in 0..num_hits {
+        // Per-hit accuracy check (multiaccuracy moves only, skip first hit)
+        if hit > 0 && per_hit_accuracy > 0 && rng_fn(100) >= per_hit_accuracy {
+            result.hits = hit;
+            break;
+        }
+        // Escalating power: Triple Kick/Axel multiply by hit number
+        let hit_power = if md.var_power == VarPower::Escalating {
+            power * (hit as u32 + 1)
+        } else {
+            power
+        };
+        let mut dmg: u32 = (LEVEL_FACTOR * hit_power * a as u32 / d as u32) / 50 + 2;
 
         let (wn, wd) = weather_modifier(effective_weather_for(state, atk_side), move_type);
         if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
@@ -532,6 +544,57 @@ mod tests {
     }
 
     #[test]
+    fn test_loaded_dice_population_bomb_hits() {
+        // Population Bomb: multihit = (10 << 4) | 10 = 170 (lo=10, hi=10)
+        let md = MoveData {
+            multihit: (10 << 4) | 10, base_power: 20,
+            ..unsafe { core::mem::zeroed() }
+        };
+        // Without Loaded Dice: always 10 hits
+        let hits = resolve_hits(&md, 0, 0, &mut fixed_rng(0));
+        assert_eq!(hits, 10);
+
+        // With Loaded Dice: 4-10 hits depending on RNG
+        // rng(7) returns val % 7; result = 4 + rng(7)
+        // rng_val=0 → 4+0=4, rng_val=6 → 4+6=10
+        let mut seen_below_10 = false;
+        for rng_val in 0..7u32 {
+            let hits = resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut fixed_rng(rng_val));
+            assert!(hits >= 4 && hits <= 10, "rng_val={rng_val}, hits={hits}");
+            if hits < 10 { seen_below_10 = true; }
+        }
+        // Loaded Dice must produce values below 10 for some RNG inputs
+        assert!(seen_below_10, "Loaded Dice should vary Population Bomb hit count");
+
+        // Verify specific values: rng_val=0 → 4 hits, rng_val=6 → 10 hits
+        assert_eq!(resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut fixed_rng(0)), 4);
+        assert_eq!(resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut fixed_rng(6)), 10);
+    }
+
+    #[test]
+    fn test_loaded_dice_normal_multihit_unchanged() {
+        // Regular 2-5 hit move: Loaded Dice gives 4 or 5
+        let md = MoveData {
+            multihit: (5 << 4) | 2, base_power: 25,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let hits = resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut fixed_rng(0));
+        assert!(hits == 4 || hits == 5);
+    }
+
+    #[test]
+    fn test_loaded_dice_triple_kick_no_effect_on_hits() {
+        // Triple Kick: multihit = (3 << 4) | 3 = 51 (lo=3, hi=3)
+        // Loaded Dice doesn't change hit count for fixed-3 moves
+        let md = MoveData {
+            multihit: (3 << 4) | 3, base_power: 10,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let hits = resolve_hits(&md, 0, ItemFlag::LOADED_DICE, &mut fixed_rng(0));
+        assert_eq!(hits, 3);
+    }
+
+    #[test]
     fn test_huge_power() {
         let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Physical, STATUS_NONE,
             Type::Normal, WEATHER_NONE, 300, 300, 0, 0);
@@ -598,12 +661,12 @@ mod tests {
         // Set Atk=200, SpA=100 → Physical
         state.sides[0].team[0].stats[ATK] = 200;
         state.sides[0].team[0].stats[SPA] = 100;
-        let result_phys = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+        let result_phys = calc_damage(&state, 0, 851, 0, &mut fixed_rng(15));
 
         // Set Atk=100, SpA=200 → Special
         state.sides[0].team[0].stats[ATK] = 100;
         state.sides[0].team[0].stats[SPA] = 200;
-        let result_spec = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+        let result_spec = calc_damage(&state, 0, 851, 0, &mut fixed_rng(15));
 
         // Both use the same offensive stat value (200) but hit different defenses.
         // Defender has uniform stats (100 for both Def and SpD), so damage should be similar
@@ -616,7 +679,7 @@ mod tests {
         state.sides[0].team[0].stats[SPA] = 120;
         state.sides[0].active.boosts[ATK] = 2; // 2× boost → effective 200
         state.sides[0].active.boosts[SPA] = 0; // no boost → 120
-        let result_boosted = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+        let result_boosted = calc_damage(&state, 0, 851, 0, &mut fixed_rng(15));
         assert!(result_boosted.damage > 0, "Boosted Tera Blast should deal damage");
 
         // When NOT terastallized → stays Special (default category)
@@ -624,7 +687,7 @@ mod tests {
         state.sides[0].team[0].stats[ATK] = 300;
         state.sides[0].team[0].stats[SPA] = 100;
         state.sides[0].active.boosts[ATK] = 0;
-        let result_normal = calc_damage(&state, 0, 851, &mut fixed_rng(15));
+        let result_normal = calc_damage(&state, 0, 851, 0, &mut fixed_rng(15));
         // Not terastallized: Normal type, Special category (despite higher Atk)
         assert!(result_normal.damage > 0);
     }
@@ -697,11 +760,11 @@ mod tests {
         state.sides[1].team[0].stats[SPD] = 200;
 
         // Physical attack (hits DEF=100)
-        let dmg_phys_normal = calc_damage(&state, 0, 1, &mut fixed_rng(15));
+        let dmg_phys_normal = calc_damage(&state, 0, 1, 0, &mut fixed_rng(15));
 
         // Turn on Wonder Room (physical now hits SPD=200)
         state.field.set_wonder_room_turns(5);
-        let dmg_phys_wr = calc_damage(&state, 0, 1, &mut fixed_rng(15));
+        let dmg_phys_wr = calc_damage(&state, 0, 1, 0, &mut fixed_rng(15));
 
         // Physical damage under Wonder Room should be lower (higher defense)
         // This test verifies the swap happened (if move_hot(1) returns Physical with non-zero BP)
@@ -722,12 +785,12 @@ mod tests {
         state.sides[1].active.boosts[SPD] = 0; // no SpD boost
 
         // Without Wonder Room: physical hits DEF (100 + 2 boost = 200 effective)
-        let dmg_normal = calc_damage(&state, 0, 1, &mut fixed_rng(15));
+        let dmg_normal = calc_damage(&state, 0, 1, 0, &mut fixed_rng(15));
 
         // With Wonder Room: physical hits SPD base (100) but uses DEF boost (+2)
         // So effective defense should still be 200
         state.field.set_wonder_room_turns(5);
-        let dmg_wr = calc_damage(&state, 0, 1, &mut fixed_rng(15));
+        let dmg_wr = calc_damage(&state, 0, 1, 0, &mut fixed_rng(15));
 
         // Damage should be the same since base stats are equal and boost stays on DEF
         if dmg_normal.damage > 0 {
@@ -746,8 +809,142 @@ mod tests {
         state.field.set_magic_room_turns(5);
         // Under Magic Room, any item_id is suppressed — atk_item becomes NONE
         // This means CHOICE_ATK flag won't be applied
-        let result = calc_damage(&state, 0, 1, &mut fixed_rng(15));
+        let result = calc_damage(&state, 0, 1, 0, &mut fixed_rng(15));
         // Just verify calc doesn't crash and produces valid output
         assert!(result.damage >= 0);
+    }
+
+    // ---- Phase 2: Escalating power tests ----
+
+    #[test]
+    fn test_escalating_power_triple_kick() {
+        // Triple Kick (167): base_power=10, Escalating, 3 hits
+        let state = test_state();
+        let result = calc_damage(&state, 0, 167, 0, &mut fixed_rng(15));
+        assert_eq!(result.hits, 3);
+        assert!(result.damage > 0);
+    }
+
+    #[test]
+    fn test_escalating_power_triple_axel() {
+        // Triple Axel (813): base_power=20, Escalating, 3 hits
+        let state = test_state();
+        let result = calc_damage(&state, 0, 813, 0, &mut fixed_rng(15));
+        assert_eq!(result.hits, 3);
+        assert!(result.damage > 0);
+    }
+
+    #[test]
+    fn test_escalating_power_expected_damage() {
+        // Triple Kick (167): base_power=10, Fighting, Escalating
+        // With test_state (atk=150, def=100) and fixed_rng(15) → 100% roll, no crit
+        // Defender is Normal type → Fighting is 2× SE (eff=8, applied as *8/4=*2)
+        // Hit 0 (power 10): (42*10*150/100)/50 + 2 = 14, *2 eff = 28
+        // Hit 1 (power 20): (42*20*150/100)/50 + 2 = 27, *2 eff = 54
+        // Hit 2 (power 30): (42*30*150/100)/50 + 2 = 39, *2 eff = 78
+        // Total = 160
+        let state = test_state();
+        let result = calc_damage(&state, 0, 167, 0, &mut fixed_rng(15));
+        assert_eq!(result.hits, 3);
+        assert_eq!(result.damage, 160);
+    }
+
+    #[test]
+    fn test_non_escalating_multihit_flat_power() {
+        // Triple Dive (865): 3 hits, NOT escalating, base_power=30
+        let state = test_state();
+        let result = calc_damage(&state, 0, 865, 0, &mut fixed_rng(15));
+        assert_eq!(result.hits, 3);
+        assert!(result.damage > 0);
+    }
+
+    // ---- Phase 3: Per-hit accuracy tests ----
+
+    #[test]
+    fn test_per_hit_accuracy_zero_means_no_check() {
+        // per_hit_accuracy=0 → no per-hit checks, all hits land
+        let state = test_state();
+        let result = calc_damage(&state, 0, 860, 0, &mut fixed_rng(99));
+        assert_eq!(result.hits, 10);
+    }
+
+    #[test]
+    fn test_multiaccuracy_all_hits_land() {
+        // per_hit_accuracy=90, RNG always returns 0 (< 90) → all hits land
+        let state = test_state();
+        let result = calc_damage(&state, 0, 860, 90, &mut fixed_rng(0));
+        assert_eq!(result.hits, 10);
+    }
+
+    #[test]
+    fn test_multiaccuracy_first_hit_no_check() {
+        // per_hit_accuracy=1 with RNG=99: first hit always lands (no check),
+        // second hit misses (99 >= 1)
+        let state = test_state();
+        let result = calc_damage(&state, 0, 860, 1, &mut fixed_rng(99));
+        assert_eq!(result.hits, 1);
+        assert!(result.damage > 0);
+    }
+
+    #[test]
+    fn test_multiaccuracy_stops_on_miss() {
+        // Population Bomb (860): 10 hits, per_hit_accuracy=90
+        // Craft RNG: hit 0 lands (no check), hit 1 accuracy passes, hit 2 accuracy fails
+        let state = test_state();
+        let mut call_count = 0u32;
+        let mut seq_rng = |max: u32| -> u32 {
+            call_count += 1;
+            // RNG call sequence:
+            //   1: is_crit check (rng for crit) → return 1 (no crit)
+            //   resolve_hits: lo==hi==10, no RNG call
+            //   2: hit 0 random roll rng(16) → 15
+            //   3: hit 1 accuracy rng(100) → 0 (hit)
+            //   4: hit 1 random roll rng(16) → 15
+            //   5: hit 2 accuracy rng(100) → 95 (miss)
+            match call_count {
+                1 => 1,             // crit check: no crit
+                2 => 15 % max,      // hit 0 random roll
+                3 => 0,             // hit 1 accuracy: 0 < 90 → hit
+                4 => 15 % max,      // hit 1 random roll
+                5 => 95,            // hit 2 accuracy: 95 >= 90 → miss
+                _ => 0,
+            }
+        };
+        let result = calc_damage(&state, 0, 860, 90, &mut seq_rng);
+        assert_eq!(result.hits, 2);
+        assert!(result.damage > 0);
+    }
+
+    #[test]
+    fn test_multiaccuracy_miss_on_second_hit_triple_kick() {
+        // Triple Kick (167): 3 hits, escalating, per_hit_accuracy=90
+        // Miss on hit 1 → only hit 0 lands (power=10*1=10)
+        let state = test_state();
+        let mut call_count = 0u32;
+        let mut seq_rng = |max: u32| -> u32 {
+            call_count += 1;
+            // 1: crit check → no crit
+            // resolve_hits: lo==hi==3, returns 3 without RNG
+            // 2: hit 0 random roll
+            // 3: hit 1 accuracy → miss
+            match call_count {
+                1 => 1,             // crit check: no crit
+                2 => 15 % max,      // hit 0 random roll
+                3 => 95,            // hit 1 accuracy: 95 >= 90 → miss
+                _ => 0,
+            }
+        };
+        let result = calc_damage(&state, 0, 167, 90, &mut seq_rng);
+        assert_eq!(result.hits, 1);
+        assert!(result.damage > 0);
+    }
+
+    #[test]
+    fn test_multiaccuracy_with_escalating_triple_axel() {
+        // Triple Axel: 3 hits, escalating + multiaccuracy, all hit
+        let state = test_state();
+        let result = calc_damage(&state, 0, 813, 90, &mut fixed_rng(0));
+        assert_eq!(result.hits, 3);
+        assert!(result.damage > 0);
     }
 }

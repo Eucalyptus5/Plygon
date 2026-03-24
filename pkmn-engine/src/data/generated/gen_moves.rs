@@ -1348,7 +1348,7 @@ pub static GEN_MOVES: &[MoveData] = &[
     // [167] Triple Kick
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:10, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Fighting,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::Escalating, crit_ratio:0, drain:0, priority:0,
         multihit:51,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0,
@@ -6516,7 +6516,7 @@ pub static GEN_MOVES: &[MoveData] = &[
     // [813] Triple Axel
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:20, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::Escalating, crit_ratio:0, drain:0, priority:0,
         multihit:51,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0,

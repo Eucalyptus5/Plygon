@@ -46,6 +46,7 @@ pub enum VarPower {
     Acrobatics = 18,    // 2× if attacker has no item
     RisingVoltage = 19, // 2× if Electric Terrain + target grounded
     SpitUp        = 20, // 100 BP per stockpile layer
+    Escalating    = 21, // base_power * hit_number (Triple Kick, Triple Axel)
 }
 
 // Encodes guaranteed self-stat changes, crash damage, and other effects

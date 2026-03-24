@@ -181,7 +181,7 @@ fn test_foul_play_uses_target_atk() {
     state.sides[1].team[0].stats = [200, 100, 100, 100, 100]; // Atk=200
 
     // Foul Play (492): Physical, Dark, 95 BP, uses target's Atk
-    let res = calc_damage(&state, 0, 492, &mut |_| 1);
+    let res = calc_damage(&state, 0, 492, 0, &mut |_| 1);
     assert!(res.damage > 0);
 
     // Compare with same mon using Knock Off (34): Physical, Dark, 65 BP, uses own Atk
@@ -201,11 +201,11 @@ fn test_foul_play_uses_target_boosts() {
     // Target has +2 Atk boost
     state.sides[1].active.boosts[ATK] = 2;
 
-    let res_boosted = calc_damage(&state, 0, 492, &mut |_| 1);
+    let res_boosted = calc_damage(&state, 0, 492, 0, &mut |_| 1);
 
     // Reset boost
     state.sides[1].active.boosts[ATK] = 0;
-    let res_unboosted = calc_damage(&state, 0, 492, &mut |_| 1);
+    let res_unboosted = calc_damage(&state, 0, 492, 0, &mut |_| 1);
 
     // Boosted target should mean more damage for Foul Play
     assert!(res_boosted.damage > res_unboosted.damage);
@@ -219,7 +219,7 @@ fn test_body_press_uses_def_as_atk() {
     state.sides[1].team[0].stats = [100, 100, 100, 100, 100];
 
     // Body Press (776): Physical, Fighting, 80 BP, uses attacker's Def
-    let res_press = calc_damage(&state, 0, 776, &mut |_| 1);
+    let res_press = calc_damage(&state, 0, 776, 0, &mut |_| 1);
 
     // Compare: a normal 80 BP Physical move would use Atk=50.
     // Body Press uses Def=250, so should deal much more.
@@ -227,7 +227,7 @@ fn test_body_press_uses_def_as_atk() {
 
     // Also verify +2 Def boost affects Body Press
     state.sides[0].active.boosts[DEF] = 2;
-    let res_boosted = calc_damage(&state, 0, 776, &mut |_| 1);
+    let res_boosted = calc_damage(&state, 0, 776, 0, &mut |_| 1);
     assert!(res_boosted.damage > res_press.damage);
 }
 
@@ -240,7 +240,7 @@ fn test_psyshock_uses_spa_vs_def() {
     state.sides[1].team[0].stats = [100, 50, 100, 250, 100]; // Def=50, SpD=250
 
     // Psyshock (473): Special, Psychic, 80 BP, uses SpA vs Def
-    let res = calc_damage(&state, 0, 473, &mut |_| 1);
+    let res = calc_damage(&state, 0, 473, 0, &mut |_| 1);
 
     // A normal SpA vs SpD (250) move would deal less.
     // Using SpA (200) vs Def (50) should deal a lot of damage.
@@ -248,13 +248,13 @@ fn test_psyshock_uses_spa_vs_def() {
 
     // Verify it targets Def, not SpD, by boosting SpD (should NOT reduce damage)
     state.sides[1].active.boosts[SPD] = 6;
-    let res_spd_boosted = calc_damage(&state, 0, 473, &mut |_| 1);
+    let res_spd_boosted = calc_damage(&state, 0, 473, 0, &mut |_| 1);
     assert_eq!(res.damage, res_spd_boosted.damage); // SpD boost doesn't matter
 
     // Boosting Def SHOULD reduce damage
     state.sides[1].active.boosts[SPD] = 0;
     state.sides[1].active.boosts[DEF] = 6;
-    let res_def_boosted = calc_damage(&state, 0, 473, &mut |_| 1);
+    let res_def_boosted = calc_damage(&state, 0, 473, 0, &mut |_| 1);
     assert!(res_def_boosted.damage < res.damage);
 }
 
