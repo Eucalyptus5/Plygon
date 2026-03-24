@@ -62,6 +62,30 @@ pub mod ItemFlag {
     pub const THROAT_SPRAY: u64      = 1 << 39;
     pub const PROTECTIVE_PADS: u64   = 1 << 40;
 
+    // Damage-modifying items
+    pub const MUSCLE_BAND: u64       = 1 << 41;  // 1.1x physical
+    pub const WISE_GLASSES: u64      = 1 << 42;  // 1.1x special
+    pub const LIGHT_BALL: u64        = 1 << 43;  // 2x Atk/SpA for Pikachu
+
+    // Speed-halving items
+    pub const HALF_SPEED: u64        = 1 << 44;  // Iron Ball, Power items
+
+    // Reactive items (onDamagingHit)
+    pub const ABSORB_BULB: u64       = 1 << 45;  // +1 SpA when hit by Water
+    pub const CELL_BATTERY: u64      = 1 << 46;  // +1 Atk when hit by Electric
+    pub const LUMINOUS_MOSS: u64     = 1 << 47;  // +1 SpD when hit by Water
+    pub const SNOWBALL: u64          = 1 << 48;  // +1 Atk when hit by Ice
+
+    // Triggered/residual items
+    pub const EJECT_BUTTON: u64      = 1 << 49;  // switch out when hit
+    pub const EJECT_PACK: u64        = 1 << 50;  // switch out on stat drop
+    pub const RED_CARD: u64          = 1 << 51;  // force opponent switch when hit
+    pub const STICKY_BARB: u64       = 1 << 52;  // residual damage + transfer on contact
+    pub const WHITE_HERB: u64        = 1 << 53;  // restore negative stat changes
+
+    // Ogerpon masks (1.2x for specific Ogerpon form)
+    pub const OGERPON_MASK: u64      = 1 << 54;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }

@@ -1497,9 +1497,8 @@ pub static GEN_SPECIES: &[SpeciesData] = &[
     SpeciesData { hp:47, atk:82, def:57, spa:42, spd:47, spe:63, type1:Type::Fighting, type2:Type::Fighting, weight:70 },
     // [740] Crabominable
     SpeciesData { hp:97, atk:132, def:77, spa:62, spd:67, spe:43, type1:Type::Fighting, type2:Type::Ice, weight:1800 },
-    // [741]
-    // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    // [741] Oricorio (Baile Style)
+    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Fire, type2:Type::Flying, weight:34 },
     // [742] Cutiefly
     SpeciesData { hp:40, atk:45, def:40, spa:55, spd:40, spe:84, type1:Type::Bug, type2:Type::Fairy, weight:2 },
     // [743] Ribombee

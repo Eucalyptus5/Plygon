@@ -53,7 +53,7 @@ MOVE_EFFECT = {
     "willowisp": "WillOWisp", "thunderwave": "ThunderWave", "toxic": "Toxic",
     "spore": "Sleep", "sleeppowder": "Sleep", "hypnosis": "Sleep",
     "darkvoid": "Sleep", "grasswhistle": "Sleep", "lovelykiss": "Sleep",
-    "sing": "Sleep", "yawn": "Sleep",
+    "sing": "Sleep",
     "swordsdance": "SwordsDance", "nastyplot": "NastyPlot",
     "dragondance": "DragonDance", "calmmind": "CalmMind",
     "bulkup": "BulkUp", "irondefense": "IronDefense",
@@ -107,6 +107,59 @@ MOVE_EFFECT = {
     # -- Locked / thrashing --
     "outrage": "Thrash", "petaldance": "Thrash", "thrash": "Thrash",
     "ragingfury": "Thrash",
+
+    # -- Phase 7: Additional status/utility effects --
+    "bellydrum": "BellyDrum",
+    "painsplit": "PainSplit",
+    "endeavor": "Endeavor",
+    "superfang": "SuperFang", "naturesmadness": "SuperFang",
+    "seismictoss": "SeismicToss", "nightshade": "SeismicToss",
+    "counter": "Counter",
+    "mirrorcoat": "MirrorCoat",
+    "metalburst": "MetalBurst",
+    "finalgambit": "FinalGambit",
+    "perishsong": "PerishSong",
+    "destinybond": "DestinyBond",
+    "trick": "Trick", "switcheroo": "Trick",
+    "disable": "Disable",
+    "torment": "Torment",
+    "healingwish": "HealingWish",
+    "lunardance": "LunarDance",
+    "courtchange": "CourtChange",
+    "roost": "Roost",
+    "saltcure": "SaltCure",
+    "gravity": "Gravity",
+    "safeguard": "Safeguard",
+    "mist": "Mist",
+    "luckychant": "LuckyChant",
+    "whirlwind": "Whirlwind", "roar": "Whirlwind", "dragontail": "Whirlwind",
+    "circlethrow": "Whirlwind",
+    "haze": "Haze", "clearsmog": "Haze",
+    "yawn": "Yawn",
+    "confuseray": "Confuse", "sweetkiss": "Confuse", "flatter": "Confuse",
+    "swagger": "Confuse", "supersonic": "Confuse", "teeterdance": "Confuse",
+    "magnetrise": "MagnetRise",
+    "focusenergy": "FocusEnergy",
+    "imprison": "Imprison",
+    "aromatherapy": "Aromatherapy", "healbell": "Aromatherapy",
+    "minimize": "Minimize",
+    "stockpile": "Stockpile",
+    "spitup": "SpitUp",
+    "swallow": "Swallow",
+    "terablast": "TeraBlast",
+    "magicroom": "MagicRoom",
+    "wonderroom": "WonderRoom",
+    "clangoroussoul": "ClangorousSoul",
+    "curse": "Curse",
+    "noretreat": "NoRetreat",
+    "tidyup": "TidyUp",
+
+    # -- Partial trap moves --
+    "bind": "PartialTrap", "wrap": "PartialTrap", "firespin": "PartialTrap",
+    "sandtomb": "PartialTrap", "whirlpool": "PartialTrap",
+    "clamp": "PartialTrap", "magmastorm": "PartialTrap",
+    "infestation": "PartialTrap", "thundercage": "PartialTrap",
+    "snaptrap": "PartialTrap",
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -178,6 +231,7 @@ VAR_POWER = {
     "hex": "Hex", "barbedbranch": "Hex",
     "acrobatics": "Acrobatics",
     "risingvoltage": "RisingVoltage",
+    "spitup": "SpitUp",
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -190,6 +244,7 @@ SD_FLAG_MAP = {
     "pulse": "PULSE", "bite": "BITE", "powder": "POWDER",
     "dance": "DANCE", "wind": "WIND", "slicing": "SLICE",
     "bullet": "BULLET", "bypasssub": "BYPASSSUB",
+    "reflectable": "REFLECTABLE",
 }
 
 
@@ -253,20 +308,8 @@ def extract_flags(block):
     return set(re.findall(r'(\w+)\s*:', inner))
 
 
-def extract_secondary(block):
-    """Extract secondary effect: returns (chance, status, stat, stages) or None."""
-    # Check for `secondary: null`
-    null_pat = re.compile(r'secondary:\s*null')
-    if null_pat.search(block):
-        return None
-
-    # Match secondary block
-    sec_pat = re.compile(r'secondary:\s*\{(.*?)\}', re.DOTALL)
-    m = sec_pat.search(block)
-    if not m:
-        return None
-    sec_text = m.group(1)
-
+def _parse_secondary_block(sec_text):
+    """Parse a single secondary block text into (chance, status, stat, stages)."""
     chance = 0
     status = 0
     stat = 0
@@ -291,8 +334,52 @@ def extract_secondary(block):
                 stages = int(val_m.group(1))
                 break
 
-    if chance > 0:
-        return (chance, status, stat, stages)
+    return (chance, status, stat, stages)
+
+
+def extract_secondary(block):
+    """Extract secondary effect: returns (chance, status, stat, stages) or None.
+    Handles both singular `secondary:` and plural `secondaries:` arrays."""
+    # Check for `secondary: null`
+    null_pat = re.compile(r'secondary:\s*null')
+    if null_pat.search(block):
+        # Still check for secondaries (plural) — some moves have secondary: null
+        # but we also want to check if there's a secondaries array
+        pass
+
+    # First try plural `secondaries: [...]` (e.g., Fang moves, Triple Arrows)
+    secondaries_pat = re.compile(r'secondaries:\s*\[', re.DOTALL)
+    if secondaries_pat.search(block):
+        # Find all individual secondary blocks within the secondaries array
+        # Extract the first non-flinch secondary (status or stat boost)
+        arr_start = secondaries_pat.search(block).end()
+        # Find individual { ... } blocks within the array
+        sec_blocks = re.finditer(r'\{(.*?)\}', block[arr_start:], re.DOTALL)
+        best = None
+        for sb in sec_blocks:
+            sec_text = sb.group(1)
+            parsed = _parse_secondary_block(sec_text)
+            chance, status, stat, stages = parsed
+            if chance > 0:
+                # Prefer status/stat secondaries over flinch
+                if status != 0 or stages != 0:
+                    return parsed
+                if best is None:
+                    best = parsed
+        if best is not None:
+            return best
+        return None
+
+    # Match singular secondary block
+    sec_pat = re.compile(r'secondary:\s*\{(.*?)\}', re.DOTALL)
+    m = sec_pat.search(block)
+    if not m:
+        return None
+    sec_text = m.group(1)
+
+    parsed = _parse_secondary_block(sec_text)
+    if parsed[0] > 0:
+        return parsed
     return None
 
 
@@ -334,11 +421,14 @@ def extract_multihit(block):
 
 
 def extract_crit_ratio(block):
-    """Extract critRatio."""
+    """Extract critRatio.
+    Showdown uses 1-based (1=normal, 2=high, 3=always).
+    Engine uses 0-based (0=normal, 1=high, 2=always).
+    Subtract 1 to convert."""
     val = extract_field(block, "critRatio")
     if val:
         try:
-            return int(val)
+            return max(0, int(val) - 1)
         except ValueError:
             pass
     return 0
@@ -421,11 +511,11 @@ def extract_target(block):
 
 
 def is_nonstandard(block):
-    """Check if move is CAP/LGPE/etc that we skip."""
+    """Check if move is CAP/LGPE/Gigantamax/etc that we skip."""
     val = extract_field(block, "isNonstandard")
     if val:
         val = val.strip("'\"")
-        return val in ("CAP", "LGPE", "Unobtainable")
+        return val in ("CAP", "LGPE", "Unobtainable", "Gigantamax")
     return False
 
 
@@ -435,9 +525,12 @@ def has_heal_flag(block, sd_flags):
     return "heal" in sd_flags
 
 
-def has_recharge(block):
-    """Moves with recharge turn (Hyper Beam, etc.)."""
-    return 'rechargeTurn' in block or extract_field(block, "self") and "'mustrecharge'" in block
+def has_recharge(block, sd_flags):
+    """Moves with recharge turn (Hyper Beam, etc.).
+    Uses the Showdown 'recharge' flag, which is the authoritative indicator.
+    Also checks for self: { volatileStatus: 'mustrecharge' } at the top level
+    (NOT in onTry/onHit handlers which reference mustrecharge on the *target*)."""
+    return "recharge" in sd_flags
 
 
 def is_protect_target(block, sd_flags):
@@ -525,14 +618,16 @@ def gen_moves():
             flag_parts.append("MoveFlags::HEAL")
 
         # RECHARGE flag
-        if has_recharge(block) or "'mustrecharge'" in block:
+        if has_recharge(block, sd_flags):
             flag_parts.append("MoveFlags::RECHARGE")
 
         # CHARGE flag (set for charge moves)
+        # Detect from MOVE_EFFECT table, SolarBeam, or Showdown's charge flag
         if key in MOVE_EFFECT and MOVE_EFFECT[key].startswith("Charge"):
             flag_parts.append("MoveFlags::CHARGE")
-        # SolarBeam is also CHARGE
-        if key in ("solarbeam", "solarblade"):
+        elif key in ("solarbeam", "solarblade"):
+            flag_parts.append("MoveFlags::CHARGE")
+        elif "charge" in sd_flags:
             flag_parts.append("MoveFlags::CHARGE")
 
         flags_str = " | ".join(flag_parts) if flag_parts else "0"
@@ -718,6 +813,38 @@ SPECIFIC_ITEMS = {
     "throatspray": ("THROAT_SPRAY", "CONSUMABLE"),
     "boosterenergy": ("CONSUMABLE",),
     "weaknesspolicy": ("CONSUMABLE",),
+
+    # Damage-modifying items (onBasePower)
+    "muscleband": ("MUSCLE_BAND",),
+    "wiseglasses": ("WISE_GLASSES",),
+    "cornerstonemask": ("OGERPON_MASK",),
+    "hearthflamemask": ("OGERPON_MASK",),
+    "wellspringmask": ("OGERPON_MASK",),
+
+    # Stat-modifying items (Pikachu)
+    "lightball": ("LIGHT_BALL",),
+
+    # Speed-halving items
+    "ironball": ("HALF_SPEED",),
+    "poweranklet": ("HALF_SPEED",),
+    "powerband": ("HALF_SPEED",),
+    "powerbelt": ("HALF_SPEED",),
+    "powerbracer": ("HALF_SPEED",),
+    "powerlens": ("HALF_SPEED",),
+    "powerweight": ("HALF_SPEED",),
+
+    # Reactive items (onDamagingHit)
+    "absorbbulb": ("ABSORB_BULB", "CONSUMABLE"),
+    "cellbattery": ("CELL_BATTERY", "CONSUMABLE"),
+    "luminousmoss": ("LUMINOUS_MOSS", "CONSUMABLE"),
+    "snowball": ("SNOWBALL", "CONSUMABLE"),
+
+    # Triggered/residual items
+    "ejectbutton": ("EJECT_BUTTON", "CONSUMABLE"),
+    "ejectpack": ("EJECT_PACK", "CONSUMABLE"),
+    "redcard": ("RED_CARD", "CONSUMABLE"),
+    "stickybarb": ("STICKY_BARB",),
+    "whiteherb": ("WHITE_HERB", "CONSUMABLE"),
 }
 
 # Terrain seed type_param encoding — matches switch.rs terrain activation logic.
