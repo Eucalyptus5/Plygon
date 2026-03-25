@@ -2193,22 +2193,26 @@ mod tests {
             species_id: 25, current_hp: 300, max_hp: 300,
             stats: [150, 100, 150, 100, 100],
             moves: [1, 2, 3, 4], pp: [24, 24, 24, 24],
+            level: 100,
             ..Default::default()
         };
         state.sides[0].team[1] = MonSlot {
             species_id: 6, current_hp: 200, max_hp: 200,
             stats: [100, 100, 100, 100, 80],
+            level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 50, current_hp: 300, max_hp: 300,
             stats: [100, 100, 100, 100, 80],
             moves: [1, 2, 3, 4], pp: [24, 24, 24, 24],
+            level: 100,
             ..Default::default()
         };
         state.sides[1].team[1] = MonSlot {
             species_id: 10, current_hp: 200, max_hp: 200,
             stats: [80, 80, 80, 80, 60],
+            level: 100,
             ..Default::default()
         };
         state.phase = PHASE_ACTIONS;

@@ -20,14 +20,14 @@ fn setup() -> BattleState {
 
 #[test]
 fn test_chain_mod() {
-    assert_eq!(chain_mod(100, 6144, 4096), 150);
-    assert_eq!(chain_mod(100, 2048, 4096), 50);
-    
+    assert_eq!(chain_mod(100, 6144), 150);
+    assert_eq!(chain_mod(100, 2048), 50);
+
     // Chaining 1.5x twice
     let mut val = 100;
-    val = chain_mod(val, 6144, 4096);
+    val = chain_mod(val, 6144);
     assert_eq!(val, 150);
-    val = chain_mod(val, 6144, 4096);
+    val = chain_mod(val, 6144);
     assert_eq!(val, 225);
 }
 
@@ -112,15 +112,20 @@ fn test_crit_stage() {
 
 #[test]
 fn test_is_crit() {
-    assert!(is_crit(0, &mut |_| 0)); 
+    // is_crit always calls rng(24) and checks rng(24) < crit_threshold.
+    // Stage 0: threshold=1 (1/24)
+    assert!(is_crit(0, &mut |_| 0));
     assert!(!is_crit(0, &mut |_| 1));
+    // Stage 1: threshold=3 (3/24 = 1/8)
     assert!(is_crit(1, &mut |_| 0));
-    assert!(!is_crit(1, &mut |_| 1));
+    assert!(is_crit(1, &mut |_| 2));  // 2 < 3 → crit
+    assert!(!is_crit(1, &mut |_| 3)); // 3 >= 3 → no crit
+    // Stage 2: threshold=12 (12/24 = 1/2)
     assert!(is_crit(2, &mut |_| 0));
-    
-    // For stage >= 3, threshold is 1. If RNG always returns 0, it's a crit.
-    // If we return 999, it's not a crit because 999 != 0.
+    assert!(!is_crit(2, &mut |_| 12));
+    // Stage 3+: threshold=24 (guaranteed)
     assert!(is_crit(3, &mut |_| 0));
+    assert!(is_crit(3, &mut |_| 23)); // 23 < 24 → still crits
 }
 
 #[test]

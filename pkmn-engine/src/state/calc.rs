@@ -12,8 +12,11 @@ use crate::state::calc_modifiers::*;
 use crate::data::moves::{MoveFlags, VarPower};
 use crate::data::types::Type;
 
-/// Level factor: (2 * 100 / 5 + 2) = 42 at level 100.
-const LEVEL_FACTOR: u32 = 42;
+/// Compute the level factor for the damage formula: floor(2 * level / 5 + 2).
+#[inline(always)]
+fn level_factor(level: u8) -> u32 {
+    2 * level as u32 / 5 + 2
+}
 
 /// Everything the caller needs to know about a damage calculation.
 #[derive(Debug, Clone, Copy, Default)]
@@ -127,25 +130,29 @@ pub fn calc_damage(
     let base_power = resolve_power(state, md, atk_side, def_side);
     let mut power = base_power as u32;
 
-    let (ap_n, ap_d) = ability_power_mod(state, md, atk_side, base_power);
-    power = chain_mod(power, ap_n, ap_d);
+    let (ap_n, _) = ability_power_mod(state, md, atk_side, base_power);
+    power = chain_mod(power, ap_n);
 
     // -ate ability boost (Galvanize/Pixilate/etc.): 1.2×
     if ate_boost {
-        power = chain_mod(power, 4915, 4096); // 1.2×
+        power = chain_mod(power, 4915); // 1.2×
     }
 
-    let (ip_n, ip_d) = item_power_mod(
+    let (ip_n, _) = item_power_mod(
         atk_item, atk_mon.item_id, move_type, category, md.flags,
         state.sides[atk_side].active.consec_move_count,
     );
-    power = chain_mod(power, ip_n, ip_d);
+    power = chain_mod(power, ip_n);
     if atk_item.has(ItemFlag::GEM) && atk_item.type_param == move_type as u8 {
         result.item_consumed = true;
     }
 
-    let (mp_n, mp_d) = move_effect_power_mod(state, md, atk_side, def_side);
-    power = chain_mod(power, mp_n, mp_d);
+    let (mp_n, _) = move_effect_power_mod(state, md, atk_side, def_side);
+    power = chain_mod(power, mp_n);
+
+    // Terrain: Showdown applies via onBasePower (power modifier, not damage modifier)
+    let (tn, _) = terrain_modifier(state, atk_side, def_side, move_type, move_id);
+    power = chain_mod(power, tn);
 
     // Charge (Electromorphosis/Wind Power): 2× Electric moves
     if move_type == Type::Electric && state.sides[atk_side].active._padding[4] & 4 != 0 {
@@ -205,6 +212,13 @@ pub fn calc_damage(
         state.sides[atk_side].active.turns_active,
         state.sides[def_side].active.turns_active,
     );
+
+    // Defender's ability modifying attacker's stat (Showdown: onSourceModifyAtk/SpA)
+    // Water Bubble: 0.5x attacker's Atk/SpA for Fire moves
+    if def_ability == data_bridge::ABILITY_WATER_BUBBLE && move_type == Type::Fire {
+        a = chain_mod(a as u32, 2048) as u16;
+    }
+
     d = ability_def_stat_mod(
         d, def_ability, category, move_type,
         def_mon.status, effective_weather_for(state, def_side), state.field.terrain,
@@ -259,6 +273,21 @@ pub fn calc_damage(
     let num_hits = resolve_hits(md, atk_ability, atk_item.flags, rng_fn);
     result.hits = num_hits;
 
+    // Pre-compute all loop-invariant modifiers
+    let lf = level_factor(atk_mon.level);
+    let (wn, _) = weather_modifier(effective_weather_for(state, atk_side), move_type);
+    if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
+    let (sn, _) = stab_modifier(state, atk_side, move_type);
+    let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability);
+    let (scn, _) = screen_modifier(state, def_side, category, is_crit);
+    let (dan, _) = defender_ability_final_mod(state, md, def_side, eff);
+    let (aan, _) = attacker_ability_final_mod(atk_ability, eff);
+    let (ifn, _, berry_consumed) = item_final_mod(atk_item, def_item, move_type, eff);
+    if berry_consumed { result.item_consumed = true; }
+    let (cn, cd) = if is_crit { crit_multiplier(atk_ability) } else { (1, 1) };
+    let a32 = a as u32;
+    let d32 = d as u32;
+
     let mut total_damage: u32 = 0;
 
     for hit in 0..num_hits {
@@ -273,45 +302,22 @@ pub fn calc_damage(
         } else {
             power
         };
-        let mut dmg: u32 = (LEVEL_FACTOR * hit_power * a as u32 / d as u32) / 50 + 2;
+        let mut dmg: u32 = (lf * hit_power * a32 / d32) / 50 + 2;
 
-        let (wn, wd) = weather_modifier(effective_weather_for(state, atk_side), move_type);
-        if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
-        dmg = chain_mod(dmg, wn, wd);
-
-        let (tn, td) = terrain_modifier(state, atk_side, def_side, move_type, move_id);
-        dmg = chain_mod(dmg, tn, td);
-
-        if is_crit {
-            let (cn, cd) = crit_multiplier(atk_ability);
-            dmg = chain_mod(dmg, cn, cd);
-        }
+        dmg = chain_mod(dmg, wn);
+        if is_crit { dmg = dmg * cn / cd; }
 
         // Random roll: 85-100%
         let roll = 85 + rng_fn(16);
         dmg = dmg * roll / 100;
 
-        let (sn, sd) = stab_modifier(state, atk_side, move_type);
-        dmg = chain_mod(dmg, sn, sd);
-
-        // eff is in 4x scale: 0=immune, 2=0.5x, 4=1x, 8=2x, 16=4x
+        dmg = chain_mod(dmg, sn);
         dmg = dmg * eff as u32 / 4;
-
-        let (bn, bd) = burn_modifier(atk_mon.status, category, atk_ability);
-        dmg = chain_mod(dmg, bn, bd);
-
-        let (scn, scd) = screen_modifier(state, def_side, category, is_crit);
-        dmg = chain_mod(dmg, scn, scd);
-
-        let (dan, dad) = defender_ability_final_mod(state, md, def_side, eff);
-        dmg = chain_mod(dmg, dan, dad);
-
-        let (aan, aad) = attacker_ability_final_mod(atk_ability, eff);
-        dmg = chain_mod(dmg, aan, aad);
-
-        let (ifn, ifd, berry_consumed) = item_final_mod(atk_item, def_item, move_type, eff);
-        dmg = chain_mod(dmg, ifn, ifd);
-        if berry_consumed { result.item_consumed = true; }
+        dmg = chain_mod(dmg, bn);
+        dmg = chain_mod(dmg, scn);
+        dmg = chain_mod(dmg, dan);
+        dmg = chain_mod(dmg, aan);
+        dmg = chain_mod(dmg, ifn);
 
         if dmg == 0 { dmg = 1; }
 
@@ -359,7 +365,8 @@ fn calc_struggle(state: &BattleState, atk_side: usize) -> DamageResult {
         state.sides[def_side].active.boosts[DEF],
     ).max(1);
 
-    let dmg = ((LEVEL_FACTOR * 50 * a as u32 / d as u32) / 50 + 2).max(1);
+    let lf = level_factor(atk_mon.level);
+    let dmg = ((lf * 50 * a as u32 / d as u32) / 50 + 2).max(1);
 
     DamageResult {
         damage: dmg.min(u16::MAX as u32) as u16,
@@ -389,12 +396,14 @@ mod tests {
             species_id: 0, current_hp: 300, max_hp: 300,
             stats: [150, 100, 150, 100, 100], // Atk=150, Def=100, SpA=150, SpD=100, Spe=100
             moves: [1, 0, 0, 0], pp: [24, 0, 0, 0],
+            level: 100,
             ..Default::default()
         };
         // Defender: side 1, slot 0
         state.sides[1].team[0] = MonSlot {
             species_id: 0, current_hp: 300, max_hp: 300,
             stats: [100, 100, 100, 100, 100],
+            level: 100,
             ..Default::default()
         };
         state.phase = PHASE_ACTIONS;
@@ -417,21 +426,21 @@ mod tests {
     #[test]
     fn test_stab_multiplier() {
         // 1.5× STAB
-        let val = chain_mod(100, 6144, 4096);
+        let val = chain_mod(100, 6144);
         assert_eq!(val, 150);
     }
 
     #[test]
     fn test_weather_fire_in_sun() {
-        let (n, d) = weather_modifier(WEATHER_SUN, Type::Fire);
-        let val = chain_mod(100, n, d);
+        let (n, _) = weather_modifier(WEATHER_SUN, Type::Fire);
+        let val = chain_mod(100, n);
         assert_eq!(val, 150);
     }
 
     #[test]
     fn test_weather_water_in_sun() {
-        let (n, d) = weather_modifier(WEATHER_SUN, Type::Water);
-        let val = chain_mod(100, n, d);
+        let (n, _) = weather_modifier(WEATHER_SUN, Type::Water);
+        let val = chain_mod(100, n);
         assert_eq!(val, 50);
     }
 
@@ -456,8 +465,8 @@ mod tests {
 
     #[test]
     fn test_burn_halves_physical() {
-        let (n, d) = burn_modifier(STATUS_BURN, MoveCategory::Physical, 0);
-        assert_eq!(chain_mod(100, n, d), 50);
+        let (n, _) = burn_modifier(STATUS_BURN, MoveCategory::Physical, 0);
+        assert_eq!(chain_mod(100, n), 50);
     }
 
     #[test]
@@ -465,12 +474,12 @@ mod tests {
         let mut state = BattleState::default();
         state.sides[1].side_conditions.reflect_turns = 5;
 
-        let (n, d) = screen_modifier(&state, 1, MoveCategory::Physical, false);
-        assert_eq!(chain_mod(100, n, d), 50);
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, false);
+        assert_eq!(chain_mod(100, n), 50);
 
         // Crit ignores screen
-        let (n, d) = screen_modifier(&state, 1, MoveCategory::Physical, true);
-        assert_eq!(chain_mod(100, n, d), 100);
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, true);
+        assert_eq!(chain_mod(100, n), 100);
     }
 
     #[test]
@@ -483,8 +492,8 @@ mod tests {
     #[test]
     fn test_life_orb_damage() {
         let (n, _d) = (5324u32, 4096u32);
-        let dmg = chain_mod(100, n, 4096);
-        assert_eq!(dmg, 129); // floor(100 * 1.3) = 129 in 4096-scale
+        let dmg = chain_mod(100, n);
+        assert_eq!(dmg, 130); // pokeRound(100 * 5324/4096) = 130
     }
 
     #[test]
@@ -501,7 +510,7 @@ mod tests {
             8, // super effective
         );
         assert!(consumed);
-        assert_eq!(chain_mod(200, n, d), 100); // halved
+        assert_eq!(chain_mod(200, n), 100); // halved
     }
 
     #[test]
@@ -836,17 +845,15 @@ mod tests {
 
     #[test]
     fn test_escalating_power_expected_damage() {
-        // Triple Kick (167): base_power=10, Fighting, Escalating
-        // With test_state (atk=150, def=100) and fixed_rng(15) → 100% roll, no crit
-        // Defender is Normal type → Fighting is 2× SE (eff=8, applied as *8/4=*2)
-        // Hit 0 (power 10): (42*10*150/100)/50 + 2 = 14, *2 eff = 28
-        // Hit 1 (power 20): (42*20*150/100)/50 + 2 = 27, *2 eff = 54
-        // Hit 2 (power 30): (42*30*150/100)/50 + 2 = 39, *2 eff = 78
-        // Total = 160
+        // Triple Kick (167): base_power=10, Fighting, 3 hits, var_power=None (no escalation in data)
+        // With test_state (atk=150, def=100, level=100) and fixed_rng(15) -> 100% roll, no crit
+        // Defender species 50 (Ground) -> Fighting is 2x SE (eff=8)
+        // Each hit: (42*10*150/100)/50 + 2 = 14, *2 eff = 28
+        // Total = 84
         let state = test_state();
         let result = calc_damage(&state, 0, 167, 0, &mut fixed_rng(15));
         assert_eq!(result.hits, 3);
-        assert_eq!(result.damage, 160);
+        assert_eq!(result.damage, 84);
     }
 
     #[test]

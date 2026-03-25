@@ -149,6 +149,8 @@ pub struct MonSlot {
     pub status_counter: u8,
     pub tera_type: u8,
     pub flags: u8,
+    pub level: u8,
+    pub _pad: u8,
 }
 
 /// Volatile battlefield presence.  Zeroed on switch-out.  72 bytes.
@@ -296,12 +298,12 @@ pub struct TeamData {
     pub levels: [[u8; 6]; 2],
 }
 
-const _: () = assert!(size_of::<MonSlot>() == 36);
+const _: () = assert!(size_of::<MonSlot>() == 38);
 const _: () = assert!(size_of::<ActiveMon>() == 72);
 const _: () = assert!(size_of::<SideConditions>() == 12);
 const _: () = assert!(size_of::<FieldState>() == 10);
-const _: () = assert!(size_of::<SideState>() == 304);
-const _: () = assert!(size_of::<BattleState>() <= 640);
+const _: () = assert!(size_of::<SideState>() == 316);
+const _: () = assert!(size_of::<BattleState>() <= 664);
 const _: () = assert!(size_of::<MonBuildData>() == 13);
 
 const _: () = {

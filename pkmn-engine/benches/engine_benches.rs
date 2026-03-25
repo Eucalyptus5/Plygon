@@ -35,6 +35,7 @@ fn make_mon(species_id: u16, hp: u16, stats: [u16; 5], moves: [u16; 4], pp: [u8;
         stats,
         moves,
         pp,
+        level: 100,
         ..Default::default()
     }
 }

@@ -117,7 +117,7 @@ fn step_status_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
         STATUS_BAD_POISON => { if !is_poison_heal {
             let counter = state.sides[side].active.toxic_counter.max(1);
             let max_hp = state.sides[side].team[slot].max_hp;
-            let damage = (max_hp as u32 * counter as u32 / 16).max(1) as u16;
+            let damage = ((max_hp as u32 / 16).max(1) * counter as u32) as u16;
             deal_damage(state, keys, side, slot, damage);
             state.sides[side].active.toxic_counter = counter.saturating_add(1);
         } }

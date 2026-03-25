@@ -16,6 +16,7 @@ fn setup() -> (BattleState, ZobristKeys) {
         species_id: 1, current_hp: 300, max_hp: 300,
         stats: [150, 100, 150, 100, 100],
         moves: [1, 7, 53, 173], pp: [24, 24, 24, 24],
+        level: 100,
         // Pound(1)=Normal/Phys, FirePunch(7)=Fire/Phys, Flamethrower(53)=Fire/Spec, Snore(173)=Normal/Spec/Sound
         ..Default::default()
     };
@@ -23,6 +24,7 @@ fn setup() -> (BattleState, ZobristKeys) {
         species_id: 6, current_hp: 200, max_hp: 200,
         stats: [100, 100, 100, 100, 80],
         moves: [1, 2, 3, 4], pp: [24, 24, 24, 24],
+        level: 100,
         ..Default::default()
     };
     // Defender: side 1 — Charmander (Fire), species_id=4
@@ -30,12 +32,14 @@ fn setup() -> (BattleState, ZobristKeys) {
         species_id: 4, current_hp: 300, max_hp: 300,
         stats: [100, 100, 100, 100, 80],
         moves: [1, 2, 3, 4], pp: [24, 24, 24, 24],
+        level: 100,
         ..Default::default()
     };
     state.sides[1].team[1] = MonSlot {
         species_id: 10, current_hp: 200, max_hp: 200,
         stats: [80, 80, 80, 80, 60],
         moves: [1, 2, 3, 4], pp: [24, 24, 24, 24],
+        level: 100,
         ..Default::default()
     };
     state.phase = PHASE_ACTIONS;

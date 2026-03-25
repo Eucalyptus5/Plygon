@@ -515,6 +515,9 @@ fn test_water_bubble_attacker() {
 
 #[test]
 fn test_water_bubble_defender() {
+    // Water Bubble's defensive effect (0.5x Fire) is now applied as a stat modifier
+    // on the attacker's Atk/SpA, not as a damage modifier. So defender_ability_final_mod
+    // returns identity (4096, 4096) for Water Bubble.
     let mut state = BattleState::default();
     state.sides[1].team[0].species_id = 1;
     state.sides[1].team[0].ability_id = ABILITY_WATER_BUBBLE;
@@ -527,7 +530,7 @@ fn test_water_bubble_defender() {
         ..unsafe { core::mem::zeroed() }
     };
     let (n, d) = defender_ability_final_mod(&state, &md, 1, 4);
-    assert_eq!((n, d), (2048, 4096)); // 0.5×
+    assert_eq!((n, d), (4096, 4096)); // identity — effect applied via stat mod
 }
 
 #[test]
@@ -729,18 +732,26 @@ fn test_fur_coat_doubles_def() {
 
 #[test]
 fn test_ice_scales_special_def() {
-    // Special move: 2× defense
+    // Ice Scales: now applied as 0.5x damage modifier via defender_ability_final_mod,
+    // not as a stat doubling. ability_def_stat_mod returns identity.
     let d = ability_def_stat_mod(
         200, ABILITY_ICE_SCALES, MoveCategory::Special, Type::Normal,
         STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
     );
-    assert_eq!(d, 400);
+    assert_eq!(d, 200); // no stat change
 
-    let d = ability_def_stat_mod(
-        200, ABILITY_ICE_SCALES, MoveCategory::Physical, Type::Normal,
-        STATUS_NONE, WEATHER_NONE, TERRAIN_NONE,
-    );
-    assert_eq!(d, 200);
+    // Verify the damage modifier is applied via defender_ability_final_mod
+    let mut state = BattleState::default();
+    state.sides[1].team[0].ability_id = ABILITY_ICE_SCALES;
+    state.sides[1].team[0].max_hp = 300;
+    state.sides[1].team[0].current_hp = 300;
+    let md = MoveData {
+        base_power: 80, move_type: Type::Normal,
+        category: MoveCategory::Special,
+        ..unsafe { core::mem::zeroed() }
+    };
+    let (n, d_mod) = defender_ability_final_mod(&state, &md, 1, 4);
+    assert_eq!((n, d_mod), (2048, 4096)); // 0.5x
 }
 
 #[test]

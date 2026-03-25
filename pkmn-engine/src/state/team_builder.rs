@@ -64,6 +64,8 @@ pub fn build_mon(input: &MonBuildInput) -> (MonSlot, MonBuildData) {
         status: STATUS_NONE, status_counter: 0,
         tera_type: input.tera_type,
         flags: if input.is_female { MON_FLAG_FEMALE } else { 0 },
+        level: input.level,
+        _pad: 0,
     };
     let build_data = MonBuildData { ivs: input.ivs, evs: input.evs, nature: input.nature };
     (mon, build_data)

@@ -10,10 +10,13 @@ use crate::data::moves::{MoveData, MoveFlags, MoveEffect, SelfEffect, VarPower};
 use crate::data::types::Type;
 use crate::data::{MOVE_EARTHQUAKE, MOVE_BULLDOZE, MOVE_MAGNITUDE};
 
-/// Apply a (num, den) modifier to a value, flooring the result.
+/// Apply a 4096-scale modifier using Showdown's `modify()` rounding.
+/// Formula: floor((value * num + 2047) / 4096).
+/// Rounds 0.5 DOWN (towards zero), matching Showdown exactly.
 #[inline(always)]
-pub fn chain_mod(value: u32, num: u32, den: u32) -> u32 {
-    value * num / den
+pub fn chain_mod(value: u32, num: u32) -> u32 {
+    if num == 4096 { return value; }
+    (value * num + 2047) >> 12
 }
 
 /// Returns (num, den) in 4096-scale for weather's effect on move damage.
@@ -166,15 +169,20 @@ pub fn crit_stage(state: &BattleState, atk_side: usize, md: &MoveData) -> u8 {
 }
 
 /// Determine if this hit is a crit.
+/// Always calls rng(24) for the crit check, matching Showdown's
+/// `randomChance(1, critMult[stage])` which varies the threshold
+/// but uses a consistent RNG range.
 #[inline]
 pub fn is_crit(stage: u8, rng: &mut impl FnMut(u32) -> u32) -> bool {
-    let threshold = match stage {
-        0 => 24,   // 1/24
-        1 => 8,    // 1/8
-        2 => 2,    // 1/2
-        _ => 1,    // guaranteed
+    // crit_threshold: how many of 24 values result in a crit
+    // stage 0: 1/24, stage 1: 3/24=1/8, stage 2: 12/24=1/2, stage 3+: guaranteed
+    let crit_threshold = match stage {
+        0 => 1,    // 1/24
+        1 => 3,    // 3/24 = 1/8
+        2 => 12,   // 12/24 = 1/2
+        _ => 24,   // guaranteed
     };
-    rng(threshold) == 0
+    rng(24) < crit_threshold
 }
 
 /// Crit damage multiplier. Sniper makes it 2.25× instead of 1.5×.
@@ -378,7 +386,6 @@ pub fn ability_def_stat_mod(
 ) -> u16 {
     match ability {
         data_bridge::ABILITY_FUR_COAT if category == MoveCategory::Physical => d * 2,
-        data_bridge::ABILITY_ICE_SCALES if category == MoveCategory::Special => d * 2,
         data_bridge::ABILITY_THICK_FAT
             if move_type == Type::Fire || move_type == Type::Ice => d * 2,
         data_bridge::ABILITY_MARVEL_SCALE
@@ -426,8 +433,8 @@ pub fn defender_ability_final_mod(
         // Punk Rock: 0.5× damage from Sound moves received
         data_bridge::ABILITY_PUNK_ROCK if md.flags & MoveFlags::SOUND != 0 => (2048, 4096),
 
-        // Water Bubble: 0.5× damage from Fire received
-        data_bridge::ABILITY_WATER_BUBBLE if md.move_type == Type::Fire => (2048, 4096),
+        // Ice Scales: 0.5× damage from Special moves received
+        data_bridge::ABILITY_ICE_SCALES if md.category == MoveCategory::Special => (2048, 4096),
 
         _ => (4096, 4096),
     }

@@ -137,8 +137,8 @@ fn test_bad_poison_escalation() {
     
     end_of_turn(&mut state, &keys);
     
-    // Previous HP was 282. 2/16 of max (300) = 37. 282 - 37 = 245.
-    assert_eq!(state.sides[0].team[0].current_hp, 245); // 2/16 max HP
+    // Previous HP was 282. floor(300/16)*2 = 18*2 = 36. 282 - 36 = 246.
+    assert_eq!(state.sides[0].team[0].current_hp, 246); // floor(max/16)*counter
     assert_eq!(state.sides[0].active.toxic_counter, 3);
 }
 

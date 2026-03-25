@@ -12,11 +12,13 @@ fn setup() -> BattleState {
     state.sides[0].team[0].max_hp = 300;
     state.sides[0].team[0].current_hp = 300;
     state.sides[0].team[0].stats = [300, 100, 100, 100, 100];
-    
+    state.sides[0].team[0].level = 100;
+
     state.sides[1].team[0].species_id = 4; // Charmander
     state.sides[1].team[0].max_hp = 300;
     state.sides[1].team[0].current_hp = 300;
     state.sides[1].team[0].stats = [300, 100, 100, 100, 100];
+    state.sides[1].team[0].level = 100;
     
     state
 }
