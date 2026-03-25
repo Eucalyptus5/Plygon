@@ -43,7 +43,6 @@ const ACC_DEN: [u32; 13] = [9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3];
 /// Compute the effective accuracy value for a move, accounting for all modifiers.
 /// Returns u32::MAX for guaranteed hits (accuracy=0, No Guard, weather bypass).
 /// Pure function — no RNG, no state mutation.
-#[inline]
 fn effective_accuracy(
     state: &BattleState,
     atk_side: usize,
@@ -208,7 +207,7 @@ fn execute_status_move(
     let def_slot = state.sides[def_side].active_index as usize;
 
     if md.effect == MoveEffect::Protect {
-        execute_protect(state, keys, atk_side, rng);
+        execute_protect(state, keys, atk_side, move_id, rng);
         return;
     }
 
@@ -974,11 +973,17 @@ fn screen_duration(state: &BattleState, side: usize) -> u8 {
     { 8 } else { 5 }
 }
 
-#[inline]
+/// Protect variant type, stored in _padding[0] bits 1-2.
+const PROTECT_NORMAL: u8 = 0;
+const PROTECT_KINGS_SHIELD: u8 = 1;
+const PROTECT_BANEFUL_BUNKER: u8 = 2;
+const PROTECT_SPIKY_SHIELD: u8 = 3;
+
 fn execute_protect(
     state: &mut BattleState,
     keys: &ZobristKeys,
     side: usize,
+    move_id: u16,
     rng: &mut impl FnMut(u32) -> u32,
 ) {
     let consecutive = state.sides[side].active.protect_consecutive;
@@ -991,6 +996,15 @@ fn execute_protect(
     if succeeds {
         set_volatile(state, keys, side, VOL_PROTECT_THIS_TURN);
         state.sides[side].active.protect_consecutive += 1;
+        // Store protect variant in _padding[0] bits 1-2
+        let variant = match move_id as usize {
+            crate::data::MOVE_KING_S_SHIELD => PROTECT_KINGS_SHIELD,
+            crate::data::MOVE_BANEFUL_BUNKER => PROTECT_BANEFUL_BUNKER,
+            crate::data::MOVE_SPIKY_SHIELD => PROTECT_SPIKY_SHIELD,
+            _ => PROTECT_NORMAL,
+        };
+        state.sides[side].active._padding[0] =
+            (state.sides[side].active._padding[0] & !0x06) | (variant << 1);
     }
 }
 
@@ -1511,6 +1525,32 @@ pub fn execute_move(
     let bypasses_protect = is_charge_turn2 && md.effect == MoveEffect::ChargePhantom;
     if !bypasses_protect && state.sides[def_side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
         apply_crash_if_needed(state, keys, atk_side, md);
+        // Protect variant contact penalties
+        if md.flags & MoveFlags::CONTACT != 0 {
+            let variant = (state.sides[def_side].active._padding[0] >> 1) & 0x03;
+            match variant {
+                PROTECT_KINGS_SHIELD => {
+                    // King's Shield: -1 Atk on contact
+                    apply_boost(state, keys, atk_side, ATK, -1);
+                }
+                PROTECT_BANEFUL_BUNKER => {
+                    // Baneful Bunker: poison on contact
+                    let atk_slot = state.sides[atk_side].active_index as usize;
+                    if state.sides[atk_side].team[atk_slot].status == STATUS_NONE
+                        && state.sides[atk_side].side_conditions.safeguard_turns() == 0
+                        && !terrain_blocks_status(state, atk_side, STATUS_POISON)
+                    {
+                        set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
+                    }
+                }
+                PROTECT_SPIKY_SHIELD => {
+                    // Spiky Shield: 1/8 max HP damage on contact
+                    let atk_slot = state.sides[atk_side].active_index as usize;
+                    deal_proportional_damage(state, keys, atk_side, atk_slot, 1, 8);
+                }
+                _ => {} // Normal Protect: no penalty
+            }
+        }
         break 'exec;
     }
 
@@ -2351,7 +2391,7 @@ mod tests {
     #[test]
     fn test_protect() {
         let (mut state, keys) = setup();
-        execute_protect(&mut state, &keys, 1, &mut fixed_rng(0));
+        execute_protect(&mut state, &keys, 1, 0, &mut fixed_rng(0));
         assert!(state.sides[1].active.has_volatile(VOL_PROTECT_THIS_TURN));
         let hp = state.sides[1].team[0].current_hp;
         execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
@@ -2385,7 +2425,7 @@ mod tests {
     fn test_protect_first_always_succeeds() {
         let (mut state, keys) = setup();
         assert_eq!(state.sides[0].active.protect_consecutive, 0);
-        execute_protect(&mut state, &keys, 0, &mut fixed_rng(99));
+        execute_protect(&mut state, &keys, 0, 0, &mut fixed_rng(99));
         assert!(state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
         assert_eq!(state.sides[0].active.protect_consecutive, 1);
     }
@@ -2395,7 +2435,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].active.protect_consecutive = 1;
         // rng(3) returns 1 (not 0), so Protect fails
-        execute_protect(&mut state, &keys, 0, &mut fixed_rng(1));
+        execute_protect(&mut state, &keys, 0, 0, &mut fixed_rng(1));
         assert!(!state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
     }
 

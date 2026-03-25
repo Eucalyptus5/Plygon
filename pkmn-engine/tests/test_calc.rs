@@ -220,16 +220,12 @@ fn test_multihit() {
 }
 
 #[test]
-#[should_panic] // BUG: calc_damage checks move_id == 0 before checking base_power == 0, but GEN_MOVES[0] is Status, so it returns DamageResult::default() early.
 fn test_struggle() {
     let state = setup();
-    
-    // Struggle is ID 165, but wait, the prompt says "move_id=0 -> Struggle".
-    // I will call `calc_damage` with move_id = 0, which triggers the bug!
+
     let res = calc_damage(&state, 0, 0, 0, &mut |x| 1);
-    
+
     // Struggle has 50 power. So damage > 0.
-    // The bug returns DamageResult::default() -> damage = 0
     assert!(res.damage > 0);
     assert_eq!(res.recoil_damage, 300 / 4); // 1/4 max HP recoil
 }

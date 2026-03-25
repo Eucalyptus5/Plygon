@@ -53,11 +53,17 @@ pub fn calc_damage(
     let def_side = 1 - atk_side;
     let md = data_bridge::move_hot(move_id);
 
+    // Struggle (move_id == 0) must be checked before Status category,
+    // because the placeholder move at index 0 has Status category.
+    if move_id == 0 {
+        return calc_struggle(state, atk_side);
+    }
+
     if md.category == MoveCategory::Status {
         return DamageResult::default();
     }
 
-    if move_id == 0 || md.base_power == 0 {
+    if md.base_power == 0 {
         return calc_struggle(state, atk_side);
     }
 
@@ -92,7 +98,20 @@ pub fn calc_damage(
     let (def_t1, def_t2) = effective_types(state, def_side);
     let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
     let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+
     let mut eff = dual_type_effectiveness(move_type, def_type1, def_type2);
+
+    // Gravity: Ground moves ignore Flying-type immunity.
+    // Replace each Flying type with the other type (making it monotype if one is Flying,
+    // or Normal/Normal if pure Flying).
+    if eff == 0 && move_type == Type::Ground && state.field.gravity_turns > 0 {
+        let d1 = if def_type1 == Type::Flying { def_type2 } else { def_type1 };
+        let d2 = if def_type2 == Type::Flying { def_type1 } else { def_type2 };
+        // If both were Flying (pure Flying), both become Flying still — force to Normal.
+        let d1 = if d1 == Type::Flying { Type::Normal } else { d1 };
+        let d2 = if d2 == Type::Flying { Type::Normal } else { d2 };
+        eff = dual_type_effectiveness(move_type, d1, d2);
+    }
 
     // Freeze-Dry: super effective vs Water (override type chart)
     // Ice vs Water is normally 0.5× (eff contribution = 2), override to 2× (= 8).
