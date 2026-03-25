@@ -131,16 +131,19 @@ fn test_is_crit() {
 #[test]
 fn test_burn_modifier() {
     // physical, burned -> halved (2048/4096)
-    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0), (2048, 4096));
-    
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, false), (2048, 4096));
+
     // special, burned -> normal
-    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Special, 0), (4096, 4096));
-    
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Special, 0, false), (4096, 4096));
+
     // physical, burned, Guts (62) -> normal
-    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 62), (4096, 4096));
-    
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 62, false), (4096, 4096));
+
     // physical, unburned -> normal
-    assert_eq!(burn_modifier(0, MoveCategory::Physical, 0), (4096, 4096));
+    assert_eq!(burn_modifier(0, MoveCategory::Physical, 0, false), (4096, 4096));
+
+    // physical, burned, Facade -> normal (Facade bypasses burn)
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, true), (4096, 4096));
 }
 
 use pkmn_engine::data::moves::VarPower;

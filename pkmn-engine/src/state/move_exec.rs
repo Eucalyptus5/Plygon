@@ -202,6 +202,7 @@ fn execute_status_move(
     def_side: usize,
     md: &MoveData,
     rng: &mut impl FnMut(u32) -> u32,
+    move_id: u16,
 ) {
     let atk_slot = state.sides[atk_side].active_index as usize;
     let def_slot = state.sides[def_side].active_index as usize;
@@ -209,6 +210,31 @@ fn execute_status_move(
     if md.effect == MoveEffect::Protect {
         execute_protect(state, keys, atk_side, rng);
         return;
+    }
+
+    // Weather moves: field-targeting, bypass Protect/accuracy/immunity
+    match move_id as usize {
+        crate::data::MOVE_SUNNY_DAY => {
+            set_weather(state, keys, WEATHER_SUN, 5);
+            crate::state::switch::check_paradox_deactivation(state);
+            return;
+        }
+        crate::data::MOVE_RAIN_DANCE => {
+            set_weather(state, keys, WEATHER_RAIN, 5);
+            crate::state::switch::check_paradox_deactivation(state);
+            return;
+        }
+        crate::data::MOVE_SANDSTORM => {
+            set_weather(state, keys, WEATHER_SAND, 5);
+            crate::state::switch::check_paradox_deactivation(state);
+            return;
+        }
+        crate::data::MOVE_SNOWSCAPE => {
+            set_weather(state, keys, WEATHER_SNOW, 5);
+            crate::state::switch::check_paradox_deactivation(state);
+            return;
+        }
+        _ => {}
     }
 
     if md.flags & MoveFlags::HEAL != 0
@@ -238,6 +264,10 @@ fn execute_status_move(
         }
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
+            return;
+        }
+        // Air Balloon: non-grounded mons are immune to Ground-type moves
+        if md.move_type == Type::Ground && !is_grounded(state, def_side) {
             return;
         }
     }
@@ -849,6 +879,25 @@ fn execute_status_move(
             apply_boost(state, keys, atk_side, SPE, 2);
         }
 
+        // -- Terrain-setting moves --
+        MoveEffect::SetTerrain => {
+            let terrain = match md.move_type {
+                Type::Electric => TERRAIN_ELECTRIC,
+                Type::Grass    => TERRAIN_GRASSY,
+                Type::Psychic  => TERRAIN_PSYCHIC,
+                Type::Fairy    => TERRAIN_MISTY,
+                _ => TERRAIN_NONE,
+            };
+            if terrain != TERRAIN_NONE {
+                set_terrain(state, keys, terrain, 5);
+                crate::state::switch::check_paradox_deactivation(state);
+                // Check terrain seed activation for both sides
+                for s in 0..2 {
+                    crate::state::switch::check_terrain_seed(state, keys, s);
+                }
+            }
+        }
+
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
@@ -882,7 +931,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
 
         // Field / own side
         MoveEffect::Tailwind | MoveEffect::TrickRoom | MoveEffect::Gravity |
-        MoveEffect::MagicRoom | MoveEffect::WonderRoom => true,
+        MoveEffect::MagicRoom | MoveEffect::WonderRoom | MoveEffect::SetTerrain => true,
 
         // Utility targeting self/own side
         MoveEffect::Substitute | MoveEffect::Wish | MoveEffect::BatonPass |
@@ -1062,6 +1111,24 @@ pub fn check_berry_activation(
             consume_berry(state, keys, side, slot);
         }
         return;
+    }
+
+    // Status-cure berries: each cures a specific status
+    {
+        let status = state.sides[side].team[slot].status;
+        let cures = match item_id {
+            data_bridge::ITEM_RAWST_BERRY  => status == STATUS_BURN,
+            data_bridge::ITEM_CHESTO_BERRY => status == STATUS_SLEEP,
+            data_bridge::ITEM_CHERI_BERRY  => status == STATUS_PARALYSIS,
+            data_bridge::ITEM_PECHA_BERRY  => status == STATUS_POISON || status == STATUS_BAD_POISON,
+            data_bridge::ITEM_ASPEAR_BERRY => status == STATUS_FREEZE,
+            _ => false,
+        };
+        if cures {
+            clear_status(state, keys, side, slot);
+            consume_berry(state, keys, side, slot);
+            return;
+        }
     }
 
     if item_id == data_bridge::ITEM_BERRY_JUICE {
@@ -1437,7 +1504,7 @@ pub fn execute_move(
     }
 
     if !is_struggle && md.category == MoveCategory::Status {
-        execute_status_move(state, keys, atk_side, def_side, md, rng);
+        execute_status_move(state, keys, atk_side, def_side, md, rng, move_id);
         return; // Status moves are never thrash, so return is correct
     }
 
@@ -2424,7 +2491,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
 
         // Opponent should have -1 Atk and -1 SpA
         assert_eq!(state.sides[1].active.boosts[ATK], -1);
@@ -2450,7 +2517,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
 
         // Boosts can't go lower, so no switch
         assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
@@ -2468,7 +2535,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
 
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
         assert_eq!(state.sides[0].active._padding[0], 1); // baton pass flag
@@ -2735,7 +2802,7 @@ mod tests {
         assert!(is_self_targeting(&md));
 
         // Dispatch the status effect (as if turn 2 has resolved)
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[SPA], 2);
         assert_eq!(state.sides[0].active.boosts[SPD], 2);
         assert_eq!(state.sides[0].active.boosts[SPE], 2);
@@ -2798,7 +2865,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
     }
 
@@ -3154,7 +3221,7 @@ mod tests {
             move_type: Type::Grass,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Overcoat blocks it — no sleep
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -3206,7 +3273,7 @@ mod tests {
             move_type: Type::Electric,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Should be blocked + healed, no paralysis
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -3227,7 +3294,7 @@ mod tests {
             move_type: Type::Grass,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Blocked by Sap Sipper, +1 Atk
         assert!(!state.sides[1].active.has_volatile(VOL_LEECH_SEED));
@@ -4791,7 +4858,7 @@ mod tests {
             effect: MoveEffect::PartingShot,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
         assert_eq!(state.sides[1].active.boosts[ATK], -1);
         assert_eq!(state.sides[1].active.boosts[SPA], -1);
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
@@ -4893,7 +4960,7 @@ mod tests {
             move_type: Type::Fire,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
         assert!(validate_hash(&state, &keys));
@@ -4945,7 +5012,7 @@ mod tests {
             effect: MoveEffect::Confuse,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert_eq!(state.sides[1].active.confusion_turns, 0);
     }
@@ -4962,7 +5029,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
     }
@@ -5015,7 +5082,7 @@ mod tests {
             effect: MoveEffect::PartingShot,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Mist blocks the stat drops
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
@@ -5094,7 +5161,7 @@ mod tests {
             effect: MoveEffect::Defog,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // EVA drop should be blocked by Mist
         assert_eq!(state.sides[1].active.boosts[EVA], 0);
@@ -5142,25 +5209,25 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Stack 1
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPD], 1);
 
         // Stack 2
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 2);
         assert_eq!(state.sides[0].active.boosts[DEF], 2);
         assert_eq!(state.sides[0].active.boosts[SPD], 2);
 
         // Stack 3
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 3);
         assert_eq!(state.sides[0].active.boosts[DEF], 3);
         assert_eq!(state.sides[0].active.boosts[SPD], 3);
 
         // Stack 4 — should NOT increment
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 3);
         assert_eq!(state.sides[0].active.boosts[DEF], 3);
         assert!(validate_hash(&state, &keys));
@@ -5205,7 +5272,7 @@ mod tests {
             effect: MoveEffect::Swallow,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // 2 stacks = heal max_hp/2 = 150; 100 + 150 = 250
         assert_eq!(state.sides[0].team[0].current_hp, 250);
@@ -5230,7 +5297,7 @@ mod tests {
             effect: MoveEffect::Trick,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert_eq!(state.sides[0].team[0].item_id, 243);
         assert_eq!(state.sides[1].team[0].item_id, 242);
@@ -5251,7 +5318,7 @@ mod tests {
             effect: MoveEffect::Trick,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Items should NOT be swapped
         assert_eq!(state.sides[0].team[0].item_id, 242);
@@ -5273,7 +5340,7 @@ mod tests {
             effect: MoveEffect::Trick,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Items should NOT be swapped
         assert_eq!(state.sides[0].team[0].item_id, 242);
@@ -5292,7 +5359,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // VOL_YAWN should be set, no sleep yet
         assert!(state.sides[1].active.has_volatile(VOL_YAWN));
@@ -5316,7 +5383,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // VOL_YAWN should NOT be set
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
@@ -5335,7 +5402,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // VOL_YAWN should NOT be set (terrain blocks sleep)
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
@@ -5353,7 +5420,7 @@ mod tests {
             effect: MoveEffect::BellyDrum,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 6);
         assert_eq!(state.sides[0].team[0].current_hp, 300 - 150);
         assert!(validate_hash(&state, &keys));
@@ -5371,7 +5438,7 @@ mod tests {
             effect: MoveEffect::BellyDrum,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
         assert_eq!(state.sides[0].team[0].current_hp, 150);
         assert!(validate_hash(&state, &keys));
@@ -5386,7 +5453,7 @@ mod tests {
             effect: MoveEffect::ShellSmash,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[0].active.boosts[SPA], 2);
         assert_eq!(state.sides[0].active.boosts[SPE], 2);
@@ -5405,7 +5472,7 @@ mod tests {
             effect: MoveEffect::ClangorousSoul,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -5427,7 +5494,7 @@ mod tests {
             effect: MoveEffect::ClangorousSoul,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
         assert_eq!(state.sides[0].team[0].current_hp, 99);
         assert!(validate_hash(&state, &keys));
@@ -5443,7 +5510,7 @@ mod tests {
             effect: MoveEffect::Curse,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPE], -1);
@@ -5459,7 +5526,7 @@ mod tests {
             effect: MoveEffect::NoRetreat,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -5467,7 +5534,7 @@ mod tests {
         assert_eq!(state.sides[0].active.boosts[SPE], 1);
         assert!(state.sides[0].active.has_volatile(VOL_TRAPPED));
         // Second use should fail
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1); // unchanged
         assert!(validate_hash(&state, &keys));
     }
@@ -5493,7 +5560,7 @@ mod tests {
             effect: MoveEffect::TidyUp,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Boosts
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -5673,7 +5740,7 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[1].active.boosts[ATK], 2);
         assert_eq!(state.sides[1].team[0].item_id, 0);
@@ -5689,7 +5756,7 @@ mod tests {
             effect: MoveEffect::DragonDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[SPE], 1);
         assert_eq!(state.sides[1].active.boosts[ATK], 1);
@@ -5708,7 +5775,7 @@ mod tests {
             effect: MoveEffect::ShellSmash,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         // Attacker gets all boosts/drops
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[0].active.boosts[DEF], -1);
@@ -5730,10 +5797,10 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[1].team[0].item_id, 0);
         // Second Swords Dance: no mirror herb to trigger
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 4);
         assert_eq!(state.sides[1].active.boosts[ATK], 2); // no additional copy
         assert!(validate_hash(&state, &keys));
@@ -5749,7 +5816,7 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert!(state.sides[1].active.has_volatile(VOL_UNBURDEN));
         assert!(validate_hash(&state, &keys));
     }
@@ -5764,7 +5831,7 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[1].active.boosts[ATK], 0); // blocked
         assert_ne!(state.sides[1].team[0].item_id, 0); // not consumed

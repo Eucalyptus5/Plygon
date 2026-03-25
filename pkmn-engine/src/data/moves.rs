@@ -214,6 +214,7 @@ pub enum MoveEffect {
     Curse          = 99, // Non-Ghost: +1 Atk/Def, -1 Spe; Ghost: -50% HP, curse volatile on target
     NoRetreat      = 100, // +1 all stats, trap self (fail if already used)
     TidyUp         = 101, // +1 Atk/Spe, clear hazards + subs from both sides
+    SetTerrain     = 102, // Electric/Grassy/Psychic/Misty Terrain
 }
 
 // Flags (16 bits)

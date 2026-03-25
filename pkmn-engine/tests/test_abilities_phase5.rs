@@ -695,9 +695,9 @@ fn test_guts_boosts_atk_with_status() {
 #[test]
 fn test_guts_no_burn_penalty() {
     // Burned + Guts → no penalty
-    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, ABILITY_GUTS), (4096, 4096));
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, ABILITY_GUTS, false), (4096, 4096));
     // Burned without Guts → 0.5×
-    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0), (2048, 4096));
+    assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, false), (2048, 4096));
 }
 
 #[test]

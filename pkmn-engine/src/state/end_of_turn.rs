@@ -13,18 +13,26 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_terrain_expiry(state, keys);                            // 2
     // 3: Future Sight (not yet implemented)
     step_wish(state, keys);                                      // 4
-    for side in 0..2 {                                            // 5
+    for side in 0..2 { step_hydration(state, keys, side); }      // 5a (order 5, sub 3)
+    for side in 0..2 { step_item_healing(state, keys, side); }   // 5b (order 5, sub 4)
+    step_grassy_terrain(state, keys);                            // 5c (terrain heal)
+    for side in 0..2 { step_passive_healing(state, keys, side); }// 6 (Aqua Ring, Ingrain)
+    // 7-8: Berry activation (status-cure berries must fire BEFORE status damage)
+    for side in 0..2 {
+        let slot = state.sides[side].active_index as usize;
+        if !state.sides[side].team[slot].is_fainted() {
+            crate::state::move_exec::check_berry_activation(state, keys, side, slot);
+        }
+    }
+    for side in 0..2 {                                            // 9-10 status damage
         step_status_damage(state, keys, side);
         let slot = state.sides[side].active_index as usize;
         if !state.sides[side].team[slot].is_fainted() {
             crate::state::move_exec::check_berry_activation(state, keys, side, slot);
         }
     }
-    step_leech_seed(state, keys);                                // 6
-    for side in 0..2 { step_binding_damage(state, keys, side); } // 7
-    for side in 0..2 { step_passive_healing(state, keys, side); }// 8
-    step_grassy_terrain(state, keys);                            // 9
-    for side in 0..2 { step_item_healing(state, keys, side); }   // 10
+    step_leech_seed(state, keys);                                // 11
+    for side in 0..2 { step_binding_damage(state, keys, side); } // 13
     for side in 0..2 { step_screen_expiry(state, side); }        // 11
     for side in 0..2 { step_tailwind_expiry(state, side); }      // 12
     for side in 0..2 { step_side_condition_expiry(state, side); }// 12b
@@ -101,6 +109,17 @@ fn step_wish(state: &mut BattleState, keys: &ZobristKeys) {
         } else if state.sides[side].side_conditions.wish_turns > 1 {
             state.sides[side].side_conditions.wish_turns -= 1;
         }
+    }
+}
+
+fn step_hydration(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+    if effective_ability(state, side) == data_bridge::ABILITY_HYDRATION
+        && matches!(effective_weather_for(state, side), WEATHER_RAIN | WEATHER_HEAVY_RAIN)
+        && state.sides[side].team[slot].status != STATUS_NONE
+    {
+        clear_status(state, keys, side, slot);
     }
 }
 
@@ -337,9 +356,12 @@ fn step_eot_abilities(
     let ability = effective_ability(state, side);
     match ability {
         data_bridge::ABILITY_SPEED_BOOST => {
-            if state.sides[side].active.turns_active > 0 {
-                apply_boost(state, keys, side, SPE, 1);
-            }
+            // Showdown: fires when pokemon.activeTurns is truthy.
+            // But Showdown processes an initial switch-in turn that increments
+            // activeTurns from 0→1 before the first player turn. The engine
+            // does not have this initial turn, so turns_active is 0 during the
+            // first EOT. To match Showdown, fire unconditionally.
+            apply_boost(state, keys, side, SPE, 1);
         }
         data_bridge::ABILITY_POISON_HEAL => {
             let status = state.sides[side].team[slot].status;
@@ -373,11 +395,7 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_HYDRATION => {
-            if matches!(effective_weather_for(state, side), WEATHER_RAIN | WEATHER_HEAVY_RAIN)
-                && state.sides[side].team[slot].status != STATUS_NONE
-            {
-                clear_status(state, keys, side, slot);
-            }
+            // Handled earlier in step_hydration (before status damage)
         }
         data_bridge::ABILITY_SHED_SKIN => {
             // 33% chance to cure status — use a simple deterministic approach for MCTS

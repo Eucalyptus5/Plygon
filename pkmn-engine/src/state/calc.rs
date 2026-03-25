@@ -127,6 +127,12 @@ pub fn calc_damage(
         return result;
     }
 
+    // Air Balloon: non-grounded mons are immune to Ground-type moves
+    if move_type == Type::Ground && !is_grounded(state, def_side) {
+        result.type_immune = true;
+        return result;
+    }
+
     let base_power = resolve_power(state, md, atk_side, def_side);
     let mut power = base_power as u32;
 
@@ -278,7 +284,7 @@ pub fn calc_damage(
     let (wn, _) = weather_modifier(effective_weather_for(state, atk_side), move_type);
     if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
     let (sn, _) = stab_modifier(state, atk_side, move_type);
-    let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability);
+    let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability, md.var_power == VarPower::Facade);
     let (scn, _) = screen_modifier(state, def_side, category, is_crit);
     let (dan, _) = defender_ability_final_mod(state, md, def_side, eff);
     let (aan, _) = attacker_ability_final_mod(atk_ability, eff);
@@ -337,7 +343,8 @@ pub fn calc_damage(
         result.drain_heal = (result.damage as u32 * md.drain as u32 / 100) as u16;
     }
     if md.drain < 0 {
-        result.recoil_damage = (result.damage as u32 * (-md.drain) as u32 / 100) as u16;
+        let pct = (-md.drain) as u32;
+        result.recoil_damage = ((result.damage as u32 * pct + 50) / 100).max(1) as u16;
     }
     // Life Orb recoil: Sheer Force suppresses it when move has secondary effects
     if atk_item.has(ItemFlag::LIFE_ORB) {
@@ -465,7 +472,7 @@ mod tests {
 
     #[test]
     fn test_burn_halves_physical() {
-        let (n, _) = burn_modifier(STATUS_BURN, MoveCategory::Physical, 0);
+        let (n, _) = burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, false);
         assert_eq!(chain_mod(100, n), 50);
     }
 

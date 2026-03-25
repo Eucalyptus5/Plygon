@@ -342,6 +342,14 @@ pub const ITEM_COVERT_CLOAK: u16 = 750;
 pub const ITEM_LOADED_DICE: u16 = 751;
 pub const ITEM_BOOSTER_ENERGY: u16 = 745;
 
+// Status-cure berries
+pub const ITEM_CHERI_BERRY: u16 = 63;   // cures Paralysis
+pub const ITEM_CHESTO_BERRY: u16 = 65;  // cures Sleep
+pub const ITEM_PECHA_BERRY: u16 = 333;  // cures Poison
+pub const ITEM_RAWST_BERRY: u16 = 381;  // cures Burn
+pub const ITEM_ASPEAR_BERRY: u16 = 13;  // cures Freeze
+pub const ITEM_PERSIM_BERRY: u16 = 334; // cures Confusion
+
 pub const SPECIES_PIKACHU: u16 = 25;
 pub const SPECIES_CUBONE: u16 = 104;
 pub const SPECIES_MAROWAK: u16 = 105;

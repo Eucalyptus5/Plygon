@@ -196,13 +196,15 @@ pub fn crit_multiplier(atk_ability: u16) -> (u32, u32) {
 }
 
 /// Returns (num, den) for the burn penalty on physical moves.
+/// Facade bypasses burn's Atk halving in Gen 9.
 #[inline]
 pub fn burn_modifier(
-    atk_status: u8, category: MoveCategory, atk_ability: u16,
+    atk_status: u8, category: MoveCategory, atk_ability: u16, is_facade: bool,
 ) -> (u32, u32) {
     if atk_status != STATUS_BURN { return (4096, 4096); }
     if category != MoveCategory::Physical { return (4096, 4096); }
     if atk_ability == data_bridge::ABILITY_GUTS { return (4096, 4096); } // Guts ignores burn
+    if is_facade { return (4096, 4096); } // Facade ignores burn Atk halving
     (2048, 4096) // 0.5×
 }
 
@@ -840,10 +842,11 @@ mod tests {
 
     #[test]
     fn test_burn_mod() {
-        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0), (2048, 4096));
-        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Special, 0), (4096, 4096));
-        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, data_bridge::ABILITY_GUTS), (4096, 4096));
-        assert_eq!(burn_modifier(STATUS_NONE, MoveCategory::Physical, 0), (4096, 4096));
+        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, false), (2048, 4096));
+        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Special, 0, false), (4096, 4096));
+        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, data_bridge::ABILITY_GUTS, false), (4096, 4096));
+        assert_eq!(burn_modifier(STATUS_NONE, MoveCategory::Physical, 0, false), (4096, 4096));
+        assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, true), (4096, 4096)); // Facade bypasses burn
     }
 
     #[test]

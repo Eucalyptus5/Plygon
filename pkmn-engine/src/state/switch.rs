@@ -104,39 +104,45 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
     apply_switch_in_item(state, keys, side);
 }
 
-fn apply_switch_in_item(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+/// Check and activate a terrain seed for the given side.
+/// Called on switch-in and when terrain is set by a move or ability.
+#[inline]
+pub fn check_terrain_seed(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
     if state.field.magic_room_turns() > 0 { return; }
     let item = data_bridge::item(mon.item_id);
 
-    // Terrain seeds: boost stat + consume if matching terrain is active
-    if item.has(ItemFlag::TERRAIN_SEED) {
-        let terrain = state.field.terrain;
-        let activates = match (terrain, item.type_param) {
-            // type_param encodes which terrain: 1=Electric, 2=Grassy, 3=Psychic, 4=Misty
-            (TERRAIN_ELECTRIC, 1) => true,
-            (TERRAIN_GRASSY, 2) => true,
-            (TERRAIN_PSYCHIC, 3) => true,
-            (TERRAIN_MISTY, 4) => true,
-            _ => false,
+    if !item.has(ItemFlag::TERRAIN_SEED) { return; }
+
+    let terrain = state.field.terrain;
+    let activates = match (terrain, item.type_param) {
+        // type_param encodes which terrain: 1=Electric, 2=Grassy, 3=Psychic, 4=Misty
+        (TERRAIN_ELECTRIC, 1) => true,
+        (TERRAIN_GRASSY, 2) => true,
+        (TERRAIN_PSYCHIC, 3) => true,
+        (TERRAIN_MISTY, 4) => true,
+        _ => false,
+    };
+    if activates {
+        // Electric Seed → +1 Def, Grassy Seed → +1 Def,
+        // Psychic Seed → +1 SpD, Misty Seed → +1 SpD
+        let stat = match item.type_param {
+            1 | 2 => DEF,
+            3 | 4 => SPD,
+            _ => return,
         };
-        if activates {
-            // Electric Seed → +1 Def, Grassy Seed → +1 Def,
-            // Psychic Seed → +1 SpD, Misty Seed → +1 SpD
-            let stat = match item.type_param {
-                1 | 2 => DEF,
-                3 | 4 => SPD,
-                _ => return,
-            };
-            apply_boost(state, keys, side, stat, 1);
-            consume_item(state, keys, side, slot);
-            if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
-                set_volatile(state, keys, side, VOL_UNBURDEN);
-            }
+        apply_boost(state, keys, side, stat, 1);
+        consume_item(state, keys, side, slot);
+        if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
+            set_volatile(state, keys, side, VOL_UNBURDEN);
         }
     }
+}
+
+fn apply_switch_in_item(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    check_terrain_seed(state, keys, side);
 }
 
 /// Baton Pass volatile mask: volatiles that transfer on Baton Pass.
