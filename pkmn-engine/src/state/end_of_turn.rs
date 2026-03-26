@@ -40,6 +40,7 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     for side in 0..2 { step_yawn(state, keys, side); }          // 12d
     step_volatile_counters(state, keys);                         // 13
     for side in 0..2 { step_perish_song(state, keys, side); }    // 14
+    for side in 0..2 { step_status_orbs(state, keys, side); }   // 14c (order 28: orbs/barb)
     step_soul_heart(state, keys);                               // 14b
     for side in 0..2 { step_eot_abilities(state, keys, side); }  // 15
     for side in 0..2 {                                           // 16
@@ -220,6 +221,13 @@ fn step_item_healing(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
             deal_proportional_damage(state, keys, side, slot, 1, 8);
         }
     }
+}
+
+fn step_status_orbs(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+    if state.field.magic_room_turns() > 0 { return; }
+    let itm = data_bridge::item(state.sides[side].team[slot].item_id);
     // Sticky Barb: 1/8 self-damage each turn
     if state.sides[side].team[slot].item_id == data_bridge::ITEM_STICKY_BARB {
         deal_proportional_damage(state, keys, side, slot, 1, 8);

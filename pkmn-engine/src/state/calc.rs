@@ -63,8 +63,47 @@ pub fn calc_damage(
         return DamageResult::default();
     }
 
-    if md.base_power == 0 {
-        return calc_struggle(state, atk_side);
+    // Fixed-damage moves with base_power=0 are handled here (not as Struggle).
+    // SeismicToss/Night Shade: damage = user's level.
+    // SuperFang: damage = 50% of target's current HP.
+    // Counter/MirrorCoat/MetalBurst: simplified fixed damage (same as move_exec).
+    if md.base_power == 0 && md.var_power == VarPower::None {
+        let atk_mon = state.active_mon(atk_side);
+        match md.effect {
+            MoveEffect::SeismicToss => {
+                let (move_type, _) = resolve_move_type_with_ability(state, md, atk_side, effective_ability(state, atk_side));
+                let (def_t1, def_t2) = effective_types(state, def_side);
+                let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+                let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+                let eff = dual_type_effectiveness(move_type, def_type1, def_type2);
+                if eff == 0 {
+                    return DamageResult { type_immune: true, ..Default::default() };
+                }
+                return DamageResult {
+                    damage: atk_mon.level as u16,
+                    effectiveness: eff,
+                    hits: 1,
+                    ..Default::default()
+                };
+            }
+            MoveEffect::SuperFang => {
+                let def_mon = state.active_mon(def_side);
+                return DamageResult {
+                    damage: (def_mon.current_hp / 2).max(1),
+                    effectiveness: 4,
+                    hits: 1,
+                    ..Default::default()
+                };
+            }
+            MoveEffect::Counter | MoveEffect::MirrorCoat | MoveEffect::MetalBurst => {
+                // Simplified: these depend on last-hit tracking, return 0 in calc_damage
+                return DamageResult::default();
+            }
+            _ => {
+                // Other bp=0 non-VarPower moves: treat as Struggle
+                return calc_struggle(state, atk_side);
+            }
+        }
     }
 
     let atk_mon = state.active_mon(atk_side);
@@ -130,26 +169,57 @@ pub fn calc_damage(
 
     result.effectiveness = eff;
 
+    // Scrappy: Normal/Fighting moves ignore Ghost-type immunity
+    if eff == 0 && atk_ability == data_bridge::ABILITY_SCRAPPY
+        && (move_type == Type::Normal || move_type == Type::Fighting)
+    {
+        // Recalculate effectiveness treating Ghost as neutral.
+        // Replace Ghost type with a type that takes neutral damage from Normal/Fighting.
+        let ghost = Type::Ghost as u8;
+        let s1 = if def_t1 == ghost { Type::Normal } else { def_type1 };
+        let s2 = if def_t2 == ghost { Type::Normal } else { def_type2 };
+        eff = dual_type_effectiveness(move_type, s1, s2);
+        result.effectiveness = eff;
+    }
+
     if eff == 0 {
         result.type_immune = true;
         return result;
     }
 
-    if let Some(heal) = ability_immunity(state, def_side, move_type) {
+    if let Some(heal) = ability_immunity(state, def_side, move_type, atk_ability) {
         result.type_immune = true;
         result.drain_heal = heal;
         return result;
     }
 
-    if ability_flag_immunity(state, def_side, md.flags).is_some() {
+    if ability_flag_immunity(state, def_side, md.flags, atk_ability).is_some() {
         result.type_immune = true;
         return result;
     }
 
-    // Air Balloon: non-grounded mons are immune to Ground-type moves
-    if move_type == Type::Ground && !is_grounded(state, def_side) {
-        result.type_immune = true;
-        return result;
+    // Wonder Guard: non-super-effective moves are blocked (eff <= 4 means neutral or worse)
+    if !is_mold_breaker(atk_ability) {
+        let def_eff_ability = effective_ability(state, def_side);
+        if def_eff_ability == data_bridge::ABILITY_WONDER_GUARD && eff <= 4 {
+            result.type_immune = true;
+            return result;
+        }
+    }
+
+    // Air Balloon / Levitate / Magnet Rise etc: non-grounded mons are immune to Ground-type moves.
+    // When attacker has Mold Breaker, we need to check grounding while ignoring Levitate.
+    if move_type == Type::Ground {
+        let grounded = if is_mold_breaker(atk_ability) {
+            // Mold Breaker: check grounding without considering defender's Levitate
+            is_grounded_ignore_ability(state, def_side)
+        } else {
+            is_grounded(state, def_side)
+        };
+        if !grounded {
+            result.type_immune = true;
+            return result;
+        }
     }
 
     let base_power = resolve_power(state, md, atk_side, def_side);
@@ -157,6 +227,10 @@ pub fn calc_damage(
 
     let (ap_n, _) = ability_power_mod(state, md, atk_side, base_power);
     power = chain_mod(power, ap_n);
+
+    // Dark Aura / Fairy Aura / Aura Break: field-wide power modifier
+    let aura_n = aura_power_mod(atk_ability, def_ability, move_type);
+    power = chain_mod(power, aura_n);
 
     // -ate ability boost (Galvanize/Pixilate/etc.): 1.2×
     if ate_boost {
@@ -211,17 +285,32 @@ pub fn calc_damage(
     let mut a = effective_stat(state, atk_stat_side, atk_stat_idx);
     let mut d = effective_stat(state, def_side, def_stat_idx);
 
+    // Mold Breaker bypasses Battle Armor / Shell Armor for crit checks
+    let mold = is_mold_breaker(atk_ability);
     let c_stage = crit_stage(state, atk_side, md);
     let is_crit = if state.sides[def_side].side_conditions.lucky_chant_turns() > 0 {
+        false
+    } else if !mold && (def_ability == data_bridge::ABILITY_BATTLE_ARMOR
+           || def_ability == data_bridge::ABILITY_SHELL_ARMOR) {
         false
     } else {
         is_crit(c_stage, rng_fn)
     };
     result.crit = is_crit;
 
+    // Unaware: ignore opponent's stat boosts in damage calc.
+    // Attacking Unaware: ignore defender's Def/SpD boosts (treat as 0).
+    // Defending Unaware: ignore attacker's Atk/SpA boosts (treat as 0).
+    let atk_stage = {
+        let raw = state.sides[atk_stat_side].active.boosts[atk_boost_idx];
+        if !mold && def_ability == data_bridge::ABILITY_UNAWARE { 0 } else { raw }
+    };
+    let def_stage = {
+        let raw = def_active.boosts[def_boost_idx];
+        if atk_ability == data_bridge::ABILITY_UNAWARE { 0 } else { raw }
+    };
+
     // Crits ignore unfavorable boost stages (boosts use original indices, not Wonder Room swapped)
-    let atk_stage = state.sides[atk_stat_side].active.boosts[atk_boost_idx];
-    let def_stage = def_active.boosts[def_boost_idx];
     if is_crit {
         a = boosted_stat(a, atk_stage.max(0));
         d = boosted_stat(d, def_stage.min(0));
@@ -230,22 +319,43 @@ pub fn calc_damage(
         d = boosted_stat(d, def_stage);
     }
 
+    // Effective defender ability (suppressed by Mold Breaker for stat mods)
+    let def_ability_for_stat = if mold { 0 } else { def_ability };
+
     a = ability_atk_stat_mod(
         a, atk_ability, category, atk_mon.status,
         move_type, effective_weather_for(state, atk_side),
         atk_mon.current_hp, atk_mon.max_hp,
         state.sides[atk_side].active.turns_active,
         state.sides[def_side].active.turns_active,
+        state.field.turn, state.field.terrain,
     );
 
     // Defender's ability modifying attacker's stat (Showdown: onSourceModifyAtk/SpA)
-    // Water Bubble: 0.5x attacker's Atk/SpA for Fire moves
-    if def_ability == data_bridge::ABILITY_WATER_BUBBLE && move_type == Type::Fire {
-        a = chain_mod(a as u32, 2048) as u16;
+    // These are all breakable (bypassed by Mold Breaker)
+    if !mold {
+        // Water Bubble: 0.5x attacker's Atk/SpA for Fire moves
+        if def_ability == data_bridge::ABILITY_WATER_BUBBLE && move_type == Type::Fire {
+            a = chain_mod(a as u32, 2048) as u16;
+        }
+        // Purifying Salt: 0.5x attacker's Atk/SpA for Ghost moves
+        if def_ability == data_bridge::ABILITY_PURIFYING_SALT && move_type == Type::Ghost {
+            a = chain_mod(a as u32, 2048) as u16;
+        }
+    }
+
+    // Ruin abilities: Sword of Ruin (285) reduces opponent's Def by 0.75x.
+    // (Beads/Tablets/Vessel of Ruin share ID 284, indistinguishable — only Sword of Ruin implemented.)
+    if is_physical {
+        if atk_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
+            d = chain_mod(d as u32, 3072) as u16; // 0.75× Def
+        } else if def_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
+            d = chain_mod(d as u32, 3072) as u16; // 0.75× Def from opponent's Sword of Ruin
+        }
     }
 
     d = ability_def_stat_mod(
-        d, def_ability, category, move_type,
+        d, def_ability_for_stat, category, move_type,
         def_mon.status, effective_weather_for(state, def_side), state.field.terrain,
     );
 
@@ -305,10 +415,11 @@ pub fn calc_damage(
     let (sn, _) = stab_modifier(state, atk_side, move_type);
     let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability, md.var_power == VarPower::Facade);
     let (scn, _) = screen_modifier(state, def_side, category, is_crit);
-    let (dan, _) = defender_ability_final_mod(state, md, def_side, eff);
+    let (dan, _) = defender_ability_final_mod(state, md, def_side, eff, atk_ability);
     let (aan, _) = attacker_ability_final_mod(atk_ability, eff);
     let (ifn, _, berry_consumed) = item_final_mod(atk_item, def_item, move_type, eff);
     if berry_consumed { result.item_consumed = true; }
+    let sniper_n = sniper_final_mod(atk_ability, is_crit);
     let (cn, cd) = if is_crit { crit_multiplier(atk_ability) } else { (1, 1) };
     let a32 = a as u32;
     let d32 = d as u32;
@@ -343,6 +454,7 @@ pub fn calc_damage(
         dmg = chain_mod(dmg, dan);
         dmg = chain_mod(dmg, aan);
         dmg = chain_mod(dmg, ifn);
+        dmg = chain_mod(dmg, sniper_n);
 
         if dmg == 0 { dmg = 1; }
 
@@ -632,11 +744,11 @@ mod tests {
     #[test]
     fn test_huge_power() {
         let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Physical, STATUS_NONE,
-            Type::Normal, WEATHER_NONE, 300, 300, 0, 0);
+            Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE);
         assert_eq!(a, 300);
         // Doesn't affect special
         let a = ability_atk_stat_mod(150, data_bridge::ABILITY_HUGE_POWER, MoveCategory::Special, STATUS_NONE,
-            Type::Normal, WEATHER_NONE, 300, 300, 0, 0);
+            Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE);
         assert_eq!(a, 150);
     }
 

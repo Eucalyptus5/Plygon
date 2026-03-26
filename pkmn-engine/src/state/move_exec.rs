@@ -256,12 +256,13 @@ fn execute_status_move(
         return;
     }
     if !targets_self {
+        let atk_ability = effective_ability(state, atk_side);
         if good_as_gold_immunity(state, def_side) { return; }
-        if let Some(eff) = ability_flag_immunity(state, def_side, md.flags) {
+        if let Some(eff) = ability_flag_immunity(state, def_side, md.flags, atk_ability) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
             return;
         }
-        if let Some(eff) = ability_type_immunity(state, def_side, md.move_type) {
+        if let Some(eff) = ability_type_immunity(state, def_side, md.move_type, atk_ability) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
             return;
         }
@@ -430,6 +431,7 @@ fn execute_status_move(
                     && state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
                 { 4 } else { 3 };
                 state.sides[def_side].active.taunt_turns = dur;
+                check_mental_herb(state, keys, def_side);
             }
         }
 
@@ -464,6 +466,7 @@ fn execute_status_move(
                     state.sides[def_side].active.encore_move = last;
                     let dur = if state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 4 } else { 3 };
                     state.sides[def_side].active.encore_turns = dur;
+                    check_mental_herb(state, keys, def_side);
                 }
             }
         }
@@ -614,6 +617,7 @@ fn execute_status_move(
                     // Showdown: duration 5, -1 if target hasn't moved yet (willMove)
                     let dur = if state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 5 } else { 4 };
                     state.sides[def_side].active.disable_turns = dur;
+                    check_mental_herb(state, keys, def_side);
                 }
             }
         }
@@ -622,6 +626,7 @@ fn execute_status_move(
         MoveEffect::Torment => {
             if !state.sides[def_side].active.has_volatile(VOL_TORMENT) {
                 set_volatile(state, keys, def_side, VOL_TORMENT);
+                check_mental_herb(state, keys, def_side);
             }
         }
 
@@ -1289,6 +1294,8 @@ fn apply_self_effect(
     if self_mirror {
         check_mirror_herb_diff(state, keys, atk_side, &self_boosts_before);
     }
+    // White Herb: restore negative stat changes after self-drops
+    check_white_herb(state, keys, atk_side);
 }
 
 /// Returns true if the ability cannot be suppressed/overwritten by Mummy or Lingering Aroma.
@@ -1578,13 +1585,15 @@ pub fn execute_move(
             break 'exec;
         }
         // Flag-based immunities (Bulletproof, Soundproof, Overcoat, Wind Rider)
-        if let Some(eff) = ability_flag_immunity(state, def_side, md.flags) {
+        // Mold Breaker bypasses these
+        let atk_ability_imm = effective_ability(state, atk_side);
+        if let Some(eff) = ability_flag_immunity(state, def_side, md.flags, atk_ability_imm) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
             apply_crash_if_needed(state, keys, atk_side, md);
             break 'exec;
         }
         // Type-based immunities and side effects
-        if let Some(eff) = ability_type_immunity(state, def_side, md.move_type) {
+        if let Some(eff) = ability_type_immunity(state, def_side, md.move_type, atk_ability_imm) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
             apply_crash_if_needed(state, keys, atk_side, md);
             break 'exec;
@@ -3283,7 +3292,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
         // Test via the flag immunity helper directly
-        assert!(ability_flag_immunity(&state, 1, md.flags).is_some());
+        assert!(ability_flag_immunity(&state, 1, md.flags, 0).is_some());
     }
 
     #[test]
@@ -3293,9 +3302,9 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Bullet-flagged move
-        assert!(ability_flag_immunity(&state, 1, MoveFlags::BULLET).is_some());
+        assert!(ability_flag_immunity(&state, 1, MoveFlags::BULLET, 0).is_some());
         // Non-bullet move is not blocked
-        assert!(ability_flag_immunity(&state, 1, MoveFlags::CONTACT).is_none());
+        assert!(ability_flag_immunity(&state, 1, MoveFlags::CONTACT, 0).is_none());
     }
 
     #[test]
@@ -4078,7 +4087,7 @@ mod tests {
 
         let hp_before = state.sides[1].team[0].current_hp;
         // Check the immunity directly
-        let eff = ability_flag_immunity(&state, 1, MoveFlags::WIND);
+        let eff = ability_flag_immunity(&state, 1, MoveFlags::WIND, 0);
         assert!(eff.is_some());
         match eff.unwrap() {
             AbilityImmunityEffect::Boost(stat, stages) => {

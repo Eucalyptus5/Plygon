@@ -437,10 +437,36 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
                 state.field.terrain == TERRAIN_ELECTRIC);
         }
 
+        // Orichalcum Pulse: set sun on switch-in (like Drought)
+        data_bridge::ABILITY_ORICHALCUM_PULSE => {
+            set_weather(state, keys, WEATHER_SUN, 5);
+            check_paradox_deactivation(state);
+        }
+        // Hadron Engine: set Electric Terrain on switch-in (like Electric Surge)
+        data_bridge::ABILITY_HADRON_ENGINE => {
+            set_terrain(state, keys, TERRAIN_ELECTRIC, 5);
+            check_paradox_deactivation(state);
+        }
+
         _ => {}
     }
     if side_mirror { check_mirror_herb_diff(state, keys, side, &side_boosts_before); }
     if opp_mirror { check_mirror_herb_diff(state, keys, opp, &opp_boosts_before); }
+}
+
+/// Find the highest stat index (first-wins on ties, matching Showdown's getBestStat).
+#[inline]
+fn find_best_stat(stats: &[u16; 5], boosts: &[i8; 7]) -> usize {
+    let mut best_idx = 0usize;
+    let mut best_val = 0u16;
+    for i in 0..5 {
+        let v = boosted_stat(stats[i], boosts[i]);
+        if v > best_val {
+            best_val = v;
+            best_idx = i;
+        }
+    }
+    best_idx
 }
 
 /// Activate Protosynthesis or Quark Drive: find highest stat, encode in _padding[3].
@@ -456,9 +482,10 @@ fn activate_paradox_ability(
     if !field_active && !from_booster { return; }
 
     // Find highest stat accounting for stat stages (Showdown getBestStat(false, true))
+    // Showdown uses strictly-greater-than, so first stat wins ties.
     let stats = &mon.stats;
     let boosts = &state.sides[side].active.boosts;
-    let best = (0..5).max_by_key(|&i| boosted_stat(stats[i], boosts[i])).unwrap_or(0);
+    let best = find_best_stat(stats, boosts);
 
     // Store paradox stat+1 and fromBooster flag in _padding[3]
     state.sides[side].active.set_paradox(best as u8 + 1, from_booster);
@@ -472,27 +499,52 @@ fn activate_paradox_ability(
     }
 }
 
-/// After any weather/terrain change, check if Protosynthesis/Quark Drive should deactivate.
-/// Only deactivates field-sourced boosts (not Booster Energy).
+/// After any weather/terrain change, check if Protosynthesis/Quark Drive should
+/// deactivate OR activate. Deactivates field-sourced boosts when conditions end.
+/// Activates paradox abilities for mons already on the field when conditions start.
 pub fn check_paradox_deactivation(state: &mut BattleState) {
     for side in 0..2 {
         let slot = state.sides[side].active_index as usize;
         if state.sides[side].team[slot].is_fainted() { continue; }
-        if state.sides[side].active.paradox_stat() == 0 { continue; }
-        if state.sides[side].active.paradox_from_booster() { continue; }
+        if state.sides[side].active.has_volatile(VOL_ABILITY_SUPPRESSED) { continue; }
 
         let ability = effective_ability(state, side);
-        let should_deactivate = match ability {
-            data_bridge::ABILITY_PROTOSYNTHESIS => {
-                !matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN)
+        let already_active = state.sides[side].active.paradox_stat() > 0;
+        let from_booster = state.sides[side].active.paradox_from_booster();
+
+        if already_active && !from_booster {
+            // Check if should deactivate
+            let should_deactivate = match ability {
+                data_bridge::ABILITY_PROTOSYNTHESIS => {
+                    !matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN)
+                }
+                data_bridge::ABILITY_QUARK_DRIVE => {
+                    state.field.terrain != TERRAIN_ELECTRIC
+                }
+                _ => true, // ability changed/suppressed — deactivate
+            };
+            if should_deactivate {
+                state.sides[side].active.clear_paradox();
             }
-            data_bridge::ABILITY_QUARK_DRIVE => {
-                state.field.terrain != TERRAIN_ELECTRIC
+        } else if !already_active {
+            // Check if should activate (field condition now present)
+            let should_activate = match ability {
+                data_bridge::ABILITY_PROTOSYNTHESIS => {
+                    matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN)
+                }
+                data_bridge::ABILITY_QUARK_DRIVE => {
+                    state.field.terrain == TERRAIN_ELECTRIC
+                }
+                _ => false,
+            };
+            if should_activate {
+                // Find best stat and set paradox (first-wins on ties)
+                let mon = &state.sides[side].team[slot];
+                let stats = &mon.stats;
+                let boosts = &state.sides[side].active.boosts;
+                let best = find_best_stat(stats, boosts);
+                state.sides[side].active.set_paradox(best as u8 + 1, false);
             }
-            _ => true, // ability changed/suppressed — deactivate
-        };
-        if should_deactivate {
-            state.sides[side].active.clear_paradox();
         }
     }
 }

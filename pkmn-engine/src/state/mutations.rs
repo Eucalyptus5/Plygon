@@ -54,6 +54,22 @@ pub fn clear_status(state: &mut BattleState, keys: &ZobristKeys, side: usize, sl
 }
 
 pub fn apply_boost(state: &mut BattleState, keys: &ZobristKeys, side: usize, stat_index: usize, stages: i8) -> i8 {
+    // Contrary inverts, Simple doubles (onChangeBoost in Showdown)
+    let ability = effective_ability(state, side);
+    let stages = if ability == data_bridge::ABILITY_CONTRARY {
+        -stages
+    } else if ability == data_bridge::ABILITY_SIMPLE {
+        (stages as i16 * 2).clamp(-6, 6) as i8
+    } else {
+        stages
+    };
+    apply_boost_raw(state, keys, side, stat_index, stages)
+}
+
+/// Apply a boost without Contrary/Simple modification.
+/// Used when the boost is a reactive response (Competitive/Defiant) that should not be re-inverted.
+#[inline(always)]
+pub fn apply_boost_raw(state: &mut BattleState, keys: &ZobristKeys, side: usize, stat_index: usize, stages: i8) -> i8 {
     let active = &mut state.sides[side].active;
     let old = active.boosts[stat_index];
     let new = (old as i16 + stages as i16).clamp(-6, 6) as i8;
@@ -66,19 +82,65 @@ pub fn apply_boost(state: &mut BattleState, keys: &ZobristKeys, side: usize, sta
     actual
 }
 
-/// Apply a negative stat change from an external source. Blocked by Clear Amulet.
+/// Apply a negative stat change from an external source.
+/// Handles: Clear Amulet block, Mirror Armor reflect, Contrary/Simple (via apply_boost),
+/// and triggers Competitive/Defiant after application.
+///
+/// `source` is the side that caused the drop (for Mirror Armor reflect).
 #[inline(always)]
-pub fn try_opponent_stat_drop(
+pub fn try_opponent_stat_drop_from(
     state: &mut BattleState, keys: &ZobristKeys,
-    target: usize, stat: usize, stages: i8,
+    target: usize, stat: usize, stages: i8, source: usize,
 ) -> i8 {
+    // Clear Amulet blocks
     if state.field.magic_room_turns() == 0 {
         let item_id = state.active_mon(target).item_id;
         if item_id != 0 && data_bridge::item(item_id).has(ItemFlag::CLEAR_AMULET) {
             return 0;
         }
     }
-    apply_boost(state, keys, target, stat, stages)
+
+    // Mirror Armor: reflect negative drops back to source
+    let target_ability = effective_ability(state, target);
+    if target_ability == data_bridge::ABILITY_MIRROR_ARMOR && source != target {
+        // Block the drop on target; reflect to source if source is alive
+        if state.active_mon(source).current_hp > 0 {
+            apply_boost(state, keys, source, stat, stages);
+        }
+        return 0;
+    }
+
+    let actual = apply_boost(state, keys, target, stat, stages);
+
+    // Competitive/Defiant: +2 SpA/Atk when any stat is lowered by opponent
+    // Check the ability AFTER Contrary (which may have inverted the drop into a raise).
+    // The trigger condition is: the original intent was a drop (stages < 0) AND after Contrary
+    // the actual result was still negative, OR the ability is Contrary and inverted it.
+    // In Showdown, onAfterEachBoost checks if any boost[i] < 0 in the ORIGINAL boost object.
+    // Since Contrary modifies the boost before onAfterEachBoost, and these abilities fire on
+    // the MODIFIED boost: if Contrary made the drop positive, they don't trigger.
+    // But the real check is simpler: Showdown's onAfterEachBoost sees the final boost values.
+    // With Contrary, a -1 becomes +1, so boost[i] is +1, not <0, so no trigger. Correct.
+    // Without Contrary, if stages < 0 and actual < 0, Competitive/Defiant trigger.
+    if actual < 0 {
+        let abil = effective_ability(state, target);
+        if abil == data_bridge::ABILITY_COMPETITIVE {
+            apply_boost_raw(state, keys, target, SPA, 2);
+        } else if abil == data_bridge::ABILITY_DEFIANT {
+            apply_boost_raw(state, keys, target, ATK, 2);
+        }
+    }
+    actual
+}
+
+/// Backward-compatible wrapper: opponent stat drop where source is the opponent.
+#[inline(always)]
+pub fn try_opponent_stat_drop(
+    state: &mut BattleState, keys: &ZobristKeys,
+    target: usize, stat: usize, stages: i8,
+) -> i8 {
+    let source = 1 - target;
+    try_opponent_stat_drop_from(state, keys, target, stat, stages, source)
 }
 
 #[inline(always)]
@@ -130,6 +192,67 @@ pub fn check_mirror_herb_diff(
         }
     }
     if any { mirror_herb_core(state, keys, herb_side); }
+}
+
+/// Check and activate White Herb: restore all negative stat changes and consume item.
+/// Called after self-drops (Close Combat, etc.) and after opponent-caused drops.
+#[inline(always)]
+pub fn check_white_herb(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    if state.field.magic_room_turns() != 0 { return; }
+    let item_id = state.active_mon(side).item_id;
+    if item_id == 0 { return; }
+    if !data_bridge::item(item_id).has(ItemFlag::WHITE_HERB) { return; }
+    let mut any_negative = false;
+    for i in 0..7 {
+        if state.sides[side].active.boosts[i] < 0 {
+            any_negative = true;
+            break;
+        }
+    }
+    if !any_negative { return; }
+    // Restore all negative boosts to 0
+    for i in 0..7 {
+        let old = state.sides[side].active.boosts[i];
+        if old < 0 {
+            if old != 0 { state.zobrist ^= keys.boosts[side][i][(old + 6) as usize]; }
+            state.sides[side].active.boosts[i] = 0;
+            // boost 0 has no zobrist contribution (no XOR needed for new=0)
+        }
+    }
+    let slot = state.sides[side].active_index as usize;
+    consume_item(state, keys, side, slot);
+    if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
+        set_volatile(state, keys, side, VOL_UNBURDEN);
+    }
+}
+
+/// Check and activate Mental Herb: cure Taunt, Encore, Torment, Disable, Heal Block.
+/// Called after these volatile conditions are set on a target.
+#[inline(always)]
+pub fn check_mental_herb(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+    if state.field.magic_room_turns() != 0 { return; }
+    let item_id = state.active_mon(side).item_id;
+    if item_id == 0 { return; }
+    if !data_bridge::item(item_id).has(ItemFlag::MENTAL_HERB) { return; }
+    let active = &state.sides[side].active;
+    let has_condition = active.taunt_turns > 0
+        || active.encore_turns > 0
+        || active.has_volatile(VOL_TORMENT)
+        || active.disable_turns > 0
+        || active.heal_block_turns > 0;
+    if !has_condition { return; }
+    // Clear all mental conditions
+    state.sides[side].active.taunt_turns = 0;
+    state.sides[side].active.encore_turns = 0;
+    state.sides[side].active.disable_turns = 0;
+    state.sides[side].active.disabled_move = 0;
+    state.sides[side].active.heal_block_turns = 0;
+    clear_volatile(state, keys, side, VOL_TORMENT);
+    let slot = state.sides[side].active_index as usize;
+    consume_item(state, keys, side, slot);
+    if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
+        set_volatile(state, keys, side, VOL_UNBURDEN);
+    }
 }
 
 pub fn set_volatile(state: &mut BattleState, keys: &ZobristKeys, side: usize, flag: u32) {

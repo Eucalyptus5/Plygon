@@ -111,6 +111,26 @@ pub fn is_grounded(state: &BattleState, side: usize) -> bool {
     true
 }
 
+/// Same as is_grounded but ignores the defender's ability (for Mold Breaker bypass).
+/// Skips the Levitate check so that Mold Breaker can hit Ground-immune Levitate mons.
+#[inline]
+pub fn is_grounded_ignore_ability(state: &BattleState, side: usize) -> bool {
+    let field = &state.field;
+    if field.gravity_turns > 0 { return true; }
+
+    let active = &state.sides[side].active;
+    if active.has_volatile(VOL_SMACKED_DOWN) { return true; }
+    if active.has_volatile(VOL_INGRAIN) { return true; }
+    if has_type(state, side, Type::Flying as u8) { return false; }
+    // Levitate check SKIPPED: Mold Breaker suppresses it
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::AIR_BALLOON) { return false; }
+    if active.has_volatile(VOL_MAGNET_RISE) { return false; }
+    if active.telekinesis_turns > 0 { return false; }
+
+    true
+}
+
 #[inline]
 pub fn is_trap_immune(state: &BattleState, side: usize) -> bool {
     if has_type(state, side, Type::Ghost as u8) { return true; }

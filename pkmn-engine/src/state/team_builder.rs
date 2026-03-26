@@ -4,6 +4,38 @@ use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::data::base_stats::SpeciesData;
 
+/// Convert from Showdown type index (scenario JSON format) to engine Type enum value.
+/// Showdown: Normal=0, Fighting=1, Flying=2, Poison=3, Ground=4, Rock=5,
+///           Bug=6, Ghost=7, Steel=8, Fire=9, Water=10, Grass=11,
+///           Electric=12, Psychic=13, Ice=14, Dragon=15, Dark=16, Fairy=17
+/// Engine:   Normal=0, Fire=1, Water=2, Electric=3, Grass=4, Ice=5,
+///           Fighting=6, Poison=7, Ground=8, Flying=9, Psychic=10, Bug=11,
+///           Rock=12, Ghost=13, Dragon=14, Dark=15, Steel=16, Fairy=17
+#[inline]
+pub fn showdown_type_to_engine(sd_type: u8) -> u8 {
+    const MAP: [u8; 18] = [
+        0,  // SD 0  Normal   -> Engine 0  Normal
+        6,  // SD 1  Fighting -> Engine 6  Fighting
+        9,  // SD 2  Flying   -> Engine 9  Flying
+        7,  // SD 3  Poison   -> Engine 7  Poison
+        8,  // SD 4  Ground   -> Engine 8  Ground
+        12, // SD 5  Rock     -> Engine 12 Rock
+        11, // SD 6  Bug      -> Engine 11 Bug
+        13, // SD 7  Ghost    -> Engine 13 Ghost
+        16, // SD 8  Steel    -> Engine 16 Steel
+        1,  // SD 9  Fire     -> Engine 1  Fire
+        2,  // SD 10 Water    -> Engine 2  Water
+        4,  // SD 11 Grass    -> Engine 4  Grass
+        3,  // SD 12 Electric -> Engine 3  Electric
+        10, // SD 13 Psychic  -> Engine 10 Psychic
+        5,  // SD 14 Ice      -> Engine 5  Ice
+        14, // SD 15 Dragon   -> Engine 14 Dragon
+        15, // SD 16 Dark     -> Engine 15 Dark
+        17, // SD 17 Fairy    -> Engine 17 Fairy
+    ];
+    if (sd_type as usize) < MAP.len() { MAP[sd_type as usize] } else { 0 }
+}
+
 #[derive(Debug, Clone)]
 pub struct MonBuildInput {
     pub species_id: u16,
@@ -62,7 +94,7 @@ pub fn build_mon(input: &MonBuildInput) -> (MonSlot, MonBuildData) {
         current_hp: hp, max_hp: hp,
         stats, moves: input.moves, pp,
         status: STATUS_NONE, status_counter: 0,
-        tera_type: input.tera_type,
+        tera_type: showdown_type_to_engine(input.tera_type),
         flags: if input.is_female { MON_FLAG_FEMALE } else { 0 },
         level: input.level,
         _pad: 0,

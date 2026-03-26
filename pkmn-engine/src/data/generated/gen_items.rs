@@ -180,6 +180,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[275] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [282] Meadow Plate
     t[282] = ItemData { flags: F::TYPE_BOOST, type_param: 4, power_param: 0, forme_species: 493 };
+    // [285] Mental Herb
+    t[285] = ItemData { flags: F::CONSUMABLE | F::MENTAL_HERB, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [286] Metal Coat
     t[286] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 30, forme_species: 0 };
     // [289] Metronome

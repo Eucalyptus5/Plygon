@@ -845,6 +845,7 @@ SPECIFIC_ITEMS = {
     "redcard": ("RED_CARD", "CONSUMABLE"),
     "stickybarb": ("STICKY_BARB",),
     "whiteherb": ("WHITE_HERB", "CONSUMABLE"),
+    "mentalherb": ("MENTAL_HERB", "CONSUMABLE"),
 }
 
 # Terrain seed type_param encoding — matches switch.rs terrain activation logic.

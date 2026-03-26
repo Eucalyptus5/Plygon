@@ -112,6 +112,8 @@ pub const ABILITY_SUPREME_OVERLORD: u16 = 293;
 pub const ABILITY_ADAPTABILITY: u16  = 91;
 pub const ABILITY_SNIPER: u16        = 97;
 pub const ABILITY_SUPER_LUCK: u16    = 105;
+pub const ABILITY_BATTLE_ARMOR: u16  = 4;
+pub const ABILITY_SHELL_ARMOR: u16   = 75;
 
 // -- Damage calc: attacker type-pinch abilities --
 pub const ABILITY_OVERGROW: u16      = 65;
@@ -309,6 +311,35 @@ pub const ABILITY_SHIELDS_DOWN: u16   = 197; // Minior
 pub const ABILITY_GULP_MISSILE: u16   = 241; // Cramorant
 
 // (Dazzling, Queenly Majesty, Armor Tail are in defender immunities above)
+
+// -- Mold Breaker family (bypass target abilities) --
+pub const ABILITY_MOLD_BREAKER: u16   = 104;
+pub const ABILITY_TURBOBLAZE: u16     = 163;
+pub const ABILITY_TERAVOLT: u16       = 164;
+
+// -- Damage-modifying abilities (Phase B) --
+pub const ABILITY_WONDER_GUARD: u16   = 25;
+pub const ABILITY_UNAWARE: u16        = 109;
+pub const ABILITY_PURIFYING_SALT: u16 = 272;
+pub const ABILITY_WELL_BAKED_BODY: u16 = 273;
+pub const ABILITY_SWORD_OF_RUIN: u16  = 285;
+pub const ABILITY_BEADS_OF_RUIN: u16  = 284;
+pub const ABILITY_TABLETS_OF_RUIN: u16 = 282;  // num from Showdown
+pub const ABILITY_VESSEL_OF_RUIN: u16 = 283;
+pub const ABILITY_DARK_AURA: u16      = 186;
+pub const ABILITY_FAIRY_AURA: u16     = 187;
+pub const ABILITY_AURA_BREAK: u16     = 188;
+
+// Stat-change modifying abilities
+pub const ABILITY_CONTRARY: u16       = 126;
+pub const ABILITY_SIMPLE: u16         = 86;
+pub const ABILITY_COMPETITIVE: u16    = 172;
+pub const ABILITY_DEFIANT: u16        = 128;
+pub const ABILITY_MIRROR_ARMOR: u16   = 240;
+
+// Weather/terrain + stat boost on switch-in
+pub const ABILITY_ORICHALCUM_PULSE: u16 = 288;
+pub const ABILITY_HADRON_ENGINE: u16    = 289;
 
 pub const ITEM_NONE: u16 = 0;
 pub const ITEM_AGUAV_BERRY: u16 = 5;

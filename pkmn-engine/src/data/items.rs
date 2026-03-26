@@ -82,9 +82,10 @@ pub mod ItemFlag {
     pub const RED_CARD: u64          = 1 << 51;  // force opponent switch when hit
     pub const STICKY_BARB: u64       = 1 << 52;  // residual damage + transfer on contact
     pub const WHITE_HERB: u64        = 1 << 53;  // restore negative stat changes
+    pub const MENTAL_HERB: u64       = 1 << 54;  // cure Taunt/Encore/Torment/Disable/Infatuation/Heal Block
 
     // Ogerpon masks (1.2x for specific Ogerpon form)
-    pub const OGERPON_MASK: u64      = 1 << 54;
+    pub const OGERPON_MASK: u64      = 1 << 55;
 
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;

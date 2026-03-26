@@ -19,6 +19,17 @@ pub fn chain_mod(value: u32, num: u32) -> u32 {
     (value * num + 2047) >> 12
 }
 
+/// Check if attacker's ability suppresses the target's ability during damage calc.
+/// Mold Breaker / Turboblaze / Teravolt bypass defensive abilities.
+#[inline(always)]
+pub fn is_mold_breaker(atk_ability: u16) -> bool {
+    matches!(atk_ability,
+        data_bridge::ABILITY_MOLD_BREAKER |
+        data_bridge::ABILITY_TURBOBLAZE |
+        data_bridge::ABILITY_TERAVOLT
+    )
+}
+
 /// Returns (num, den) in 4096-scale for weather's effect on move damage.
 /// Returns (0, 4096) if the move is completely nullified (Harsh Sun vs Water).
 #[inline]
@@ -185,13 +196,22 @@ pub fn is_crit(stage: u8, rng: &mut impl FnMut(u32) -> u32) -> bool {
     rng(24) < crit_threshold
 }
 
-/// Crit damage multiplier. Sniper makes it 2.25× instead of 1.5×.
+/// Crit damage multiplier. Always 1.5x; Sniper's extra 1.5x is applied
+/// separately via `sniper_final_mod` in the final damage chain (matching Showdown's
+/// two-step: 1.5x crit in formula, then 1.5x Sniper via onModifyDamage).
 #[inline]
-pub fn crit_multiplier(atk_ability: u16) -> (u32, u32) {
-    if atk_ability == data_bridge::ABILITY_SNIPER {
-        (9216, 4096) // 2.25×
+pub fn crit_multiplier(_atk_ability: u16) -> (u32, u32) {
+    (6144, 4096) // 1.5×
+}
+
+/// Sniper: additional 1.5x final damage modifier on crits.
+/// Applied via chain_mod in the per-hit loop after other final mods.
+#[inline]
+pub fn sniper_final_mod(atk_ability: u16, is_crit: bool) -> u32 {
+    if is_crit && atk_ability == data_bridge::ABILITY_SNIPER {
+        6144 // 1.5×
     } else {
-        (6144, 4096) // 1.5×
+        4096 // 1.0×
     }
 }
 
@@ -332,14 +352,37 @@ pub fn ability_power_mod(
     }
 }
 
+/// Returns 4096-scale numerator for field-wide Aura abilities (Dark Aura / Fairy Aura).
+/// If Aura Break is present on either side, the boost becomes 0.75x instead of 1.33x.
+/// `a0` and `a1` are the effective abilities of side 0 and side 1 (pre-computed by caller).
+#[inline(always)]
+pub fn aura_power_mod(a0: u16, a1: u16, move_type: Type) -> u32 {
+    // Quick reject: these abilities are rare, so most calls will exit here
+    let dark_aura = a0 == data_bridge::ABILITY_DARK_AURA || a1 == data_bridge::ABILITY_DARK_AURA;
+    let fairy_aura = a0 == data_bridge::ABILITY_FAIRY_AURA || a1 == data_bridge::ABILITY_FAIRY_AURA;
+    if !dark_aura && !fairy_aura { return 4096; }
+
+    let has_aura_break = a0 == data_bridge::ABILITY_AURA_BREAK || a1 == data_bridge::ABILITY_AURA_BREAK;
+
+    // Dark Aura: boost Dark-type moves (5448/4096 = 1.33x, or 3072/4096 = 0.75x with Aura Break)
+    if move_type == Type::Dark && dark_aura {
+        return if has_aura_break { 3072 } else { 5448 };
+    }
+    // Fairy Aura: boost Fairy-type moves
+    if move_type == Type::Fairy && fairy_aura {
+        return if has_aura_break { 3072 } else { 5448 };
+    }
+    4096
+}
+
 /// Modify the offensive stat A based on attacker's ability.
-/// `weather`, `hp`, `max_hp`, `turns_active`, `def_turns_active` are passed
+/// `weather`, `hp`, `max_hp`, `turns_active`, `def_turns_active`, `field_turn` are passed
 /// to avoid needing the full state reference.
 #[inline]
 pub fn ability_atk_stat_mod(
     a: u16, ability: u16, category: MoveCategory, status: u8,
     move_type: Type, weather: u8, hp: u16, max_hp: u16, turns_active: u8,
-    def_turns_active: u8,
+    def_turns_active: u8, field_turn: u16, terrain: u8,
 ) -> u16 {
     match ability {
         data_bridge::ABILITY_HUGE_POWER | data_bridge::ABILITY_PURE_POWER
@@ -355,8 +398,12 @@ pub fn ability_atk_stat_mod(
             => (a as u32 * 3 / 2) as u16,
         data_bridge::ABILITY_GORILLA_TACTICS
             if category == MoveCategory::Physical => (a as u32 * 3 / 2) as u16,
+        // Stakeout: 2x when target just switched in (turns_active==0 and game has started)
+        // In Showdown, activeTurns is incremented at turn start, so leads have activeTurns=1
+        // on their first real action. field_turn>0 ensures we don't fire on turn 1 leads
+        // or in calc_damage mode (where field.turn=0).
         data_bridge::ABILITY_STAKEOUT
-            if def_turns_active == 0 => a * 2,
+            if def_turns_active == 0 && field_turn > 0 => a * 2,
         data_bridge::ABILITY_SLOW_START
             if turns_active < 5 => a / 2,
         data_bridge::ABILITY_DEFEATIST
@@ -376,6 +423,16 @@ pub fn ability_atk_stat_mod(
             if move_type == Type::Steel => (a as u32 * 3 / 2) as u16,
         data_bridge::ABILITY_ROCKY_PAYLOAD
             if move_type == Type::Rock => (a as u32 * 3 / 2) as u16,
+        // Orichalcum Pulse: 5461/4096 (~1.33×) Atk in sun
+        data_bridge::ABILITY_ORICHALCUM_PULSE
+            if category == MoveCategory::Physical
+            && matches!(weather, WEATHER_SUN | WEATHER_HARSH_SUN)
+            => (a as u32 * 5461 / 4096) as u16,
+        // Hadron Engine: 5461/4096 (~1.33×) SpA on Electric Terrain
+        data_bridge::ABILITY_HADRON_ENGINE
+            if category == MoveCategory::Special
+            && terrain == TERRAIN_ELECTRIC
+            => (a as u32 * 5461 / 4096) as u16,
         _ => a,
     }
 }
@@ -405,10 +462,14 @@ pub fn ability_def_stat_mod(
 }
 
 /// Returns (num, den) for defender's ability effect on final damage.
+/// `atk_ability` is used to check for Mold Breaker bypassing defensive abilities.
 #[inline]
 pub fn defender_ability_final_mod(
-    state: &BattleState, md: &MoveData, def_side: usize, effectiveness: u8,
+    state: &BattleState, md: &MoveData, def_side: usize, effectiveness: u8, atk_ability: u16,
 ) -> (u32, u32) {
+    // Mold Breaker / Turboblaze / Teravolt bypass defensive abilities
+    if is_mold_breaker(atk_ability) { return (4096, 4096); }
+
     let ability = effective_ability(state, def_side);
     let def_mon = state.active_mon(def_side);
 
@@ -468,9 +529,7 @@ pub fn item_power_mod(
     if item.has(ItemFlag::GEM) && item.type_param == move_type as u8 {
         return (5325, 4096); // 1.3×
     }
-    if item.has(ItemFlag::LIFE_ORB) {
-        return (5324, 4096); // 1.3× (Life Orb damage boost)
-    }
+    // Life Orb: moved to item_final_mod (onModifyDamage, not onBasePower)
     if item.has(ItemFlag::METRONOME) && consec_move_count > 1 {
         // 1.0x + 0.2x per consecutive use after the first, cap at 2.0x
         let count = (consec_move_count - 1).min(5) as u32;
@@ -480,7 +539,7 @@ pub fn item_power_mod(
     match item_id {
         data_bridge::ITEM_MUSCLE_BAND if category == MoveCategory::Physical => (4505, 4096), // 1.1×
         data_bridge::ITEM_WISE_GLASSES if category == MoveCategory::Special => (4505, 4096), // 1.1×
-        data_bridge::ITEM_PUNCHING_GLOVE if flags & MoveFlags::PUNCH != 0 => (4505, 4096), // 1.1×
+        data_bridge::ITEM_PUNCHING_GLOVE if flags & MoveFlags::PUNCH != 0 => (4506, 4096), // 1.1× (Showdown: [4506, 4096])
         _ => (4096, 4096),
     }
 }
@@ -496,9 +555,12 @@ pub fn item_final_mod(
     let den: u32 = 4096;
     let mut berry_consumed = false;
 
-    // Life Orb power boost is now in item_power_mod (Hook 12)
+    // Life Orb: onModifyDamage (final damage, not base power)
+    if atk_item.has(ItemFlag::LIFE_ORB) {
+        num = chain_mod(num, 5324); // 1.3×
+    }
     if atk_item.has(ItemFlag::EXPERT_BELT) && effectiveness > 4 {
-        num = num * 4915 / 4096; // 1.2×
+        num = chain_mod(num, 4915); // 1.2×
     }
 
     // Metronome item — caller should pass consec_move_count for proper scaling
@@ -531,9 +593,12 @@ pub fn resolve_hits(md: &MoveData, ability: u16, item_flags: u64, rng: &mut impl
     if item_flags & ItemFlag::LOADED_DICE != 0 {
         return if rng(2) == 0 { 4 } else { 5 };
     }
+    // Showdown: 35/35/15/15 distribution for 2/3/4/5 hits.
+    // Map low RNG values to 3 so that calc_damage mode (rng(100)->0)
+    // produces 3 hits, matching Showdown's seeded PRNG behavior.
     match rng(100) {
-        0..=34 => 2,
-        35..=69 => 3,
+        0..=34 => 3,
+        35..=69 => 2,
         70..=84 => 4,
         _ => 5,
     }
@@ -554,10 +619,14 @@ pub enum AbilityImmunityEffect {
 
 /// Check for ability-based type immunities.
 /// Returns Some(effect) if the move is nullified, None otherwise.
+/// `atk_ability` is used to check for Mold Breaker bypassing defensive abilities.
 #[inline]
 pub fn ability_type_immunity(
-    state: &BattleState, def_side: usize, move_type: Type,
+    state: &BattleState, def_side: usize, move_type: Type, atk_ability: u16,
 ) -> Option<AbilityImmunityEffect> {
+    // Mold Breaker / Turboblaze / Teravolt bypass all defensive abilities
+    if is_mold_breaker(atk_ability) { return None; }
+
     let ability = effective_ability(state, def_side);
     let def_mon = state.active_mon(def_side);
 
@@ -575,6 +644,9 @@ pub fn ability_type_immunity(
 
         // Flash Fire: nullify + set volatile
         (data_bridge::ABILITY_FLASH_FIRE, Type::Fire) => Some(AbilityImmunityEffect::FlashFire),
+
+        // Well-Baked Body: immune to Fire, +2 Def
+        (data_bridge::ABILITY_WELL_BAKED_BODY, Type::Fire) => Some(AbilityImmunityEffect::Boost(DEF, 2)),
 
         // Earth Eater: immune to Ground, heal 25%
         (data_bridge::ABILITY_EARTH_EATER, Type::Ground) => Some(AbilityImmunityEffect::Heal(def_mon.max_hp / 4)),
@@ -594,10 +666,14 @@ pub fn ability_type_immunity(
 
 /// Check for ability-based flag immunities (Bulletproof, Soundproof, Overcoat, Wind Rider).
 /// Separate from type immunities because these check MoveFlags, not move type.
+/// `atk_ability` is used to check for Mold Breaker bypassing defensive abilities.
 #[inline]
 pub fn ability_flag_immunity(
-    state: &BattleState, def_side: usize, flags: u16,
+    state: &BattleState, def_side: usize, flags: u16, atk_ability: u16,
 ) -> Option<AbilityImmunityEffect> {
+    // Mold Breaker / Turboblaze / Teravolt bypass all defensive abilities
+    if is_mold_breaker(atk_ability) { return None; }
+
     let ability = effective_ability(state, def_side);
     match ability {
         data_bridge::ABILITY_BULLETPROOF if flags & MoveFlags::BULLET != 0 => Some(AbilityImmunityEffect::Nullify),
@@ -643,11 +719,12 @@ pub fn priority_block_immunity(state: &BattleState, def_side: usize, priority: i
 }
 
 /// Legacy wrapper used by calc_damage (returns Option<u16> for backward compat).
+/// `atk_ability` is used to check for Mold Breaker bypassing defensive abilities.
 #[inline]
 pub fn ability_immunity(
-    state: &BattleState, def_side: usize, move_type: Type,
+    state: &BattleState, def_side: usize, move_type: Type, atk_ability: u16,
 ) -> Option<u16> {
-    ability_type_immunity(state, def_side, move_type).map(|eff| {
+    ability_type_immunity(state, def_side, move_type, atk_ability).map(|eff| {
         match eff {
             AbilityImmunityEffect::Heal(hp) => hp,
             _ => 0,
