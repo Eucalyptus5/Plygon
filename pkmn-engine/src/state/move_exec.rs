@@ -342,7 +342,7 @@ fn execute_status_move(
                 && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
-                let turns = (rng(3) + 1) as u8;
+                let turns = (rng(3) + 2) as u8;
                 set_status(state, keys, def_side, def_slot, STATUS_SLEEP, turns);
             }
         }
@@ -770,6 +770,9 @@ fn execute_status_move(
                 && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
             {
                 set_volatile(state, keys, def_side, VOL_YAWN);
+                // Set yawn first-tick marker: bit 7 of _padding[4]
+                // Sleep applies after TWO end-of-turn ticks, not one.
+                state.sides[def_side].active._padding[4] |= 0x80;
             }
         }
 
@@ -788,6 +791,16 @@ fn execute_status_move(
                 set_volatile(state, keys, atk_side, VOL_MAGNET_RISE);
                 state.sides[atk_side].active.magnet_rise_turns = 5;
             }
+        }
+
+        // -- Aqua Ring --
+        MoveEffect::AquaRing => {
+            set_volatile(state, keys, atk_side, VOL_AQUA_RING);
+        }
+
+        // -- Ingrain --
+        MoveEffect::Ingrain => {
+            set_volatile(state, keys, atk_side, VOL_INGRAIN);
         }
 
         // -- Focus Energy --
@@ -951,7 +964,8 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::Imprison | MoveEffect::Aromatherapy | MoveEffect::Minimize |
         MoveEffect::Stockpile | MoveEffect::Swallow | MoveEffect::MagnetRise |
         MoveEffect::DestinyBond | MoveEffect::ClangorousSoul |
-        MoveEffect::Curse | MoveEffect::NoRetreat | MoveEffect::TidyUp => true,
+        MoveEffect::Curse | MoveEffect::NoRetreat | MoveEffect::TidyUp |
+        MoveEffect::AquaRing | MoveEffect::Ingrain => true,
 
         // Side conditions on own side
         MoveEffect::Safeguard | MoveEffect::Mist | MoveEffect::LuckyChant => true,
@@ -2135,7 +2149,7 @@ pub fn execute_move(
                 data_bridge::ABILITY_EFFECT_SPORE => {
                     let roll = rng(100);
                     if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 1) as u8);
+                        set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
                     } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) {
                         set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
                     } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) {
@@ -5474,7 +5488,12 @@ mod tests {
         assert!(state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
 
-        // After EOT, yawn triggers sleep and volatile clears
+        // After 1st EOT: yawn still active, no sleep yet (2-turn delay)
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        assert!(state.sides[1].active.has_volatile(VOL_YAWN));
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+
+        // After 2nd EOT: yawn triggers sleep and volatile clears
         crate::state::end_of_turn::end_of_turn(&mut state, &keys);
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_SLEEP);

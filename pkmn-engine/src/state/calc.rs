@@ -410,7 +410,7 @@ pub fn calc_damage(
 
     // Pre-compute all loop-invariant modifiers
     let lf = level_factor(atk_mon.level);
-    let (wn, _) = weather_modifier(effective_weather_for(state, atk_side), move_type);
+    let (wn, _) = weather_modifier(effective_weather_for(state, def_side), move_type);
     if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
     let (sn, _) = stab_modifier(state, atk_side, move_type);
     let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability, md.var_power == VarPower::Facade);

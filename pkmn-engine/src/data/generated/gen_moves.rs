@@ -2215,7 +2215,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Ingrain, secondary_status:0,
         self_effect:SelfEffect::None },
     // [276] Superpower
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
@@ -3151,7 +3151,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::AquaRing, secondary_status:0,
         self_effect:SelfEffect::None },
     // [393] Magnet Rise
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -4655,7 +4655,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::SetTerrain, secondary_status:0,
         self_effect:SelfEffect::None },
     // [581] Misty Terrain
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -4663,7 +4663,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::SetTerrain, secondary_status:0,
         self_effect:SelfEffect::None },
     // [582] Electrify
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
@@ -4847,7 +4847,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::SetTerrain, secondary_status:0,
         self_effect:SelfEffect::None },
     // [605] Dazzling Gleam
     MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
@@ -5439,7 +5439,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::SetTerrain, secondary_status:0,
         self_effect:SelfEffect::None },
     // [679] Lunge
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:80, accuracy:100,

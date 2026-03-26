@@ -10,12 +10,13 @@ use crate::state::calc_modifiers::terrain_blocks_status;
 
 pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_weather(state, keys);                                   // 1
-    step_terrain_expiry(state, keys);                            // 2
+    step_terrain_countdown(state);                               // 2a: decrement only
     // 3: Future Sight (not yet implemented)
     step_wish(state, keys);                                      // 4
     for side in 0..2 { step_hydration(state, keys, side); }      // 5a (order 5, sub 3)
     for side in 0..2 { step_item_healing(state, keys, side); }   // 5b (order 5, sub 4)
     step_grassy_terrain(state, keys);                            // 5c (terrain heal)
+    step_terrain_expiry(state, keys);                            // 2b: clear if counter==0
     for side in 0..2 { step_passive_healing(state, keys, side); }// 6 (Aqua Ring, Ingrain)
     // 7-8: Berry activation (status-cure berries must fire BEFORE status damage)
     for side in 0..2 {
@@ -63,6 +64,17 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
 
 fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
     if state.field.weather == WEATHER_NONE { return; }
+
+    // Decrement weather counter FIRST (Showdown: damage only on non-expiry turns)
+    if state.field.weather_turns > 0 && state.field.weather_turns != 255 {
+        state.field.weather_turns -= 1;
+        if state.field.weather_turns == 0 {
+            clear_weather(state, keys);
+            crate::state::switch::check_paradox_deactivation(state);
+            return; // Weather expired this turn — no damage
+        }
+    }
+
     let weather = effective_weather(state);
 
     if weather == WEATHER_SAND {
@@ -70,6 +82,12 @@ fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
             let slot = state.sides[side].active_index as usize;
             if state.sides[side].team[slot].is_fainted() { continue; }
             if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { continue; }
+            let ab = effective_ability(state, side);
+            if ab == data_bridge::ABILITY_OVERCOAT
+                || ab == data_bridge::ABILITY_SAND_VEIL
+                || ab == data_bridge::ABILITY_SAND_RUSH
+                || ab == data_bridge::ABILITY_SAND_FORCE
+            { continue; }
             let (t1, t2) = effective_types(state, side);
             let immune = [Type::Rock as u8, Type::Ground as u8, Type::Steel as u8];
             if !immune.contains(&t1) && !immune.contains(&t2) {
@@ -77,24 +95,22 @@ fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
             }
         }
     }
-
-    if state.field.weather_turns > 0 && state.field.weather_turns != 255 {
-        state.field.weather_turns -= 1;
-        if state.field.weather_turns == 0 {
-            clear_weather(state, keys);
-            crate::state::switch::check_paradox_deactivation(state);
-        }
-    }
 }
 
-fn step_terrain_expiry(state: &mut BattleState, keys: &ZobristKeys) {
+/// Decrement terrain counter (does NOT clear terrain yet).
+fn step_terrain_countdown(state: &mut BattleState) {
     if state.field.terrain == TERRAIN_NONE { return; }
     if state.field.terrain_turns > 0 {
         state.field.terrain_turns -= 1;
-        if state.field.terrain_turns == 0 {
-            clear_terrain(state, keys);
-            crate::state::switch::check_paradox_deactivation(state);
-        }
+    }
+}
+
+/// Clear terrain if counter reached 0. Called after grassy terrain heal.
+fn step_terrain_expiry(state: &mut BattleState, keys: &ZobristKeys) {
+    if state.field.terrain == TERRAIN_NONE { return; }
+    if state.field.terrain_turns == 0 {
+        clear_terrain(state, keys);
+        crate::state::switch::check_paradox_deactivation(state);
     }
 }
 
@@ -284,14 +300,21 @@ fn step_yawn(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     if !state.sides[side].active.has_volatile(VOL_YAWN) { return; }
     let slot = state.sides[side].active_index as usize;
     if state.sides[side].team[slot].is_fainted() { return; }
-    // Yawn puts the target to sleep the turn after it's used
+    // Yawn has a 2-turn delay: set on hit, first EOT decrements, second EOT applies sleep.
+    // Bit 7 of _padding[4] = yawn first tick (1 = needs one more turn before sleep).
+    if state.sides[side].active._padding[4] & 0x80 != 0 {
+        // First tick: decrement the marker, don't apply sleep yet
+        state.sides[side].active._padding[4] &= !0x80;
+        return;
+    }
+    // Second tick: apply sleep and clear volatile
     clear_volatile(state, keys, side, VOL_YAWN);
     if state.sides[side].team[slot].status == STATUS_NONE {
         if state.sides[side].side_conditions.safeguard_turns() == 0
             && !crate::state::forme::is_minior_meteor_forme(state, side)
             && !terrain_blocks_status(state, side, STATUS_SLEEP)
         {
-            set_status(state, keys, side, slot, STATUS_SLEEP, 2); // 1-3 turns
+            set_status(state, keys, side, slot, STATUS_SLEEP, 3); // 1-3 turns (MCTS: use median)
         }
     }
 }
@@ -506,7 +529,7 @@ mod tests {
         s.sides[0].team[0].item_id = 145; // Flame Orb
         s.zobrist = compute_full_hash(&s, &k);
 
-        step_item_healing(&mut s, &k, 0);
+        step_status_orbs(&mut s, &k, 0);
 
         assert_eq!(s.sides[0].team[0].status, STATUS_BURN);
         assert!(validate_hash(&s, &k));
@@ -519,7 +542,7 @@ mod tests {
         s.sides[0].team[0].status = STATUS_PARALYSIS;
         s.zobrist = compute_full_hash(&s, &k);
 
-        step_item_healing(&mut s, &k, 0);
+        step_status_orbs(&mut s, &k, 0);
 
         // set_status returns false if already statused — paralysis stays
         assert_eq!(s.sides[0].team[0].status, STATUS_PARALYSIS);
@@ -531,7 +554,7 @@ mod tests {
         s.sides[0].team[0].item_id = 515; // Toxic Orb
         s.zobrist = compute_full_hash(&s, &k);
 
-        step_item_healing(&mut s, &k, 0);
+        step_status_orbs(&mut s, &k, 0);
 
         assert_eq!(s.sides[0].team[0].status, STATUS_BAD_POISON);
         assert!(validate_hash(&s, &k));
@@ -674,6 +697,8 @@ mod tests {
         s.field.terrain_turns = 1;
         s.zobrist = compute_full_hash(&s, &k);
 
+        // Countdown decrements to 0, then expiry clears terrain
+        step_terrain_countdown(&mut s);
         step_terrain_expiry(&mut s, &k);
 
         assert_eq!(s.field.terrain, TERRAIN_NONE);
@@ -688,6 +713,8 @@ mod tests {
         s.field.terrain_turns = 3;
         s.zobrist = compute_full_hash(&s, &k);
 
+        // Countdown decrements but doesn't clear
+        step_terrain_countdown(&mut s);
         step_terrain_expiry(&mut s, &k);
 
         assert_eq!(s.field.terrain, TERRAIN_PSYCHIC);
@@ -810,7 +837,7 @@ mod tests {
         s.sides[0].side_conditions.set_safeguard_turns(5);
         s.zobrist = compute_full_hash(&s, &k);
 
-        step_item_healing(&mut s, &k, 0);
+        step_status_orbs(&mut s, &k, 0);
 
         // Flame Orb is self-inflicted — Safeguard does not block
         assert_eq!(s.sides[0].team[0].status, STATUS_BURN);

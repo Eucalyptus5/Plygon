@@ -215,6 +215,8 @@ pub enum MoveEffect {
     NoRetreat      = 100, // +1 all stats, trap self (fail if already used)
     TidyUp         = 101, // +1 Atk/Spe, clear hazards + subs from both sides
     SetTerrain     = 102, // Electric/Grassy/Psychic/Misty Terrain
+    AquaRing       = 103, // Set VOL_AQUA_RING on user, heal 1/16 EOT
+    Ingrain        = 104, // Set VOL_INGRAIN on user, heal 1/16 EOT + grounded + no switch
 }
 
 // Flags (16 bits)

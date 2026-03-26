@@ -153,6 +153,12 @@ MOVE_EFFECT = {
     "curse": "Curse",
     "noretreat": "NoRetreat",
     "tidyup": "TidyUp",
+    "aquaring": "AquaRing",
+    "ingrain": "Ingrain",
+
+    # -- Terrain-setting moves --
+    "electricterrain": "SetTerrain", "grassyterrain": "SetTerrain",
+    "psychicterrain": "SetTerrain", "mistyterrain": "SetTerrain",
 
     # -- Partial trap moves --
     "bind": "PartialTrap", "wrap": "PartialTrap", "firespin": "PartialTrap",
