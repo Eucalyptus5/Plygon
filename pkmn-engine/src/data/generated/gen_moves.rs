@@ -422,7 +422,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [52] Ember
@@ -502,7 +502,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [62] Aurora Beam
@@ -510,7 +510,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [63] Hyper Beam
@@ -766,7 +766,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [95] Hypnosis
@@ -1070,7 +1070,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [133] Amnesia
@@ -1174,7 +1174,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [146] Dizzy Punch
@@ -1582,7 +1582,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [197] Detect
@@ -1702,7 +1702,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [212] Mean Look
@@ -1846,7 +1846,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::RapidSpin, secondary_status:0,
         self_effect:SelfEffect::None },
     // [230] Sweet Scent
@@ -1862,7 +1862,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [232] Metal Claw
@@ -1870,7 +1870,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [233] Vital Throw
@@ -1950,7 +1950,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:20, secondary_stat:0,
+        secondary_chance:20, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [243] Mirror Coat
@@ -1982,7 +1982,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [247] Shadow Ball
@@ -1990,7 +1990,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:20, secondary_stat:0,
+        secondary_chance:20, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [248] Future Sight
@@ -2006,7 +2006,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [250] Whirlpool
@@ -2374,7 +2374,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [296] Mist Ball
@@ -2382,7 +2382,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [297] Feather Dance
@@ -2462,7 +2462,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Normal,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [307] Blast Burn
@@ -2486,7 +2486,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:20, secondary_stat:0,
+        secondary_chance:20, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [310] Astonish
@@ -2550,7 +2550,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Rock,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [318] Silver Wind
@@ -2558,7 +2558,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [319] Metal Sound
@@ -2742,7 +2742,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [342] Poison Tail
@@ -3254,7 +3254,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [406] Dragon Pulse
@@ -3302,7 +3302,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [412] Energy Ball
@@ -3310,7 +3310,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [413] Brave Bird
@@ -3326,7 +3326,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [415] Switcheroo
@@ -3454,7 +3454,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [431] Rock Climb
@@ -3622,7 +3622,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:70, secondary_stat:0,
+        secondary_chance:70, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [452] Wood Hammer
@@ -3734,7 +3734,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:40, secondary_stat:0,
+        secondary_chance:40, secondary_stat:-2,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [466] Ominous Wind
@@ -3742,7 +3742,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [467] Shadow Force
@@ -3918,7 +3918,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [489] Coil
@@ -3934,7 +3934,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [491] Acid Spray
@@ -3942,7 +3942,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Poison,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-2,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [492] Foul Play
@@ -4190,7 +4190,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [523] Bulldoze
@@ -4198,7 +4198,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [524] Frost Breath
@@ -4230,7 +4230,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [528] Wild Charge
@@ -4286,7 +4286,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [535] Heat Crash
@@ -4406,7 +4406,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ice,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [550] Bolt Strike
@@ -4430,7 +4430,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [553] Freeze Shock
@@ -4454,7 +4454,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [556] Icicle Crash
@@ -4678,7 +4678,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:10, secondary_stat:0,
+        secondary_chance:10, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [584] Fairy Wind
@@ -4694,7 +4694,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [586] Boomburst
@@ -4774,7 +4774,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [596] Spiky Shield
@@ -4910,7 +4910,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [613] Oblivion Wing
@@ -5446,7 +5446,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [680] Fire Lash
@@ -5454,7 +5454,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [681] Power Trip
@@ -5518,7 +5518,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [689] Instruct
@@ -5678,7 +5678,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:20, secondary_stat:0,
+        secondary_chance:20, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [709] Accelerock
@@ -5694,7 +5694,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:20, secondary_stat:0,
+        secondary_chance:20, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [711] Prismatic Laser
@@ -6238,7 +6238,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [779] Snap Trap
@@ -6278,7 +6278,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Electric,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [784] Breaking Swipe
@@ -6286,7 +6286,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Dragon,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [785] Branch Poke
@@ -6310,7 +6310,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [788] Grav Apple
@@ -6318,7 +6318,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [789] Spirit Break
@@ -6326,7 +6326,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [790] Strange Steam
@@ -6462,7 +6462,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [807] Burning Jealousy
@@ -6598,7 +6598,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [824] Glacial Lance
@@ -6638,7 +6638,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [829] —
@@ -6662,7 +6662,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Fairy,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [832] Mystical Power
@@ -6670,7 +6670,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [833] Raging Fury
@@ -6734,7 +6734,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [841] Bitter Malice
@@ -6742,7 +6742,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ghost,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [842] Shelter
@@ -6758,7 +6758,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Fighting,
         var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [844] Infernal Parade
@@ -6782,7 +6782,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Flying,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [847] Wildbolt Storm
@@ -6854,7 +6854,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Psychic,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-2,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [856] Order Up
@@ -6982,7 +6982,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Fire,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [872] Aqua Step
@@ -6990,7 +6990,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [873] Raging Bull
@@ -7086,7 +7086,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Bug,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [885] Trailblaze
@@ -7094,7 +7094,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Physical, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [886] Chilling Water
@@ -7102,7 +7102,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [887] Hyper Drill

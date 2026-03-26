@@ -248,12 +248,12 @@ fn step_status_orbs(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     if state.sides[side].team[slot].item_id == data_bridge::ITEM_STICKY_BARB {
         deal_proportional_damage(state, keys, side, slot, 1, 8);
     }
-    // Flame Orb: inflict burn at end of turn
-    if itm.has(ItemFlag::FLAME_ORB) {
+    // Flame Orb: inflict burn at end of turn (Fire types immune)
+    if itm.has(ItemFlag::FLAME_ORB) && !type_immune_to_status(state, side, STATUS_BURN) {
         set_status(state, keys, side, slot, STATUS_BURN, 0);
     }
-    // Toxic Orb: inflict bad poison at end of turn
-    if itm.has(ItemFlag::TOXIC_ORB) {
+    // Toxic Orb: inflict bad poison at end of turn (Poison/Steel types immune)
+    if itm.has(ItemFlag::TOXIC_ORB) && !type_immune_to_status(state, side, STATUS_BAD_POISON) {
         set_status(state, keys, side, slot, STATUS_BAD_POISON, 0);
     }
 }

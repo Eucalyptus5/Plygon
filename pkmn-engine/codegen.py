@@ -343,6 +343,20 @@ def _parse_secondary_block(sec_text):
     return (chance, status, stat, stages)
 
 
+def _extract_brace_block(text, start):
+    """Starting after the opening '{' at position start, extract content up to
+    the matching '}', accounting for nested braces. Returns the inner text."""
+    depth = 1
+    i = start
+    while i < len(text) and depth > 0:
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+        i += 1
+    return text[start:i - 1]
+
+
 def extract_secondary(block):
     """Extract secondary effect: returns (chance, status, stat, stages) or None.
     Handles both singular `secondary:` and plural `secondaries:` arrays."""
@@ -359,11 +373,16 @@ def extract_secondary(block):
         # Find all individual secondary blocks within the secondaries array
         # Extract the first non-flinch secondary (status or stat boost)
         arr_start = secondaries_pat.search(block).end()
-        # Find individual { ... } blocks within the array
-        sec_blocks = re.finditer(r'\{(.*?)\}', block[arr_start:], re.DOTALL)
+        remainder = block[arr_start:]
+        # Find individual { ... } blocks using brace-counting
         best = None
-        for sb in sec_blocks:
-            sec_text = sb.group(1)
+        pos = 0
+        while pos < len(remainder):
+            idx = remainder.find('{', pos)
+            if idx == -1:
+                break
+            sec_text = _extract_brace_block(remainder, idx + 1)
+            pos = idx + 1 + len(sec_text) + 1
             parsed = _parse_secondary_block(sec_text)
             chance, status, stat, stages = parsed
             if chance > 0:
@@ -376,12 +395,11 @@ def extract_secondary(block):
             return best
         return None
 
-    # Match singular secondary block
-    sec_pat = re.compile(r'secondary:\s*\{(.*?)\}', re.DOTALL)
-    m = sec_pat.search(block)
-    if not m:
+    # Match singular secondary block using brace-counting
+    sec_start = re.search(r'secondary:\s*\{', block)
+    if not sec_start:
         return None
-    sec_text = m.group(1)
+    sec_text = _extract_brace_block(block, sec_start.end())
 
     parsed = _parse_secondary_block(sec_text)
     if parsed[0] > 0:

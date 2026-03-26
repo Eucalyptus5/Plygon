@@ -48,13 +48,13 @@ fn setup() -> (BattleState, ZobristKeys) {
 fn test_huge_power_doubles_atk() {
     let a = ability_atk_stat_mod(
         150, ABILITY_HUGE_POWER, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300);
 
     let a = ability_atk_stat_mod(
         150, ABILITY_HUGE_POWER, MoveCategory::Special, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 150);
 }
@@ -63,31 +63,32 @@ fn test_huge_power_doubles_atk() {
 fn test_defeatist_halves_atk() {
     let a = ability_atk_stat_mod(
         200, ABILITY_DEFEATIST, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 
     // At ≤50% HP: halved
     let a = ability_atk_stat_mod(
         200, ABILITY_DEFEATIST, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 150, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 150, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 100);
 }
 
 #[test]
 fn test_stakeout_doubles_vs_switched() {
-    // Defender has 0 turns active (just switched in)
+    // Defender has 0 turns active (just switched in) — field_turn > 0 required
+    // to distinguish an in-battle switch from the initial state / calc_damage mode.
     let a = ability_atk_stat_mod(
         100, ABILITY_STAKEOUT, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 5, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 5, 0, 1, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 
     // Defender has been out for a turn → no boost
     let a = ability_atk_stat_mod(
         100, ABILITY_STAKEOUT, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 5, 1,
+        Type::Normal, WEATHER_NONE, 300, 300, 5, 1, 1, TERRAIN_NONE,
     );
     assert_eq!(a, 100);
 }
@@ -96,13 +97,13 @@ fn test_stakeout_doubles_vs_switched() {
 fn test_solar_power_in_sun() {
     let a = ability_atk_stat_mod(
         200, ABILITY_SOLAR_POWER, MoveCategory::Special, STATUS_NONE,
-        Type::Fire, WEATHER_SUN, 300, 300, 0, 0,
+        Type::Fire, WEATHER_SUN, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300); // 1.5×
 
     let a = ability_atk_stat_mod(
         200, ABILITY_SOLAR_POWER, MoveCategory::Special, STATUS_NONE,
-        Type::Fire, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Fire, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 }
@@ -175,11 +176,11 @@ fn test_multiscale_halves_at_full_hp() {
         move_type: Type::Normal,
         ..unsafe { core::mem::zeroed() }
     };
-    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8);
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8, 0);
     assert_eq!((n, d), (2048, 4096)); // 0.5×
 
     state.sides[1].team[0].current_hp = 299;
-    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8);
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8, 0);
     assert_eq!((n, d), (4096, 4096));
 }
 
@@ -205,7 +206,7 @@ fn test_filter_super_effective() {
         move_type: Type::Normal,
         ..unsafe { core::mem::zeroed() }
     };
-    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8); // SE
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 8, 0); // SE
     assert_eq!((n, d), (3072, 4096)); // 0.75×
 }
 
@@ -222,7 +223,7 @@ fn test_filter_neutral() {
         move_type: Type::Normal,
         ..unsafe { core::mem::zeroed() }
     };
-    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4); // neutral
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4, 0); // neutral
     assert_eq!((n, d), (4096, 4096)); // no reduction
 }
 
@@ -251,7 +252,7 @@ fn test_punk_rock_defender() {
         move_type: Type::Normal, flags: MoveFlags::SOUND,
         ..unsafe { core::mem::zeroed() }
     };
-    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4);
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4, 0);
     assert_eq!((n, d), (2048, 4096)); // 0.5×
 }
 
@@ -502,13 +503,13 @@ fn test_supreme_overlord_scaling() {
 fn test_water_bubble_attacker() {
     let a = ability_atk_stat_mod(
         200, ABILITY_WATER_BUBBLE, MoveCategory::Special, STATUS_NONE,
-        Type::Water, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Water, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 400); // 2×
 
     let a = ability_atk_stat_mod(
         200, ABILITY_WATER_BUBBLE, MoveCategory::Special, STATUS_NONE,
-        Type::Fire, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Fire, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 }
@@ -529,7 +530,7 @@ fn test_water_bubble_defender() {
         category: MoveCategory::Special,
         ..unsafe { core::mem::zeroed() }
     };
-    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4);
+    let (n, d) = defender_ability_final_mod(&state, &md, 1, 4, 0);
     assert_eq!((n, d), (4096, 4096)); // identity — effect applied via stat mod
 }
 
@@ -537,13 +538,13 @@ fn test_water_bubble_defender() {
 fn test_slow_start() {
     let a = ability_atk_stat_mod(
         200, ABILITY_SLOW_START, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 3, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 3, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 100);
 
     let a = ability_atk_stat_mod(
         200, ABILITY_SLOW_START, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 5, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 5, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 }
@@ -635,13 +636,13 @@ fn test_sand_force_in_sand() {
 fn test_gorilla_tactics() {
     let a = ability_atk_stat_mod(
         200, ABILITY_GORILLA_TACTICS, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300); // 1.5×
 
     let a = ability_atk_stat_mod(
         200, ABILITY_GORILLA_TACTICS, MoveCategory::Special, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 }
@@ -650,13 +651,13 @@ fn test_gorilla_tactics() {
 fn test_pure_power_doubles_atk() {
     let a = ability_atk_stat_mod(
         150, ABILITY_PURE_POWER, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300);
 
     let a = ability_atk_stat_mod(
         150, ABILITY_PURE_POWER, MoveCategory::Special, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 150);
 }
@@ -666,28 +667,28 @@ fn test_guts_boosts_atk_with_status() {
     // Burned + Physical → 1.5×
     let a = ability_atk_stat_mod(
         200, ABILITY_GUTS, MoveCategory::Physical, STATUS_BURN,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300);
 
     // Poisoned + Physical → 1.5×
     let a = ability_atk_stat_mod(
         200, ABILITY_GUTS, MoveCategory::Physical, STATUS_POISON,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300);
 
     // No status → no boost
     let a = ability_atk_stat_mod(
         200, ABILITY_GUTS, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 
     // Burned + Special → no boost (physical only)
     let a = ability_atk_stat_mod(
         200, ABILITY_GUTS, MoveCategory::Special, STATUS_BURN,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 }
@@ -704,13 +705,13 @@ fn test_guts_no_burn_penalty() {
 fn test_hustle_boosts_physical() {
     let a = ability_atk_stat_mod(
         200, ABILITY_HUSTLE, MoveCategory::Physical, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 300);
 
     let a = ability_atk_stat_mod(
         200, ABILITY_HUSTLE, MoveCategory::Special, STATUS_NONE,
-        Type::Normal, WEATHER_NONE, 300, 300, 0, 0,
+        Type::Normal, WEATHER_NONE, 300, 300, 0, 0, 0, TERRAIN_NONE,
     );
     assert_eq!(a, 200);
 }
@@ -750,7 +751,7 @@ fn test_ice_scales_special_def() {
         category: MoveCategory::Special,
         ..unsafe { core::mem::zeroed() }
     };
-    let (n, d_mod) = defender_ability_final_mod(&state, &md, 1, 4);
+    let (n, d_mod) = defender_ability_final_mod(&state, &md, 1, 4, 0);
     assert_eq!((n, d_mod), (2048, 4096)); // 0.5x
 }
 

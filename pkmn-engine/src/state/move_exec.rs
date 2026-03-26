@@ -181,6 +181,7 @@ fn apply_secondary(
     };
 
     if status != STATUS_NONE
+        && !type_immune_to_status(state, def_side, status)
         && state.sides[def_side].side_conditions.safeguard_turns() == 0
         && !terrain_blocks_status(state, def_side, status)
         && !crate::state::forme::is_minior_meteor_forme(state, def_side)
@@ -314,7 +315,8 @@ fn execute_status_move(
 
         // -- Status infliction (blocked by Safeguard / terrain) --
         MoveEffect::WillOWisp   => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+            if !type_immune_to_status(state, def_side, STATUS_BURN)
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_BURN)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
@@ -322,7 +324,8 @@ fn execute_status_move(
             }
         }
         MoveEffect::ThunderWave => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+            if !type_immune_to_status(state, def_side, STATUS_PARALYSIS)
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_PARALYSIS)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
@@ -330,7 +333,8 @@ fn execute_status_move(
             }
         }
         MoveEffect::Toxic       => {
-            if state.sides[def_side].side_conditions.safeguard_turns() == 0
+            if !type_immune_to_status(state, def_side, STATUS_BAD_POISON)
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
@@ -1597,6 +1601,7 @@ pub fn execute_move(
                     if state.sides[atk_side].team[atk_slot].status == STATUS_NONE
                         && state.sides[atk_side].side_conditions.safeguard_turns() == 0
                         && !terrain_blocks_status(state, atk_side, STATUS_POISON)
+                        && !type_immune_to_status(state, atk_side, STATUS_POISON)
                     {
                         set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
                     }
@@ -2024,6 +2029,7 @@ pub fn execute_move(
                     && is_contact
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_POISON)
+                    && !type_immune_to_status(state, def_side, STATUS_POISON)
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
@@ -2034,6 +2040,7 @@ pub fn execute_move(
                     if !def_has_cloak
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
+                    && !type_immune_to_status(state, def_side, STATUS_BAD_POISON)
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
@@ -2131,17 +2138,17 @@ pub fn execute_move(
             && !crate::state::forme::is_minior_meteor_forme(state, atk_side)
         {
             match def_ability {
-                data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) => {
+                data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) && !type_immune_to_status(state, atk_side, STATUS_BURN) => {
                     if rng(100) < 30 {
                         set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0);
                     }
                 }
-                data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) => {
+                data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) => {
                     if rng(100) < 30 {
                         set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
                     }
                 }
-                data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) => {
+                data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) => {
                     if rng(100) < 30 {
                         set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
                     }
@@ -2150,9 +2157,9 @@ pub fn execute_move(
                     let roll = rng(100);
                     if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
                         set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
-                    } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) {
+                    } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) {
                         set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
-                    } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) {
+                    } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) {
                         set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
                     }
                 }

@@ -90,6 +90,25 @@ pub fn has_type(state: &BattleState, side: usize, check_type: u8) -> bool {
     t1 == check_type || t2 == check_type
 }
 
+/// Gen 6+ type-based status immunities:
+/// Fire→Burn, Electric→Paralysis, Poison/Steel→Poison/Toxic, Ice→Freeze
+#[inline(always)]
+pub fn type_immune_to_status(state: &BattleState, side: usize, status: u8) -> bool {
+    use crate::data::types::Type;
+    use crate::state::structs::*;
+    let (t1, t2) = effective_types(state, side);
+    match status {
+        STATUS_BURN => t1 == Type::Fire as u8 || t2 == Type::Fire as u8,
+        STATUS_PARALYSIS => t1 == Type::Electric as u8 || t2 == Type::Electric as u8,
+        STATUS_POISON | STATUS_BAD_POISON => {
+            t1 == Type::Poison as u8 || t2 == Type::Poison as u8
+            || t1 == Type::Steel as u8 || t2 == Type::Steel as u8
+        }
+        STATUS_FREEZE => t1 == Type::Ice as u8 || t2 == Type::Ice as u8,
+        _ => false,
+    }
+}
+
 /// Check if the active Pokémon is grounded.
 /// Grounded = NOT (Flying-type OR Levitate OR Air Balloon OR Magnet Rise OR Telekinesis)
 /// unless Gravity is active (overrides all).
