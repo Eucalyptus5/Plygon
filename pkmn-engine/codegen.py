@@ -155,6 +155,7 @@ MOVE_EFFECT = {
     "tidyup": "TidyUp",
     "aquaring": "AquaRing",
     "ingrain": "Ingrain",
+    "charge": "Charge",
 
     # -- Terrain-setting moves --
     "electricterrain": "SetTerrain", "grassyterrain": "SetTerrain",
@@ -166,6 +167,33 @@ MOVE_EFFECT = {
     "clamp": "PartialTrap", "magmastorm": "PartialTrap",
     "infestation": "PartialTrap", "thundercage": "PartialTrap",
     "snaptrap": "PartialTrap",
+
+    # -- Round 22: Opponent-target stat-modifying status moves --
+    # Drops: dispatched via self_effect Opp* variants
+    "growl": "OpponentStatDrop", "playnice": "OpponentStatDrop",
+    "babydolleyes": "OpponentStatDrop", "charm": "OpponentStatDrop",
+    "featherdance": "OpponentStatDrop",
+    "tailwhip": "OpponentStatDrop", "leer": "OpponentStatDrop",
+    "screech": "OpponentStatDrop",
+    "confide": "OpponentStatDrop", "eerieimpulse": "OpponentStatDrop",
+    "faketears": "OpponentStatDrop", "metalsound": "OpponentStatDrop",
+    "stringshot": "OpponentStatDrop", "cottonspore": "OpponentStatDrop",
+    "scaryface": "OpponentStatDrop", "tarshot": "OpponentStatDrop",
+    "sandattack": "OpponentStatDrop", "smokescreen": "OpponentStatDrop",
+    "sweetscent": "OpponentStatDrop",
+    "tickle": "OpponentStatDrop", "nobleroar": "OpponentStatDrop",
+    "tearfullook": "OpponentStatDrop",
+    # Boosts on opponent target
+    "decorate": "OpponentStatDrop", "spicyextract": "OpponentStatDrop",
+    # Ally-target boosts (Howl target=allies which includes self in singles).
+    # Aromatic Mist / Coaching target=adjacentAlly which excludes self → fail in singles.
+    "howl": "AllyBoost",
+    # Special: Memento (opp -2 atk/-2 spa + user faints)
+    "memento": "Memento",
+    # Special: Toxic Thread (poison + spe -1)
+    "toxicthread": "ToxicThread",
+    # Swagger/Flatter stay as Confuse (already in MOVE_EFFECT above) — they use
+    # self_effect OppAtkUp2 / OppSpAUp1 which the Confuse arm dispatches.
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -206,6 +234,9 @@ SELF_EFFECT = {
     # -1 Def
     "hyperspacefury": "DefDown1",
 
+    # -1 Def, +1 Spe (combined)
+    "scaleshot": "DefDown1SpeUp1",
+
     # -- Crash damage (50% max HP on miss) --
     "highjumpkick": "CrashDamage",
     "jumpkick": "CrashDamage",
@@ -217,6 +248,47 @@ SELF_EFFECT = {
     # moves need this. Scald/Steam Eruption are Water but thaw user.
     "scald": "ThawSelf",
     "steameruption": "ThawSelf",
+
+    # -- Round 22: Opponent-target stat drops (dispatched by MoveEffect::OpponentStatDrop) --
+    # Atk drops
+    "growl": "OppAtkDown1",
+    "playnice": "OppAtkDown1",
+    "babydolleyes": "OppAtkDown1",
+    "charm": "OppAtkDown2",
+    "featherdance": "OppAtkDown2",
+    # Def drops
+    "tailwhip": "OppDefDown1",
+    "leer": "OppDefDown1",
+    "screech": "OppDefDown2",
+    # SpA drops
+    "confide": "OppSpADown1",
+    "eerieimpulse": "OppSpADown2",
+    # SpD drops
+    "faketears": "OppSpDDown2",
+    "metalsound": "OppSpDDown2",
+    # Spe drops
+    "stringshot": "OppSpeDown2",
+    "cottonspore": "OppSpeDown2",
+    "scaryface": "OppSpeDown2",
+    "tarshot": "OppSpeDown1",
+    # Accuracy / Evasion
+    "sandattack": "OppAccDown1",
+    "smokescreen": "OppAccDown1",
+    "sweetscent": "OppEvaDown2",
+    # Combined drops
+    "tickle": "OppAtkDefDown1",
+    "nobleroar": "OppAtkSpADown1",
+    "tearfullook": "OppAtkSpADown1",
+    "memento": "OppAtkSpADown2",
+    # Opponent-target BOOSTS (Swagger/Flatter also use MoveEffect::Confuse)
+    "swagger": "OppAtkUp2",
+    "flatter": "OppSpAUp1",
+    "decorate": "OppAtkSpAUp2",
+    "spicyextract": "OppAtkUp2DefDown2",
+    # Ally-target boosts (dispatched by MoveEffect::AllyBoost → atk_side in singles).
+    # Only Howl (target=allies includes self). Aromatic Mist / Coaching target adjacentAlly,
+    # which has no valid target in singles and those moves fail.
+    "howl": "AllyAtkUp1",
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -231,13 +303,18 @@ VAR_POWER = {
     "flail": "Flail", "reversal": "Flail",
     "heavyslam": "HeavySlam", "heatcrash": "HeavySlam",
     "punishment": "Punishment",
-    "storedpower": "StoredPower",
+    "storedpower": "StoredPower", "powertrip": "StoredPower",
     "electroball": "ElectroBall",
     "return": "Return", "frustration": "Frustration",
-    "hex": "Hex", "barbedbranch": "Hex",
+    "hex": "Hex", "barbedbranch": "Hex", "venoshock": "Hex",
     "acrobatics": "Acrobatics",
     "risingvoltage": "RisingVoltage",
     "spitup": "SpitUp",
+    "tripleaxel": "Escalating", "triplekick": "Escalating",
+    "brine": "Brine",
+    "payback": "Payback",
+    "avalanche": "Avalanche", "revenge": "Avalanche",
+    "furycutter": "FuryCutter",
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -645,13 +722,20 @@ def gen_moves():
         if has_recharge(block, sd_flags):
             flag_parts.append("MoveFlags::RECHARGE")
 
-        # CHARGE flag (set for charge moves)
-        # Detect from MOVE_EFFECT table, SolarBeam, or Showdown's charge flag
-        if key in MOVE_EFFECT and MOVE_EFFECT[key].startswith("Charge"):
+        # CHARGE flag (set for 2-turn charge-up moves, e.g. Fly, Dig, Skull Bash).
+        # Detect from MOVE_EFFECT table (Charge* variants), SolarBeam, or Showdown's
+        # charge flag. The status move "charge" itself (MoveEffect::Charge, no prefix
+        # match) is single-turn and must NOT have this flag.
+        charge_effects = (
+            "ChargeFly", "ChargeDig", "ChargeDive", "ChargePhantom",
+            "ChargeSkyAttack", "ChargeSkullBash", "ChargeMeteorBeam",
+            "ChargeElectroShot", "ChargeGeomancy",
+        )
+        if key in MOVE_EFFECT and MOVE_EFFECT[key] in charge_effects:
             flag_parts.append("MoveFlags::CHARGE")
         elif key in ("solarbeam", "solarblade"):
             flag_parts.append("MoveFlags::CHARGE")
-        elif "charge" in sd_flags:
+        elif "charge" in sd_flags and key != "charge":
             flag_parts.append("MoveFlags::CHARGE")
 
         flags_str = " | ".join(flag_parts) if flag_parts else "0"
@@ -870,6 +954,10 @@ SPECIFIC_ITEMS = {
     "stickybarb": ("STICKY_BARB",),
     "whiteherb": ("WHITE_HERB", "CONSUMABLE"),
     "mentalherb": ("MENTAL_HERB", "CONSUMABLE"),
+
+    # Kings Rock / Razor Fang: 10% flinch chance
+    "kingsrock": ("KINGS_ROCK",),
+    "razorfang": ("KINGS_ROCK",),
 }
 
 # Terrain seed type_param encoding — matches switch.rs terrain activation logic.

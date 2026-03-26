@@ -47,6 +47,10 @@ pub enum VarPower {
     RisingVoltage = 19, // 2× if Electric Terrain + target grounded
     SpitUp        = 20, // 100 BP per stockpile layer
     Escalating    = 21, // base_power * hit_number (Triple Kick, Triple Axel)
+    Brine         = 22, // 2× if target HP ≤ 50%
+    Payback       = 23, // 2× if user moves after target this turn
+    Avalanche     = 24, // 2× if user was hit by target this turn (Avalanche, Revenge)
+    FuryCutter    = 25, // 40 BP, doubles on each consecutive successful hit (cap 160)
 }
 
 // Encodes guaranteed self-stat changes, crash damage, and other effects
@@ -73,6 +77,8 @@ pub enum SelfEffect {
     SpeUp1          = 12,
     DefUp1          = 13,
     SpAUp1          = 14,
+    // Combined self-effects
+    DefDown1SpeUp1  = 21,  // Scale Shot: -1 Def, +1 Spe after all hits
     // Special self-effects
     CrashDamage     = 15,  // High Jump Kick, Jump Kick, Axe Kick, Supercell Slam — 50% max HP on miss
     SelfSwitch      = 16,  // U-turn, Volt Switch, Flip Turn (placeholder; uses MoveEffect::ForceSwitch)
@@ -80,6 +86,34 @@ pub enum SelfEffect {
     PartingShot     = 18,  // Parting Shot (placeholder; uses MoveEffect::PartingShot)
     Heal50          = 19,  // Recover, Slack Off, Roost, etc. (placeholder; uses MoveFlags::HEAL)
     ThawSelf        = 20,  // Scald, Steam Eruption (non-Fire moves that thaw user)
+
+    // -- Opponent-target stat changes (dispatched by MoveEffect::OpponentStatDrop) --
+    // Drops (apply to def_side via try_opponent_stat_drop)
+    OppAtkDown1     = 22,  // Growl, Play Nice, Baby-Doll Eyes
+    OppAtkDown2     = 23,  // Charm, Feather Dance
+    OppDefDown1     = 24,  // Tail Whip, Leer
+    OppDefDown2     = 25,  // Screech
+    OppSpADown1     = 26,  // Confide
+    OppSpADown2     = 27,  // Eerie Impulse
+    OppSpDDown2     = 28,  // Fake Tears, Metal Sound
+    OppSpeDown1     = 29,  // Tar Shot (spe drop component)
+    OppSpeDown2     = 30,  // String Shot, Cotton Spore, Scary Face
+    OppAccDown1     = 31,  // Sand Attack, Smokescreen
+    OppEvaDown2     = 32,  // Sweet Scent
+    OppAtkDefDown1  = 33,  // Tickle
+    OppAtkSpADown1  = 34,  // Noble Roar, Tearful Look
+    OppAtkSpADown2  = 35,  // Memento (user faints separately via MoveEffect::Memento)
+    // Boosts applied to opponent target (apply_boost on def_side)
+    OppAtkUp2       = 36,  // Swagger (+2 atk, also confuses via MoveEffect::Confuse)
+    OppSpAUp1       = 37,  // Flatter (+1 spa, also confuses via MoveEffect::Confuse)
+    OppAtkSpAUp2    = 38,  // Decorate (+2 atk, +2 spa on target)
+    OppAtkUp2DefDown2 = 39,// Spicy Extract (+2 atk, -2 def on target)
+
+    // -- Ally-target / self-target boosts (dispatched by MoveEffect::AllyBoost) --
+    // In singles these resolve to atk_side (the user).
+    AllyAtkUp1      = 40,  // Howl
+    AllySpDUp1      = 41,  // Aromatic Mist
+    AllyAtkDefUp1   = 42,  // Coaching
 }
 
 // Replaces hardcoded move IDs in the executor.  Populated by the data
@@ -217,6 +251,13 @@ pub enum MoveEffect {
     SetTerrain     = 102, // Electric/Grassy/Psychic/Misty Terrain
     AquaRing       = 103, // Set VOL_AQUA_RING on user, heal 1/16 EOT
     Ingrain        = 104, // Set VOL_INGRAIN on user, heal 1/16 EOT + grounded + no switch
+
+    // -- Round 22: Opponent-target stat-modifying status moves --
+    OpponentStatDrop = 105, // Dispatch via self_effect (Opp* variants) on def_side
+    AllyBoost        = 106, // Dispatch via self_effect (Ally* variants) on atk_side
+    Memento          = 107, // -2 atk/-2 spa on target, then user faints
+    ToxicThread      = 108, // Inflict poison + -1 spe on target
+    Charge           = 109, // +1 SpD, set charge bit (2x power for next Electric move)
 }
 
 // Flags (16 bits)
@@ -343,7 +384,7 @@ pub fn heavy_slam_bp(atk_weight: u16, def_weight: u16) -> u8 {
 #[inline]
 pub fn gyro_ball_bp(user_speed: u16, target_speed: u16) -> u8 {
     if user_speed == 0 { return 150; }
-    let bp = (25u32 * target_speed as u32) / user_speed as u32;
+    let bp = (25u32 * target_speed as u32) / user_speed as u32 + 1;
     bp.min(150) as u8
 }
 
@@ -357,13 +398,14 @@ pub fn eruption_bp(current_hp: u16, max_hp: u16) -> u8 {
 #[inline]
 pub fn flail_bp(current_hp: u16, max_hp: u16) -> u8 {
     if max_hp == 0 { return 200; }
-    let ratio = (48u32 * current_hp as u32) / max_hp as u32;
+    // Showdown: ratio = max(floor(hp * 48 / maxhp), 1)
+    let ratio = ((48u32 * current_hp as u32) / max_hp as u32).max(1);
     match ratio {
         0..=1   => 200,
-        2..=5   => 150,
-        6..=12  => 100,
-        13..=21 => 80,
-        22..=32 => 40,
+        2..=4   => 150,
+        5..=9   => 100,
+        10..=16 => 80,
+        17..=32 => 40,
         _       => 20,
     }
 }

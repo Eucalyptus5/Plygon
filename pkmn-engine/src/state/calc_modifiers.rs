@@ -30,6 +30,25 @@ pub fn is_mold_breaker(atk_ability: u16) -> bool {
     )
 }
 
+/// True iff the given side has an *effective* Heatproof ability (not suppressed
+/// by Neutralizing Gas or other ability-suppression).  Used both in damage calc
+/// (0.5× Fire-move Atk/SpA) and in burn residual halving.
+#[inline(always)]
+pub fn is_heatproof_effective(state: &BattleState, side: usize) -> bool {
+    effective_ability(state, side) == data_bridge::ABILITY_HEATPROOF
+}
+
+/// True iff attacker's Mold Breaker (or equivalent) effectively bypasses the
+/// defender's ability — i.e., attacker has MB *and* defender is NOT shielded
+/// by Ability Shield. Inline branch, no allocations.
+#[inline(always)]
+pub fn mold_breaks(state: &BattleState, def_side: usize, atk_ability: u16) -> bool {
+    if !is_mold_breaker(atk_ability) { return false; }
+    let def_item_id = state.active_mon(def_side).item_id;
+    if def_item_id == 0 { return true; }
+    !data_bridge::item(def_item_id).has(ItemFlag::ABILITY_SHIELD)
+}
+
 /// Returns (num, den) in 4096-scale for weather's effect on move damage.
 /// Returns (0, 4096) if the move is completely nullified (Harsh Sun vs Water).
 #[inline]
@@ -229,12 +248,13 @@ pub fn burn_modifier(
 }
 
 /// Resolve variable base power moves.  Returns the effective base power.
+/// Returns u16 because Spit Up at 3 stacks reaches 300 BP (overflows u8).
 #[inline]
 pub fn resolve_power(
     state: &BattleState, md: &MoveData, atk_side: usize, def_side: usize,
-) -> u8 {
+) -> u16 {
     if md.var_power == VarPower::None {
-        return md.base_power;
+        return md.base_power as u16;
     }
 
     let atk_mon = state.active_mon(atk_side);
@@ -253,21 +273,21 @@ pub fn resolve_power(
     );
 
     match md.var_power {
-        VarPower::Weight => crate::data::moves::weight_based_bp(def_species.weight),
-        VarPower::HeavySlam => crate::data::moves::heavy_slam_bp(atk_species.weight, def_species.weight),
-        VarPower::GyroBall => crate::data::moves::gyro_ball_bp(atk_spe, def_spe),
-        VarPower::Eruption => crate::data::moves::eruption_bp(atk_mon.current_hp, atk_mon.max_hp),
-        VarPower::Flail => crate::data::moves::flail_bp(atk_mon.current_hp, atk_mon.max_hp),
-        VarPower::ElectroBall => crate::data::moves::electro_ball_bp(atk_spe, def_spe),
+        VarPower::Weight => crate::data::moves::weight_based_bp(def_species.weight) as u16,
+        VarPower::HeavySlam => crate::data::moves::heavy_slam_bp(atk_species.weight, def_species.weight) as u16,
+        VarPower::GyroBall => crate::data::moves::gyro_ball_bp(atk_spe, def_spe) as u16,
+        VarPower::Eruption => crate::data::moves::eruption_bp(atk_mon.current_hp, atk_mon.max_hp) as u16,
+        VarPower::Flail => crate::data::moves::flail_bp(atk_mon.current_hp, atk_mon.max_hp) as u16,
+        VarPower::ElectroBall => crate::data::moves::electro_ball_bp(atk_spe, def_spe) as u16,
         VarPower::StoredPower => {
             let pos: u8 = state.sides[atk_side].active.boosts.iter()
                 .filter(|&&b| b > 0).map(|&b| b as u8).sum();
-            crate::data::moves::stored_power_bp(pos)
+            crate::data::moves::stored_power_bp(pos) as u16
         }
         VarPower::Punishment => {
             let pos: u8 = state.sides[def_side].active.boosts.iter()
                 .filter(|&&b| b > 0).map(|&b| b as u8).sum();
-            crate::data::moves::punishment_bp(pos)
+            crate::data::moves::punishment_bp(pos) as u16
         }
         VarPower::Facade => {
             if atk_mon.status != STATUS_NONE { 140 } else { 70 }
@@ -289,17 +309,43 @@ pub fn resolve_power(
             }
         }
         VarPower::SpitUp => {
-            let count = state.sides[atk_side].active.stockpile & 0x7F;
+            // Up to 300 BP at 3 stockpile stacks — needs u16 arithmetic.
+            let count = (state.sides[atk_side].active.stockpile & 0x7F) as u16;
             if count == 0 { 0 } else { count * 100 }
         }
-        _ => md.base_power,
+        VarPower::Brine => {
+            // 2× if target's current HP ≤ 50% of max
+            if def_mon.current_hp * 2 <= def_mon.max_hp { 130 } else { 65 }
+        }
+        VarPower::Payback => {
+            // 2× if user moves after target (target already moved this turn)
+            if state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 100 } else { 50 }
+        }
+        VarPower::Avalanche => {
+            // 2× if user was hit this turn (Avalanche, Revenge)
+            if state.sides[atk_side].active.times_hit > 0 { 120 } else { 60 }
+        }
+        VarPower::FuryCutter => {
+            // 40 BP base, doubles on each consecutive successful hit.
+            // consec_move_count tracks consecutive uses of the same move
+            // (incremented per selection, reset on switch-out and move
+            // change; engine additionally resets on miss — see move_exec.rs).
+            // Count=1 → 40, 2 → 80, 3+ → 160.
+            let count = state.sides[atk_side].active.consec_move_count;
+            match count {
+                0 | 1 => 40,
+                2 => 80,
+                _ => 160,
+            }
+        }
+        _ => md.base_power as u16,
     }
 }
 
 /// Returns (num, den) in 4096-scale for attacker's ability effect on power.
 #[inline]
 pub fn ability_power_mod(
-    state: &BattleState, md: &MoveData, atk_side: usize, power: u8,
+    state: &BattleState, md: &MoveData, atk_side: usize, power: u16,
 ) -> (u32, u32) {
     let ability = effective_ability(state, atk_side);
     let atk_mon = state.active_mon(atk_side);
@@ -321,15 +367,9 @@ pub fn ability_power_mod(
             if state.sides[1 - atk_side].active.has_volatile(VOL_MOVED_THIS_TURN)
             => (5325, 4096), // 1.3× if target already moved
 
-        // Pinch abilities: 1.5× when HP ≤ 1/3 and matching type
-        data_bridge::ABILITY_OVERGROW if md.move_type == Type::Grass
-            && atk_mon.current_hp * 3 <= atk_mon.max_hp => (6144, 4096),
-        data_bridge::ABILITY_BLAZE if md.move_type == Type::Fire
-            && atk_mon.current_hp * 3 <= atk_mon.max_hp => (6144, 4096),
-        data_bridge::ABILITY_TORRENT if md.move_type == Type::Water
-            && atk_mon.current_hp * 3 <= atk_mon.max_hp => (6144, 4096),
-        data_bridge::ABILITY_SWARM if md.move_type == Type::Bug
-            && atk_mon.current_hp * 3 <= atk_mon.max_hp => (6144, 4096),
+        // Pinch abilities (Overgrow/Blaze/Torrent/Swarm) moved to ability_atk_stat_mod
+        // because Showdown applies them via onModifyAtk/SpA. Keeping them here would
+        // round at the wrong stage and produce off-by-one damage when STAB also applies.
 
         // Flash Fire: 1.5× Fire when activated
         data_bridge::ABILITY_FLASH_FIRE if md.move_type == Type::Fire
@@ -433,6 +473,22 @@ pub fn ability_atk_stat_mod(
             if category == MoveCategory::Special
             && terrain == TERRAIN_ELECTRIC
             => (a as u32 * 5461 / 4096) as u16,
+
+        // Pinch abilities: 1.5× attacking stat when HP ≤ 1/3 and move type matches.
+        // Showdown applies these via onModifyAtk/SpA with chainModify(1.5), so we
+        // must round on the stat (not on base power) to match.
+        data_bridge::ABILITY_OVERGROW
+            if move_type == Type::Grass && hp * 3 <= max_hp
+            => chain_mod(a as u32, 6144) as u16,
+        data_bridge::ABILITY_BLAZE
+            if move_type == Type::Fire && hp * 3 <= max_hp
+            => chain_mod(a as u32, 6144) as u16,
+        data_bridge::ABILITY_TORRENT
+            if move_type == Type::Water && hp * 3 <= max_hp
+            => chain_mod(a as u32, 6144) as u16,
+        data_bridge::ABILITY_SWARM
+            if move_type == Type::Bug && hp * 3 <= max_hp
+            => chain_mod(a as u32, 6144) as u16,
         _ => a,
     }
 }
@@ -445,8 +501,9 @@ pub fn ability_def_stat_mod(
 ) -> u16 {
     match ability {
         data_bridge::ABILITY_FUR_COAT if category == MoveCategory::Physical => d * 2,
-        data_bridge::ABILITY_THICK_FAT
-            if move_type == Type::Fire || move_type == Type::Ice => d * 2,
+        // Thick Fat moved to defender_atk_stat_mod (Showdown onSourceModifyAtk/SpA
+        // applies it as 0.5× on the attacker, not 2× on the defender — different
+        // truncation point produces a different damage value).
         data_bridge::ABILITY_MARVEL_SCALE
             if category == MoveCategory::Physical && status != STATUS_NONE
             => (d as u32 * 3 / 2) as u16,
@@ -468,7 +525,8 @@ pub fn defender_ability_final_mod(
     state: &BattleState, md: &MoveData, def_side: usize, effectiveness: u8, atk_ability: u16,
 ) -> (u32, u32) {
     // Mold Breaker / Turboblaze / Teravolt bypass defensive abilities
-    if is_mold_breaker(atk_ability) { return (4096, 4096); }
+    // (unless the defender holds Ability Shield).
+    if mold_breaks(state, def_side, atk_ability) { return (4096, 4096); }
 
     let ability = effective_ability(state, def_side);
     let def_mon = state.active_mon(def_side);
@@ -482,16 +540,24 @@ pub fn defender_ability_final_mod(
         data_bridge::ABILITY_FILTER | data_bridge::ABILITY_SOLID_ROCK | data_bridge::ABILITY_PRISM_ARMOR
             if effectiveness > 4 => (3072, 4096),
 
-        // Fluffy: 0.5× contact, but 2× Fire
-        data_bridge::ABILITY_FLUFFY if md.flags & MoveFlags::CONTACT != 0
-            && md.move_type != Type::Fire => (2048, 4096),
-        data_bridge::ABILITY_FLUFFY if md.move_type == Type::Fire => (8192, 4096), // 2×
+        // Fluffy: 0.5× contact AND 2× Fire (independent modifiers — both apply on
+        // a Fire contact move like Fire Punch, netting 1×).
+        data_bridge::ABILITY_FLUFFY => {
+            let contact = md.flags & MoveFlags::CONTACT != 0;
+            let fire = md.move_type == Type::Fire;
+            match (contact, fire) {
+                (true, true)  => (4096, 4096), // 0.5× × 2× = 1×
+                (true, false) => (2048, 4096), // 0.5×
+                (false, true) => (8192, 4096), // 2×
+                _ => (4096, 4096),
+            }
+        }
 
-        // Heatproof: 0.5× Fire
-        data_bridge::ABILITY_HEATPROOF if md.move_type == Type::Fire => (2048, 4096),
-
-        // Dry Skin: 1.25× damage from Fire
-        data_bridge::ABILITY_DRY_SKIN if md.move_type == Type::Fire => (5120, 4096),
+        // Heatproof moved to defender stat-side modifier in calc.rs (Showdown
+        // onSourceModifyAtk/SpA applies it as 0.5× on attacker's Atk/SpA to match
+        // truncation order).
+        // Dry Skin moved to defender base-power modifier in calc.rs (Showdown
+        // onSourceBasePower applies 1.25× on move base power, not on final damage).
 
         // Punk Rock: 0.5× damage from Sound moves received
         data_bridge::ABILITY_PUNK_ROCK if md.flags & MoveFlags::SOUND != 0 => (2048, 4096),
@@ -625,7 +691,8 @@ pub fn ability_type_immunity(
     state: &BattleState, def_side: usize, move_type: Type, atk_ability: u16,
 ) -> Option<AbilityImmunityEffect> {
     // Mold Breaker / Turboblaze / Teravolt bypass all defensive abilities
-    if is_mold_breaker(atk_ability) { return None; }
+    // (unless the defender holds Ability Shield).
+    if mold_breaks(state, def_side, atk_ability) { return None; }
 
     let ability = effective_ability(state, def_side);
     let def_mon = state.active_mon(def_side);
@@ -672,7 +739,8 @@ pub fn ability_flag_immunity(
     state: &BattleState, def_side: usize, flags: u16, atk_ability: u16,
 ) -> Option<AbilityImmunityEffect> {
     // Mold Breaker / Turboblaze / Teravolt bypass all defensive abilities
-    if is_mold_breaker(atk_ability) { return None; }
+    // (unless the defender holds Ability Shield).
+    if mold_breaks(state, def_side, atk_ability) { return None; }
 
     let ability = effective_ability(state, def_side);
     match ability {

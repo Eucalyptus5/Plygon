@@ -6,7 +6,7 @@ use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 use crate::state::forme;
-use crate::state::calc_modifiers::terrain_blocks_status;
+use crate::state::calc_modifiers::{terrain_blocks_status, is_heatproof_effective};
 
 pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_weather(state, keys);                                   // 1
@@ -18,6 +18,9 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     step_grassy_terrain(state, keys);                            // 5c (terrain heal)
     step_terrain_expiry(state, keys);                            // 2b: clear if counter==0
     for side in 0..2 { step_passive_healing(state, keys, side); }// 6 (Aqua Ring, Ingrain)
+    // 6b: Weather-residual abilities (Dry Skin, Rain Dish, Ice Body, Solar Power).
+    // Showdown fires these during weather residuals, BEFORE status damage.
+    for side in 0..2 { step_weather_abilities(state, keys, side); }
     // 7-8: Berry activation (status-cure berries must fire BEFORE status damage)
     for side in 0..2 {
         let slot = state.sides[side].active_index as usize;
@@ -88,6 +91,10 @@ fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
                 || ab == data_bridge::ABILITY_SAND_RUSH
                 || ab == data_bridge::ABILITY_SAND_FORCE
             { continue; }
+            // Safety Goggles blocks sandstorm residual (suppressed by Magic Room).
+            if state.field.magic_room_turns() == 0
+                && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::SAFETY_GOGGLES)
+            { continue; }
             let (t1, t2) = effective_types(state, side);
             let immune = [Type::Rock as u8, Type::Ground as u8, Type::Steel as u8];
             if !immune.contains(&t1) && !immune.contains(&t2) {
@@ -148,7 +155,11 @@ fn step_status_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
     let status = state.sides[side].team[slot].status;
     let is_poison_heal = effective_ability(state, side) == data_bridge::ABILITY_POISON_HEAL;
     match status {
-        STATUS_BURN   => { deal_proportional_damage(state, keys, side, slot, 1, 16); }
+        STATUS_BURN   => {
+            // Heatproof halves burn residual damage (Showdown: onDamage id==='brn' -> damage/2).
+            let den = if is_heatproof_effective(state, side) { 32 } else { 16 };
+            deal_proportional_damage(state, keys, side, slot, 1, den);
+        }
         STATUS_POISON => { if !is_poison_heal { deal_proportional_damage(state, keys, side, slot, 1, 8); } }
         STATUS_BAD_POISON => { if !is_poison_heal {
             let counter = state.sides[side].active.toxic_counter.max(1);
@@ -379,6 +390,54 @@ fn step_perish_song(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     }
 }
 
+/// Weather-residual abilities (Dry Skin, Rain Dish, Ice Body, Solar Power).
+/// Showdown fires these during the weather-residual phase, BEFORE status damage.
+/// Split out from `step_eot_abilities` so they can run at the correct EOT index.
+#[inline]
+fn step_weather_abilities(
+    state: &mut BattleState, keys: &ZobristKeys, side: usize,
+) {
+    // All abilities in this step require active weather; fast-exit when weather is none.
+    if state.field.weather == WEATHER_NONE { return; }
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+    let ability = effective_ability(state, side);
+    match ability {
+        data_bridge::ABILITY_SOLAR_POWER => {
+            if matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN) {
+                let m = state.sides[side].team[slot].max_hp;
+                deal_damage(state, keys, side, slot, (m / 8).max(1));
+            }
+        }
+        data_bridge::ABILITY_DRY_SKIN => {
+            match effective_weather_for(state, side) {
+                WEATHER_SUN | WEATHER_HARSH_SUN => {
+                    let m = state.sides[side].team[slot].max_hp;
+                    deal_damage(state, keys, side, slot, (m / 8).max(1));
+                }
+                WEATHER_RAIN | WEATHER_HEAVY_RAIN => {
+                    let m = state.sides[side].team[slot].max_hp;
+                    heal(state, keys, side, slot, m / 8);
+                }
+                _ => {}
+            }
+        }
+        data_bridge::ABILITY_RAIN_DISH => {
+            if matches!(effective_weather_for(state, side), WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
+                let m = state.sides[side].team[slot].max_hp;
+                heal(state, keys, side, slot, m / 16);
+            }
+        }
+        data_bridge::ABILITY_ICE_BODY => {
+            if effective_weather_for(state, side) == WEATHER_SNOW {
+                let m = state.sides[side].team[slot].max_hp;
+                heal(state, keys, side, slot, m / 16);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn step_eot_abilities(
     state: &mut BattleState, keys: &ZobristKeys, side: usize,
 ) {
@@ -438,37 +497,6 @@ fn step_eot_abilities(
                 if state.sides[side].active.turns_active % 3 == 0 {
                     clear_status(state, keys, side, slot);
                 }
-            }
-        }
-        data_bridge::ABILITY_SOLAR_POWER => {
-            if matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN) {
-                let m = state.sides[side].team[slot].max_hp;
-                deal_damage(state, keys, side, slot, (m / 8).max(1));
-            }
-        }
-        data_bridge::ABILITY_DRY_SKIN => {
-            match effective_weather_for(state, side) {
-                WEATHER_SUN | WEATHER_HARSH_SUN => {
-                    let m = state.sides[side].team[slot].max_hp;
-                    deal_damage(state, keys, side, slot, (m / 8).max(1));
-                }
-                WEATHER_RAIN | WEATHER_HEAVY_RAIN => {
-                    let m = state.sides[side].team[slot].max_hp;
-                    heal(state, keys, side, slot, m / 8);
-                }
-                _ => {}
-            }
-        }
-        data_bridge::ABILITY_RAIN_DISH => {
-            if matches!(effective_weather_for(state, side), WEATHER_RAIN | WEATHER_HEAVY_RAIN) {
-                let m = state.sides[side].team[slot].max_hp;
-                heal(state, keys, side, slot, m / 16);
-            }
-        }
-        data_bridge::ABILITY_ICE_BODY => {
-            if effective_weather_for(state, side) == WEATHER_SNOW {
-                let m = state.sides[side].team[slot].max_hp;
-                heal(state, keys, side, slot, m / 16);
             }
         }
         data_bridge::ABILITY_HARVEST => {

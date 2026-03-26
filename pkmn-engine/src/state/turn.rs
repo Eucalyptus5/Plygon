@@ -11,7 +11,7 @@ use crate::state::data_bridge::{self, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
-use crate::state::switch::perform_switch;
+use crate::state::switch::{perform_switch, perform_switch_forced};
 use crate::state::end_of_turn::end_of_turn;
 use crate::state::move_exec::execute_move;
 use crate::data::moves::MoveFlags;
@@ -33,12 +33,21 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
     match action {
         0..=3 => {
             let move_id = effective_moves(state, side)[action as usize];
+            // If the only legal action is Struggle (e.g. choice-locked move
+            // got Disabled, or all PP exhausted), redirect this move action.
+            // Showdown enforces this at the validation layer.
+            if crate::state::legal_moves::must_struggle(state, side) {
+                return ActionKind::Struggle;
+            }
             ActionKind::Move { slot: action, move_id }
         }
         4..=9 => ActionKind::Switch { target: action - 4 },
         ACTION_TERA => {
             // MCTS simplification: tera is combined with move 0
             let move_id = effective_moves(state, side)[0];
+            if crate::state::legal_moves::must_struggle(state, side) {
+                return ActionKind::Struggle;
+            }
             ActionKind::Tera { move_id }
         }
         _ => ActionKind::Struggle,
@@ -227,7 +236,12 @@ fn execute_action(
 ) {
     match *action {
         ActionKind::Switch { target } => {
-            perform_switch(state, keys, side, target as usize);
+            // perform_switch honors trapping abilities: returns false if user is
+            // trapped (Magnet Pull / Arena Trap / Shadow Tag / binding volatiles).
+            // The turn then proceeds without the switch — matches Showdown's
+            // validation-layer rejection (though Showdown aborts the whole turn,
+            // the engine here silently no-ops to keep the MCTS loop deterministic).
+            let _ = perform_switch(state, keys, side, target as usize);
         }
         ActionKind::Move { slot, move_id } => {
             execute_move(state, keys, side, move_id, slot, rng);
@@ -264,6 +278,24 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
 }
 
 fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
+    let p1_fainted = state.active_mon(0).is_fainted();
+    let p2_fainted = state.active_mon(1).is_fainted();
+
+    // Fainted mon's active state (boosts) clears. In Showdown the mon leaves
+    // the field and its battle-scoped state ceases to apply. We clear boosts
+    // explicitly here so comparisons against Showdown match when a fainted mon
+    // has had stat drops (e.g. BUG-P5-M-201 Rough Skin KO + prior Def drop).
+    for &(fainted, side) in &[(p1_fainted, 0usize), (p2_fainted, 1usize)] {
+        if !fainted { continue; }
+        for stat_idx in 0..7 {
+            let old = state.sides[side].active.boosts[stat_idx];
+            if old != 0 {
+                state.zobrist ^= keys.boosts[side][stat_idx][(old + 6) as usize];
+                state.sides[side].active.boosts[stat_idx] = 0;
+            }
+        }
+    }
+
     let p1_alive = (0..6).any(|i| {
         let m = &state.sides[0].team[i];
         m.species_id != 0 && m.current_hp > 0
@@ -277,9 +309,6 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
         set_phase(state, keys, PHASE_GAME_OVER);
         return;
     }
-
-    let p1_fainted = state.active_mon(0).is_fainted();
-    let p2_fainted = state.active_mon(1).is_fainted();
 
     let p1_must = state.sides[0].active.has_volatile(VOL_MUST_SWITCH) && !p1_fainted;
     let p2_must = state.sides[1].active.has_volatile(VOL_MUST_SWITCH) && !p2_fainted;
@@ -303,8 +332,40 @@ pub fn execute_turn(
     action_p2: u8,
     rng: &mut impl FnMut(u32) -> u32,
 ) {
+    // Showdown fires onUpdate (which runs berry auto-cure / auto-heal) repeatedly,
+    // including at turn start. Mirror that here so that status-cure berries and
+    // healing berries trigger on any state set outside a move (e.g. preset HP /
+    // preset status via state_overrides) before actions resolve.
+    // Fast path: skip the call unless the active mon could possibly activate a
+    // berry (must be holding an item and have either a status to cure or HP
+    // loss to heal). This keeps the hot path tight for MCTS rollouts where
+    // most turns have no pending berry trigger.
+    // Only run at turn 0: mirrors Showdown's onUpdate firing after initial
+    // state is materialized. On subsequent turns, berries already trigger from
+    // their natural event hooks (after damage, after status application, after
+    // item-swap, etc.) — no need to re-scan every turn. This keeps the MCTS
+    // hot path free of per-turn berry scans.
+    if state.field.turn == 0 {
+        for side in 0..2 {
+            let slot = state.sides[side].active_index as usize;
+            let mon = &state.sides[side].team[slot];
+            if mon.item_id == 0 || mon.is_fainted() { continue; }
+            if mon.status == STATUS_NONE && mon.current_hp >= mon.max_hp { continue; }
+            if !data_bridge::item(mon.item_id).has(ItemFlag::IS_BERRY) { continue; }
+            crate::state::move_exec::check_berry_activation(state, keys, side, slot);
+        }
+    }
+
     let act0 = decode_action(state, 0, action_p1);
     let act1 = decode_action(state, 1, action_p2);
+
+    // Apply Terastallization BEFORE any move resolves this turn. Showdown commits
+    // the Tera flag at turn start so defensive type effectiveness uses the Tera
+    // type even if the opponent moves first. apply_tera() is idempotent, so the
+    // ActionKind::Tera arm in execute_action will no-op on the second call.
+    if matches!(act0, ActionKind::Tera { .. }) { apply_tera(state, keys, 0); }
+    if matches!(act1, ActionKind::Tera { .. }) { apply_tera(state, keys, 1); }
+
     let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
 
     let second_raw = if second.side == 0 { action_p1 } else { action_p2 };
@@ -350,12 +411,13 @@ pub fn execute_switch_turn(
 
     if phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 0, action_p1) {
-            perform_switch(state, keys, 0, target as usize);
+            // Forced replacement (faint) bypasses trapping abilities.
+            perform_switch_forced(state, keys, 0, target as usize);
         }
     }
     if phase == PHASE_SWITCH_P2 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 1, action_p2) {
-            perform_switch(state, keys, 1, target as usize);
+            perform_switch_forced(state, keys, 1, target as usize);
         }
     }
 

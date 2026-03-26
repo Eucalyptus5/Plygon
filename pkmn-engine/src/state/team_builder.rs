@@ -69,7 +69,20 @@ fn base_stats(sp: &SpeciesData) -> [u8; 6] {
 }
 
 pub fn build_mon(input: &MonBuildInput) -> (MonSlot, MonBuildData) {
-    let sp = data_bridge::species(input.species_id);
+    // Minior with Shields Down starts in Meteor forme (species 1291).
+    // The Showdown data uses species 774 as "Minior" (Core), so remap
+    // at build time when the ability is Shields Down.
+    const MINIOR_CORE: u16 = 774;
+    const MINIOR_METEOR: u16 = 1291;
+    let species_id = if input.species_id == MINIOR_CORE
+        && input.ability_id == data_bridge::ABILITY_SHIELDS_DOWN
+    {
+        MINIOR_METEOR
+    } else {
+        input.species_id
+    };
+
+    let sp = data_bridge::species(species_id);
     let bases = base_stats(sp);
 
     let hp = calc_hp(bases[0], input.ivs[0], input.evs[0], input.level);
@@ -88,7 +101,7 @@ pub fn build_mon(input: &MonBuildInput) -> (MonSlot, MonBuildData) {
     }
 
     let mon = MonSlot {
-        species_id: input.species_id,
+        species_id,
         ability_id: input.ability_id,
         item_id: input.item_id,
         current_hp: hp, max_hp: hp,

@@ -30,6 +30,10 @@ pub struct DamageResult {
     pub recoil_damage: u16,
     pub hits_substitute: bool,
     pub item_consumed: bool,
+    /// Per-hit damage for multi-hit moves (indexed by hit number).
+    /// Only the first `hits` entries are meaningful.
+    /// Population Bomb maxes at 10 hits. Parental Bond adds 1, so cap at 11.
+    pub per_hit_damages: [u16; 11],
 }
 
 /// Calculate damage for an attack.
@@ -199,7 +203,8 @@ pub fn calc_damage(
     }
 
     // Wonder Guard: non-super-effective moves are blocked (eff <= 4 means neutral or worse)
-    if !is_mold_breaker(atk_ability) {
+    // Ability Shield protects Wonder Guard from Mold Breaker bypass.
+    if !mold_breaks(state, def_side, atk_ability) {
         let def_eff_ability = effective_ability(state, def_side);
         if def_eff_ability == data_bridge::ABILITY_WONDER_GUARD && eff <= 4 {
             result.type_immune = true;
@@ -208,9 +213,10 @@ pub fn calc_damage(
     }
 
     // Air Balloon / Levitate / Magnet Rise etc: non-grounded mons are immune to Ground-type moves.
-    // When attacker has Mold Breaker, we need to check grounding while ignoring Levitate.
+    // When attacker has Mold Breaker (and defender lacks Ability Shield), we need to
+    // check grounding while ignoring Levitate.
     if move_type == Type::Ground {
-        let grounded = if is_mold_breaker(atk_ability) {
+        let grounded = if mold_breaks(state, def_side, atk_ability) {
             // Mold Breaker: check grounding without considering defender's Levitate
             is_grounded_ignore_ability(state, def_side)
         } else {
@@ -226,6 +232,7 @@ pub fn calc_damage(
     let mut power = base_power as u32;
 
     let (ap_n, _) = ability_power_mod(state, md, atk_side, base_power);
+    // base_power is now u16; ability_power_mod accepts u16 directly.
     power = chain_mod(power, ap_n);
 
     // Dark Aura / Fairy Aura / Aura Break: field-wide power modifier
@@ -249,6 +256,14 @@ pub fn calc_damage(
     let (mp_n, _) = move_effect_power_mod(state, md, atk_side, def_side);
     power = chain_mod(power, mp_n);
 
+    // Defender's ability modifying move base power (Showdown: onSourceBasePower).
+    // Breakable (bypassed by Mold Breaker). Dry Skin: 1.25× Fire base power.
+    if !mold_breaks(state, def_side, atk_ability) {
+        if def_ability == data_bridge::ABILITY_DRY_SKIN && move_type == Type::Fire {
+            power = chain_mod(power, 5120); // 1.25×
+        }
+    }
+
     // Terrain: Showdown applies via onBasePower (power modifier, not damage modifier)
     let (tn, _) = terrain_modifier(state, atk_side, def_side, move_type, move_id);
     power = chain_mod(power, tn);
@@ -257,6 +272,7 @@ pub fn calc_damage(
     if move_type == Type::Electric && state.sides[atk_side].active._padding[4] & 4 != 0 {
         power *= 2;
     }
+
 
     let is_physical = category == MoveCategory::Physical;
     let (mut atk_stat_idx, mut def_stat_idx) = if is_physical { (ATK, DEF) } else { (SPA, SPD) };
@@ -286,7 +302,8 @@ pub fn calc_damage(
     let mut d = effective_stat(state, def_side, def_stat_idx);
 
     // Mold Breaker bypasses Battle Armor / Shell Armor for crit checks
-    let mold = is_mold_breaker(atk_ability);
+    // (unless the defender holds Ability Shield).
+    let mold = mold_breaks(state, def_side, atk_ability);
     let c_stage = crit_stage(state, atk_side, md);
     let is_crit = if state.sides[def_side].side_conditions.lucky_chant_turns() > 0 {
         false
@@ -340,6 +357,18 @@ pub fn calc_damage(
         }
         // Purifying Salt: 0.5x attacker's Atk/SpA for Ghost moves
         if def_ability == data_bridge::ABILITY_PURIFYING_SALT && move_type == Type::Ghost {
+            a = chain_mod(a as u32, 2048) as u16;
+        }
+        // Thick Fat: 0.5x attacker's Atk/SpA for Fire/Ice moves. Implemented here as
+        // a stat-side modifier (not as 2× Def) to match Showdown's onSourceModifyAtk/SpA
+        // truncation order.
+        if def_ability == data_bridge::ABILITY_THICK_FAT
+            && (move_type == Type::Fire || move_type == Type::Ice)
+        {
+            a = chain_mod(a as u32, 2048) as u16;
+        }
+        // Heatproof: 0.5x attacker's Atk/SpA for Fire moves (Showdown onSourceModifyAtk/SpA).
+        if def_ability == data_bridge::ABILITY_HEATPROOF && move_type == Type::Fire {
             a = chain_mod(a as u32, 2048) as u16;
         }
     }
@@ -405,7 +434,26 @@ pub fn calc_damage(
     if d == 0 { d = 1; }
     if power == 0 { return result; }
 
-    let num_hits = resolve_hits(md, atk_ability, atk_item.flags, rng_fn);
+    let mut num_hits = resolve_hits(md, atk_ability, atk_item.flags, rng_fn);
+
+    // Parental Bond: single-target damaging moves hit twice (25% power on 2nd hit).
+    // Conditions: attacker has Parental Bond, move is not already multi-hit,
+    // move is not a ForceSwitch/BatonPass/PartingShot (pivot), and not a self-destruct.
+    // Note: num_hits == 1 here implies the move was single-hit in resolve_hits
+    // (multihit_lo == 0). Parental Bond activates on both basic single-hit moves
+    // and excluded move patterns alike. Exclusions below.
+    let parental_bond_active = num_hits == 1
+        && atk_ability == data_bridge::ABILITY_PARENTAL_BOND
+        && !matches!(
+            md.effect,
+            MoveEffect::ForceSwitch
+                | MoveEffect::BatonPass
+                | MoveEffect::PartingShot
+                | MoveEffect::FinalGambit
+        );
+    if parental_bond_active {
+        num_hits = 2;
+    }
     result.hits = num_hits;
 
     // Pre-compute all loop-invariant modifiers
@@ -420,6 +468,20 @@ pub fn calc_damage(
     let (ifn, _, berry_consumed) = item_final_mod(atk_item, def_item, move_type, eff);
     if berry_consumed { result.item_consumed = true; }
     let sniper_n = sniper_final_mod(atk_ability, is_crit);
+    // Semi-invulnerable 2× damage modifier: Earthquake/Magnitude hit underground
+    // (Dig) targets for 2×; Surf/Whirlpool hit underwater (Dive) targets for 2×.
+    // Applied via Showdown's onSourceModifyDamage (chainModify(2)) — 4096-scale.
+    let semi_invuln_n: u32 = if def_active.has_volatile(VOL_SEMI_INVULNERABLE) {
+        let charge_loc = def_active._padding[1];
+        let doubles = match charge_loc {
+            2 => move_id == crate::data::MOVE_EARTHQUAKE as u16
+                 || move_id == crate::data::MOVE_MAGNITUDE as u16,
+            3 => move_id == crate::data::MOVE_SURF as u16
+                 || move_id == crate::data::MOVE_WHIRLPOOL as u16,
+            _ => false,
+        };
+        if doubles { 8192 } else { 4096 }
+    } else { 4096 };
     let (cn, cd) = if is_crit { crit_multiplier(atk_ability) } else { (1, 1) };
     let a32 = a as u32;
     let d32 = d as u32;
@@ -440,6 +502,13 @@ pub fn calc_damage(
         };
         let mut dmg: u32 = (lf * hit_power * a32 / d32) / 50 + 2;
 
+        // Parental Bond: 2nd hit (hit_index == 1) damage * 0.25.
+        // Applied after base damage + 2, before weather / crit / roll (matches
+        // Showdown's battle-actions.ts modifyDamage ordering).
+        if parental_bond_active && hit == 1 {
+            dmg = chain_mod(dmg, 1024);
+        }
+
         dmg = chain_mod(dmg, wn);
         if is_crit { dmg = dmg * cn / cd; }
 
@@ -455,9 +524,14 @@ pub fn calc_damage(
         dmg = chain_mod(dmg, aan);
         dmg = chain_mod(dmg, ifn);
         dmg = chain_mod(dmg, sniper_n);
+        if semi_invuln_n != 4096 { dmg = chain_mod(dmg, semi_invuln_n); }
 
         if dmg == 0 { dmg = 1; }
 
+        let dmg_u16 = dmg.min(u16::MAX as u32) as u16;
+        if (hit as usize) < result.per_hit_damages.len() {
+            result.per_hit_damages[hit as usize] = dmg_u16;
+        }
         total_damage += dmg;
     }
 
@@ -983,15 +1057,17 @@ mod tests {
 
     #[test]
     fn test_escalating_power_expected_damage() {
-        // Triple Kick (167): base_power=10, Fighting, 3 hits, var_power=None (no escalation in data)
+        // Triple Kick (167): base_power=10, Fighting, 3 hits, var_power=Escalating
         // With test_state (atk=150, def=100, level=100) and fixed_rng(15) -> 100% roll, no crit
         // Defender species 50 (Ground) -> Fighting is 2x SE (eff=8)
-        // Each hit: (42*10*150/100)/50 + 2 = 14, *2 eff = 28
-        // Total = 84
+        // Hit 1: power 10 -> (42*10*150/100)/50 + 2 = 14, *2 eff = 28
+        // Hit 2: power 20 -> (42*20*150/100)/50 + 2 = 27, *2 eff = 54
+        // Hit 3: power 30 -> (42*30*150/100)/50 + 2 = 39, *2 eff = 78
+        // Total = 28 + 54 + 78 = 160
         let state = test_state();
         let result = calc_damage(&state, 0, 167, 0, &mut fixed_rng(15));
         assert_eq!(result.hits, 3);
-        assert_eq!(result.damage, 84);
+        assert_eq!(result.damage, 160);
     }
 
     #[test]

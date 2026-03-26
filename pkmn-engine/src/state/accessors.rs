@@ -157,6 +157,53 @@ pub fn is_trap_immune(state: &BattleState, side: usize) -> bool {
         && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::TRAP_IMMUNE)
 }
 
+/// Return true if `side` is prevented from switching out.
+/// Shared by legal_moves (choice generation) and switch execution (rejection).
+///
+/// Conditions that trap:
+///   - Ghost-type / Shed Shell: NOT trapped (is_trap_immune)
+///   - VOL_TRAPPED, VOL_INGRAIN, VOL_BOUND, VOL_MOVE_LOCKED, VOL_CHARGING
+///   - Opponent ability: Magnet Pull (Steel only), Arena Trap (grounded only),
+///     Shadow Tag (unless user also has Shadow Tag)
+///
+/// Hot path: checked on every switch attempt. Quick-reject via raw ability id.
+#[inline(always)]
+pub fn is_trapped(state: &BattleState, side: usize) -> bool {
+    if is_trap_immune(state, side) { return false; }
+
+    let active = &state.sides[side].active;
+    if active.has_volatile(VOL_TRAPPED)
+        || active.has_volatile(VOL_INGRAIN)
+        || active.has_volatile(VOL_BOUND)
+        || active.has_volatile(VOL_MOVE_LOCKED)
+        || active.has_volatile(VOL_CHARGING)
+    {
+        return true;
+    }
+
+    // Opponent's trapping ability. Quick-reject via raw ability id to avoid
+    // effective_ability overhead in the common case.
+    let opp = 1 - side;
+    let opp_raw = state.active_mon(opp).ability_id;
+    let opp_volatiles = state.sides[opp].active.volatile_flags;
+    let maybe_trapper = opp_raw == data_bridge::ABILITY_MAGNET_PULL
+        || opp_raw == data_bridge::ABILITY_ARENA_TRAP
+        || opp_raw == data_bridge::ABILITY_SHADOW_TAG
+        || (opp_volatiles & (VOL_ABILITY_OVERRIDDEN | VOL_TRANSFORMED)) != 0;
+    if !maybe_trapper { return false; }
+
+    // Opponent ability may be suppressed (Neutralizing Gas / Gastro Acid).
+    let opp_ability = effective_ability(state, opp);
+    match opp_ability {
+        data_bridge::ABILITY_MAGNET_PULL => has_type(state, side, Type::Steel as u8),
+        data_bridge::ABILITY_ARENA_TRAP => is_grounded(state, side),
+        data_bridge::ABILITY_SHADOW_TAG => {
+            effective_ability(state, side) != data_bridge::ABILITY_SHADOW_TAG
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

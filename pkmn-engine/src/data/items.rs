@@ -87,6 +87,9 @@ pub mod ItemFlag {
     // Ogerpon masks (1.2x for specific Ogerpon form)
     pub const OGERPON_MASK: u64      = 1 << 55;
 
+    // Kings Rock / Razor Fang: 10% flinch chance on damaging moves
+    pub const KINGS_ROCK: u64        = 1 << 56;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }

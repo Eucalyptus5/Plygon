@@ -154,6 +154,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[234] = ItemData { flags: F::CONSUMABLE | F::IS_BERRY | F::RESIST_BERRY, type_param: 7, power_param: 0, forme_species: 0 };
     // [235] Kelpsy Berry
     t[235] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [236] King's Rock
+    t[236] = ItemData { flags: F::KINGS_ROCK, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [238] Lansat Berry
     t[238] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [242] Leftovers
@@ -254,6 +256,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[381] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [382] Razor Claw
     t[382] = ItemData { flags: F::CRIT_BOOST, type_param: 0xFF, power_param: 80, forme_species: 0 };
+    // [383] Razor Fang
+    t[383] = ItemData { flags: F::KINGS_ROCK, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [384] Razz Berry
     t[384] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [387] Red Card

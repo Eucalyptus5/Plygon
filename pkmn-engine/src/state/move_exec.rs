@@ -12,7 +12,7 @@ use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 use crate::state::calc::calc_damage;
-use crate::state::calc_modifiers::{ability_type_immunity, ability_flag_immunity, good_as_gold_immunity, priority_block_immunity, terrain_blocks_status, AbilityImmunityEffect};
+use crate::state::calc_modifiers::{ability_type_immunity, ability_flag_immunity, good_as_gold_immunity, priority_block_immunity, terrain_blocks_status, mold_breaks, AbilityImmunityEffect};
 use crate::state::forme::{apply_battle_forme, revert_battle_forme};
 use crate::state::switch::{
     set_stealth_rock, add_spikes, add_toxic_spikes, set_sticky_web, clear_hazards,
@@ -38,6 +38,14 @@ fn apply_immunity_effect(
 
 const ACC_NUM: [u32; 13] = [3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9];
 const ACC_DEN: [u32; 13] = [9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3];
+
+/// Returns true if `side`'s active mon is holding Safety Goggles (and Magic Room
+/// is not nullifying items). Used by powder/spore immunity checks.
+#[inline(always)]
+fn holds_safety_goggles(state: &BattleState, side: usize) -> bool {
+    state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::SAFETY_GOGGLES)
+}
 
 #[inline]
 /// Compute the effective accuracy value for a move, accounting for all modifiers.
@@ -186,7 +194,9 @@ fn apply_secondary(
         && !terrain_blocks_status(state, def_side, status)
         && !crate::state::forme::is_minior_meteor_forme(state, def_side)
     {
-        set_status(state, keys, def_side, def_slot, status, 0);
+        if set_status(state, keys, def_side, def_slot, status, 0) {
+            try_synchronize_back(state, keys, def_side, atk_side, status);
+        }
         return;
     }
 
@@ -265,6 +275,12 @@ fn execute_status_move(
     }
     if !targets_self {
         let atk_ability = effective_ability(state, atk_side);
+        // Gen 7+: Dark-types are immune to Prankster-boosted status moves.
+        if atk_ability == data_bridge::ABILITY_PRANKSTER
+            && has_type(state, def_side, Type::Dark as u8)
+        {
+            return;
+        }
         if good_as_gold_immunity(state, def_side) { return; }
         if let Some(eff) = ability_flag_immunity(state, def_side, md.flags, atk_ability) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
@@ -320,7 +336,9 @@ fn execute_status_move(
                 && !terrain_blocks_status(state, def_side, STATUS_BURN)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
-                set_status(state, keys, def_side, def_slot, STATUS_BURN, 0);
+                if set_status(state, keys, def_side, def_slot, STATUS_BURN, 0) {
+                    try_synchronize_back(state, keys, def_side, atk_side, STATUS_BURN);
+                }
             }
         }
         MoveEffect::ThunderWave => {
@@ -329,7 +347,9 @@ fn execute_status_move(
                 && !terrain_blocks_status(state, def_side, STATUS_PARALYSIS)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
-                set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0);
+                if set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0) {
+                    try_synchronize_back(state, keys, def_side, atk_side, STATUS_PARALYSIS);
+                }
             }
         }
         MoveEffect::Toxic       => {
@@ -338,7 +358,9 @@ fn execute_status_move(
                 && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
-                set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
+                if set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0) {
+                    try_synchronize_back(state, keys, def_side, atk_side, STATUS_BAD_POISON);
+                }
             }
         }
         MoveEffect::Sleep       => {
@@ -348,11 +370,19 @@ fn execute_status_move(
             {
                 let turns = (rng(3) + 2) as u8;
                 set_status(state, keys, def_side, def_slot, STATUS_SLEEP, turns);
+                // Synchronize does NOT pass sleep — no call here
             }
         }
 
         // -- Self-boosts --
         MoveEffect::SwordsDance => { apply_boost(state, keys, atk_side, ATK, 2); }
+        MoveEffect::Charge => {
+            // Raise SpD by 1 and set the charge bit (2x power for next Electric move).
+            // Bit 2 of _padding[4] is the charge storage; cleared when attacker next uses
+            // any Electric move (see L~1824).
+            apply_boost(state, keys, atk_side, SPD, 1);
+            state.sides[atk_side].active._padding[4] |= 4;
+        }
         MoveEffect::NastyPlot   => { apply_boost(state, keys, atk_side, SPA, 2); }
         MoveEffect::DragonDance => {
             apply_boost(state, keys, atk_side, ATK, 1);
@@ -406,6 +436,15 @@ fn execute_status_move(
         // -- Field effects --
         MoveEffect::Tailwind => {
             state.sides[atk_side].side_conditions.tailwind_turns = 4;
+            // Wind Rider: when Tailwind starts, boost user's ally active mon Atk by +1.
+            // (Singles: just the active. Ability suppression is honored via has_volatile.)
+            let active_idx = state.sides[atk_side].active_index as usize;
+            let ability_id = state.sides[atk_side].team[active_idx].ability_id;
+            if ability_id == data_bridge::ABILITY_WIND_RIDER
+                && !state.sides[atk_side].active.has_volatile(VOL_ABILITY_SUPPRESSED)
+            {
+                apply_boost(state, keys, atk_side, ATK, 1);
+            }
         }
         MoveEffect::TrickRoom => {
             if state.field.trick_room_turns > 0 {
@@ -747,7 +786,7 @@ fn execute_status_move(
             }
             if cnt > 0 {
                 let pick = targets[rng(cnt as u32) as usize];
-                crate::state::switch::perform_switch(state, keys, def_side, pick);
+                crate::state::switch::perform_switch_forced(state, keys, def_side, pick);
             }
         }
 
@@ -780,12 +819,57 @@ fn execute_status_move(
             }
         }
 
-        // -- Confuse (Confuse Ray, Sweet Kiss) --
+        // -- Confuse (Confuse Ray, Sweet Kiss, Swagger, Flatter) --
         MoveEffect::Confuse => {
             if state.sides[def_side].active.confusion_turns == 0
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && effective_ability(state, def_side) != data_bridge::ABILITY_OWN_TEMPO
             {
-                state.sides[def_side].active.confusion_turns = (rng(3) + 2) as u8;
+                // BUG-P5-M-102: duration is 2-5 turns (rng(4)+2), not 2-4.
+                state.sides[def_side].active.confusion_turns = (rng(4) + 2) as u8;
+                // BUG-P5-M-101: mark "just confused this turn" so the pre-move
+                // decrement on the target's same-turn action is skipped.
+                state.sides[def_side].active._padding[3] |= 0x08;
+            }
+            // BUG-P5-M-105: Swagger/Flatter also boost target's offensive stat.
+            apply_opp_stat_change(state, keys, def_side, md.self_effect);
+        }
+
+        // -- Opponent stat drop/boost status moves (Growl, Leer, Screech, Swagger-boost, etc.) --
+        MoveEffect::OpponentStatDrop => {
+            apply_opp_stat_change(state, keys, def_side, md.self_effect);
+        }
+
+        // -- Ally-target stat boost status moves (Howl, Aromatic Mist, Coaching) --
+        // In singles, ally == self, so we apply to atk_side.
+        MoveEffect::AllyBoost => {
+            apply_ally_stat_change(state, keys, atk_side, md.self_effect);
+        }
+
+        // -- Memento: -2 Atk/-2 SpA on target, user faints --
+        MoveEffect::Memento => {
+            apply_opp_stat_change(state, keys, def_side, md.self_effect);
+            // User faints
+            let hp = state.sides[atk_side].team[atk_slot].current_hp;
+            if hp > 0 {
+                deal_damage(state, keys, atk_side, atk_slot, hp);
+            }
+        }
+
+        // -- Toxic Thread: inflict poison + -1 Spe on target --
+        MoveEffect::ToxicThread => {
+            if !type_immune_to_status(state, def_side, STATUS_POISON)
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !terrain_blocks_status(state, def_side, STATUS_POISON)
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+            {
+                if set_status(state, keys, def_side, def_slot, STATUS_POISON, 0) {
+                    try_synchronize_back(state, keys, def_side, atk_side, STATUS_POISON);
+                }
+            }
+            // Speed drop applies even if status failed (per Showdown moves.ts).
+            if state.sides[def_side].side_conditions.mist_turns() == 0 {
+                try_opponent_stat_drop(state, keys, def_side, SPE, -1);
             }
         }
 
@@ -969,7 +1053,10 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::Stockpile | MoveEffect::Swallow | MoveEffect::MagnetRise |
         MoveEffect::DestinyBond | MoveEffect::ClangorousSoul |
         MoveEffect::Curse | MoveEffect::NoRetreat | MoveEffect::TidyUp |
-        MoveEffect::AquaRing | MoveEffect::Ingrain => true,
+        MoveEffect::AquaRing | MoveEffect::Ingrain |
+        MoveEffect::Charge |
+        // Ally-target boosts: in singles resolve to self
+        MoveEffect::AllyBoost => true,
 
         // Side conditions on own side
         MoveEffect::Safeguard | MoveEffect::Mist | MoveEffect::LuckyChant => true,
@@ -1001,6 +1088,39 @@ fn screen_duration(state: &BattleState, side: usize) -> u8 {
     if state.field.magic_room_turns() == 0
         && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::EXTENDS_SCREENS)
     { 8 } else { 5 }
+}
+
+/// Apply Rocky Helmet + Rough Skin / Iron Barbs contact recoil to attacker.
+/// Called per-hit from the multi-hit path (BUG-P2-D-104). Fires regardless of
+/// whether the defender fainted from this hit (BUG-P5-M-201).
+#[inline]
+fn apply_contact_recoil(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    atk_side: usize,
+    atk_slot: usize,
+    def_side: usize,
+    _md: &MoveData,
+) {
+    // Rocky Helmet: 1/6 attacker's max HP
+    let def_itm = if state.field.magic_room_turns() > 0 {
+        &data_bridge::ItemData::NONE
+    } else {
+        data_bridge::item(state.active_mon(def_side).item_id)
+    };
+    if def_itm.has(ItemFlag::ROCKY_HELMET) {
+        let atk_max = state.active_mon(atk_side).max_hp;
+        deal_damage(state, keys, atk_side, atk_slot, atk_max / 6);
+    }
+    if state.sides[atk_side].team[atk_slot].is_fainted() { return; }
+    // Rough Skin / Iron Barbs: 1/8 attacker's max HP
+    let def_ab = effective_ability(state, def_side);
+    if def_ab == data_bridge::ABILITY_ROUGH_SKIN
+        || def_ab == data_bridge::ABILITY_IRON_BARBS
+    {
+        let atk_max = state.active_mon(atk_side).max_hp;
+        deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
+    }
 }
 
 /// Protect variant type, stored in _padding[0] bits 1-2.
@@ -1149,6 +1269,14 @@ pub fn check_berry_activation(
         return;
     }
 
+    if item_id == data_bridge::ITEM_ORAN_BERRY {
+        if current_hp * 2 <= max_hp {
+            heal(state, keys, side, slot, 10);
+            consume_berry(state, keys, side, slot);
+        }
+        return;
+    }
+
     if item_id == data_bridge::ITEM_LUM_BERRY {
         if state.sides[side].team[slot].status != STATUS_NONE {
             clear_status(state, keys, side, slot);
@@ -1208,14 +1336,24 @@ pub fn check_berry_activation(
     }
 }
 
-/// Consume a berry and trigger Unburden if applicable.
+/// Consume a berry and trigger Unburden / Cheek Pouch if applicable.
 #[inline]
 fn consume_berry(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize) {
     let item_id = state.sides[side].team[slot].item_id;
     state.sides[side].set_last_consumed_berry(item_id);
     consume_item(state, keys, side, slot);
-    if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
+    let ability = effective_ability(state, side);
+    if ability == data_bridge::ABILITY_UNBURDEN {
         set_volatile(state, keys, side, VOL_UNBURDEN);
+    }
+    // Cheek Pouch: heal 1/3 max HP on berry consumption (Showdown onEatItem).
+    // Fires after the berry's base effect. Skipped if already at full HP.
+    if ability == data_bridge::ABILITY_CHEEK_POUCH {
+        let mon = &state.sides[side].team[slot];
+        if !mon.is_fainted() && mon.current_hp < mon.max_hp {
+            let max_hp = mon.max_hp;
+            heal(state, keys, side, slot, max_hp / 3);
+        }
     }
 }
 
@@ -1224,6 +1362,116 @@ pub fn check_pinch_berry(
     state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize,
 ) {
     check_berry_activation(state, keys, side, slot);
+}
+
+/// Synchronize: when a Pokemon with Synchronize is inflicted with burn,
+/// paralysis, poison, or toxic by an opposing mon, mirror the same status
+/// back onto the inflicter. Sleep and Freeze are NOT passed back.
+/// Call AFTER a successful status application, with:
+///   `target_side` = the side that received the status (Synchronize holder)
+///   `source_side` = the side that inflicted it (attacker)
+///   `status`      = the status applied
+#[inline]
+fn try_synchronize_back(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    target_side: usize,
+    source_side: usize,
+    status: u8,
+) {
+    if target_side == source_side { return; }
+    // Only burn/para/psn/tox — sleep and freeze don't pass back
+    if !matches!(status, STATUS_BURN | STATUS_PARALYSIS | STATUS_POISON | STATUS_BAD_POISON) {
+        return;
+    }
+    // Target must have Synchronize (not suppressed)
+    if effective_ability(state, target_side) != data_bridge::ABILITY_SYNCHRONIZE { return; }
+    // Source must be alive and not already statused
+    let source_slot = state.sides[source_side].active_index as usize;
+    if state.sides[source_side].team[source_slot].current_hp == 0 { return; }
+    if state.sides[source_side].team[source_slot].status != STATUS_NONE { return; }
+    // Check source's immunity to the status (type, terrain, safeguard, minior)
+    if type_immune_to_status(state, source_side, status) { return; }
+    if state.sides[source_side].side_conditions.safeguard_turns() > 0 { return; }
+    if terrain_blocks_status(state, source_side, status) { return; }
+    if crate::state::forme::is_minior_meteor_forme(state, source_side) { return; }
+    set_status(state, keys, source_side, source_slot, status, 0);
+}
+
+/// Apply an opponent-target stat change (drop or boost) dispatched by the
+/// SelfEffect Opp* variants on status moves (Growl, Leer, Swagger boost, etc.).
+/// Drops go through try_opponent_stat_drop (Clear Amulet / Mirror Armor /
+/// Competitive / Defiant); boosts use apply_boost directly on def_side.
+#[inline]
+fn apply_opp_stat_change(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    def_side: usize,
+    se: SelfEffect,
+) {
+    // Drops respect Mist (applied at call site for moves that have Mist immunity).
+    // For status-move drops, Mist blocks them — mirror the legacy behavior.
+    let mist_blocks_drop = state.sides[def_side].side_conditions.mist_turns() > 0;
+    match se {
+        // Drops
+        SelfEffect::OppAtkDown1 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, ATK, -1); }
+        SelfEffect::OppAtkDown2 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, ATK, -2); }
+        SelfEffect::OppDefDown1 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, DEF, -1); }
+        SelfEffect::OppDefDown2 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, DEF, -2); }
+        SelfEffect::OppSpADown1 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, SPA, -1); }
+        SelfEffect::OppSpADown2 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, SPA, -2); }
+        SelfEffect::OppSpDDown2 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, SPD, -2); }
+        SelfEffect::OppSpeDown1 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, SPE, -1); }
+        SelfEffect::OppSpeDown2 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, SPE, -2); }
+        SelfEffect::OppAccDown1 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, ACC, -1); }
+        SelfEffect::OppEvaDown2 => if !mist_blocks_drop { try_opponent_stat_drop(state, keys, def_side, EVA, -2); }
+        SelfEffect::OppAtkDefDown1 => if !mist_blocks_drop {
+            try_opponent_stat_drop(state, keys, def_side, ATK, -1);
+            try_opponent_stat_drop(state, keys, def_side, DEF, -1);
+        }
+        SelfEffect::OppAtkSpADown1 => if !mist_blocks_drop {
+            try_opponent_stat_drop(state, keys, def_side, ATK, -1);
+            try_opponent_stat_drop(state, keys, def_side, SPA, -1);
+        }
+        SelfEffect::OppAtkSpADown2 => if !mist_blocks_drop {
+            try_opponent_stat_drop(state, keys, def_side, ATK, -2);
+            try_opponent_stat_drop(state, keys, def_side, SPA, -2);
+        }
+        // Boosts (on opponent target — Swagger/Flatter/Decorate)
+        SelfEffect::OppAtkUp2 => { apply_boost(state, keys, def_side, ATK, 2); }
+        SelfEffect::OppSpAUp1 => { apply_boost(state, keys, def_side, SPA, 1); }
+        SelfEffect::OppAtkSpAUp2 => {
+            apply_boost(state, keys, def_side, ATK, 2);
+            apply_boost(state, keys, def_side, SPA, 2);
+        }
+        SelfEffect::OppAtkUp2DefDown2 => {
+            apply_boost(state, keys, def_side, ATK, 2);
+            if !mist_blocks_drop {
+                try_opponent_stat_drop(state, keys, def_side, DEF, -2);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Apply an ally-target stat boost (Howl, Aromatic Mist, Coaching).
+/// In singles, ally == self, so target = atk_side.
+#[inline]
+fn apply_ally_stat_change(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    atk_side: usize,
+    se: SelfEffect,
+) {
+    match se {
+        SelfEffect::AllyAtkUp1 => { apply_boost(state, keys, atk_side, ATK, 1); }
+        SelfEffect::AllySpDUp1 => { apply_boost(state, keys, atk_side, SPD, 1); }
+        SelfEffect::AllyAtkDefUp1 => {
+            apply_boost(state, keys, atk_side, ATK, 1);
+            apply_boost(state, keys, atk_side, DEF, 1);
+        }
+        _ => {}
+    }
 }
 
 /// Apply crash damage (50% max HP) if the move has CrashDamage self-effect.
@@ -1252,7 +1500,8 @@ fn apply_self_effect(
     md: &MoveData,
 ) {
     let self_mirror = matches!(md.self_effect,
-        SelfEffect::AtkUp1 | SelfEffect::SpeUp1 | SelfEffect::DefUp1 | SelfEffect::SpAUp1)
+        SelfEffect::AtkUp1 | SelfEffect::SpeUp1 | SelfEffect::DefUp1 | SelfEffect::SpAUp1
+        | SelfEffect::DefDown1SpeUp1)
         && state.field.magic_room_turns() == 0
         && state.active_mon(1 - atk_side).item_id != 0;
     let self_boosts_before = if self_mirror { state.sides[atk_side].active.boosts } else { [0; 7] };
@@ -1304,6 +1553,10 @@ fn apply_self_effect(
         }
         SelfEffect::SpAUp1 => {
             apply_boost(state, keys, atk_side, SPA, 1);
+        }
+        SelfEffect::DefDown1SpeUp1 => {
+            apply_boost(state, keys, atk_side, DEF, -1);
+            apply_boost(state, keys, atk_side, SPE, 1);
         }
         SelfEffect::ThawSelf => {
             let atk_slot = state.sides[atk_side].active_index as usize;
@@ -1411,6 +1664,25 @@ pub fn execute_move(
         }
     }
 
+    // Choice-lock / Gorilla Tactics execute-layer gate: if the attacker is
+    // already locked into a specific move and the dispatched move doesn't
+    // match, the move is rejected with a full no-op (no PP, no last_move
+    // update, no side effects). Mirrors Showdown's "Not all choices done"
+    // validation rejection at the engine layer. Gorilla Tactics ignores
+    // Magic Room (ability lock); Choice-item lock is suppressed by Magic
+    // Room (item effect). Fast path is a single u16 compare — no branch
+    // on ability/item unless the lock is already engaged.
+    let locked = state.sides[atk_side].active.choice_locked_move;
+    if locked != 0 && move_id != 0 && move_id != locked
+        && !is_charge_turn2 && !is_move_locked
+    {
+        let is_gt = effective_ability(state, atk_side)
+            == data_bridge::ABILITY_GORILLA_TACTICS;
+        if is_gt || state.field.magic_room_turns() == 0 {
+            return;
+        }
+    }
+
     let is_struggle = move_id == 0;
     let md = data_bridge::move_hot(move_id);
 
@@ -1452,8 +1724,16 @@ pub fn execute_move(
 
     // Confusion: 33% self-hit
     if state.sides[atk_side].active.confusion_turns > 0 {
-        state.sides[atk_side].active.confusion_turns -= 1;
-        if rng(3) == 0 {
+        // BUG-P5-M-101: skip the first decrement on the turn confusion was freshly
+        // applied. _padding[3] bit 3 is the "confused this turn" flag, set when
+        // confusion is applied mid-turn before the target has moved.
+        let just_confused = state.sides[atk_side].active._padding[3] & 0x08 != 0;
+        if just_confused {
+            state.sides[atk_side].active._padding[3] &= !0x08;
+        } else {
+            state.sides[atk_side].active.confusion_turns -= 1;
+        }
+        if state.sides[atk_side].active.confusion_turns > 0 && rng(3) == 0 {
             let a = boosted_stat(
                 effective_stat(state, atk_side, ATK),
                 state.sides[atk_side].active.boosts[ATK],
@@ -1462,7 +1742,9 @@ pub fn execute_move(
                 effective_stat(state, atk_side, DEF),
                 state.sides[atk_side].active.boosts[DEF],
             ).max(1) as u32;
-            let dmg = ((42u32 * 40 * a / d) / 50 + 2) as u16;
+            let level = state.sides[atk_side].team[atk_slot].level as u32;
+            let level_factor = 2 * level / 5 + 2;
+            let dmg = ((level_factor * 40 * a / d) / 50 + 2) as u16;
             deal_damage(state, keys, atk_side, atk_slot, dmg);
             break 'exec;
         }
@@ -1502,11 +1784,13 @@ pub fn execute_move(
             active.last_move = move_id;
         }
 
-        if !is_struggle && state.field.magic_room_turns() == 0 {
-            let atk_item = data_bridge::item(state.active_mon(atk_side).item_id);
-            if atk_item.has(ItemFlag::IS_CHOICE)
-                && state.sides[atk_side].active.choice_locked_move == 0
-            {
+        if !is_struggle && state.sides[atk_side].active.choice_locked_move == 0 {
+            let is_choice_item = if state.field.magic_room_turns() == 0 {
+                data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::IS_CHOICE)
+            } else { false };
+            let is_gorilla_tactics = effective_ability(state, atk_side)
+                == data_bridge::ABILITY_GORILLA_TACTICS;
+            if is_choice_item || is_gorilla_tactics {
                 state.sides[atk_side].active.choice_locked_move = move_id;
             }
         }
@@ -1579,6 +1863,18 @@ pub fn execute_move(
         deal_damage(state, keys, atk_side, atk_slot, hp);
     }
 
+    // Safety Goggles blocks powder/spore moves, including status-category ones
+    // (Spore, Sleep Powder, Stun Spore, Poison Powder, Cotton Spore, Rage Powder).
+    // Not bypassed by Mold Breaker (item, not ability). Must come before the
+    // status-move dispatch so status powder moves are fully blocked.
+    if !is_struggle
+        && md.flags & MoveFlags::POWDER != 0
+        && holds_safety_goggles(state, def_side)
+    {
+        apply_crash_if_needed(state, keys, atk_side, md);
+        break 'exec;
+    }
+
     if !is_struggle && md.category == MoveCategory::Status {
         execute_status_move(state, keys, atk_side, def_side, md, rng, move_id);
         return; // Status moves are never thrash, so return is correct
@@ -1631,6 +1927,11 @@ pub fn execute_move(
 
     if !is_struggle && !accuracy_check(state, atk_side, md, rng) {
         apply_crash_if_needed(state, keys, atk_side, md);
+        // Fury Cutter resets its escalating BP counter on miss (Showdown
+        // clears the `furycutter` volatile when the move fails to hit).
+        if move_id == crate::data::MOVE_FURY_CUTTER as u16 {
+            state.sides[atk_side].active.consec_move_count = 0;
+        }
         break 'exec;
     }
 
@@ -1673,9 +1974,17 @@ pub fn execute_move(
         break 'exec;
     }
 
-    // SeismicToss / Night Shade: damage = level (100 at L100)
+    // SeismicToss / Night Shade: damage = user's level. Respect type immunity
+    // (Ghost vs Normal Night Shade, Normal vs Ghost Seismic Toss).
     if md.effect == MoveEffect::SeismicToss {
-        deal_damage(state, keys, def_side, def_slot, BATTLE_LEVEL);
+        let (def_t1, def_t2) = effective_types(state, def_side);
+        let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+        let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+        let eff = crate::data::types::dual_type_effectiveness(md.move_type, def_type1, def_type2);
+        if eff != 0 {
+            let level = state.active_mon(atk_side).level as u16;
+            deal_damage(state, keys, def_side, def_slot, level);
+        }
         break 'exec;
     }
 
@@ -1742,7 +2051,7 @@ pub fn execute_move(
         }
         _ => 0,
     };
-    let result = calc_damage(state, atk_side, move_id, per_hit_acc, rng);
+    let mut result = calc_damage(state, atk_side, move_id, per_hit_acc, rng);
 
     if result.type_immune {
         apply_crash_if_needed(state, keys, atk_side, md);
@@ -1773,6 +2082,9 @@ pub fn execute_move(
     }
 
     let mut final_damage = result.damage;
+    // Flag set when multi-hit path has already applied damage + per-hit contact recoil.
+    // This disables the default damage-apply and default post-hit contact recoil blocks.
+    let mut multi_hit_applied = false;
     if !result.hits_substitute {
         let def_mon = &state.sides[def_side].team[def_slot];
         if def_mon.current_hp == def_mon.max_hp && final_damage >= def_mon.current_hp {
@@ -1788,7 +2100,9 @@ pub fn execute_move(
                 if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
                     set_volatile(state, keys, def_side, VOL_UNBURDEN);
                 }
-            } else if def_ability == data_bridge::ABILITY_STURDY {
+            } else if def_ability == data_bridge::ABILITY_STURDY
+                && !mold_breaks(state, def_side, effective_ability(state, atk_side))
+            {
                 final_damage = def_mon.current_hp - 1;
             }
         }
@@ -1798,15 +2112,83 @@ pub fn execute_move(
         state.sides[def_side].team[def_slot].current_hp
     } else { 0 };
 
-    if result.hits_substitute {
-        let sub = &mut state.sides[def_side].active.substitute_hp;
-        *sub = sub.saturating_sub(final_damage);
-        if *sub == 0 {
-            clear_volatile(state, keys, def_side, VOL_SUBSTITUTE);
+    // Multi-hit path: apply damage per-hit, interleaving contact recoil and faint checks.
+    // Needed so Rough Skin / Iron Barbs / Rocky Helmet trigger per-hit (BUG-P2-D-104),
+    // and so the attacker can faint mid-burst, stopping remaining hits.
+    if result.hits > 1 && !result.hits_substitute {
+        // Pre-compute is_contact (matches the block at L2157+ below)
+        let mut mh_is_contact = md.flags & MoveFlags::CONTACT != 0;
+        if mh_is_contact && state.field.magic_room_turns() == 0 {
+            let atk_itm = data_bridge::item(state.active_mon(atk_side).item_id);
+            if atk_itm.has(ItemFlag::PROTECTIVE_PADS)
+                || (atk_itm.has(ItemFlag::PUNCHING_GLOVE) && md.flags & MoveFlags::PUNCH != 0)
+            {
+                mh_is_contact = false;
+            }
         }
-    } else {
-        deal_damage(state, keys, def_side, def_slot, final_damage);
-        state.sides[def_side].active.last_move_hit_by = move_id;
+        let mut total_dealt: u32 = 0;
+        let mut hits_done: u8 = 0;
+        for i in 0..result.hits {
+            let per_hit = result.per_hit_damages[i as usize];
+            // First hit: if damage was adjusted by Focus Sash / Sturdy, apply the
+            // adjustment to this one hit. final_damage holds the adjusted total
+            // (actually: def_mon current_hp - 1) but only matters when the full
+            // multi-hit sum would have KO'd and the first hit alone doesn't KO.
+            // To keep behavior simple and correct in the common case (first-hit
+            // already >= current HP), gate on: if adjusted final_damage < full
+            // total, prefer dealing adjusted amount on hit 0 and stopping.
+            let dmg_this = if i == 0 && final_damage < result.damage {
+                let d = final_damage;
+                deal_damage(state, keys, def_side, def_slot, d);
+                total_dealt += d as u32;
+                hits_done += 1;
+                state.sides[def_side].active.last_move_hit_by = move_id;
+                state.sides[def_side].active.times_hit =
+                    state.sides[def_side].active.times_hit.saturating_add(1);
+                // Focus Sash / Sturdy adjusted: defender is at 1 HP and further hits
+                // would KO. Apply contact recoil once (for this hit) and then stop.
+                if mh_is_contact
+                    && !state.sides[atk_side].team[atk_slot].is_fainted()
+                {
+                    apply_contact_recoil(state, keys, atk_side, atk_slot, def_side, md);
+                }
+                break;
+            } else { per_hit };
+            deal_damage(state, keys, def_side, def_slot, dmg_this);
+            total_dealt += dmg_this as u32;
+            hits_done += 1;
+            state.sides[def_side].active.last_move_hit_by = move_id;
+            state.sides[def_side].active.times_hit =
+                state.sides[def_side].active.times_hit.saturating_add(1);
+            // Contact recoil per-hit (fires even if defender fainted from this hit)
+            if mh_is_contact
+                && !state.sides[atk_side].team[atk_slot].is_fainted()
+            {
+                apply_contact_recoil(state, keys, atk_side, atk_slot, def_side, md);
+            }
+            if state.sides[def_side].team[def_slot].is_fainted() { break; }
+            if state.sides[atk_side].team[atk_slot].is_fainted() { break; }
+        }
+        result.hits = hits_done;
+        // Update final_damage to the total actually dealt, for Shell Bell / drain / etc.
+        final_damage = total_dealt.min(u16::MAX as u32) as u16;
+        result.damage = final_damage;
+        multi_hit_applied = true;
+    }
+
+    if !multi_hit_applied {
+        if result.hits_substitute {
+            let sub = &mut state.sides[def_side].active.substitute_hp;
+            *sub = sub.saturating_sub(final_damage);
+            if *sub == 0 {
+                clear_volatile(state, keys, def_side, VOL_SUBSTITUTE);
+            }
+        } else {
+            deal_damage(state, keys, def_side, def_slot, final_damage);
+            state.sides[def_side].active.last_move_hit_by = move_id;
+            state.sides[def_side].active.times_hit =
+                state.sides[def_side].active.times_hit.saturating_add(1);
+        }
     }
 
     if result.drain_heal > 0 {
@@ -1885,6 +2267,26 @@ pub fn execute_move(
         apply_secondary(state, keys, atk_side, def_side, md, rng);
     }
 
+    // King's Rock / Razor Fang: 10% flinch chance on damaging moves.
+    // Hot-path guard: most mons don't hold these items, so check the flag
+    // first to short-circuit before touching any other state.
+    if state.field.magic_room_turns() == 0 {
+        let atk_item_id = state.active_mon(atk_side).item_id;
+        if atk_item_id != 0 && data_bridge::item(atk_item_id).has(ItemFlag::KINGS_ROCK)
+            && md.category != MoveCategory::Status
+            && !result.hits_substitute
+            && !state.sides[def_side].team[def_slot].is_fainted()
+            && !state.sides[def_side].active.has_volatile(VOL_FLINCHED)
+            && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+        {
+            let has_covert_cloak = data_bridge::item(state.active_mon(def_side).item_id)
+                .has(ItemFlag::COVERT_CLOAK);
+            if !has_covert_cloak && rng(10) < 1 {
+                set_volatile(state, keys, def_side, VOL_FLINCHED);
+            }
+        }
+    }
+
     let mut is_contact = md.flags & MoveFlags::CONTACT != 0;
     if is_contact && state.field.magic_room_turns() == 0 {
         let atk_itm = data_bridge::item(state.active_mon(atk_side).item_id);
@@ -1953,6 +2355,19 @@ pub fn execute_move(
                     apply_boost(state, keys, def_side, SPA, 1);
                 }
             }
+            // Anger Shell: HP drops below 50% → +1 Atk/SpA/Spe, -1 Def/SpD
+            data_bridge::ABILITY_ANGER_SHELL => {
+                let m = state.sides[def_side].team[def_slot].max_hp;
+                let hp = state.sides[def_side].team[def_slot].current_hp;
+                // Must cross the 50% threshold (was above, now at/below)
+                if hp > 0 && hp * 2 <= m && pre_damage_hp * 2 > m {
+                    apply_boost(state, keys, def_side, ATK, 1);
+                    apply_boost(state, keys, def_side, SPA, 1);
+                    apply_boost(state, keys, def_side, SPE, 1);
+                    apply_boost(state, keys, def_side, DEF, -1);
+                    apply_boost(state, keys, def_side, SPD, -1);
+                }
+            }
             // Toxic Debris: physical hit → set Toxic Spikes on attacker's side
             data_bridge::ABILITY_TOXIC_DEBRIS if md.category == MoveCategory::Physical => {
                 crate::state::switch::add_toxic_spikes(state, atk_side);
@@ -2003,6 +2418,34 @@ pub fn execute_move(
                     }
                 }
             }
+            // Cursed Body: 30% chance to disable the attacker's last-used move
+            // (any damaging hit, not contact-restricted). Excludes Struggle.
+            data_bridge::ABILITY_CURSED_BODY
+                if !is_struggle
+                && !state.sides[atk_side].team[atk_slot].is_fainted()
+                && state.sides[atk_side].active.disabled_move == 0
+                => {
+                if rng(10) < 3 {
+                    let last = state.sides[atk_side].active.last_move;
+                    if last != 0 {
+                        // Verify the attacker still has PP for this move
+                        let moves = effective_moves(state, atk_side);
+                        let mut has_pp = false;
+                        for i in 0..4 {
+                            if moves[i] == last && effective_pp(state, atk_side, i) > 0 {
+                                has_pp = true;
+                                break;
+                            }
+                        }
+                        if has_pp {
+                            state.sides[atk_side].active.disabled_move = last;
+                            let dur = if state.sides[atk_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 5 } else { 4 };
+                            state.sides[atk_side].active.disable_turns = dur;
+                            check_mental_herb(state, keys, atk_side);
+                        }
+                    }
+                }
+            }
             // Perish Body: contact → set 3-turn Perish on both
             data_bridge::ABILITY_PERISH_BODY if is_contact => {
                 if !state.sides[def_side].active.has_volatile(VOL_PERISH_SONG) {
@@ -2033,7 +2476,9 @@ pub fn execute_move(
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
-                        set_status(state, keys, def_side, def_slot, STATUS_POISON, 0);
+                        if set_status(state, keys, def_side, def_slot, STATUS_POISON, 0) {
+                            try_synchronize_back(state, keys, def_side, atk_side, STATUS_POISON);
+                        }
                     }
                 }
                 data_bridge::ABILITY_TOXIC_CHAIN
@@ -2044,7 +2489,9 @@ pub fn execute_move(
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
-                        set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0);
+                        if set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0) {
+                            try_synchronize_back(state, keys, def_side, atk_side, STATUS_BAD_POISON);
+                        }
                     }
                 }
                 // Magician: steal target's item on hit
@@ -2105,31 +2552,24 @@ pub fn execute_move(
         check_mirror_herb_diff(state, keys, def_side, &def_boosts_before);
     }
 
+    // Contact recoil: Rocky Helmet + Rough Skin / Iron Barbs.
+    // Fires even when the defender fainted from the hit (BUG-P5-M-201).
+    // Skipped here when multi_hit_applied == true because the multi-hit path
+    // already applied per-hit contact recoil (BUG-P2-D-104).
+    if is_contact
+        && !multi_hit_applied
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+        && !result.hits_substitute
+    {
+        apply_contact_recoil(state, keys, atk_side, atk_slot, def_side, md);
+    }
+
     if is_contact
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && !state.sides[def_side].team[def_slot].is_fainted()
         && !result.hits_substitute
     {
-        // Rocky Helmet: 1/6 max HP
-        let def_itm = if state.field.magic_room_turns() > 0 {
-            &data_bridge::ItemData::NONE
-        } else {
-            data_bridge::item(state.active_mon(def_side).item_id)
-        };
-        if def_itm.has(ItemFlag::ROCKY_HELMET) {
-            let atk_max = state.active_mon(atk_side).max_hp;
-            deal_damage(state, keys, atk_side, atk_slot, atk_max / 6);
-        }
-
         let def_ability = effective_ability(state, def_side);
-
-        // Rough Skin / Iron Barbs: 1/8 max HP
-        if def_ability == data_bridge::ABILITY_ROUGH_SKIN
-            || def_ability == data_bridge::ABILITY_IRON_BARBS
-        {
-            let atk_max = state.active_mon(atk_side).max_hp;
-            deal_damage(state, keys, atk_side, atk_slot, (atk_max / 8).max(1));
-        }
 
         // Contact status abilities (attacker alive + no status + no Safeguard + not Minior-Meteor)
         if !state.sides[atk_side].team[atk_slot].is_fainted()
@@ -2140,27 +2580,46 @@ pub fn execute_move(
             match def_ability {
                 data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) && !type_immune_to_status(state, atk_side, STATUS_BURN) => {
                     if rng(100) < 30 {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0);
+                        if set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0) {
+                            try_synchronize_back(state, keys, atk_side, def_side, STATUS_BURN);
+                        }
                     }
                 }
                 data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) => {
                     if rng(100) < 30 {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
+                        if set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0) {
+                            try_synchronize_back(state, keys, atk_side, def_side, STATUS_PARALYSIS);
+                        }
                     }
                 }
                 data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) => {
                     if rng(100) < 30 {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
+                        if set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0) {
+                            try_synchronize_back(state, keys, atk_side, def_side, STATUS_POISON);
+                        }
                     }
                 }
                 data_bridge::ABILITY_EFFECT_SPORE => {
-                    let roll = rng(100);
-                    if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
-                    } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0);
-                    } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) {
-                        set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
+                    // Powder/spore immunities: Grass-type attacker, Overcoat ability,
+                    // or Safety Goggles all block Effect Spore's status roll.
+                    let atk_ability = effective_ability(state, atk_side);
+                    let powder_immune = has_type(state, atk_side, Type::Grass as u8)
+                        || atk_ability == data_bridge::ABILITY_OVERCOAT
+                        || holds_safety_goggles(state, atk_side);
+                    if !powder_immune {
+                        let roll = rng(100);
+                        if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
+                            set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
+                            // Synchronize does NOT pass sleep
+                        } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) {
+                            if set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0) {
+                                try_synchronize_back(state, keys, atk_side, def_side, STATUS_PARALYSIS);
+                            }
+                        } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) {
+                            if set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0) {
+                                try_synchronize_back(state, keys, atk_side, def_side, STATUS_POISON);
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -2175,6 +2634,18 @@ pub fn execute_move(
             if rng(100) < 30 {
                 state.sides[atk_side].active.set_attracted(true);
             }
+        }
+
+        // Sticky Barb: transfer to attacker on contact if attacker has no item.
+        // Magic Room suppresses held-item effects. Hot-path guard: most
+        // defenders don't hold Sticky Barb; check item_id first.
+        if state.active_mon(def_side).item_id == data_bridge::ITEM_STICKY_BARB
+            && state.active_mon(atk_side).item_id == 0
+            && !state.sides[atk_side].team[atk_slot].is_fainted()
+            && state.field.magic_room_turns() == 0
+        {
+            set_item(state, keys, atk_side, atk_slot, data_bridge::ITEM_STICKY_BARB);
+            consume_item(state, keys, def_side, def_slot);
         }
     }
 
@@ -2225,7 +2696,11 @@ pub fn execute_move(
         && !state.sides[def_side].active.has_volatile(VOL_BOUND)
     {
         set_volatile(state, keys, def_side, VOL_BOUND);
-        state.sides[def_side].active.set_bind_turns(4); // fixed 4 turns for MCTS
+        // BUG-P6-E-101: Grip Claw extends partial-trap duration to 7 turns.
+        let has_grip_claw = state.field.magic_room_turns() == 0
+            && state.sides[atk_side].team[atk_slot].item_id == data_bridge::ITEM_GRIP_CLAW;
+        let turns = if has_grip_claw { 7 } else { 4 };
+        state.sides[def_side].active.set_bind_turns(turns);
     }
 
     if md.flags & MoveFlags::RECHARGE != 0 {
@@ -2280,7 +2755,7 @@ pub fn execute_move(
         }
         if cnt > 0 {
             let pick = targets[rng(cnt as u32) as usize];
-            crate::state::switch::perform_switch(state, keys, def_side, pick);
+            crate::state::switch::perform_switch_forced(state, keys, def_side, pick);
         }
     }
 
@@ -2370,9 +2845,13 @@ pub fn execute_move(
     } // end 'exec
 
     // Thrash confusion: applied regardless of whether the move executed (para/sleep/etc.
-    // still end the lock and cause confusion).
-    if was_last_locked_turn && !state.sides[atk_side].team[atk_slot].is_fainted() {
-        state.sides[atk_side].active.confusion_turns = (rng(3) + 2) as u8; // 2-4 turns
+    // still end the lock and cause confusion). Own Tempo blocks this self-confusion.
+    if was_last_locked_turn
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+        && effective_ability(state, atk_side) != data_bridge::ABILITY_OWN_TEMPO
+    {
+        // BUG-P5-M-102: duration is 2-5 turns (rng(4)+2), not 2-4.
+        state.sides[atk_side].active.confusion_turns = (rng(4) + 2) as u8;
     }
 }
 
@@ -3490,8 +3969,8 @@ mod tests {
     #[test]
     fn test_stance_change_to_blade() {
         let (mut state, keys) = setup();
-        use crate::data::{MOVE_SHADOW_BALL, MOVE_KING_S_SHIELD};
-        // setup() gives side 0 stats [150, 100, 150, 100, 100]
+        use crate::data::MOVE_SHADOW_BALL;
+        // setup() gives side 0 stats [150, 100, 150, 100, 100], level 100
         state.sides[0].team[0].species_id = 681; // Aegislash Shield
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_STANCE_CHANGE;
         state.zobrist = compute_full_hash(&state, &keys);
@@ -3502,9 +3981,11 @@ mod tests {
         assert_eq!(effective_species(&state, 0), 1103); // Aegislash-Blade
         // Aegislash Shield: atk:50, def:140, spa:50, spd:140, spe:60
         // Aegislash Blade:  atk:140, def:50,  spa:140, spd:50,  spe:60
-        // Stats: atk 150*140/50=420, def 100*50/140=35, spa 150*140/50=420, spd 100*50/140=35, spe 100*60/60=100
-        assert_eq!(effective_stat(&state, 0, ATK), 420);
-        assert_eq!(effective_stat(&state, 0, DEF), 35);
+        // Stat formula at L100 neutral: stat = 2*base + T + 5 where T = stat_old - 5 - 2*base_old
+        //   atk: T = 150 - 5 - 100 = 45, new = 2*140 + 45 + 5 = 330
+        //   def: T = 100 - 5 - 280 = saturating 0, new = 2*50 + 0 + 5 = 105
+        assert_eq!(effective_stat(&state, 0, ATK), 330);
+        assert_eq!(effective_stat(&state, 0, DEF), 105);
         assert!(validate_hash(&state, &keys));
     }
 

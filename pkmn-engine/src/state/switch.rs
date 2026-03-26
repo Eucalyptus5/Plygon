@@ -2,7 +2,7 @@
 
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag};
-use crate::state::accessors::{effective_ability, effective_weather_for, effective_types, effective_stat, effective_species, effective_moves, is_grounded};
+use crate::state::accessors::{effective_ability, effective_weather_for, effective_types, effective_stat, effective_species, effective_moves, is_grounded, is_trapped};
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 
@@ -100,6 +100,28 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
         }
     }
 
+    // BUG-P3-A-301: If opposing active has Neutralizing Gas, suppress the
+    // incoming side's ability before its switch-in effect fires (e.g. Intimidate).
+    // NG's own switch-in is dispatched via ABILITY_NEUTRALIZING_GAS in switch_out
+    // for the opposing side, so this guard does not block NG itself.
+    {
+        let opp = 1 - side;
+        let opp_slot = state.sides[opp].active_index as usize;
+        if !state.sides[opp].team[opp_slot].is_fainted() {
+            let opp_ability_id = state.sides[opp].team[opp_slot].ability_id;
+            if opp_ability_id == data_bridge::ABILITY_NEUTRALIZING_GAS
+                && !state.sides[opp].active.has_volatile(VOL_ABILITY_SUPPRESSED)
+            {
+                let slot = state.sides[side].active_index as usize;
+                let has_shield = state.field.magic_room_turns() == 0
+                    && data_bridge::item(state.sides[side].team[slot].item_id).has(ItemFlag::ABILITY_SHIELD);
+                if !has_shield {
+                    set_volatile(state, keys, side, VOL_ABILITY_SUPPRESSED);
+                }
+            }
+        }
+    }
+
     apply_switch_in_ability(state, keys, side);
     apply_switch_in_item(state, keys, side);
 }
@@ -150,7 +172,23 @@ const BATON_PASS_VOLATILE_MASK: u32 =
     VOL_SUBSTITUTE | VOL_LEECH_SEED | VOL_INGRAIN | VOL_AQUA_RING
     | VOL_FOCUS_ENERGY | VOL_PERISH_SONG | VOL_MAGNET_RISE;
 
-pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) {
+/// Perform a voluntary (PHASE_ACTIONS) switch. Returns `true` if the switch
+/// happened, `false` if rejected because the user is trapped (Magnet Pull /
+/// Arena Trap / Shadow Tag / binding volatiles / etc.).
+///
+/// Forced switches (faint replacement, U-turn) must bypass the trap gate —
+/// use `perform_switch_forced` or call `switch_out` + `switch_in` directly.
+pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) -> bool {
+    if is_trapped(state, side) {
+        return false;
+    }
+    perform_switch_forced(state, keys, side, new_index);
+    true
+}
+
+/// Force a switch regardless of trap status. Used by faint replacement and
+/// pivot moves (U-turn, Volt Switch, Baton Pass, etc.) which bypass trapping.
+pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) {
     let is_baton_pass = state.sides[side].active._padding[0] != 0;
 
     // Save Baton Pass state before switch_out zeros everything
@@ -226,10 +264,17 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
         } else if !is_steel && state.sides[side].side_conditions.safeguard_turns() == 0
             && !crate::state::forme::is_minior_meteor_forme(state, side)
         {
-            // Steel types are immune to poison; Safeguard blocks status
-            match sc.toxic_spikes {
-                1 => { set_status(state, keys, side, slot, STATUS_POISON, 0); }
-                _ => { set_status(state, keys, side, slot, STATUS_BAD_POISON, 0); }
+            // BUG-P5-M-009: Immunity / Pastel Veil / Purifying Salt block Toxic Spikes poison.
+            let ability = effective_ability(state, side);
+            let poison_immune = ability == data_bridge::ABILITY_IMMUNITY
+                || ability == data_bridge::ABILITY_PASTEL_VEIL
+                || ability == data_bridge::ABILITY_PURIFYING_SALT;
+            if !poison_immune {
+                // Steel types are immune to poison; Safeguard blocks status
+                match sc.toxic_spikes {
+                    1 => { set_status(state, keys, side, slot, STATUS_POISON, 0); }
+                    _ => { set_status(state, keys, side, slot, STATUS_BAD_POISON, 0); }
+                }
             }
         }
     }

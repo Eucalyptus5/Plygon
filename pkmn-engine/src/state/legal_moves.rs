@@ -159,9 +159,13 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
             if md.flags & MoveFlags::HEAL != 0 { continue; }
         }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
-        // Choice lock: suppressed by Magic Room
-        if state.field.magic_room_turns() == 0
-            && active.choice_locked_move != 0 && moves[i] != active.choice_locked_move { continue; }
+        // Choice lock: suppressed by Magic Room (items), but Gorilla Tactics ability lock
+        // is not suppressed by Magic Room.
+        if active.choice_locked_move != 0 && moves[i] != active.choice_locked_move {
+            let locked_by_gt = effective_ability(state, side)
+                == data_bridge::ABILITY_GORILLA_TACTICS;
+            if locked_by_gt || state.field.magic_room_turns() == 0 { continue; }
+        }
         // Gravity: block flying/levitation moves
         if state.field.gravity_turns > 0 && GRAVITY_BLOCKED.contains(&moves[i]) { continue; }
         let opp_active = &state.sides[opp].active;
@@ -177,15 +181,11 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
 
 fn generate_legal_switches(state: &BattleState, side: usize, list: &mut ActionList) {
     let s = &state.sides[side];
-    let active = &s.active;
     let current_idx = s.active_index as usize;
 
-    if state.phase == PHASE_ACTIONS && !is_trap_immune(state, side) {
-        if active.has_volatile(VOL_TRAPPED) || active.has_volatile(VOL_INGRAIN)
-           || active.has_volatile(VOL_BOUND) || active.has_volatile(VOL_MOVE_LOCKED)
-           || active.has_volatile(VOL_CHARGING) {
-            return;
-        }
+    // Only PHASE_ACTIONS honors trapping (forced replacement must be allowed).
+    if state.phase == PHASE_ACTIONS && is_trapped(state, side) {
+        return;
     }
 
     for j in 0..6 {
@@ -194,6 +194,45 @@ fn generate_legal_switches(state: &BattleState, side: usize, list: &mut ActionLi
         if s.team[j].species_id == 0 { continue; }
         list.push(ACTION_SWITCH_0 + j as u8);
     }
+}
+
+/// Returns true if the active mon cannot use any normal move this turn
+/// (all moves blocked by disable/choice-lock/taunt/pp=0/imprison/etc.)
+/// and must therefore fall back to Struggle.
+///
+/// Matches the same filter logic as `generate_legal_moves` — when it would
+/// return count==0, this returns true.
+#[inline]
+pub fn must_struggle(state: &BattleState, side: usize) -> bool {
+    // Recharging / charge-turn-2 / move-lock paths have their own forced move.
+    let active = &state.sides[side].active;
+    if active.has_volatile(VOL_RECHARGING) { return true; }
+    if active.has_volatile(VOL_CHARGING) { return false; }
+    if active.has_volatile(VOL_MOVE_LOCKED) { return false; }
+    // Fast path: no blocking volatiles in effect → legal-move generation will
+    // return >=1 as long as any move slot has positive PP. This is the overwhelmingly
+    // common case in MCTS rollouts (no Disable, no Encore, no Choice lock, no
+    // Taunt, no Torment, no Assault Vest, no Heal Block, no Imprison, no Gravity).
+    if active.disabled_move == 0
+        && active.encore_turns == 0
+        && active.choice_locked_move == 0
+        && active.taunt_turns == 0
+        && active.heal_block_turns == 0
+        && !active.has_volatile(VOL_TORMENT)
+        && !state.sides[1 - side].active.has_volatile(VOL_IMPRISON)
+        && state.field.gravity_turns == 0
+    {
+        let moves = effective_moves(state, side);
+        for i in 0..4 {
+            if moves[i] != 0 && effective_pp(state, side, i) > 0 {
+                return false;
+            }
+        }
+        return true;
+    }
+    let mut list = ActionList::new();
+    let count = generate_legal_moves(state, side, &mut list);
+    count == 0
 }
 
 pub fn available_switches(state: &BattleState, side: usize) -> u8 {

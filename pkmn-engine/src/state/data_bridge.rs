@@ -52,6 +52,11 @@ pub const ABILITY_NATURAL_CURE: u16  = 30;
 pub const ABILITY_REGENERATOR: u16   = 144;
 pub const ABILITY_INTIMIDATE: u16    = 22;
 
+// -- Trapping abilities (legal_moves switch gating) --
+pub const ABILITY_SHADOW_TAG: u16    = 23;
+pub const ABILITY_MAGNET_PULL: u16   = 42;
+pub const ABILITY_ARENA_TRAP: u16    = 71;
+
 // -- Weather setters --
 pub const ABILITY_DRIZZLE: u16       = 2;
 pub const ABILITY_DROUGHT: u16       = 70;
@@ -200,6 +205,8 @@ pub const ABILITY_SEED_SOWER: u16    = 269;
 pub const ABILITY_ELECTROMORPHOSIS: u16 = 280;
 pub const ABILITY_WIND_POWER: u16    = 277;
 pub const ABILITY_THERMAL_EXCHANGE: u16 = 270;
+pub const ABILITY_ANGER_SHELL: u16   = 271;
+pub const ABILITY_CURSED_BODY: u16   = 130;
 
 // -- After-damage hooks: attacker --
 pub const ABILITY_MAGICIAN: u16      = 170;
@@ -218,6 +225,7 @@ pub const ABILITY_SOUL_HEART: u16    = 220;
 
 // -- Multi-hit --
 pub const ABILITY_SKILL_LINK: u16    = 92;
+pub const ABILITY_PARENTAL_BOND: u16 = 185;
 
 // -- Turn executor: speed / accuracy / secondary --
 pub const ABILITY_QUICK_FEET: u16    = 95;
@@ -228,6 +236,7 @@ pub const ABILITY_SERENE_GRACE: u16  = 32;
 pub const ABILITY_SAND_VEIL: u16     = 8;
 pub const ABILITY_SNOW_CLOAK: u16    = 81;
 pub const ABILITY_GLUTTONY: u16      = 82;
+pub const ABILITY_CHEEK_POUCH: u16   = 167;
 
 // -- Speed modifiers --
 pub const ABILITY_CHLOROPHYLL: u16   = 34;
@@ -285,6 +294,7 @@ pub const ABILITY_OBLIVIOUS: u16      = 12;
 pub const ABILITY_OWN_TEMPO: u16      = 20;
 pub const ABILITY_SCRAPPY: u16        = 113;
 pub const ABILITY_GUARD_DOG: u16      = 275;
+pub const ABILITY_SYNCHRONIZE: u16    = 28;
 
 // -- Untraceable abilities (not defined elsewhere) --
 pub const ABILITY_ILLUSION: u16       = 149;
@@ -321,6 +331,8 @@ pub const ABILITY_TERAVOLT: u16       = 164;
 pub const ABILITY_WONDER_GUARD: u16   = 25;
 pub const ABILITY_UNAWARE: u16        = 109;
 pub const ABILITY_PURIFYING_SALT: u16 = 272;
+pub const ABILITY_IMMUNITY: u16       = 17;
+pub const ABILITY_PASTEL_VEIL: u16    = 257;
 pub const ABILITY_WELL_BAKED_BODY: u16 = 273;
 pub const ABILITY_SWORD_OF_RUIN: u16  = 285;
 pub const ABILITY_BEADS_OF_RUIN: u16  = 284;
@@ -352,6 +364,7 @@ pub const ITEM_JABOCA_BERRY: u16 = 230;
 pub const ITEM_LIGHT_BALL: u16 = 251;
 pub const ITEM_LUM_BERRY: u16 = 262;
 pub const ITEM_MAGO_BERRY: u16 = 274;
+pub const ITEM_ORAN_BERRY: u16 = 319;
 pub const ITEM_MUSCLE_BAND: u16 = 297;
 pub const ITEM_ROWAP_BERRY: u16 = 420;
 pub const ITEM_SHELL_BELL: u16 = 438;
@@ -367,6 +380,7 @@ pub const ITEM_PROTECTIVE_PADS: u16 = 663;
 pub const ITEM_UTILITY_UMBRELLA: u16 = 718;
 pub const ITEM_ABILITY_SHIELD: u16 = 746;
 pub const ITEM_CLEAR_AMULET: u16 = 747;
+pub const ITEM_GRIP_CLAW: u16 = 179;
 pub const ITEM_MIRROR_HERB: u16 = 748;
 pub const ITEM_PUNCHING_GLOVE: u16 = 749;
 pub const ITEM_COVERT_CLOAK: u16 = 750;

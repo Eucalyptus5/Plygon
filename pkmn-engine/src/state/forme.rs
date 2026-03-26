@@ -71,7 +71,13 @@ pub fn apply_transform(
 }
 
 /// In-battle forme change that uses override_stats instead of TeamData.
-/// Scales current stats by new_base / old_base ratio per stat.
+/// Recomputes stats using the standard formula
+/// `stat = (2*base + iv + ev/4) * level / 100 + 5` (neutral nature assumed).
+/// The original build's iv+ev/4 contribution (T) is derived from the mon's
+/// current persistent stats and the old form's base stats, then re-applied
+/// to the new form's base stats. This preserves IVs/EVs exactly (for neutral
+/// natures) instead of the old "scale by ratio" approximation which was
+/// inaccurate due to the additive `+5` term.
 /// Also sets override_types from the new species.
 /// To revert, call `revert_battle_forme`.
 pub fn apply_battle_forme(
@@ -80,19 +86,30 @@ pub fn apply_battle_forme(
 ) {
     let slot = state.sides[side].active_index as usize;
     let old_species_id = state.sides[side].team[slot].species_id;
+    let level = state.sides[side].team[slot].level.max(1) as u32;
     let old_sp = data_bridge::species(old_species_id);
     let new_sp = data_bridge::species(new_species_id);
 
-    let old_bases = [old_sp.atk, old_sp.def, old_sp.spa, old_sp.spd, old_sp.spe];
-    let new_bases = [new_sp.atk, new_sp.def, new_sp.spa, new_sp.spd, new_sp.spe];
+    let old_bases = [old_sp.atk as u32, old_sp.def as u32, old_sp.spa as u32, old_sp.spd as u32, old_sp.spe as u32];
+    let new_bases = [new_sp.atk as u32, new_sp.def as u32, new_sp.spa as u32, new_sp.spd as u32, new_sp.spe as u32];
+    // Read the persistent (original-build) stats, not effective_stat — the
+    // latter can return a previous form's override_stats which would compound
+    // errors across successive form changes.
+    let base_stats = state.sides[side].team[slot].stats;
 
-    // Read current stats first (immutable borrow), then write overrides
-    let mut scaled_stats = [0u16; 5];
+    let mut new_stats = [0u16; 5];
     for i in 0..5 {
-        let current = accessors::effective_stat(state, side, i);
-        scaled_stats[i] = (current as u32 * new_bases[i] as u32 / old_bases[i].max(1) as u32).max(1) as u16;
+        let s = base_stats[i] as u32;
+        // Derive training (iv + ev/4) from old stat, assuming neutral nature:
+        // stat = (2*base + T) * level / 100 + 5  =>  T = (stat - 5) * 100 / level - 2*base
+        let s_minus_5 = s.saturating_sub(5);
+        let two_base_plus_t = s_minus_5.saturating_mul(100) / level;
+        let training = two_base_plus_t.saturating_sub(2 * old_bases[i]);
+        // Recompute using new base: stat = (2*new_base + T) * level / 100 + 5
+        let new_stat = ((2 * new_bases[i] + training) * level / 100 + 5).max(1) as u16;
+        new_stats[i] = new_stat;
     }
-    state.sides[side].active.override_stats = scaled_stats;
+    state.sides[side].active.override_stats = new_stats;
 
     set_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
     state.sides[side].active.override_types = [new_sp.type1 as u8, new_sp.type2 as u8];
@@ -242,69 +259,74 @@ mod tests {
     fn test_battle_forme_aegislash() {
         // Aegislash Shield (681): atk:50, def:140, spa:50, spd:140, spe:60
         // Aegislash Blade (1103): atk:140, def:50, spa:140, spd:50, spe:60
+        // Stats at L100 neutral 31/0: atk=136, def=316, spa=136, spd=316, spe=156
         let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 681, current_hp: 300, max_hp: 300,
             ability_id: data_bridge::ABILITY_STANCE_CHANGE,
-            stats: [100, 280, 100, 280, 120], // base shield-like stats
+            stats: [136, 316, 136, 316, 156], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
         apply_battle_forme(&mut state, &keys, 0, 1103);
 
-        // Stats should scale: atk 100*140/50=280, def 280*50/140=100
-        assert_eq!(effective_stat(&state, 0, ATK), 280);
-        assert_eq!(effective_stat(&state, 0, DEF), 100);
-        assert_eq!(effective_stat(&state, 0, SPA), 280);
-        assert_eq!(effective_stat(&state, 0, SPD), 100);
-        assert_eq!(effective_stat(&state, 0, SPE), 120); // 60/60 = same
+        // Stats should be recomputed using new base + original T (31 for IV/EV 31/0):
+        // atk = 2*140 + 31 + 5 = 316, def = 2*50 + 31 + 5 = 136, etc.
+        assert_eq!(effective_stat(&state, 0, ATK), 316);
+        assert_eq!(effective_stat(&state, 0, DEF), 136);
+        assert_eq!(effective_stat(&state, 0, SPA), 316);
+        assert_eq!(effective_stat(&state, 0, SPD), 136);
+        assert_eq!(effective_stat(&state, 0, SPE), 156); // 60/60 = same
         assert_eq!(effective_species(&state, 0), 1103);
         assert!(validate_hash(&state, &keys));
 
         // Revert
         revert_battle_forme(&mut state, &keys, 0);
-        assert_eq!(effective_stat(&state, 0, ATK), 100); // back to team stats
-        assert_eq!(effective_stat(&state, 0, DEF), 280);
+        assert_eq!(effective_stat(&state, 0, ATK), 136); // back to team stats
+        assert_eq!(effective_stat(&state, 0, DEF), 316);
         assert_eq!(effective_species(&state, 0), 681);
         assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_zen_mode_triggers_at_half_hp() {
+        // Darmanitan (555): atk:140, def:55, spa:30, spd:55, spe:95
+        // Darmanitan-Zen (1171): atk:30, def:105, spa:140, spd:105, spe:55
+        // At L100 neutral 31/0:
+        //   Base atk=(2*140+31)+5=316, spa=(2*30+31)+5=96
+        //   Zen atk=(2*30+31)+5=96, spa=(2*140+31)+5=316
         let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 555, current_hp: 200, max_hp: 400,
             ability_id: data_bridge::ABILITY_ZEN_MODE,
-            stats: [280, 110, 60, 110, 190], // Darmanitan base stats
+            stats: [316, 146, 96, 146, 226], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP is 200/400 = 50% → should trigger (≤50%)
         check_zen_mode(&mut state, &keys, 0);
         assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
-        // Zen Mode: atk:30, def:105, spa:140, spd:105, spe:55
-        // Scaling: atk 280*30/140=60, def 110*105/55=210
-        assert_eq!(effective_stat(&state, 0, ATK), 60);
-        assert_eq!(effective_stat(&state, 0, DEF), 210);
+        assert_eq!(effective_stat(&state, 0, ATK), 96);
+        assert_eq!(effective_stat(&state, 0, SPA), 316);
         assert!(validate_hash(&state, &keys));
 
         // Heal above 50% → should revert
         heal(&mut state, &keys, 0, 0, 201);
         check_zen_mode(&mut state, &keys, 0);
         assert_eq!(effective_species(&state, 0), 555);
-        assert_eq!(effective_stat(&state, 0, ATK), 280);
+        assert_eq!(effective_stat(&state, 0, ATK), 316);
         assert!(validate_hash(&state, &keys));
     }
 
@@ -315,12 +337,12 @@ mod tests {
         state.sides[0].team[0] = MonSlot {
             species_id: 555, current_hp: 100, max_hp: 400,
             ability_id: data_bridge::ABILITY_ZEN_MODE,
-            stats: [280, 110, 60, 110, 190],
+            stats: [316, 146, 96, 146, 226], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
@@ -344,12 +366,12 @@ mod tests {
         state.sides[0].team[0] = MonSlot {
             species_id: 1169, current_hp: 100, max_hp: 400,
             ability_id: data_bridge::ABILITY_ZEN_MODE,
-            stats: [280, 110, 60, 110, 190],
+            stats: [316, 146, 96, 146, 226], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
@@ -369,15 +391,16 @@ mod tests {
         let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         // Wishiwashi Solo (746): atk:20, def:20, spa:25, spd:25, spe:40
+        // L100 neutral 31/0: atk=76, def=76, spa=86, spd=86, spe=116
         state.sides[0].team[0] = MonSlot {
             species_id: 746, current_hp: 100, max_hp: 400,
             ability_id: data_bridge::ABILITY_SCHOOLING,
-            stats: [40, 40, 50, 50, 80],
+            stats: [76, 76, 86, 86, 116], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
@@ -391,15 +414,17 @@ mod tests {
     fn test_schooling_above_25_becomes_school() {
         let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
+        // Wishiwashi Solo (746): atk:20, def:20, spa:25, spd:25, spe:40
+        // L100 neutral 31/0: atk=76, def=76, spa=86, spd=86, spe=116
         state.sides[0].team[0] = MonSlot {
             species_id: 746, current_hp: 101, max_hp: 400,
             ability_id: data_bridge::ABILITY_SCHOOLING,
-            stats: [40, 40, 50, 50, 80],
+            stats: [76, 76, 86, 86, 116], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
@@ -407,9 +432,9 @@ mod tests {
         check_schooling(&mut state, &keys, 0);
         assert_eq!(effective_species(&state, 0), 1437); // Wishiwashi-School
         // School (1437): atk:140, def:130, spa:140, spd:135, spe:30
-        // Scaling: atk 40*140/20=280, spe 80*30/40=60
-        assert_eq!(effective_stat(&state, 0, ATK), 280);
-        assert_eq!(effective_stat(&state, 0, SPE), 60);
+        // L100 neutral 31/0: atk=316, spe=96
+        assert_eq!(effective_stat(&state, 0, ATK), 316);
+        assert_eq!(effective_stat(&state, 0, SPE), 96);
         assert!(validate_hash(&state, &keys));
 
         // Damage below 25% → reverts to Solo
@@ -426,15 +451,16 @@ mod tests {
         let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         // Minior-Meteor (1291): atk:60, def:100, spa:60, spd:100, spe:60
+        // L100 neutral 31/0: atk=156, def=236, spa=156, spd=236, spe=156
         state.sides[0].team[0] = MonSlot {
             species_id: 1291, current_hp: 200, max_hp: 400,
             ability_id: data_bridge::ABILITY_SHIELDS_DOWN,
-            stats: [120, 200, 120, 200, 120],
+            stats: [156, 236, 156, 236, 156], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
@@ -442,10 +468,10 @@ mod tests {
         check_shields_down(&mut state, &keys, 0);
         assert_eq!(effective_species(&state, 0), 774); // Minior (Core)
         // Core (774): atk:100, def:60, spa:100, spd:60, spe:120
-        // Scaling: atk 120*100/60=200, def 200*60/100=120, spe 120*120/60=240
-        assert_eq!(effective_stat(&state, 0, ATK), 200);
-        assert_eq!(effective_stat(&state, 0, DEF), 120);
-        assert_eq!(effective_stat(&state, 0, SPE), 240);
+        // L100 neutral 31/0: atk=236, def=156, spa=236, spd=156, spe=276
+        assert_eq!(effective_stat(&state, 0, ATK), 236);
+        assert_eq!(effective_stat(&state, 0, DEF), 156);
+        assert_eq!(effective_stat(&state, 0, SPE), 276);
         assert!(validate_hash(&state, &keys));
 
         // Heal above 50% → revert to Meteor
@@ -462,7 +488,7 @@ mod tests {
         state.sides[0].team[0] = MonSlot {
             species_id: 1291, current_hp: 300, max_hp: 400,
             ability_id: data_bridge::ABILITY_SHIELDS_DOWN,
-            stats: [120; 5],
+            stats: [120; 5], level: 100,
             ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
@@ -478,12 +504,12 @@ mod tests {
         state.sides[0].team[0] = MonSlot {
             species_id: 1291, current_hp: 200, max_hp: 400,
             ability_id: data_bridge::ABILITY_SHIELDS_DOWN,
-            stats: [120; 5],
+            stats: [156, 236, 156, 236, 156], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
@@ -505,18 +531,18 @@ mod tests {
         state.sides[0].team[0] = MonSlot {
             species_id: 964, current_hp: 300, max_hp: 300,
             ability_id: data_bridge::ABILITY_ZERO_TO_HERO,
-            stats: [140, 144, 106, 124, 200],
+            stats: [140, 144, 106, 124, 200], level: 100,
             ..Default::default()
         };
         state.sides[0].team[1] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
             ability_id: 0,
-            stats: [100; 5],
+            stats: [100; 5], level: 100,
             ..Default::default()
         };
         state.sides[1].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
-            stats: [100; 5], ..Default::default()
+            stats: [100; 5], level: 100, ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
