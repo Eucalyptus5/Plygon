@@ -255,6 +255,13 @@ fn execute_status_move(
     if !targets_self && state.sides[def_side].active.has_volatile(VOL_SEMI_INVULNERABLE) {
         return;
     }
+    // Substitute: block non-bypasssub status moves targeting the opponent
+    if !targets_self
+        && md.flags & MoveFlags::BYPASSSUB == 0
+        && state.sides[def_side].active.has_volatile(VOL_SUBSTITUTE)
+    {
+        return;
+    }
     if !targets_self {
         let atk_ability = effective_ability(state, atk_side);
         if good_as_gold_immunity(state, def_side) { return; }
@@ -1338,7 +1345,7 @@ pub fn execute_move(
     keys: &ZobristKeys,
     atk_side: usize,
     mut move_id: u16,
-    move_slot: u8,
+    mut move_slot: u8,
     rng: &mut impl FnMut(u32) -> u32,
 ) {
     let def_side = 1 - atk_side;
@@ -1367,6 +1374,23 @@ pub fn execute_move(
         }
     } else {
         was_last_locked_turn = false;
+    }
+
+    // Encore override: if the user is encored and not charge/lock overridden,
+    // redirect to the encored move (same-turn Encore from a faster mon).
+    if !is_charge_turn2 && !is_move_locked {
+        let enc = &state.sides[atk_side].active;
+        if enc.encore_turns > 0 && enc.encore_move != 0 && move_id != enc.encore_move {
+            move_id = enc.encore_move;
+            // Update move_slot so PP is deducted from the correct slot
+            let moves = effective_moves(state, atk_side);
+            for i in 0..4 {
+                if moves[i] == move_id {
+                    move_slot = i as u8;
+                    break;
+                }
+            }
+        }
     }
 
     let is_struggle = move_id == 0;
@@ -1429,6 +1453,13 @@ pub fn execute_move(
     // Attraction: 50% chance to skip turn
     if state.sides[atk_side].active.is_attracted() {
         if rng(2) == 0 { break 'exec; }
+    }
+
+    // Taunt: block status moves (same-turn or future turns)
+    if !is_struggle && md.category == MoveCategory::Status
+        && state.sides[atk_side].active.taunt_turns > 0
+    {
+        break 'exec;
     }
 
     if !is_charge_turn2 {
@@ -1522,6 +1553,12 @@ pub fn execute_move(
     {
         set_volatile(state, keys, atk_side, VOL_MOVE_LOCKED);
         state.sides[atk_side].active._padding[2] = (rng(2) + 1) as u8; // 1 or 2 more turns
+    }
+
+    // Self-Destruct / Explosion / Misty Explosion: user faints before damage
+    if matches!(move_id, 120 | 153 | 606) {
+        let hp = state.sides[atk_side].team[atk_slot].current_hp;
+        deal_damage(state, keys, atk_side, atk_slot, hp);
     }
 
     if !is_struggle && md.category == MoveCategory::Status {
@@ -2200,6 +2237,29 @@ pub fn execute_move(
         });
         if has_bench {
             set_volatile(state, keys, atk_side, VOL_MUST_SWITCH);
+        }
+    }
+
+    // Dragon Tail / Circle Throw: damaging moves with phazing effect
+    if md.effect == MoveEffect::Whirlwind
+        && !state.sides[def_side].team[def_slot].is_fainted()
+        && !result.hits_substitute
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+    {
+        let mut targets = [0usize; 5];
+        let mut cnt = 0usize;
+        for i in 0..6 {
+            if i != def_slot
+                && state.sides[def_side].team[i].species_id != 0
+                && state.sides[def_side].team[i].current_hp > 0
+            {
+                targets[cnt] = i;
+                cnt += 1;
+            }
+        }
+        if cnt > 0 {
+            let pick = targets[rng(cnt as u32) as usize];
+            crate::state::switch::perform_switch(state, keys, def_side, pick);
         }
     }
 
