@@ -44,12 +44,16 @@ pub fn effective_weather_for(state: &BattleState, side: usize) -> u8 {
 
 #[inline(always)]
 pub fn effective_ability(state: &BattleState, side: usize) -> u16 {
+    let mon = state.active_mon(side);
+    // Mirrors Showdown's `ignoringAbility()` short-circuit on `!isActive`
+    // (sim/pokemon.ts:860, gen >= 5): a fainted active mon has no ability.
+    if mon.is_fainted() { return 0; }
     let active = &state.sides[side].active;
     if active.has_volatile(VOL_ABILITY_SUPPRESSED) { return 0; }
     if active.has_volatile(VOL_ABILITY_OVERRIDDEN) || active.has_volatile(VOL_TRANSFORMED) {
         return active.override_ability;
     }
-    state.active_mon(side).ability_id
+    mon.ability_id
 }
 
 #[inline(always)]
