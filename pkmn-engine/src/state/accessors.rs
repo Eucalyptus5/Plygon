@@ -3,20 +3,33 @@
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag};
 
+/// Underlying type pair, matching Showdown's `pokemon.types` array (which
+/// terastallize() does NOT touch — sim/battle-actions.ts:1925-1961). Used by
+/// the run_scenario snapshot. Engine internals that care about damage / move
+/// behavior should use `battle_types` instead, which honors tera.
 #[inline(always)]
 pub fn effective_types(state: &BattleState, side: usize) -> (u8, u8) {
     let mon = state.active_mon(side);
     let active = &state.sides[side].active;
 
-    if mon.is_terastallized() {
-        return (mon.tera_type, mon.tera_type);
-    }
     if active.has_volatile(VOL_TYPES_OVERRIDDEN) || active.has_volatile(VOL_TRANSFORMED) {
         return (active.override_types[0], active.override_types[1]);
     }
 
     let sp = data_bridge::species(mon.species_id);
     (sp.type1 as u8, sp.type2 as u8)
+}
+
+/// Type pair as Showdown's `pokemon.getTypes()` resolves it: when terastallized,
+/// returns (tera_type, tera_type). Used by damage calc, type-effectiveness
+/// checks, STAB, type-based status immunity, grounding (Flying-type), etc.
+#[inline(always)]
+pub fn battle_types(state: &BattleState, side: usize) -> (u8, u8) {
+    let mon = state.active_mon(side);
+    if mon.is_terastallized() {
+        return (mon.tera_type, mon.tera_type);
+    }
+    effective_types(state, side)
 }
 
 #[inline(always)]
@@ -90,7 +103,7 @@ pub fn effective_species(state: &BattleState, side: usize) -> u16 {
 
 #[inline]
 pub fn has_type(state: &BattleState, side: usize, check_type: u8) -> bool {
-    let (t1, t2) = effective_types(state, side);
+    let (t1, t2) = battle_types(state, side);
     t1 == check_type || t2 == check_type
 }
 
@@ -100,7 +113,7 @@ pub fn has_type(state: &BattleState, side: usize, check_type: u8) -> bool {
 pub fn type_immune_to_status(state: &BattleState, side: usize, status: u8) -> bool {
     use crate::data::types::Type;
     use crate::state::structs::*;
-    let (t1, t2) = effective_types(state, side);
+    let (t1, t2) = battle_types(state, side);
     match status {
         STATUS_BURN => t1 == Type::Fire as u8 || t2 == Type::Fire as u8,
         STATUS_PARALYSIS => t1 == Type::Electric as u8 || t2 == Type::Electric as u8,

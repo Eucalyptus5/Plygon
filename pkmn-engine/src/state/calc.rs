@@ -76,7 +76,7 @@ pub fn calc_damage(
         match md.effect {
             MoveEffect::SeismicToss => {
                 let (move_type, _) = resolve_move_type_with_ability(state, md, atk_side, effective_ability(state, atk_side));
-                let (def_t1, def_t2) = effective_types(state, def_side);
+                let (def_t1, def_t2) = battle_types(state, def_side);
                 let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
                 let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
                 let eff = dual_type_effectiveness(move_type, def_type1, def_type2);
@@ -138,7 +138,7 @@ pub fn calc_damage(
 
     let (move_type, ate_boost) = resolve_move_type_with_ability(state, md, atk_side, atk_ability);
 
-    let (def_t1, def_t2) = effective_types(state, def_side);
+    let (def_t1, def_t2) = battle_types(state, def_side);
     let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
     let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
 
@@ -954,13 +954,13 @@ mod tests {
         state.sides[0].team[0].max_hp = 300;
 
         // Not terastallized → Fire/Fire
-        let (t1, t2) = effective_types(&state, 0);
+        let (t1, t2) = battle_types(&state, 0);
         assert_eq!(t1, Type::Fire as u8);
         assert_eq!(t2, Type::Fire as u8);
 
         // Terastallized → Water/Water
         state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
-        let (t1, t2) = effective_types(&state, 0);
+        let (t1, t2) = battle_types(&state, 0);
         assert_eq!(t1, Type::Water as u8);
         assert_eq!(t2, Type::Water as u8);
 

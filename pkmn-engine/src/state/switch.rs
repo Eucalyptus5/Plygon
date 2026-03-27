@@ -2,7 +2,7 @@
 
 use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag};
-use crate::state::accessors::{effective_ability, effective_weather_for, effective_types, effective_stat, effective_species, effective_moves, is_grounded, is_trapped};
+use crate::state::accessors::{effective_ability, effective_weather_for, battle_types, effective_stat, effective_species, effective_moves, is_grounded, is_trapped};
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 
@@ -235,7 +235,7 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     let sc = state.sides[side].side_conditions;
 
     if sc.hazard_flags & HAZARD_STEALTH_ROCK != 0 {
-        let (t1, t2) = effective_types(state, side);
+        let (t1, t2) = battle_types(state, side);
         // Convert u8 back to Type for the effectiveness call.
         // SAFETY: our u8 type values come from Type as u8, so they're valid.
         let def1 = unsafe { core::mem::transmute::<u8, Type>(t1) };
@@ -255,7 +255,7 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
 
     // Toxic Spikes (grounded only)
     if sc.toxic_spikes > 0 && is_grounded(state, side) {
-        let (t1, t2) = effective_types(state, side);
+        let (t1, t2) = battle_types(state, side);
         let is_poison = t1 == Type::Poison as u8 || t2 == Type::Poison as u8;
         let is_steel = t1 == Type::Steel as u8 || t2 == Type::Steel as u8;
         if is_poison {
@@ -406,7 +406,7 @@ fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: us
             let opp_mon = state.active_mon(opp);
             if opp_mon.current_hp > 0 {
                 let opp_species = effective_species(state, opp);
-                let opp_types = effective_types(state, opp);
+                let opp_types = battle_types(state, opp);
                 let opp_stats = [
                     effective_stat(state, opp, ATK),
                     effective_stat(state, opp, DEF),

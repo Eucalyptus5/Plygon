@@ -712,7 +712,7 @@ fn execute_status_move(
             // Temporarily remove Flying type — we use a counter field to track
             // The end-of-move cleanup restores it. For simplicity in MCTS,
             // we handle this as a type override for the remainder of the turn.
-            let (t1, t2) = effective_types(state, atk_side);
+            let (t1, t2) = battle_types(state, atk_side);
             if t1 == Type::Flying as u8 || t2 == Type::Flying as u8 {
                 let new_t1 = if t1 == Type::Flying as u8 { Type::Normal as u8 } else { t1 };
                 let new_t2 = if t2 == Type::Flying as u8 { Type::Normal as u8 } else { t2 };
@@ -1977,7 +1977,7 @@ pub fn execute_move(
     // SeismicToss / Night Shade: damage = user's level. Respect type immunity
     // (Ghost vs Normal Night Shade, Normal vs Ghost Seismic Toss).
     if md.effect == MoveEffect::SeismicToss {
-        let (def_t1, def_t2) = effective_types(state, def_side);
+        let (def_t1, def_t2) = battle_types(state, def_side);
         let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
         let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
         let eff = crate::data::types::dual_type_effectiveness(md.move_type, def_type1, def_type2);
@@ -2329,7 +2329,7 @@ pub fn execute_move(
             // Color Change: change type to match the move type
             data_bridge::ABILITY_COLOR_CHANGE => {
                 let new_type = md.move_type as u8;
-                let (t1, t2) = effective_types(state, def_side);
+                let (t1, t2) = battle_types(state, def_side);
                 if t1 != new_type || t2 != new_type {
                     state.sides[def_side].active.override_types = [new_type, new_type];
                     set_volatile(state, keys, def_side, VOL_TYPES_OVERRIDDEN);

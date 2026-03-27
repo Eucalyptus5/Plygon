@@ -95,7 +95,7 @@ fn step_weather(state: &mut BattleState, keys: &ZobristKeys) {
             if state.field.magic_room_turns() == 0
                 && data_bridge::item(state.active_mon(side).item_id).has(ItemFlag::SAFETY_GOGGLES)
             { continue; }
-            let (t1, t2) = effective_types(state, side);
+            let (t1, t2) = battle_types(state, side);
             let immune = [Type::Rock as u8, Type::Ground as u8, Type::Steel as u8];
             if !immune.contains(&t1) && !immune.contains(&t2) {
                 deal_proportional_damage(state, keys, side, slot, 1, 16);
@@ -240,7 +240,7 @@ fn step_item_healing(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
         heal(state, keys, side, slot, m / 16);
     }
     if itm.has(ItemFlag::BLACK_SLUDGE) {
-        let (t1, t2) = effective_types(state, side);
+        let (t1, t2) = battle_types(state, side);
         if t1 == Type::Poison as u8 || t2 == Type::Poison as u8 {
             let m = state.sides[side].team[slot].max_hp;
             heal(state, keys, side, slot, m / 16);
@@ -298,7 +298,7 @@ fn step_salt_cure(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     if state.sides[side].active.stockpile & 0x80 == 0 { return; }
     if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
 
-    let (t1, t2) = effective_types(state, side);
+    let (t1, t2) = battle_types(state, side);
     let is_water_steel = t1 == crate::data::types::Type::Water as u8
         || t2 == crate::data::types::Type::Water as u8
         || t1 == crate::data::types::Type::Steel as u8
