@@ -133,12 +133,43 @@ fn accuracy_check(
 }
 
 #[inline]
+/// Damaging-move secondaries whose stat target differs from the
+/// category-implied default (Physical→DEF / Special→SPD on opponent drop).
+/// Returns the stat index (0..6, where 5=accuracy, 6=evasion).
+#[inline]
+fn secondary_drop_stat_override(move_id: u16) -> Option<usize> {
+    use crate::data::*;
+    const ACCURACY: usize = 5;
+    match move_id as usize {
+        // Speed-drop on opponent
+        MOVE_BUBBLE | MOVE_BUBBLE_BEAM | MOVE_BULLDOZE | MOVE_LOW_SWEEP
+        | MOVE_ICY_WIND | MOVE_GLACIATE | MOVE_ELECTROWEB
+        | MOVE_DRUM_BEATING | MOVE_BLEAKWIND_STORM | MOVE_POUNCE
+        | MOVE_ROCK_TOMB | MOVE_MUD_SHOT | MOVE_CONSTRICT => Some(SPE),
+        // Attack-drop secondaries on Special moves (and on Physical moves
+        // whose default would be DEF but Showdown drops ATK)
+        MOVE_AURORA_BEAM | MOVE_BITTER_MALICE | MOVE_CHILLING_WATER
+        | MOVE_LUNGE | MOVE_PLAY_ROUGH | MOVE_TROP_KICK
+        | MOVE_BREAKING_SWIPE | MOVE_SPRINGTIDE_STORM => Some(ATK),
+        // Sp.Atk-drop secondaries
+        MOVE_MIST_BALL | MOVE_MOONBLAST | MOVE_MYSTICAL_FIRE
+        | MOVE_SNARL | MOVE_STRUGGLE_BUG | MOVE_SPIRIT_BREAK
+        | MOVE_SKITTER_SMACK | MOVE_SECRET_POWER => Some(SPA),
+        // Accuracy-drop secondaries
+        MOVE_LEAF_TORNADO | MOVE_MIRROR_SHOT | MOVE_MUD_BOMB
+        | MOVE_MUDDY_WATER | MOVE_MUD_SLAP | MOVE_NIGHT_DAZE
+        | MOVE_OCTAZOOKA => Some(ACCURACY),
+        _ => None,
+    }
+}
+
 fn apply_secondary(
     state: &mut BattleState,
     keys: &ZobristKeys,
     atk_side: usize,
     def_side: usize,
     md: &MoveData,
+    move_id: u16,
     rng: &mut impl FnMut(u32) -> u32,
 ) {
     if md.secondary_chance == 0 { return; }
@@ -170,7 +201,9 @@ fn apply_secondary(
 
     if md.secondary_stat < 0 {
         if state.sides[def_side].side_conditions.mist_turns() == 0 {
-            let stat = if md.category == MoveCategory::Physical { DEF } else { SPD };
+            let stat = secondary_drop_stat_override(move_id).unwrap_or_else(|| {
+                if md.category == MoveCategory::Physical { DEF } else { SPD }
+            });
             try_opponent_stat_drop(state, keys, def_side, stat, md.secondary_stat as i8);
         }
         return;
@@ -2264,7 +2297,7 @@ pub fn execute_move(
     if !state.sides[def_side].team[def_slot].is_fainted()
         && !result.hits_substitute
     {
-        apply_secondary(state, keys, atk_side, def_side, md, rng);
+        apply_secondary(state, keys, atk_side, def_side, md, move_id, rng);
     }
 
     // King's Rock / Razor Fang: 10% flinch chance on damaging moves.
@@ -5606,7 +5639,7 @@ mod tests {
             accuracy: 0,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
     }
@@ -5660,7 +5693,7 @@ mod tests {
             accuracy: 0,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
     }
@@ -6276,7 +6309,7 @@ mod tests {
             category: MoveCategory::Physical, base_power: 80,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
     }
 
@@ -6301,7 +6334,7 @@ mod tests {
             category: MoveCategory::Physical, base_power: 80,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
     }
 
@@ -6315,7 +6348,7 @@ mod tests {
             move_type: Type::Fire, category: MoveCategory::Physical, base_power: 80,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
     }
 
@@ -6329,7 +6362,7 @@ mod tests {
             category: MoveCategory::Physical, base_power: 80,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
         assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED));
     }
 
@@ -6343,7 +6376,7 @@ mod tests {
             category: MoveCategory::Physical, base_power: 80,
             ..unsafe { core::mem::zeroed() }
         };
-        apply_secondary(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0));
+        apply_secondary(&mut state, &keys, 0, 1, &md, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
     }
 
