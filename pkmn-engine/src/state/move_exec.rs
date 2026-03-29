@@ -280,6 +280,20 @@ fn execute_status_move(
         _ => {}
     }
 
+    // Rest: full heal + 3-turn sleep, fail at full HP / Insomnia / Vital Spirit / Comatose.
+    // Mirrors Showdown moves.ts:15014-15036; ability ids: 15=insomnia, 72=vitalspirit.
+    if move_id as usize == crate::data::MOVE_REST {
+        let mon = &state.sides[atk_side].team[atk_slot];
+        if mon.current_hp == mon.max_hp { return; }
+        let abil = effective_ability(state, atk_side);
+        if abil == 15 || abil == 72 || abil == data_bridge::ABILITY_COMATOSE { return; }
+        let to_heal = mon.max_hp - mon.current_hp;
+        clear_status(state, keys, atk_side, atk_slot);
+        set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, 3);
+        heal(state, keys, atk_side, atk_slot, to_heal);
+        return;
+    }
+
     if md.flags & MoveFlags::HEAL != 0
         && md.effect != MoveEffect::Wish
         && md.effect != MoveEffect::HealingWish
