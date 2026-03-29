@@ -468,29 +468,40 @@ fn execute_status_move(
         }
 
         // -- Screens --
+        // Showdown's Side.addSideCondition (sim/side.ts:405-409) rejects a
+        // re-cast: if the side already has the condition, only `SideRestart`
+        // fires (no duration reset). Match by no-op when the counter is non-zero.
         MoveEffect::Reflect => {
-            state.sides[atk_side].side_conditions.reflect_turns = screen_duration(state, atk_side);
+            if state.sides[atk_side].side_conditions.reflect_turns == 0 {
+                state.sides[atk_side].side_conditions.reflect_turns = screen_duration(state, atk_side);
+            }
         }
         MoveEffect::LightScreen => {
-            state.sides[atk_side].side_conditions.light_screen_turns = screen_duration(state, atk_side);
+            if state.sides[atk_side].side_conditions.light_screen_turns == 0 {
+                state.sides[atk_side].side_conditions.light_screen_turns = screen_duration(state, atk_side);
+            }
         }
         MoveEffect::AuroraVeil => {
-            if effective_weather(state) == WEATHER_SNOW {
+            if effective_weather(state) == WEATHER_SNOW
+                && state.sides[atk_side].side_conditions.aurora_veil_turns == 0
+            {
                 state.sides[atk_side].side_conditions.aurora_veil_turns = screen_duration(state, atk_side);
             }
         }
 
         // -- Field effects --
         MoveEffect::Tailwind => {
-            state.sides[atk_side].side_conditions.tailwind_turns = 4;
-            // Wind Rider: when Tailwind starts, boost user's ally active mon Atk by +1.
-            // (Singles: just the active. Ability suppression is honored via has_volatile.)
-            let active_idx = state.sides[atk_side].active_index as usize;
-            let ability_id = state.sides[atk_side].team[active_idx].ability_id;
-            if ability_id == data_bridge::ABILITY_WIND_RIDER
-                && !state.sides[atk_side].active.has_volatile(VOL_ABILITY_SUPPRESSED)
-            {
-                apply_boost(state, keys, atk_side, ATK, 1);
+            if state.sides[atk_side].side_conditions.tailwind_turns == 0 {
+                state.sides[atk_side].side_conditions.tailwind_turns = 4;
+                // Wind Rider fires on Tailwind onSideStart — re-cast (which is a
+                // SideRestart in Showdown, not Start) doesn't trigger it.
+                let active_idx = state.sides[atk_side].active_index as usize;
+                let ability_id = state.sides[atk_side].team[active_idx].ability_id;
+                if ability_id == data_bridge::ABILITY_WIND_RIDER
+                    && !state.sides[atk_side].active.has_volatile(VOL_ABILITY_SUPPRESSED)
+                {
+                    apply_boost(state, keys, atk_side, ATK, 1);
+                }
             }
         }
         MoveEffect::TrickRoom => {
