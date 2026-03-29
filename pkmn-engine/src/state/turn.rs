@@ -260,6 +260,22 @@ fn execute_action(
 #[inline]
 fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let slot = state.sides[side].active_index as usize;
+    // Showdown's `chooseMove` rejects terastallize when the user is locked
+    // into a multi-turn move (Fly/Dig/Dive/etc. charge state, Outrage/Petal
+    // Dance lock, post-Hyper Beam recharge). Mirror that here — the action
+    // queue still resolves to Tera in the engine because decode_action runs
+    // before the lock is observed, but applying tera under those volatiles
+    // diverges the snapshot vs Showdown.
+    {
+        let active = &state.sides[side].active;
+        if active.has_volatile(VOL_CHARGING)
+            || active.has_volatile(VOL_RECHARGING)
+            || active.has_volatile(VOL_MOVE_LOCKED)
+            || active.has_volatile(VOL_SEMI_INVULNERABLE)
+        {
+            return;
+        }
+    }
     let mon = &mut state.sides[side].team[slot];
     if mon.is_fainted() || mon.is_terastallized() { return; }
     mon.flags |= MON_FLAG_TERASTALLIZED;
