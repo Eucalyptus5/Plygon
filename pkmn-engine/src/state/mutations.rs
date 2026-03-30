@@ -272,6 +272,17 @@ pub fn clear_volatile(state: &mut BattleState, keys: &ZobristKeys, side: usize, 
 }
 
 pub fn set_weather(state: &mut BattleState, keys: &ZobristKeys, weather: u8, turns: u8) {
+    // Showdown's Field.setWeather (sim/field.ts:45-53) refuses to re-set the
+    // same weather while it's still active — non-sandstorm move sources fail
+    // in gen >2, ability sources fail in gen >5 unless duration is 0. The
+    // duration counter therefore keeps decrementing on its original schedule.
+    // Mirror by no-op when the same non-NONE weather is already active.
+    if weather != WEATHER_NONE
+        && state.field.weather == weather
+        && state.field.weather_turns > 0
+    {
+        return;
+    }
     state.zobrist ^= keys.weather[state.field.weather as usize];
     state.field.weather = weather;
     state.field.weather_turns = turns;

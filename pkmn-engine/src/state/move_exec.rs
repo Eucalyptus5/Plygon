@@ -255,7 +255,8 @@ fn execute_status_move(
         return;
     }
 
-    // Weather moves: field-targeting, bypass Protect/accuracy/immunity
+    // Weather moves: field-targeting, bypass Protect/accuracy/immunity.
+    // The same-weather guard now lives inside set_weather (mutations.rs).
     match move_id as usize {
         crate::data::MOVE_SUNNY_DAY => {
             set_weather(state, keys, WEATHER_SUN, 5);
