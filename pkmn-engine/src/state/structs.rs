@@ -380,7 +380,11 @@ impl MonSlot {
     pub fn is_fainted(&self) -> bool { self.current_hp == 0 }
 
     #[inline(always)]
-    pub fn is_terastallized(&self) -> bool { self.flags & MON_FLAG_TERASTALLIZED != 0 }
+    pub fn is_terastallized(&self) -> bool {
+        // Showdown's `delete pokemon.terastallized` on faint (battle.ts:2563)
+        // means a fainted mon reports as non-terastallized. Mirror that here.
+        self.current_hp != 0 && (self.flags & MON_FLAG_TERASTALLIZED != 0)
+    }
 }
 
 impl ActiveMon {
