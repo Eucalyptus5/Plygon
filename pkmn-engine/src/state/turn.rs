@@ -199,6 +199,22 @@ fn resolve_order(
         return (a, b);
     }
 
+    // Quick Claw item: 20% chance to bump priority when both sides are at the
+    // same integer priority and it's <= 0 (mirrors Showdown's
+    // `onFractionalPriority` in items.ts:quickclaw — `if (priority <= 0 && randomChance(1,5))`).
+    // Magic Room suppresses item effects.
+    let qc_eligible = pri_a <= 0 && state.field.magic_room_turns() == 0;
+    let a_qc = qc_eligible
+        && matches!(act_a, ActionKind::Move { .. } | ActionKind::Tera { .. })
+        && data_bridge::item(state.active_mon(side_a).item_id).has(data_bridge::ItemFlag::QUICK_CLAW)
+        && rng(5) == 0;
+    let b_qc = qc_eligible
+        && matches!(act_b, ActionKind::Move { .. } | ActionKind::Tera { .. })
+        && data_bridge::item(state.active_mon(side_b).item_id).has(data_bridge::ItemFlag::QUICK_CLAW)
+        && rng(5) == 0;
+    if a_qc && !b_qc { return (a, b); }
+    if b_qc && !a_qc { return (b, a); }
+
     let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
         let md = data_bridge::move_hot(move_id);
         md.category != MoveCategory::Status

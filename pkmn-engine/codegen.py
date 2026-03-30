@@ -959,6 +959,7 @@ SPECIFIC_ITEMS = {
     # Kings Rock / Razor Fang: 10% flinch chance
     "kingsrock": ("KINGS_ROCK",),
     "razorfang": ("KINGS_ROCK",),
+    "quickclaw": ("QUICK_CLAW",),
 }
 
 # Terrain seed type_param encoding — matches switch.rs terrain activation logic.

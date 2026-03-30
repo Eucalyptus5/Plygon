@@ -250,6 +250,8 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     t[369] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 10, power_param: 0, forme_species: 0 };
     // [371] Qualot Berry
     t[371] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
+    // [373] Quick Claw
+    t[373] = ItemData { flags: F::QUICK_CLAW, type_param: 0xFF, power_param: 80, forme_species: 0 };
     // [375] Rabuta Berry
     t[375] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 0, forme_species: 0 };
     // [381] Rawst Berry

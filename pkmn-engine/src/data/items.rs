@@ -90,6 +90,9 @@ pub mod ItemFlag {
     // Kings Rock / Razor Fang: 10% flinch chance on damaging moves
     pub const KINGS_ROCK: u64        = 1 << 56;
 
+    // Quick Claw: 20% chance to bump priority on same/lower-priority moves
+    pub const QUICK_CLAW: u64        = 1 << 57;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }
