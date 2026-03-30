@@ -849,6 +849,19 @@ fn execute_status_move(
             }
         }
 
+        // -- Psych Up: copy target's stat boosts to attacker (Showdown moves.ts onHit) --
+        MoveEffect::PsychUp => {
+            for stat in 0..7 {
+                let target_val = state.sides[def_side].active.boosts[stat];
+                let user_val = state.sides[atk_side].active.boosts[stat];
+                if user_val != target_val {
+                    state.zobrist ^= keys.boosts[atk_side][stat][(user_val + 6) as usize];
+                    state.sides[atk_side].active.boosts[stat] = target_val;
+                    state.zobrist ^= keys.boosts[atk_side][stat][(target_val + 6) as usize];
+                }
+            }
+        }
+
         // -- Haze: reset all stat changes --
         MoveEffect::Haze => {
             for side in 0..2 {

@@ -258,6 +258,7 @@ pub enum MoveEffect {
     Memento          = 107, // -2 atk/-2 spa on target, then user faints
     ToxicThread      = 108, // Inflict poison + -1 spe on target
     Charge           = 109, // +1 SpD, set charge bit (2x power for next Electric move)
+    PsychUp          = 110, // Copy target's stat boosts (and crit-up volatiles) to user
 }
 
 // Flags (16 bits)

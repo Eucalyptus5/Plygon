@@ -135,6 +135,7 @@ MOVE_EFFECT = {
     "whirlwind": "Whirlwind", "roar": "Whirlwind", "dragontail": "Whirlwind",
     "circlethrow": "Whirlwind",
     "haze": "Haze", "clearsmog": "Haze",
+    "psychup": "PsychUp",
     "yawn": "Yawn",
     "confuseray": "Confuse", "sweetkiss": "Confuse", "flatter": "Confuse",
     "swagger": "Confuse", "supersonic": "Confuse", "teeterdance": "Confuse",
