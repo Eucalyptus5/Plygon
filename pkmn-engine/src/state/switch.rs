@@ -45,6 +45,17 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
         }
     }
 
+    // Partial-trap source leaves field → release the opposite side's bind.
+    // Showdown: data/conditions.ts:234-242 deletes the partiallytrapped volatile
+    // when source.isActive is false. Single-battle invariant: if A's mon was
+    // binding B's mon, A leaving releases B; engine doesn't track source so it
+    // assumes the binder was always A's outgoing mon.
+    let opp = 1 - side;
+    if state.sides[opp].active.has_volatile(VOL_BOUND) {
+        clear_volatile(state, keys, opp, VOL_BOUND);
+        state.sides[opp].active.set_bind_turns(0);
+    }
+
     let flags = state.sides[side].active.volatile_flags;
     for bit in 0..32u32 {
         if flags & (1 << bit) != 0 { state.zobrist ^= keys.volatile_bit[side][bit as usize]; }
