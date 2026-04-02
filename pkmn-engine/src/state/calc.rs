@@ -540,6 +540,7 @@ pub fn calc_damage(
     if def_active.has_volatile(VOL_SUBSTITUTE)
         && md.flags & MoveFlags::SOUND == 0
         && md.flags & MoveFlags::BYPASSSUB == 0
+        && atk_ability != data_bridge::ABILITY_INFILTRATOR
     {
         result.hits_substitute = true;
     }

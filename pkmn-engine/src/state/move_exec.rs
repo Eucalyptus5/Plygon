@@ -314,10 +314,13 @@ fn execute_status_move(
     if !targets_self && state.sides[def_side].active.has_volatile(VOL_SEMI_INVULNERABLE) {
         return;
     }
-    // Substitute: block non-bypasssub status moves targeting the opponent
+    // Substitute: block non-bypasssub status moves targeting the opponent.
+    // Infiltrator bypasses sub for status moves too (Showdown abilities.ts:2074-2082
+    // sets move.infiltrates which is checked alongside BYPASSSUB at every sub check).
     if !targets_self
         && md.flags & MoveFlags::BYPASSSUB == 0
         && state.sides[def_side].active.has_volatile(VOL_SUBSTITUTE)
+        && effective_ability(state, atk_side) != data_bridge::ABILITY_INFILTRATOR
     {
         return;
     }

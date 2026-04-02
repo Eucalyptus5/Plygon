@@ -51,6 +51,7 @@ pub const ABILITY_LEVITATE: u16      = 26;
 pub const ABILITY_NATURAL_CURE: u16  = 30;
 pub const ABILITY_REGENERATOR: u16   = 144;
 pub const ABILITY_INTIMIDATE: u16    = 22;
+pub const ABILITY_INFILTRATOR: u16   = 151;
 
 // -- Trapping abilities (legal_moves switch gating) --
 pub const ABILITY_SHADOW_TAG: u16    = 23;
