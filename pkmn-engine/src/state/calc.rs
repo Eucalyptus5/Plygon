@@ -548,7 +548,7 @@ pub fn calc_damage(
     if md.drain > 0 {
         result.drain_heal = (result.damage as u32 * md.drain as u32 / 100) as u16;
     }
-    if md.drain < 0 {
+    if md.drain < 0 && atk_ability != data_bridge::ABILITY_ROCK_HEAD {
         let pct = (-md.drain) as u32;
         result.recoil_damage = ((result.damage as u32 * pct + 50) / 100).max(1) as u16;
     }
