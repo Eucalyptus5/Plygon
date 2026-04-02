@@ -1873,6 +1873,27 @@ pub fn execute_move(
 
     set_volatile(state, keys, atk_side, VOL_MOVED_THIS_TURN);
 
+    // Sucker Punch onTry: fails unless the target is queued to use a damaging
+    // move this turn and isn't recharging. Mirrors moves.ts:suckerpunch.onTry —
+    // willMove(target) returns null when the defender has already moved or is
+    // queued to switch; status moves (except Me First) also fail it.
+    if move_id == 389 {
+        let def_active = &state.sides[def_side].active;
+        let def_already_moved = def_active.has_volatile(VOL_MOVED_THIS_TURN)
+            || def_active.has_volatile(VOL_RECHARGING);
+        let raw = state.pending_actions[def_side];
+        let queued_move_id: u16 = match raw {
+            0..=3 => effective_moves(state, def_side)[raw as usize],
+            ACTION_TERA => effective_moves(state, def_side)[0],
+            _ => 0, // switch / 0xFF / unknown
+        };
+        let queued_is_damaging = queued_move_id != 0
+            && data_bridge::move_hot(queued_move_id).category != MoveCategory::Status;
+        if def_already_moved || !queued_is_damaging {
+            break 'exec;
+        }
+    }
+
     // Protean / Libero: change type to match move before attacking
     if !is_struggle && !is_charge_turn2 && !is_move_locked {
         let atk_ability = effective_ability(state, atk_side);

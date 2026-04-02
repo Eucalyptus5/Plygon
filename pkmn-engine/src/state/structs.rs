@@ -280,6 +280,11 @@ pub struct BattleState {
     pub field: FieldState,
     pub phase: u8,
     pub _padding: u8,
+    /// Per-side raw action byte for the current turn, populated by execute_turn
+    /// before either action runs. Used by Sucker Punch's onTry to introspect
+    /// the defender's queued action without changing every call site's signature.
+    /// 0xFF = unknown / no action queued (Sucker Punch treats as fail).
+    pub pending_actions: [u8; 2],
 }
 
 /// Immutable per-Pokémon build data.  Lives in Tier 2 (never copied by MCTS).
@@ -480,5 +485,6 @@ impl BattleState {
     pub fn clear_turn_resume(&mut self) {
         self._padding = 0;
         self.field._padding = 0;
+        self.pending_actions = [0xFF, 0xFF];
     }
 }

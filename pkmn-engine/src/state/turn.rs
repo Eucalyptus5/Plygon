@@ -402,7 +402,16 @@ pub fn execute_turn(
 
     let second_raw = if second.side == 0 { action_p1 } else { action_p2 };
 
+    // Publish each side's raw action so move-execute logic can introspect the
+    // opponent's queued action (Sucker Punch onTry).
+    state.pending_actions[0] = action_p1;
+    state.pending_actions[1] = action_p2;
+
     execute_action(state, keys, first.side, &first.action, rng);
+
+    // First mover has resolved — invalidate their entry so the second mover's
+    // Sucker Punch sees "defender already moved".
+    state.pending_actions[first.side] = 0xFF;
 
     // Faint after move 1: pause for forced replacement before continuing
     if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
