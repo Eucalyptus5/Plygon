@@ -363,9 +363,19 @@ pub fn ability_power_mod(
         data_bridge::ABILITY_SAND_FORCE
             if matches!(md.move_type, Type::Rock | Type::Ground | Type::Steel)
             && effective_weather(state) == WEATHER_SAND => (5325, 4096), // 1.3×
+        // Analytic: 1.3× if no other active mon still has a pending move this
+        // turn. Mirrors abilities.ts:analytic — boost is gated by
+        // `this.queue.willMove(target)`, which is false both when the target
+        // already moved and when the target switched in this turn (newlySwitched
+        // also has no pending move). Engine signal: pending_actions[def] is set
+        // to 0xFF the moment the defender's queued action resolves (move or
+        // switch — see turn.rs:execute_turn). Requiring atk's slot to still be
+        // populated keeps calc-only mode (both slots default 0xFF) from
+        // spuriously activating Analytic.
         data_bridge::ABILITY_ANALYTIC
-            if state.sides[1 - atk_side].active.has_volatile(VOL_MOVED_THIS_TURN)
-            => (5325, 4096), // 1.3× if target already moved
+            if state.pending_actions[1 - atk_side] == 0xFF
+                && state.pending_actions[atk_side] != 0xFF
+            => (5325, 4096),
 
         // Pinch abilities (Overgrow/Blaze/Torrent/Swarm) moved to ability_atk_stat_mod
         // because Showdown applies them via onModifyAtk/SpA. Keeping them here would
