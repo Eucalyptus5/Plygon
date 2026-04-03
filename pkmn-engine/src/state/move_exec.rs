@@ -163,6 +163,19 @@ fn secondary_drop_stat_override(move_id: u16) -> Option<usize> {
     }
 }
 
+#[inline]
+/// Damaging moves whose secondary applies `volatileStatus: 'confusion'` to the target.
+/// codegen.py only extracts status/stat secondaries; the volatile-confusion path
+/// is opted into here.
+fn move_secondary_confuses(move_id: u16) -> bool {
+    use crate::data::*;
+    matches!(move_id as usize,
+        MOVE_PSYBEAM | MOVE_CONFUSION | MOVE_DIZZY_PUNCH | MOVE_SIGNAL_BEAM
+        | MOVE_WATER_PULSE | MOVE_ROCK_CLIMB | MOVE_CHATTER | MOVE_HURRICANE
+        | MOVE_STRANGE_STEAM | MOVE_DUAL_WINGBEAT | MOVE_AXE_KICK
+    )
+}
+
 fn apply_secondary(
     state: &mut BattleState,
     keys: &ZobristKeys,
@@ -229,6 +242,19 @@ fn apply_secondary(
     {
         if set_status(state, keys, def_side, def_slot, status, 0) {
             try_synchronize_back(state, keys, def_side, atk_side, status);
+        }
+        return;
+    }
+
+    if move_secondary_confuses(move_id) {
+        if state.sides[def_side].active.confusion_turns == 0
+            && state.sides[def_side].side_conditions.safeguard_turns() == 0
+            && effective_ability(state, def_side) != data_bridge::ABILITY_OWN_TEMPO
+        {
+            state.sides[def_side].active.confusion_turns = (rng(4) + 2) as u8;
+            if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
+                state.sides[def_side].active._padding[3] |= 0x08;
+            }
         }
         return;
     }
