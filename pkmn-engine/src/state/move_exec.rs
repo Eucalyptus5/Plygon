@@ -496,6 +496,10 @@ fn execute_status_move(
             apply_boost(state, keys, atk_side, ATK, 1);
             apply_boost(state, keys, atk_side, SPE, 2);
         }
+        MoveEffect::HoneClaws => {
+            apply_boost(state, keys, atk_side, ATK, 1);
+            apply_boost(state, keys, atk_side, ACC, 1);
+        }
 
         // -- Screens --
         // Showdown's Side.addSideCondition (sim/side.ts:405-409) rejects a
@@ -1137,7 +1141,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::SwordsDance | MoveEffect::NastyPlot | MoveEffect::DragonDance |
         MoveEffect::CalmMind | MoveEffect::BulkUp | MoveEffect::IronDefense |
         MoveEffect::Agility | MoveEffect::QuiverDance | MoveEffect::ShellSmash |
-        MoveEffect::Coil | MoveEffect::ShiftGear => true,
+        MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws => true,
 
         // Screens (set on own side)
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,

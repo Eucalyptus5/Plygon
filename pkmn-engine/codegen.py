@@ -60,6 +60,7 @@ MOVE_EFFECT = {
     "agility": "Agility", "autotomize": "Agility", "rockpolish": "Agility",
     "quiverdance": "QuiverDance", "shellsmash": "ShellSmash",
     "coil": "Coil", "shiftgear": "ShiftGear",
+    "honeclaws": "HoneClaws",
     "reflect": "Reflect", "lightscreen": "LightScreen",
     "auroraveil": "AuroraVeil", "tailwind": "Tailwind",
     "trickroom": "TrickRoom",
