@@ -102,6 +102,7 @@ pub const ABILITY_ROCKY_PAYLOAD: u16 = 276;
 pub const ABILITY_TECHNICIAN: u16    = 101;
 pub const ABILITY_RECKLESS: u16      = 120;
 pub const ABILITY_IRON_FIST: u16     = 89;
+pub const ABILITY_RIVALRY: u16       = 79;
 pub const ABILITY_SHEER_FORCE: u16   = 125;
 pub const ABILITY_ANALYTIC: u16      = 148;
 pub const ABILITY_TOUGH_CLAWS: u16   = 181;

@@ -377,6 +377,16 @@ pub fn ability_power_mod(
                 && state.pending_actions[atk_side] != 0xFF
             => (5325, 4096),
 
+        // Rivalry: 1.25× same gender, 0.75× opposite. Showdown short-circuits when either
+        // side is genderless; the engine lacks a genderless flag (MON_FLAG_FEMALE is the only
+        // gender bit), so genderless mons are treated as male here. All Rivalry users
+        // themselves carry a forced gender; the only misfire is vs a genderless defender.
+        data_bridge::ABILITY_RIVALRY => {
+            let def_mon = state.active_mon(1 - atk_side);
+            let same = (atk_mon.flags & MON_FLAG_FEMALE) == (def_mon.flags & MON_FLAG_FEMALE);
+            if same { (5120, 4096) } else { (3072, 4096) }
+        }
+
         // Pinch abilities (Overgrow/Blaze/Torrent/Swarm) moved to ability_atk_stat_mod
         // because Showdown applies them via onModifyAtk/SpA. Keeping them here would
         // round at the wrong stage and produce off-by-one damage when STAB also applies.
