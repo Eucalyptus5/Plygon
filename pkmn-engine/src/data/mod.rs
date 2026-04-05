@@ -9,6 +9,8 @@ pub(crate) mod gen_moves;
 pub(crate) mod gen_species;
 #[path = "generated/gen_items.rs"]
 pub(crate) mod gen_items;
+#[path = "generated/gen_call_family.rs"]
+pub(crate) mod gen_call_family;
 
 pub use gen_moves::*;
 pub use gen_species::*;
