@@ -1715,196 +1715,35 @@ fn foe_pokemon_left(state: &BattleState, side: usize) -> bool {
     })
 }
 
-/// Execute a single move.
+/// Inner "useMove" dispatch — mirrors Showdown's `useMove` in
+/// `sim/battle-actions.ts:298-376`. The outer entry `execute_move` runs
+/// Showdown's `runMove` prelude (`sim/battle-actions.ts:200-296`: PP,
+/// `last_move`, Choice-lock, `VOL_MOVED_THIS_TURN`, status/flinch/attract/
+/// taunt gates) and then hands off here. Future Call*-family handlers
+/// (Sleep Talk / Metronome / Copycat) will call this directly with `depth=1`.
 ///
-/// `move_id`: the actual move ID (from `effective_moves`), or 0 for Struggle.
-/// `move_slot`: 0-3 index for PP deduction.
-pub fn execute_move(
+/// FORWARD-COMPAT: Dancer / Magic Bounce dispatch through Showdown's
+/// `runMove` with `externalMove: true`, NOT `useMove`. They must route
+/// through a `runMove`-equivalent with their own re-entry guard — do not
+/// piggyback on this Call*-only depth cap.
+#[allow(clippy::too_many_arguments)]
+#[inline]
+pub(crate) fn use_move_called(
     state: &mut BattleState,
     keys: &ZobristKeys,
     atk_side: usize,
-    mut move_id: u16,
-    mut move_slot: u8,
+    atk_slot: usize,
+    def_side: usize,
+    def_slot: usize,
+    move_id: u16,
+    is_struggle: bool,
+    is_charge_turn2: bool,
+    is_move_locked: bool,
+    md: &MoveData,
     rng: &mut impl FnMut(u32) -> u32,
+    depth: u8,
 ) {
-    let def_side = 1 - atk_side;
-    let atk_slot = state.sides[atk_side].active_index as usize;
-    let def_slot = state.sides[def_side].active_index as usize;
-
-    if state.sides[atk_side].team[atk_slot].is_fainted() { return; }
-
-    let is_charge_turn2 = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
-    if is_charge_turn2 {
-        move_id = state.sides[atk_side].active.last_move;
-        clear_volatile(state, keys, atk_side, VOL_CHARGING);
-        clear_volatile(state, keys, atk_side, VOL_SEMI_INVULNERABLE);
-        state.sides[atk_side].active._padding[1] = 0;
-    }
-
-    let is_move_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
-    let was_last_locked_turn;
-    if is_move_locked {
-        move_id = state.sides[atk_side].active.last_move;
-        let counter = state.sides[atk_side].active._padding[2];
-        state.sides[atk_side].active._padding[2] = counter - 1;
-        was_last_locked_turn = counter <= 1;
-        if was_last_locked_turn {
-            clear_volatile(state, keys, atk_side, VOL_MOVE_LOCKED);
-        }
-    } else {
-        was_last_locked_turn = false;
-    }
-
-    // Encore override: if the user is encored and not charge/lock overridden,
-    // redirect to the encored move (same-turn Encore from a faster mon).
-    if !is_charge_turn2 && !is_move_locked {
-        let enc = &state.sides[atk_side].active;
-        if enc.encore_turns > 0 && enc.encore_move != 0 && move_id != enc.encore_move {
-            move_id = enc.encore_move;
-            // Update move_slot so PP is deducted from the correct slot
-            let moves = effective_moves(state, atk_side);
-            for i in 0..4 {
-                if moves[i] == move_id {
-                    move_slot = i as u8;
-                    break;
-                }
-            }
-        }
-    }
-
-    // Choice-lock / Gorilla Tactics execute-layer gate: if the attacker is
-    // already locked into a specific move and the dispatched move doesn't
-    // match, the move is rejected with a full no-op (no PP, no last_move
-    // update, no side effects). Mirrors Showdown's "Not all choices done"
-    // validation rejection at the engine layer. Gorilla Tactics ignores
-    // Magic Room (ability lock); Choice-item lock is suppressed by Magic
-    // Room (item effect). Fast path is a single u16 compare — no branch
-    // on ability/item unless the lock is already engaged.
-    let locked = state.sides[atk_side].active.choice_locked_move;
-    if locked != 0 && move_id != 0 && move_id != locked
-        && !is_charge_turn2 && !is_move_locked
-    {
-        let is_gt = effective_ability(state, atk_side)
-            == data_bridge::ABILITY_GORILLA_TACTICS;
-        if is_gt || state.field.magic_room_turns() == 0 {
-            return;
-        }
-    }
-
-    let is_struggle = move_id == 0;
-    let md = data_bridge::move_hot(move_id);
-
-    // Pre-move checks and execution are in a labeled block so that
-    // thrash confusion is always applied after the last locked turn,
-    // even if the move fails due to flinch/para/sleep/etc.
-    'exec: {
-
-    if state.sides[atk_side].active.has_volatile(VOL_RECHARGING) {
-        clear_volatile(state, keys, atk_side, VOL_RECHARGING);
-        break 'exec;
-    }
-
-    if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
-
-    if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
-        if rng(4) == 0 { break 'exec; }
-    }
-
-    // Sleep: decrement counter, fail unless waking up.
-    // This is the ONLY place the sleep counter is decremented (not in end_of_turn).
-    if state.sides[atk_side].team[atk_slot].status == STATUS_SLEEP {
-        let counter = state.sides[atk_side].team[atk_slot].status_counter;
-        if counter > 0 {
-            state.sides[atk_side].team[atk_slot].status_counter = counter - 1;
-            if counter > 1 { break 'exec; }
-            clear_status(state, keys, atk_side, atk_slot);
-        }
-    }
-
-    // Freeze: 20% thaw, fire moves always thaw
-    if state.sides[atk_side].team[atk_slot].status == STATUS_FREEZE {
-        if md.move_type == Type::Fire || rng(5) == 0 {
-            clear_status(state, keys, atk_side, atk_slot);
-        } else {
-            break 'exec;
-        }
-    }
-
-    // Confusion: 33% self-hit
-    if state.sides[atk_side].active.confusion_turns > 0 {
-        // BUG-P5-M-101: skip the first decrement on the turn confusion was freshly
-        // applied. _padding[3] bit 3 is the "confused this turn" flag, set when
-        // confusion is applied mid-turn before the target has moved.
-        let just_confused = state.sides[atk_side].active._padding[3] & 0x08 != 0;
-        if just_confused {
-            state.sides[atk_side].active._padding[3] &= !0x08;
-        } else {
-            state.sides[atk_side].active.confusion_turns -= 1;
-        }
-        if state.sides[atk_side].active.confusion_turns > 0 && rng(3) == 0 {
-            let a = boosted_stat(
-                effective_stat(state, atk_side, ATK),
-                state.sides[atk_side].active.boosts[ATK],
-            ) as u32;
-            let d = boosted_stat(
-                effective_stat(state, atk_side, DEF),
-                state.sides[atk_side].active.boosts[DEF],
-            ).max(1) as u32;
-            let level = state.sides[atk_side].team[atk_slot].level as u32;
-            let level_factor = 2 * level / 5 + 2;
-            let dmg = ((level_factor * 40 * a / d) / 50 + 2) as u16;
-            deal_damage(state, keys, atk_side, atk_slot, dmg);
-            break 'exec;
-        }
-    }
-
-    // Attraction: 50% chance to skip turn
-    if state.sides[atk_side].active.is_attracted() {
-        if rng(2) == 0 { break 'exec; }
-    }
-
-    // Taunt: block status moves (same-turn or future turns)
-    if !is_struggle && md.category == MoveCategory::Status
-        && state.sides[atk_side].active.taunt_turns > 0
-    {
-        break 'exec;
-    }
-
-    if !is_charge_turn2 {
-        if !is_struggle {
-            // For move-locked turns, find the correct move slot for PP deduction
-            let pp_slot = if is_move_locked {
-                let moves = effective_moves(state, atk_side);
-                (0..4).find(|&i| moves[i] == move_id).unwrap_or(move_slot as usize)
-            } else {
-                move_slot as usize
-            };
-            deduct_pp(state, atk_side, pp_slot, 1);
-        }
-
-        if !is_move_locked {
-            let active = &mut state.sides[atk_side].active;
-            if active.last_move == move_id && move_id != 0 {
-                active.consec_move_count = active.consec_move_count.saturating_add(1);
-            } else {
-                active.consec_move_count = 1;
-            }
-            active.last_move = move_id;
-        }
-
-        if !is_struggle && state.sides[atk_side].active.choice_locked_move == 0 {
-            let is_choice_item = if state.field.magic_room_turns() == 0 {
-                data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::IS_CHOICE)
-            } else { false };
-            let is_gorilla_tactics = effective_ability(state, atk_side)
-                == data_bridge::ABILITY_GORILLA_TACTICS;
-            if is_choice_item || is_gorilla_tactics {
-                state.sides[atk_side].active.choice_locked_move = move_id;
-            }
-        }
-    }
-
-    set_volatile(state, keys, atk_side, VOL_MOVED_THIS_TURN);
+    if is_call_family(move_id) && depth > 0 { return; }
 
     // Sucker Punch onTry: fails unless the target is queued to use a damaging
     // move this turn and isn't recharging. Mirrors moves.ts:suckerpunch.onTry —
@@ -1923,7 +1762,7 @@ pub fn execute_move(
         let queued_is_damaging = queued_move_id != 0
             && data_bridge::move_hot(queued_move_id).category != MoveCategory::Status;
         if def_already_moved || !queued_is_damaging {
-            break 'exec;
+            return;
         }
     }
 
@@ -2003,7 +1842,7 @@ pub fn execute_move(
         && holds_safety_goggles(state, def_side)
     {
         apply_crash_if_needed(state, keys, atk_side, md);
-        break 'exec;
+        return;
     }
 
     if !is_struggle && md.category == MoveCategory::Status {
@@ -2041,7 +1880,7 @@ pub fn execute_move(
                 _ => {} // Normal Protect: no penalty
             }
         }
-        break 'exec;
+        return;
     }
 
     if !is_struggle && state.sides[def_side].active.has_volatile(VOL_SEMI_INVULNERABLE) {
@@ -2052,7 +1891,7 @@ pub fn execute_move(
             && !can_hit_semi_invuln(move_id, state.sides[def_side].active._padding[1])
         {
             apply_crash_if_needed(state, keys, atk_side, md);
-            break 'exec;
+            return;
         }
     }
 
@@ -2063,14 +1902,14 @@ pub fn execute_move(
         if move_id == crate::data::MOVE_FURY_CUTTER as u16 {
             state.sides[atk_side].active.consec_move_count = 0;
         }
-        break 'exec;
+        return;
     }
 
     if !is_struggle {
         // Priority-blocking: Dazzling / Queenly Majesty / Armor Tail
         if priority_block_immunity(state, def_side, md.priority) {
             apply_crash_if_needed(state, keys, atk_side, md);
-            break 'exec;
+            return;
         }
         // Flag-based immunities (Bulletproof, Soundproof, Overcoat, Wind Rider)
         // Mold Breaker bypasses these
@@ -2078,13 +1917,13 @@ pub fn execute_move(
         if let Some(eff) = ability_flag_immunity(state, def_side, md.flags, atk_ability_imm) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
             apply_crash_if_needed(state, keys, atk_side, md);
-            break 'exec;
+            return;
         }
         // Type-based immunities and side effects
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type, atk_ability_imm) {
             apply_immunity_effect(state, keys, def_side, def_slot, eff);
             apply_crash_if_needed(state, keys, atk_side, md);
-            break 'exec;
+            return;
         }
     }
 
@@ -2095,14 +1934,14 @@ pub fn execute_move(
         if target_hp > user_hp {
             deal_damage(state, keys, def_side, def_slot, target_hp - user_hp);
         }
-        break 'exec;
+        return;
     }
 
     // SuperFang: halve target's current HP
     if md.effect == MoveEffect::SuperFang {
         let target_hp = state.sides[def_side].team[def_slot].current_hp;
         deal_damage(state, keys, def_side, def_slot, (target_hp / 2).max(1));
-        break 'exec;
+        return;
     }
 
     // SeismicToss / Night Shade: damage = user's level. Respect type immunity
@@ -2116,7 +1955,7 @@ pub fn execute_move(
             let level = state.active_mon(atk_side).level as u16;
             deal_damage(state, keys, def_side, def_slot, level);
         }
-        break 'exec;
+        return;
     }
 
     // Counter: return 2× physical damage taken this turn
@@ -2130,7 +1969,7 @@ pub fn execute_move(
                 deal_damage(state, keys, def_side, def_slot, max_hp / 2);
             }
         }
-        break 'exec;
+        return;
     }
 
     // MirrorCoat: return 2× special damage taken this turn
@@ -2143,7 +1982,7 @@ pub fn execute_move(
                 deal_damage(state, keys, def_side, def_slot, max_hp / 2);
             }
         }
-        break 'exec;
+        return;
     }
 
     // MetalBurst: return 1.5× last damage taken
@@ -2153,7 +1992,7 @@ pub fn execute_move(
             let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
             deal_damage(state, keys, def_side, def_slot, max_hp * 3 / 8);
         }
-        break 'exec;
+        return;
     }
 
     // FinalGambit: deal user's current HP as damage, user faints
@@ -2161,13 +2000,13 @@ pub fn execute_move(
         let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
         deal_damage(state, keys, def_side, def_slot, user_hp);
         deal_damage(state, keys, atk_side, atk_slot, user_hp);
-        break 'exec;
+        return;
     }
 
     // SpitUp: fail if no stockpile (VarPower::SpitUp returns 0 BP)
     if md.effect == MoveEffect::SpitUp {
         let count = state.sides[atk_side].active.stockpile & 0x7F;
-        if count == 0 { break 'exec; }
+        if count == 0 { return; }
     }
 
     let per_hit_acc = match move_id {
@@ -2186,7 +2025,7 @@ pub fn execute_move(
 
     if result.type_immune {
         apply_crash_if_needed(state, keys, atk_side, md);
-        break 'exec;
+        return;
     }
 
     if !result.hits_substitute {
@@ -2199,7 +2038,7 @@ pub fn execute_move(
             // Disguise costs 1/8 max HP when broken (Gen 8+)
             let max_hp = state.sides[def_side].team[def_slot].max_hp;
             deal_damage(state, keys, def_side, def_slot, max_hp / 8);
-            break 'exec;
+            return;
         }
 
         // Ice Face: blocks one Physical hit
@@ -2208,7 +2047,7 @@ pub fn execute_move(
             && md.category == MoveCategory::Physical
         {
             state.sides[def_side].active._padding[4] = shields | 2;
-            break 'exec;
+            return;
         }
     }
 
@@ -2972,7 +2811,210 @@ pub fn execute_move(
             }
         }
     }
+}
 
+/// Execute a single move.
+///
+/// `move_id`: the actual move ID (from `effective_moves`), or 0 for Struggle.
+/// `move_slot`: 0-3 index for PP deduction.
+///
+/// Runs the `runMove` prelude (PP, last_move, Choice-lock, status/flinch/
+/// attract/taunt gates, VOL_MOVED_THIS_TURN), then dispatches the apply
+/// span via [`use_move_called`] with `depth=0`. The post-`'exec` thrash
+/// confusion cleanup runs after the helper returns. Mirrors Showdown's
+/// `runMove` (sim/battle-actions.ts:200-296).
+pub fn execute_move(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    atk_side: usize,
+    mut move_id: u16,
+    mut move_slot: u8,
+    rng: &mut impl FnMut(u32) -> u32,
+) {
+    let def_side = 1 - atk_side;
+    let atk_slot = state.sides[atk_side].active_index as usize;
+    let def_slot = state.sides[def_side].active_index as usize;
+
+    if state.sides[atk_side].team[atk_slot].is_fainted() { return; }
+
+    let is_charge_turn2 = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+    if is_charge_turn2 {
+        move_id = state.sides[atk_side].active.last_move;
+        clear_volatile(state, keys, atk_side, VOL_CHARGING);
+        clear_volatile(state, keys, atk_side, VOL_SEMI_INVULNERABLE);
+        state.sides[atk_side].active._padding[1] = 0;
+    }
+
+    let is_move_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+    let was_last_locked_turn;
+    if is_move_locked {
+        move_id = state.sides[atk_side].active.last_move;
+        let counter = state.sides[atk_side].active._padding[2];
+        state.sides[atk_side].active._padding[2] = counter - 1;
+        was_last_locked_turn = counter <= 1;
+        if was_last_locked_turn {
+            clear_volatile(state, keys, atk_side, VOL_MOVE_LOCKED);
+        }
+    } else {
+        was_last_locked_turn = false;
+    }
+
+    // Encore override: if the user is encored and not charge/lock overridden,
+    // redirect to the encored move (same-turn Encore from a faster mon).
+    if !is_charge_turn2 && !is_move_locked {
+        let enc = &state.sides[atk_side].active;
+        if enc.encore_turns > 0 && enc.encore_move != 0 && move_id != enc.encore_move {
+            move_id = enc.encore_move;
+            // Update move_slot so PP is deducted from the correct slot
+            let moves = effective_moves(state, atk_side);
+            for i in 0..4 {
+                if moves[i] == move_id {
+                    move_slot = i as u8;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Choice-lock / Gorilla Tactics execute-layer gate: if the attacker is
+    // already locked into a specific move and the dispatched move doesn't
+    // match, the move is rejected with a full no-op (no PP, no last_move
+    // update, no side effects). Mirrors Showdown's "Not all choices done"
+    // validation rejection at the engine layer. Gorilla Tactics ignores
+    // Magic Room (ability lock); Choice-item lock is suppressed by Magic
+    // Room (item effect). Fast path is a single u16 compare — no branch
+    // on ability/item unless the lock is already engaged.
+    let locked = state.sides[atk_side].active.choice_locked_move;
+    if locked != 0 && move_id != 0 && move_id != locked
+        && !is_charge_turn2 && !is_move_locked
+    {
+        let is_gt = effective_ability(state, atk_side)
+            == data_bridge::ABILITY_GORILLA_TACTICS;
+        if is_gt || state.field.magic_room_turns() == 0 {
+            return;
+        }
+    }
+
+    let is_struggle = move_id == 0;
+    let md = data_bridge::move_hot(move_id);
+
+    // Pre-move checks and execution are in a labeled block so that
+    // thrash confusion is always applied after the last locked turn,
+    // even if the move fails due to flinch/para/sleep/etc.
+    'exec: {
+
+    if state.sides[atk_side].active.has_volatile(VOL_RECHARGING) {
+        clear_volatile(state, keys, atk_side, VOL_RECHARGING);
+        break 'exec;
+    }
+
+    if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
+
+    if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
+        if rng(4) == 0 { break 'exec; }
+    }
+
+    // Sleep: decrement counter, fail unless waking up.
+    // This is the ONLY place the sleep counter is decremented (not in end_of_turn).
+    if state.sides[atk_side].team[atk_slot].status == STATUS_SLEEP {
+        let counter = state.sides[atk_side].team[atk_slot].status_counter;
+        if counter > 0 {
+            state.sides[atk_side].team[atk_slot].status_counter = counter - 1;
+            if counter > 1 { break 'exec; }
+            clear_status(state, keys, atk_side, atk_slot);
+        }
+    }
+
+    // Freeze: 20% thaw, fire moves always thaw
+    if state.sides[atk_side].team[atk_slot].status == STATUS_FREEZE {
+        if md.move_type == Type::Fire || rng(5) == 0 {
+            clear_status(state, keys, atk_side, atk_slot);
+        } else {
+            break 'exec;
+        }
+    }
+
+    // Confusion: 33% self-hit
+    if state.sides[atk_side].active.confusion_turns > 0 {
+        // BUG-P5-M-101: skip the first decrement on the turn confusion was freshly
+        // applied. _padding[3] bit 3 is the "confused this turn" flag, set when
+        // confusion is applied mid-turn before the target has moved.
+        let just_confused = state.sides[atk_side].active._padding[3] & 0x08 != 0;
+        if just_confused {
+            state.sides[atk_side].active._padding[3] &= !0x08;
+        } else {
+            state.sides[atk_side].active.confusion_turns -= 1;
+        }
+        if state.sides[atk_side].active.confusion_turns > 0 && rng(3) == 0 {
+            let a = boosted_stat(
+                effective_stat(state, atk_side, ATK),
+                state.sides[atk_side].active.boosts[ATK],
+            ) as u32;
+            let d = boosted_stat(
+                effective_stat(state, atk_side, DEF),
+                state.sides[atk_side].active.boosts[DEF],
+            ).max(1) as u32;
+            let level = state.sides[atk_side].team[atk_slot].level as u32;
+            let level_factor = 2 * level / 5 + 2;
+            let dmg = ((level_factor * 40 * a / d) / 50 + 2) as u16;
+            deal_damage(state, keys, atk_side, atk_slot, dmg);
+            break 'exec;
+        }
+    }
+
+    // Attraction: 50% chance to skip turn
+    if state.sides[atk_side].active.is_attracted() {
+        if rng(2) == 0 { break 'exec; }
+    }
+
+    // Taunt: block status moves (same-turn or future turns)
+    if !is_struggle && md.category == MoveCategory::Status
+        && state.sides[atk_side].active.taunt_turns > 0
+    {
+        break 'exec;
+    }
+
+    if !is_charge_turn2 {
+        if !is_struggle {
+            // For move-locked turns, find the correct move slot for PP deduction
+            let pp_slot = if is_move_locked {
+                let moves = effective_moves(state, atk_side);
+                (0..4).find(|&i| moves[i] == move_id).unwrap_or(move_slot as usize)
+            } else {
+                move_slot as usize
+            };
+            deduct_pp(state, atk_side, pp_slot, 1);
+        }
+
+        if !is_move_locked {
+            let active = &mut state.sides[atk_side].active;
+            if active.last_move == move_id && move_id != 0 {
+                active.consec_move_count = active.consec_move_count.saturating_add(1);
+            } else {
+                active.consec_move_count = 1;
+            }
+            active.last_move = move_id;
+        }
+
+        if !is_struggle && state.sides[atk_side].active.choice_locked_move == 0 {
+            let is_choice_item = if state.field.magic_room_turns() == 0 {
+                data_bridge::item(state.active_mon(atk_side).item_id).has(ItemFlag::IS_CHOICE)
+            } else { false };
+            let is_gorilla_tactics = effective_ability(state, atk_side)
+                == data_bridge::ABILITY_GORILLA_TACTICS;
+            if is_choice_item || is_gorilla_tactics {
+                state.sides[atk_side].active.choice_locked_move = move_id;
+            }
+        }
+    }
+
+    set_volatile(state, keys, atk_side, VOL_MOVED_THIS_TURN);
+
+    use_move_called(
+        state, keys, atk_side, atk_slot, def_side, def_slot,
+        move_id, is_struggle, is_charge_turn2, is_move_locked,
+        md, rng, 0,
+    );
     } // end 'exec
 
     // Thrash confusion: applied regardless of whether the move executed (para/sleep/etc.
