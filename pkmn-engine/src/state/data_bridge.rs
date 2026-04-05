@@ -30,6 +30,43 @@ pub fn item(id: u16) -> &'static ItemData {
     crate::data::items::item(id as usize)
 }
 
+/// Base species IDs (positive `num` values from `pokemon-showdown/data/pokedex.ts`
+/// entries carrying `gender: "N"`). Sorted ascending for binary_search. Formes
+/// inherit via `FORME_TO_BASE` (see `is_genderless_species`).
+const GENDERLESS_BASE_IDS: &[u16] = &[
+    81, 82, 100, 101, 120, 121, 132, 137, 144, 145,
+    146, 150, 151, 201, 233, 243, 244, 245, 249, 250,
+    251, 292, 337, 338, 343, 344, 374, 375, 376, 377,
+    378, 379, 382, 383, 384, 385, 386, 436, 437, 462,
+    474, 479, 480, 481, 482, 483, 484, 486, 487, 489,
+    490, 491, 492, 493, 494, 599, 600, 601, 615, 622,
+    623, 638, 639, 640, 643, 644, 646, 647, 648, 649,
+    703, 716, 717, 718, 719, 720, 721, 772, 773, 774,
+    781, 785, 786, 787, 788, 789, 790, 791, 792, 793,
+    794, 795, 796, 797, 798, 799, 800, 801, 802, 803,
+    804, 805, 806, 807, 808, 809, 854, 855, 870, 880,
+    881, 882, 883, 888, 889, 890, 893, 894, 895, 896,
+    897, 898, 924, 925, 984, 985, 986, 987, 988, 989,
+    990, 991, 992, 993, 994, 995, 999, 1000, 1001, 1002,
+    1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1012, 1013,
+    1020, 1021, 1022, 1023, 1025,
+];
+
+/// True when this species (or its base, for forme IDs ≥ `FORME_OFFSET`) carries
+/// `gender: "N"` in Showdown's pokedex. Read by `team_builder::build_mon` to set
+/// `MON_FLAG_GENDERLESS`; downstream consumers (Rivalry, Cute Charm, attract, etc.)
+/// branch on the flag without re-querying species data.
+#[inline]
+pub fn is_genderless_species(id: u16) -> bool {
+    use crate::data::{FORME_OFFSET, FORME_TO_BASE};
+    let base = if (id as usize) >= FORME_OFFSET {
+        FORME_TO_BASE[id as usize]
+    } else {
+        id
+    };
+    GENDERLESS_BASE_IDS.binary_search(&base).is_ok()
+}
+
 // Nature index layout: boosted = nature/5, reduced = nature%5, both map to stat indices 1-5
 pub const fn nature_modifier(nature: u8, stat_index: usize) -> (u8, u8) {
     let boosted = (nature / 5) as usize;

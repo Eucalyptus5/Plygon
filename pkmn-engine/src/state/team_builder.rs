@@ -100,6 +100,10 @@ pub fn build_mon(input: &MonBuildInput) -> (MonSlot, MonBuildData) {
         }
     }
 
+    let mut flags: u16 = if input.is_female { MON_FLAG_FEMALE } else { 0 };
+    if data_bridge::is_genderless_species(input.species_id) {
+        flags |= MON_FLAG_GENDERLESS;
+    }
     let mon = MonSlot {
         species_id,
         ability_id: input.ability_id,
@@ -108,9 +112,8 @@ pub fn build_mon(input: &MonBuildInput) -> (MonSlot, MonBuildData) {
         stats, moves: input.moves, pp,
         status: STATUS_NONE, status_counter: 0,
         tera_type: showdown_type_to_engine(input.tera_type),
-        flags: if input.is_female { MON_FLAG_FEMALE } else { 0 },
         level: input.level,
-        _pad: 0,
+        flags,
     };
     let build_data = MonBuildData { ivs: input.ivs, evs: input.evs, nature: input.nature };
     (mon, build_data)

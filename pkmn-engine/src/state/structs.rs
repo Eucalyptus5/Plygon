@@ -89,15 +89,16 @@ pub const VOL_PER_TURN_MASK: u32 =
     VOL_FLINCHED | VOL_MOVED_THIS_TURN | VOL_PROTECT_THIS_TURN | VOL_ENDURE
     | VOL_DESTINY_BOND;
 
-pub const MON_FLAG_TERASTALLIZED: u8 = 1 << 0;
-pub const MON_FLAG_FEMALE: u8       = 1 << 1;
-pub const MON_FLAG_TRANSFORMED: u8  = 1 << 2;
+pub const MON_FLAG_TERASTALLIZED: u16 = 1 << 0;
+pub const MON_FLAG_FEMALE: u16       = 1 << 1;
+pub const MON_FLAG_TRANSFORMED: u16  = 1 << 2;
 // Palafin: Zero to Hero triggered
-pub const MON_FLAG_HERO_ACTIVATED: u8 = 1 << 3;
-pub const MON_FLAG_SWORD_BOOSTED: u8  = 1 << 4;
-pub const MON_FLAG_SHIELD_BOOSTED: u8 = 1 << 5;
-pub const MON_FLAG_SYRUP_TRIGGERED: u8 = 1 << 6;
-pub const MON_FLAG_BOND_TRIGGERED: u8 = 1 << 7;
+pub const MON_FLAG_HERO_ACTIVATED: u16 = 1 << 3;
+pub const MON_FLAG_SWORD_BOOSTED: u16  = 1 << 4;
+pub const MON_FLAG_SHIELD_BOOSTED: u16 = 1 << 5;
+pub const MON_FLAG_SYRUP_TRIGGERED: u16 = 1 << 6;
+pub const MON_FLAG_BOND_TRIGGERED: u16 = 1 << 7;
+pub const MON_FLAG_GENDERLESS: u16   = 1 << 8;
 
 pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;
@@ -133,7 +134,10 @@ pub fn boosted_stat(raw: u16, stage: i8) -> u16 {
     (raw as u32 * num as u32 / den as u32) as u16
 }
 
-/// A single Pokémon's persistent identity.  Survives switching.  36 bytes.
+/// A single Pokémon's persistent identity.  Survives switching.  38 bytes.
+/// `flags` is u16 (was u8) to fit MON_FLAG_GENDERLESS at bit 8; placed at the
+/// struct tail so the prior `_pad: u8` is absorbed by the widening with no
+/// size change.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct MonSlot {
@@ -148,9 +152,8 @@ pub struct MonSlot {
     pub status: u8,
     pub status_counter: u8,
     pub tera_type: u8,
-    pub flags: u8,
     pub level: u8,
-    pub _pad: u8,
+    pub flags: u16,
 }
 
 /// Volatile battlefield presence.  Zeroed on switch-out.  72 bytes.
