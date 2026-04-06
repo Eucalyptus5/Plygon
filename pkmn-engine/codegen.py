@@ -200,6 +200,7 @@ MOVE_EFFECT = {
     # -- Call* family (Wave 3) --
     "sleeptalk": "SleepTalk",
     "metronome": "Metronome",
+    "copycat": "Copycat",
 }
 
 # ═══════════════════════════════════════════════════════════════════

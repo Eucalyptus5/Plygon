@@ -19,7 +19,7 @@ use crate::state::switch::{
 };
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
-use crate::data::gen_call_family::{ENCORE_FAIL, METRONOME_OK, SLEEP_TALK_FAIL};
+use crate::data::gen_call_family::{COPYCAT_FAIL, ENCORE_FAIL, METRONOME_OK, SLEEP_TALK_FAIL};
 
 #[inline]
 fn apply_immunity_effect(
@@ -1189,6 +1189,36 @@ fn execute_status_move(
             }
         }
 
+        // -- Copycat: replay BattleState.last_move_globally, gated by COPYCAT_FAIL --
+        // Showdown moves.ts:2853-2877. No onTry; reads battle-level inner-wins
+        // last move; fails when 0 or in the 46-entry COPYCAT_FAIL sidecar
+        // (flags.failcopycat). PP outer-only; bypasses Choice-lock (engine prelude
+        // latches outer Copycat id on Choice items).
+        MoveEffect::Copycat => {
+            let inner_id = state.last_move_globally;
+            if inner_id == 0 || COPYCAT_FAIL.binary_search(&inner_id).is_ok() {
+                return;
+            }
+            let inner_md = *data_bridge::move_hot(inner_id);
+
+            let outer_last_move = state.sides[atk_side].active.last_move;
+            let had_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+
+            use_move_called(
+                state, keys, atk_side, atk_slot, def_side, def_slot,
+                inner_id, false, false, false, &inner_md, rng, 1,
+            );
+
+            let now_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let now_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+            if (now_charging && !had_charging) || (now_locked && !had_locked) {
+                state.sides[atk_side].active.last_move = inner_id;
+            } else {
+                state.sides[atk_side].active.last_move = outer_last_move;
+            }
+        }
+
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
@@ -1216,7 +1246,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::CalmMind | MoveEffect::BulkUp | MoveEffect::IronDefense |
         MoveEffect::Agility | MoveEffect::QuiverDance | MoveEffect::ShellSmash |
         MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws |
-        MoveEffect::SleepTalk | MoveEffect::Metronome => true,
+        MoveEffect::SleepTalk | MoveEffect::Metronome | MoveEffect::Copycat => true,
 
         // Screens (set on own side)
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
@@ -1816,6 +1846,16 @@ pub(crate) fn use_move_called(
     depth: u8,
 ) {
     if is_call_family(move_id) && depth > 0 { return; }
+
+    // Battle-level last-move record (Showdown `battle.lastMove`, written by
+    // `clearActiveMove` after every `useMove` — `sim/battle.ts:376-385`). Inner
+    // dispatch wins (last-write-wins): Metronome rolls Bullet Seed → Copycat
+    // reads Bullet Seed. Skipped for Call*-family outers so the arm can still
+    // read the prior value (Showdown's `activeMove`/`lastMove` split achieves
+    // the same effect via inner clobber-then-flush; we collapse the surfaces).
+    if !is_call_family(move_id) {
+        state.last_move_globally = move_id;
+    }
 
     // Sucker Punch onTry: fails unless the target is queued to use a damaging
     // move this turn and isn't recharging. Mirrors moves.ts:suckerpunch.onTry —
@@ -7231,6 +7271,263 @@ mod tests {
         assert_eq!(
             state.sides[0].team[0].status_counter, 2,
             "sleep counter still decrements once on the blocked turn"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // last_move_globally (Wave 3 Batch C.1 — state addition).
+    // Verifies the battle-level last-move record is written last-write-wins
+    // by use_move_called, including the charge early-return path.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_last_move_globally_default_is_zero() {
+        let (state, _keys) = setup();
+        assert_eq!(state.last_move_globally, 0, "fresh battle: no prior move");
+    }
+
+    #[test]
+    fn test_last_move_globally_inner_wins_metronome_tackle() {
+        // Single-turn inner: Metronome (118, outer) rolls Tackle (33, inner).
+        // use_move_called writes the outer at depth=0 first, then the inner
+        // dispatch overwrites with 33 — last-write-wins matches Showdown's
+        // clearActiveMove flush after every useMove.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(33)));
+        assert_eq!(
+            state.last_move_globally, 33,
+            "inner-wins: Metronome rolled Tackle, last_move_globally = 33"
+        );
+    }
+
+    #[test]
+    fn test_last_move_globally_written_before_charge_early_return() {
+        // Charge inner: Metronome rolls Solar Beam (76) outside sun. The
+        // write site is at the top of use_move_called, BEFORE any early
+        // return for charge / lock branches, so last_move_globally lands at
+        // 76 even though no damage / no end-of-dispatch flush happens.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(76)));
+        assert!(
+            state.sides[0].active.has_volatile(VOL_CHARGING),
+            "Solar Beam outside sun engages VOL_CHARGING on T1"
+        );
+        assert_eq!(
+            state.last_move_globally, 76,
+            "write must precede the charge early-return inside use_move_called"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Copycat (move 383) — Wave 3 Batch C.2 falsifiability fixtures.
+    // Showdown oracle: data/moves.ts:2853-2877. Reads battle.lastMove
+    // (engine: state.last_move_globally), fails on 0 or COPYCAT_FAIL hits.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_copycat_fails_when_last_move_globally_zero() {
+        // Fixture #1: fresh battle, no prior move. Copycat must no-op.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        assert_eq!(state.last_move_globally, 0);
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Copycat must no-op when last_move_globally == 0"
+        );
+    }
+
+    #[test]
+    fn test_copycat_replays_inner_after_metronome() {
+        // Fixture #2 (headline): Metronome rolls Bullet Seed (331);
+        // last_move_globally records the INNER, so Copycat next replays
+        // Bullet Seed, NOT Metronome. Verifies inner-wins last-write-wins.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 383, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(331)));
+        assert_eq!(
+            state.last_move_globally, 331,
+            "Metronome → Bullet Seed: inner wins last-write"
+        );
+        let def_hp_after_metronome = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert!(
+            state.sides[1].team[0].current_hp < def_hp_after_metronome,
+            "Copycat must dispatch Bullet Seed and deal damage"
+        );
+        assert_eq!(
+            state.last_move_globally, 331,
+            "Copycat replays inner Bullet Seed (last_move_globally unchanged)"
+        );
+    }
+
+    #[test]
+    fn test_copycat_fails_when_prior_move_is_failcopycat() {
+        // Fixture #3: prior move is in COPYCAT_FAIL (use Copycat itself, id 383,
+        // which appears in failcopycat per data/moves.ts:2861).
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.last_move_globally = 383; // simulate prior Copycat
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        assert!(COPYCAT_FAIL.binary_search(&383u16).is_ok(), "Copycat self-excluded");
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Copycat after Copycat must fail (COPYCAT_FAIL filter)"
+        );
+    }
+
+    #[test]
+    fn test_copycat_choice_locks_outer_not_inner() {
+        // Fixture #4: Choice-Band Copycat locks to id 383 (the outer call),
+        // not the inner move id. Prelude path writes choice_locked_move =
+        // outer move_id before use_move_called fires.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.sides[0].team[0].item_id = 68; // Choice Band
+        state.last_move_globally = 33; // Tackle was the last move
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[0].active.choice_locked_move, 383,
+            "Choice-lock latches outer Copycat id, not the inner"
+        );
+    }
+
+    #[test]
+    fn test_copycat_solar_beam_rb_charge_resume() {
+        // Fixture #5: Copycat replays Solar Beam (76, charge). R-b affirmative
+        // writes last_move = 76 so the resume path reads Solar Beam on T2.
+        // last_move_globally also ends at 76 (last-write-wins via the helper).
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.last_move_globally = 76; // Solar Beam was the last move
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert!(
+            state.sides[0].active.has_volatile(VOL_CHARGING),
+            "Solar Beam inner must engage VOL_CHARGING"
+        );
+        assert_eq!(
+            state.sides[0].active.last_move, 76,
+            "R-b affirmative: resume target = inner Solar Beam"
+        );
+        assert_eq!(
+            state.last_move_globally, 76,
+            "last-write-wins: inner Solar Beam id at the global slot"
+        );
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "no damage on T1 (still charging)"
+        );
+    }
+
+    #[test]
+    fn test_copycat_tackle_rb_negative_outer_restore() {
+        // Fixture #6: Copycat replays Tackle (33, no charge, no lock).
+        // R-b negative restores per-mon last_move = 383 (outer) so a future
+        // Mirror Move read sees Copycat; last_move_globally = 33 (inner,
+        // last-write-wins). Distinguishes the two surfaces.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.last_move_globally = 33; // Tackle was the last move
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before, "Tackle must hit");
+        assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
+        assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
+        assert_eq!(
+            state.sides[0].active.last_move, 383,
+            "R-b negative: per-mon last_move restored to outer Copycat (for Mirror Move)"
+        );
+        assert_eq!(
+            state.last_move_globally, 33,
+            "battle-level: inner Tackle id (last-write-wins, distinct surface)"
+        );
+    }
+
+    #[test]
+    fn test_copycat_stance_change_on_inner_damaging() {
+        // Fixture #7: Aegislash-Shield + Copycat replays Earthquake (89,
+        // Physical) → flips to Aegislash-Blade on the inner dispatch.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].species_id = 681; // Aegislash-Shield
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_STANCE_CHANGE;
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.last_move_globally = 89; // Earthquake was the last move
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert_eq!(
+            effective_species(&state, 0), 1103,
+            "Aegislash-Shield must flip to Blade on inner damaging dispatch"
+        );
+    }
+
+    #[test]
+    fn test_copycat_protean_fires_on_inner_type() {
+        // Fixture #8: Protean + Copycat replays Earthquake → Protean fires
+        // on inner (Ground), not Normal from the outer Copycat. The outer
+        // gate at use_move_called skips Call*-family ids; the inner
+        // dispatch re-enters use_move_called with id 89 and the gate passes.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.last_move_globally = 89; // Earthquake
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
+        assert_eq!(
+            state.sides[0].active.override_types,
+            [Type::Ground as u8, Type::Ground as u8],
+            "Protean fires on inner Earthquake (Ground), not outer Copycat (Normal)"
+        );
+        assert_eq!(
+            state.sides[0].active._padding[3] & 1, 1,
+            "once-per-switch flag consumed by inner dispatch"
+        );
+    }
+
+    #[test]
+    fn test_copycat_blocked_while_sleeping() {
+        // Fixture #9: Copycat lacks Showdown's `sleepUsable: true`, so the
+        // sleep prelude blocks dispatch while the user is asleep.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [383, 0, 0, 0];
+        state.sides[0].team[0].status = STATUS_SLEEP;
+        state.sides[0].team[0].status_counter = 3;
+        state.last_move_globally = 33; // Tackle
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "sleeping Copycat must not dispatch an inner damaging move"
+        );
+        assert_eq!(
+            state.sides[0].team[0].status_counter, 2,
+            "sleep counter still decrements once on the blocked turn"
+        );
+    }
+
+    #[test]
+    fn test_copycat_self_excluded_from_filter() {
+        // Fixture #10 (hardening): Copycat's own move id (383) IS in
+        // COPYCAT_FAIL (Showdown's `copycat` move carries failcopycat: 1).
+        // This is the primary line of defense against Copycat-after-Copycat
+        // chains; the depth-1 cap on use_move_called is defense-in-depth.
+        assert!(
+            COPYCAT_FAIL.binary_search(&383u16).is_ok(),
+            "COPYCAT_FAIL must include Copycat itself"
         );
     }
 }

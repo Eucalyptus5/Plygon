@@ -288,6 +288,11 @@ pub struct BattleState {
     /// the defender's queued action without changing every call site's signature.
     /// 0xFF = unknown / no action queued (Sucker Punch treats as fail).
     pub pending_actions: [u8; 2],
+    /// Battle-level last move used by anyone (Showdown `battle.lastMove`).
+    /// Written last-write-wins by every `use_move_called` call; default 0 means
+    /// "no move yet" — Copycat fails on read of 0. Not cleared on switch (mirrors
+    /// `sim/battle.ts:257`). Read by Copycat (`data/moves.ts:2853`).
+    pub last_move_globally: u16,
 }
 
 /// Immutable per-Pokémon build data.  Lives in Tier 2 (never copied by MCTS).

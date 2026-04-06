@@ -97,6 +97,15 @@ pub fn hp_bucket(current_hp: u16, max_hp: u16) -> usize {
     ((current_hp as u32 * 8) / (max_hp as u32 + 1)).min(7) as usize
 }
 
+// History / scratch fields NOT hashed (would inflate the transposition table
+// with semantically-identical positions and destroy MCTS reuse). Load-bearing
+// for:
+//   - ActiveMon.last_move            → Mirror Move (data/moves.ts:12069)
+//   - BattleState.last_move_globally → Copycat     (data/moves.ts:2853)
+//   - BattleState.pending_actions    → Sucker Punch onTry, Me First
+// A future "complete the hash" refactor must consciously trade transposition
+// reuse for these moves' correctness — two states differing only in these
+// fields will hash to the same value under the current scheme.
 pub fn compute_full_hash(state: &BattleState, keys: &ZobristKeys) -> u64 {
     let mut h: u64 = 0;
     for side in 0..2 {
