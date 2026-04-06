@@ -19,7 +19,7 @@ use crate::state::switch::{
 };
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
-use crate::data::gen_call_family::ENCORE_FAIL;
+use crate::data::gen_call_family::{ENCORE_FAIL, SLEEP_TALK_FAIL};
 
 #[inline]
 fn apply_immunity_effect(
@@ -1118,6 +1118,52 @@ fn execute_status_move(
             }
         }
 
+        // -- Sleep Talk: pick a random move from user's moveset, dispatch it --
+        // Showdown moves.ts:16916-16952. Filter: nosleeptalk, charge, isZ, isMax.
+        // onTry requires user still asleep after the prelude's decrement.
+        MoveEffect::SleepTalk => {
+            if state.sides[atk_side].team[atk_slot].status != STATUS_SLEEP {
+                return;
+            }
+            let moves = effective_moves(state, atk_side);
+            let mut candidates: [u16; 4] = [0; 4];
+            let mut n: u32 = 0;
+            for i in 0..4 {
+                let id = moves[i];
+                if id == 0 { continue; }
+                if SLEEP_TALK_FAIL.binary_search(&id).is_ok() { continue; }
+                let inner_md = data_bridge::move_hot(id);
+                if inner_md.flags & MoveFlags::CHARGE != 0 { continue; }
+                candidates[n as usize] = id;
+                n += 1;
+            }
+            if n == 0 { return; }
+            let pick = rng(n) as usize;
+            let inner_id = candidates[pick];
+            let inner_md = *data_bridge::move_hot(inner_id);
+
+            let outer_last_move = state.sides[atk_side].active.last_move;
+            let had_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+
+            use_move_called(
+                state, keys, atk_side, atk_slot, def_side, def_slot,
+                inner_id, false, false, false, &inner_md, rng, 1,
+            );
+
+            let now_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let now_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+            if (now_charging && !had_charging) || (now_locked && !had_locked) {
+                // R-b affirmative: resume sites at execute_move:2842 / :2851
+                // read last_move; point them at the inner move so T2 resumes inner.
+                state.sides[atk_side].active.last_move = inner_id;
+            } else {
+                // R-b negative: keep Sleep Talk so Mirror Move (data/moves.ts:12069)
+                // sees the outer call, not the inner.
+                state.sides[atk_side].active.last_move = outer_last_move;
+            }
+        }
+
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
@@ -1144,7 +1190,8 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::SwordsDance | MoveEffect::NastyPlot | MoveEffect::DragonDance |
         MoveEffect::CalmMind | MoveEffect::BulkUp | MoveEffect::IronDefense |
         MoveEffect::Agility | MoveEffect::QuiverDance | MoveEffect::ShellSmash |
-        MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws => true,
+        MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws |
+        MoveEffect::SleepTalk => true,
 
         // Screens (set on own side)
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
@@ -2916,12 +2963,18 @@ pub fn execute_move(
 
     // Sleep: decrement counter, fail unless waking up.
     // This is the ONLY place the sleep counter is decremented (not in end_of_turn).
+    // Sleep Talk (214) is `sleepUsable: true` in Showdown — fires while still asleep
+    // but fails on the wake-up tick (onTry requires status === 'slp').
     if state.sides[atk_side].team[atk_slot].status == STATUS_SLEEP {
         let counter = state.sides[atk_side].team[atk_slot].status_counter;
         if counter > 0 {
             state.sides[atk_side].team[atk_slot].status_counter = counter - 1;
-            if counter > 1 { break 'exec; }
-            clear_status(state, keys, atk_side, atk_slot);
+            if counter > 1 {
+                if move_id != 214 { break 'exec; }
+            } else {
+                clear_status(state, keys, atk_side, atk_slot);
+                if move_id == 214 { break 'exec; }
+            }
         }
     }
 
@@ -6833,5 +6886,133 @@ mod tests {
         // accuracy=50 with rng=99 → 99 < 50 → false → miss
         let md50 = MoveData { accuracy: 50, ..unsafe { core::mem::zeroed() } };
         assert!(!accuracy_check(&state, 0, &md50, &mut fixed_rng(99)));
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Sleep Talk (move 214) — Wave 3 Batch A falsifiability fixtures.
+    // Showdown oracle: data/moves.ts:16916-16952.
+    // ─────────────────────────────────────────────────────────────────
+
+    fn setup_sleeping(moves: [u16; 4], pp: [u8; 4], counter: u8) -> (BattleState, ZobristKeys) {
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = moves;
+        state.sides[0].team[0].pp = pp;
+        state.sides[0].team[0].status = STATUS_SLEEP;
+        state.sides[0].team[0].status_counter = counter;
+        state.zobrist = compute_full_hash(&state, &keys);
+        (state, keys)
+    }
+
+    #[test]
+    fn test_sleep_talk_outer_pp_only_inner_untouched() {
+        // Fixture #1: outer slot PP decrements once; inner slot PP unchanged.
+        let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 3);
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].pp[0], 23, "outer Sleep Talk PP not decremented");
+        assert_eq!(state.sides[0].team[0].pp[1], 24, "inner move PP must be untouched");
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_sleep_talk_decrements_sleep_counter_once() {
+        // Fixture #5: sleep counter decrements exactly once on a Sleep Talk turn.
+        let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 3);
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status_counter, 2);
+        assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP);
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_sleep_talk_fails_on_wakeup_tick() {
+        // counter == 1 → prelude clears sleep AND breaks 'exec; no inner dispatch.
+        let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 1);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE, "should have woken up");
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "no inner damage");
+    }
+
+    #[test]
+    fn test_sleep_talk_fails_when_user_awake() {
+        // onTry requires status === 'slp'; awake user → no inner dispatch.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [214, 33, 0, 0];
+        state.sides[0].team[0].pp = [24, 24, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "awake user must not dispatch inner");
+    }
+
+    #[test]
+    fn test_sleep_talk_charge_filter_rejects_meteor_beam() {
+        // Sleep Talk excludes moves with the CHARGE flag (Showdown moves.ts:16935).
+        // Meteor Beam (800) is the canonical test: CHARGE-flagged, not in SLEEP_TALK_FAIL.
+        // With moveset [Sleep Talk, Meteor Beam], the candidate set is empty → no dispatch.
+        let (mut state, keys) = setup_sleeping([214, 800, 0, 0], [24, 10, 0, 0], 3);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].pp[0], 23, "outer PP still deducted");
+        assert_eq!(state.sides[0].team[0].pp[1], 10, "Meteor Beam PP untouched");
+        assert!(!state.sides[0].active.has_volatile(VOL_CHARGING), "Meteor Beam must NOT be rolled");
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
+        assert_eq!(state.sides[0].team[0].status_counter, 2, "sleep still decremented once");
+    }
+
+    #[test]
+    fn test_sleep_talk_outrage_rb_affirmative_lock_resume() {
+        // Fixture #7: Sleep Talk rolls Outrage (200, Thrash effect, no CHARGE flag,
+        // not in SLEEP_TALK_FAIL). VOL_MOVE_LOCKED is set in this dispatch — R-b
+        // affirmative writes last_move = inner_id so execute_move:2851's resume
+        // reads Outrage on T2 (NOT Sleep Talk).
+        let (mut state, keys) = setup_sleeping([214, 200, 0, 0], [24, 24, 0, 0], 3);
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED), "Outrage must engage lock");
+        assert!(state.sides[0].active._padding[2] >= 1, "lock turns remaining");
+        assert_eq!(state.sides[0].active.last_move, 200, "R-b affirmative: resume target = inner Outrage");
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_sleep_talk_tackle_rb_negative_outer_restore() {
+        // Fixture #10: Sleep Talk rolls Tackle (33, no charge, no lock) — R-b
+        // negative. last_move at end of T1 is the outer call (214), so a future
+        // Mirror Move read (data/moves.ts:12069) sees Sleep Talk, not Tackle.
+        let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 3);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before, "Tackle must hit");
+        assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
+        assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
+        assert_eq!(state.sides[0].active.last_move, 214, "R-b negative: keep outer (Sleep Talk)");
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_sleep_talk_sucker_punch_inner_reads_pending_actions() {
+        // Fixture #9: inner Sucker Punch's onTry reads pending_actions[def_side]
+        // correctly under depth=1 dispatch. Defender hasn't moved + queued damaging
+        // move at slot 0 → Sucker Punch fires.
+        let (mut state, keys) = setup_sleeping([214, 389, 0, 0], [24, 24, 0, 0], 3);
+        state.pending_actions[1] = 0; // defender will use slot 0 (Pound) — damaging
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before, "Sucker Punch must hit");
+        assert_eq!(state.sides[0].active.last_move, 214, "R-b negative on damaging inner");
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_sleep_talk_sucker_punch_inner_fails_if_defender_moved() {
+        // Companion to #9: defender already moved → Sucker Punch onTry rejects.
+        let (mut state, keys) = setup_sleeping([214, 389, 0, 0], [24, 24, 0, 0], 3);
+        set_volatile(&mut state, &keys, 1, VOL_MOVED_THIS_TURN);
+        state.pending_actions[1] = 0;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "defender-already-moved gate must hold");
     }
 }

@@ -260,6 +260,9 @@ pub enum MoveEffect {
     Charge           = 109, // +1 SpD, set charge bit (2x power for next Electric move)
     PsychUp          = 110, // Copy target's stat boosts (and crit-up volatiles) to user
     HoneClaws        = 111, // +1 Atk, +1 Accuracy on user
+
+    // -- Call* family --
+    SleepTalk        = 112, // Pick a random move from user's moveset, dispatch it
 }
 
 // Flags (16 bits)

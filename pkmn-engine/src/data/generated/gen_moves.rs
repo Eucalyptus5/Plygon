@@ -1727,7 +1727,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::SleepTalk, secondary_status:0,
         self_effect:SelfEffect::None },
     // [215] Heal Bell
     MoveData { flags:MoveFlags::SOUND | MoveFlags::BYPASSSUB, base_power:0, accuracy:0,

@@ -196,6 +196,9 @@ MOVE_EFFECT = {
     "toxicthread": "ToxicThread",
     # Swagger/Flatter stay as Confuse (already in MOVE_EFFECT above) — they use
     # self_effect OppAtkUp2 / OppSpAUp1 which the Confuse arm dispatches.
+
+    # -- Call* family (Wave 3) --
+    "sleeptalk": "SleepTalk",
 }
 
 # ═══════════════════════════════════════════════════════════════════
