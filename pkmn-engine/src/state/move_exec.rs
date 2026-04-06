@@ -19,7 +19,7 @@ use crate::state::switch::{
 };
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
-use crate::data::gen_call_family::{ENCORE_FAIL, SLEEP_TALK_FAIL};
+use crate::data::gen_call_family::{ENCORE_FAIL, METRONOME_OK, SLEEP_TALK_FAIL};
 
 #[inline]
 fn apply_immunity_effect(
@@ -1164,6 +1164,31 @@ fn execute_status_move(
             }
         }
 
+        // -- Metronome: roll uniformly from METRONOME_OK, dispatch the inner --
+        // Showdown moves.ts:11810-11836. No onTry; PP outer-only; bypasses Choice-lock.
+        // Filter is the codegen-emitted 581-entry sorted slice (flags.metronome).
+        MoveEffect::Metronome => {
+            let inner_id = METRONOME_OK[rng(METRONOME_OK.len() as u32) as usize];
+            let inner_md = *data_bridge::move_hot(inner_id);
+
+            let outer_last_move = state.sides[atk_side].active.last_move;
+            let had_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+
+            use_move_called(
+                state, keys, atk_side, atk_slot, def_side, def_slot,
+                inner_id, false, false, false, &inner_md, rng, 1,
+            );
+
+            let now_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let now_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+            if (now_charging && !had_charging) || (now_locked && !had_locked) {
+                state.sides[atk_side].active.last_move = inner_id;
+            } else {
+                state.sides[atk_side].active.last_move = outer_last_move;
+            }
+        }
+
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
@@ -1191,7 +1216,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::CalmMind | MoveEffect::BulkUp | MoveEffect::IronDefense |
         MoveEffect::Agility | MoveEffect::QuiverDance | MoveEffect::ShellSmash |
         MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws |
-        MoveEffect::SleepTalk => true,
+        MoveEffect::SleepTalk | MoveEffect::Metronome => true,
 
         // Screens (set on own side)
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
@@ -4218,7 +4243,11 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(0));
+        // Use Assist (274) — still unimplemented, falls to MoveEffect::None
+        // fallback so no inner dispatch can fire Protean. Metronome (118) now
+        // dispatches an inner move; that inner-fire path is asserted by
+        // test_metronome_protean_fires_on_inner_type.
+        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
 
         assert!(!state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
         assert_eq!(state.sides[0].active._padding[3] & 1, 0);
@@ -4227,6 +4256,12 @@ mod tests {
     #[test]
     fn test_protean_gated_off_for_all_call_family_ids() {
         for &call_id in CALL_FAMILY_IDS {
+            if call_id == 118 {
+                // Metronome's arm dispatches an inner unconditionally; the
+                // inner Protean fire is correct behavior — see
+                // test_metronome_protean_fires_on_inner_type.
+                continue;
+            }
             let (mut state, keys) = setup();
             state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
             state.zobrist = compute_full_hash(&state, &keys);
@@ -7014,5 +7049,188 @@ mod tests {
         let def_hp_before = state.sides[1].team[0].current_hp;
         execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "defender-already-moved gate must hold");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Metronome (move 118) — Wave 3 Batch B falsifiability fixtures.
+    // Showdown oracle: data/moves.ts:11810-11836. Unconditional dispatch;
+    // candidate set is the codegen-emitted METRONOME_OK slice (581 entries).
+    // ─────────────────────────────────────────────────────────────────
+
+    fn metronome_idx(move_id: u16) -> u32 {
+        METRONOME_OK.iter().position(|&m| m == move_id).unwrap() as u32
+    }
+
+    #[test]
+    fn test_metronome_outer_pp_decrements_once() {
+        // Fixture #1: outer Metronome PP decrements once; inner is rolled from
+        // METRONOME_OK independent of the user's moveset, so there is no
+        // "inner slot" on the user to assert untouched.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 1, 0, 0];
+        state.sides[0].team[0].pp = [10, 24, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].pp[0], 9, "outer Metronome PP decremented once");
+        assert_eq!(state.sides[0].team[0].pp[1], 24, "non-rolled slot untouched");
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_metronome_choice_locks_outer_not_inner() {
+        // Fixture #4: Choice-Band Metronome locks to id 118 (the outer call),
+        // not the inner move id. Prelude path at execute_move:3084 writes
+        // choice_locked_move = move_id where move_id is the outer.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.sides[0].team[0].item_id = 68; // Choice Band
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[0].active.choice_locked_move, 118,
+            "Choice-lock latches outer Metronome id, not the inner"
+        );
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_metronome_solar_beam_rb_charge_resume() {
+        // Fixture #6: Metronome rolls Solar Beam (76) outside sun. T1 must
+        // engage VOL_CHARGING and the R-b affirmative rule writes
+        // last_move = 76 so execute_move's charge-resume path (the runMove
+        // prelude turn-2 branch reading last_move) replays Solar Beam, NOT
+        // Metronome, on T2.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(76)));
+        assert!(
+            state.sides[0].active.has_volatile(VOL_CHARGING),
+            "Solar Beam outside sun must engage VOL_CHARGING on T1"
+        );
+        assert_eq!(
+            state.sides[0].active.last_move, 76,
+            "R-b affirmative: resume target = inner Solar Beam"
+        );
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "no damage on T1 (still charging)"
+        );
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_metronome_outrage_rb_lock_resume() {
+        // Fixture #7: Metronome rolls Outrage (200, Thrash effect). T1 sets
+        // VOL_MOVE_LOCKED with turns remaining; R-b affirmative writes
+        // last_move = 200 so the resume path reads Outrage on T2.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(200)));
+        assert!(
+            state.sides[0].active.has_volatile(VOL_MOVE_LOCKED),
+            "Outrage must engage VOL_MOVE_LOCKED"
+        );
+        assert!(state.sides[0].active._padding[2] >= 1, "lock turns remaining");
+        assert_eq!(
+            state.sides[0].active.last_move, 200,
+            "R-b affirmative: resume target = inner Outrage"
+        );
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_metronome_stance_change_on_inner_damaging() {
+        // Fixture #8: Aegislash-Shield + Metronome → Earthquake (89, Physical)
+        // flips to Aegislash-Blade on the inner dispatch.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].species_id = 681; // Aegislash-Shield
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_STANCE_CHANGE;
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(89)));
+        assert_eq!(
+            effective_species(&state, 0), 1103,
+            "Aegislash-Shield must flip to Blade on inner damaging dispatch"
+        );
+    }
+
+    #[test]
+    fn test_metronome_tackle_rb_negative_outer_restore() {
+        // Fixture #10: Metronome rolls Tackle (33, no charge, no lock) — R-b
+        // negative path. last_move at end of T1 is the outer call (118), so a
+        // future Mirror Move read (data/moves.ts:12069) sees Metronome.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(33)));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before, "Tackle must hit");
+        assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
+        assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
+        assert_eq!(
+            state.sides[0].active.last_move, 118,
+            "R-b negative: keep outer (Metronome)"
+        );
+        assert!(validate_hash(&state, &keys));
+    }
+
+    #[test]
+    fn test_metronome_protean_fires_on_inner_type() {
+        // Fixture #11: Protean + Metronome → Earthquake fires Protean on the
+        // INNER move's type (Ground), not Normal-from-Metronome. The outer
+        // gate at use_move_called:1844 skips Call*-family ids; the inner
+        // dispatch re-enters use_move_called with the rolled id and the gate
+        // passes.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(89)));
+        assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
+        assert_eq!(
+            state.sides[0].active.override_types,
+            [Type::Ground as u8, Type::Ground as u8],
+            "Protean fires on inner Earthquake (Ground), not outer Metronome (Normal)"
+        );
+        assert_eq!(
+            state.sides[0].active._padding[3] & 1, 1,
+            "once-per-switch flag consumed by inner dispatch"
+        );
+    }
+
+    #[test]
+    fn test_metronome_self_excluded_from_filter() {
+        // Hardening: Metronome's own move id (118) is absent from
+        // METRONOME_OK (Showdown's `metronome` move lacks `flags.metronome`).
+        // This is defense-in-depth for the depth-1 cap on use_move_called.
+        assert!(
+            METRONOME_OK.binary_search(&118).is_err(),
+            "METRONOME_OK must exclude Metronome itself"
+        );
+    }
+
+    #[test]
+    fn test_metronome_blocked_while_sleeping() {
+        // Hardening: Metronome lacks Showdown's `sleepUsable: true`, so the
+        // sleep prelude blocks dispatch while the user is asleep. Only Sleep
+        // Talk carves out the move_id == 214 exception at execute_move:2973.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [118, 0, 0, 0];
+        state.sides[0].team[0].status = STATUS_SLEEP;
+        state.sides[0].team[0].status_counter = 3;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(33)));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "sleeping Metronome must not dispatch an inner damaging move"
+        );
+        assert_eq!(
+            state.sides[0].team[0].status_counter, 2,
+            "sleep counter still decrements once on the blocked turn"
+        );
     }
 }
