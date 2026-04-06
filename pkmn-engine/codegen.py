@@ -201,6 +201,7 @@ MOVE_EFFECT = {
     "sleeptalk": "SleepTalk",
     "metronome": "Metronome",
     "copycat": "Copycat",
+    "mirrormove": "MirrorMove",
 }
 
 # ═══════════════════════════════════════════════════════════════════

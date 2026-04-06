@@ -19,7 +19,7 @@ use crate::state::switch::{
 };
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
-use crate::data::gen_call_family::{COPYCAT_FAIL, ENCORE_FAIL, METRONOME_OK, SLEEP_TALK_FAIL};
+use crate::data::gen_call_family::{COPYCAT_FAIL, ENCORE_FAIL, METRONOME_OK, MIRROR_MOVE_OK, SLEEP_TALK_FAIL};
 
 #[inline]
 fn apply_immunity_effect(
@@ -1219,6 +1219,37 @@ fn execute_status_move(
             }
         }
 
+        // -- Mirror Move: replay target's per-mon ActiveMon.last_move --
+        // Showdown moves.ts:12058-12081. onTryHit reads target.lastMove (NOT
+        // battle-level); fails when 0 (never moved / post-switch via
+        // switch.rs:67 active.zero) or absent from the 644-entry MIRROR_MOVE_OK
+        // sidecar (flags.mirror). PP outer-only; bypasses Choice-lock (engine
+        // prelude latches outer Mirror Move id on Choice items).
+        MoveEffect::MirrorMove => {
+            let inner_id = state.sides[def_side].active.last_move;
+            if inner_id == 0 || MIRROR_MOVE_OK.binary_search(&inner_id).is_err() {
+                return;
+            }
+            let inner_md = *data_bridge::move_hot(inner_id);
+
+            let outer_last_move = state.sides[atk_side].active.last_move;
+            let had_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+
+            use_move_called(
+                state, keys, atk_side, atk_slot, def_side, def_slot,
+                inner_id, false, false, false, &inner_md, rng, 1,
+            );
+
+            let now_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let now_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+            if (now_charging && !had_charging) || (now_locked && !had_locked) {
+                state.sides[atk_side].active.last_move = inner_id;
+            } else {
+                state.sides[atk_side].active.last_move = outer_last_move;
+            }
+        }
+
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
@@ -1246,7 +1277,8 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::CalmMind | MoveEffect::BulkUp | MoveEffect::IronDefense |
         MoveEffect::Agility | MoveEffect::QuiverDance | MoveEffect::ShellSmash |
         MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws |
-        MoveEffect::SleepTalk | MoveEffect::Metronome | MoveEffect::Copycat => true,
+        MoveEffect::SleepTalk | MoveEffect::Metronome | MoveEffect::Copycat |
+        MoveEffect::MirrorMove => true,
 
         // Screens (set on own side)
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
@@ -7528,6 +7560,130 @@ mod tests {
         assert!(
             COPYCAT_FAIL.binary_search(&383u16).is_ok(),
             "COPYCAT_FAIL must include Copycat itself"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Mirror Move (move 119) — Wave 3 Batch D falsifiability fixtures.
+    // Showdown oracle: data/moves.ts:12058-12081. Reads target.lastMove
+    // (engine: state.sides[def_side].active.last_move), fails on 0 or
+    // when absent from the 644-entry MIRROR_MOVE_OK sidecar.
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mirror_move_fails_when_target_last_move_zero() {
+        // Fixture #1: T1 (or post-switch). Target's last_move == 0 sentinel
+        // arises organically from switch.rs:67 active.zero() (verified by
+        // fixture #4 below); also holds on a fresh battle. Mirror Move no-ops.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [119, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        assert_eq!(state.sides[1].active.last_move, 0);
+        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Mirror Move must no-op when target's last_move == 0"
+        );
+    }
+
+    #[test]
+    fn test_mirror_move_replays_target_tackle_bit_for_bit() {
+        // Fixture #2 (headline): opponent's last_move = Tackle (33).
+        // Mirror Move dispatches Tackle, dealing the same damage a direct
+        // Tackle from the same attacker would. Bit-for-bit equality on the
+        // defender's hp delta confirms the inner uses the user's stats and
+        // the target's defenses (NOT a no-op or a self-hit). MIRROR_MOVE_OK
+        // contains Tackle.
+        let (mut state, keys) = setup();
+        // Direct-Tackle baseline: copy the state, fire Tackle from p0 at p1.
+        let mut baseline = state;
+        baseline.sides[0].team[0].moves = [33, 0, 0, 0];
+        baseline.zobrist = compute_full_hash(&baseline, &keys);
+        let baseline_hp_before = baseline.sides[1].team[0].current_hp;
+        execute_move(&mut baseline, &keys, 0, 33, 0, &mut fixed_rng(0));
+        let baseline_damage = baseline_hp_before - baseline.sides[1].team[0].current_hp;
+        assert!(baseline_damage > 0, "Tackle baseline must deal damage");
+
+        // Mirror Move path: opponent already used Tackle; user fires Mirror Move.
+        state.sides[0].team[0].moves = [119, 0, 0, 0];
+        state.sides[1].active.last_move = 33;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let mirror_hp_before = state.sides[1].team[0].current_hp;
+        assert!(MIRROR_MOVE_OK.binary_search(&33u16).is_ok(), "Tackle in MIRROR_MOVE_OK");
+        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        let mirror_damage = mirror_hp_before - state.sides[1].team[0].current_hp;
+        assert_eq!(
+            mirror_damage, baseline_damage,
+            "Mirror Move replay of Tackle must deal damage equal to a direct Tackle"
+        );
+    }
+
+    #[test]
+    fn test_mirror_move_reads_target_outer_not_inner_after_metronome() {
+        // Fixture #3 (oracle pin): opponent uses Metronome → rolls Bullet
+        // Seed (331). R-b negative path restores OUTER (118 = Metronome)
+        // into the opponent's per-mon last_move (the source Mirror Move
+        // reads), while last_move_globally holds 331 (Bullet Seed, inner-
+        // wins). Paired counterpart to Copycat fixture #2's inner-wins
+        // behavior — verifies the two surfaces diverge as oracle-pinned.
+        //
+        // Showdown also no-ops Mirror Move here: Metronome lacks
+        // `flags.mirror` (only its inner Bullet Seed carries it), so
+        // Mirror Move's `onTryHit` rejects the read target.lastMove and
+        // returns false. The R-b assertion is the load-bearing check; the
+        // post-dispatch no-op is the Showdown-bit-for-bit consequence.
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].moves = [118, 0, 0, 0]; // opponent runs Metronome
+        state.sides[0].team[0].moves = [119, 0, 0, 0]; // we run Mirror Move
+        state.zobrist = compute_full_hash(&state, &keys);
+        execute_move(&mut state, &keys, 1, 118, 0, &mut fixed_rng(metronome_idx(331)));
+        assert_eq!(
+            state.sides[1].active.last_move, 118,
+            "R-b negative: opponent's per-mon last_move holds OUTER Metronome (Mirror Move source)"
+        );
+        assert_eq!(
+            state.last_move_globally, 331,
+            "battle-level last-write-wins: inner Bullet Seed (Copycat source)"
+        );
+        // Showdown parity: Metronome is NOT in MIRROR_MOVE_OK, so Mirror
+        // Move no-ops on the outer read (matches data/moves.ts:12069
+        // `if (!move?.flags['mirror'] ...) return false`).
+        assert!(MIRROR_MOVE_OK.binary_search(&118u16).is_err(), "Metronome NOT in MIRROR_MOVE_OK");
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        let last_globally_before = state.last_move_globally;
+        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Mirror Move must no-op (read 118 = Metronome, absent from MIRROR_MOVE_OK)"
+        );
+        assert_eq!(
+            state.last_move_globally, last_globally_before,
+            "no inner dispatch ⇒ last_move_globally unchanged"
+        );
+    }
+
+    #[test]
+    fn test_mirror_move_fails_after_target_switch() {
+        // Fixture #4: opponent switches (switch_out → active.zero() at
+        // switch.rs:67), zeroing per-mon last_move. Mirror Move must no-op
+        // on the user's next turn even though the opponent previously had
+        // a valid mirrorable last_move.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0].moves = [119, 0, 0, 0];
+        state.sides[1].active.last_move = 33; // opponent's prior Tackle
+        state.zobrist = compute_full_hash(&state, &keys);
+        // Switch the opponent's active to slot 1; active.zero() clears last_move.
+        crate::state::switch::perform_switch(&mut state, &keys, 1, 1);
+        assert_eq!(
+            state.sides[1].active.last_move, 0,
+            "switch_out → active.zero() clears last_move"
+        );
+        let def_hp_before = state.sides[1].team[1].current_hp;
+        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[1].current_hp, def_hp_before,
+            "Mirror Move must no-op after opponent switch zeroes target's last_move"
         );
     }
 }
