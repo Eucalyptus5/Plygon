@@ -548,16 +548,19 @@ pub fn calc_damage(
     if md.drain > 0 {
         result.drain_heal = (result.damage as u32 * md.drain as u32 / 100) as u16;
     }
-    if md.drain < 0 && atk_ability != data_bridge::ABILITY_ROCK_HEAD {
-        let pct = (-md.drain) as u32;
-        result.recoil_damage = ((result.damage as u32 * pct + 50) / 100).max(1) as u16;
-    }
-    // Life Orb recoil: Sheer Force suppresses it when move has secondary effects
-    if atk_item.has(ItemFlag::LIFE_ORB) {
+    // Move-recoil (Take Down / Double-Edge / Brave Bird / Wild Charge / Wood Hammer /
+    // Head Smash etc.) is computed in move_exec from HP-clamped actually-dealt damage,
+    // mirroring Showdown's `move.totalDamage` (battle-actions.ts:983-989), with the
+    // Rock Head / Magic Guard exemptions applied at the apply site.
+    // Life Orb sits on the same recoil byte (Magic Guard blocks it too, effect-type
+    // 'Item' triggers magicguard.onDamage's effectType !== 'Move' short-circuit).
+    if atk_item.has(ItemFlag::LIFE_ORB)
+        && atk_ability != data_bridge::ABILITY_MAGIC_GUARD
+    {
         let sheer_force_active = atk_ability == data_bridge::ABILITY_SHEER_FORCE
             && md.secondary_chance > 0;
         if !sheer_force_active {
-            result.recoil_damage += atk_mon.max_hp / 10;
+            result.recoil_damage = atk_mon.max_hp / 10;
         }
     }
 

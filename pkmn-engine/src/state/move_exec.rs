@@ -2265,6 +2265,9 @@ pub(crate) fn use_move_called(
     let pre_damage_hp = if !result.hits_substitute {
         state.sides[def_side].team[def_slot].current_hp
     } else { 0 };
+    let pre_sub_hp = if result.hits_substitute {
+        state.sides[def_side].active.substitute_hp
+    } else { 0 };
 
     // Multi-hit path: apply damage per-hit, interleaving contact recoil and faint checks.
     // Needed so Rough Skin / Iron Barbs / Rocky Helmet trigger per-hit (BUG-P2-D-104),
@@ -2293,8 +2296,11 @@ pub(crate) fn use_move_called(
             // total, prefer dealing adjusted amount on hit 0 and stopping.
             let dmg_this = if i == 0 && final_damage < result.damage {
                 let d = final_damage;
+                let hp_before = state.sides[def_side].team[def_slot].current_hp;
                 deal_damage(state, keys, def_side, def_slot, d);
-                total_dealt += d as u32;
+                total_dealt += hp_before.saturating_sub(
+                    state.sides[def_side].team[def_slot].current_hp,
+                ) as u32;
                 hits_done += 1;
                 state.sides[def_side].active.last_move_hit_by = move_id;
                 state.sides[def_side].active.times_hit =
@@ -2308,8 +2314,11 @@ pub(crate) fn use_move_called(
                 }
                 break;
             } else { per_hit };
+            let hp_before = state.sides[def_side].team[def_slot].current_hp;
             deal_damage(state, keys, def_side, def_slot, dmg_this);
-            total_dealt += dmg_this as u32;
+            total_dealt += hp_before.saturating_sub(
+                state.sides[def_side].team[def_slot].current_hp,
+            ) as u32;
             hits_done += 1;
             state.sides[def_side].active.last_move_hit_by = move_id;
             state.sides[def_side].active.times_hit =
@@ -2347,6 +2356,32 @@ pub(crate) fn use_move_called(
 
     if result.drain_heal > 0 {
         heal(state, keys, atk_side, atk_slot, result.drain_heal);
+    }
+    // Move-recoil (md.drain < 0): mirrors Showdown's calcRecoilDamage on
+    // move.totalDamage — i.e. HP-clamped actually-dealt damage, not raw calc damage.
+    // Rock Head exempts; Magic Guard exempts (effect-type 'Recoil' fails the
+    // effectType==='Move' gate in magicguard.onDamage).
+    if md.drain < 0 {
+        let atk_ability_for_recoil = effective_ability(state, atk_side);
+        if atk_ability_for_recoil != data_bridge::ABILITY_ROCK_HEAD
+            && atk_ability_for_recoil != data_bridge::ABILITY_MAGIC_GUARD
+        {
+            let actually_dealt = if result.hits_substitute {
+                let new_sub = state.sides[def_side].active.substitute_hp;
+                pre_sub_hp.saturating_sub(new_sub) as u32
+            } else if multi_hit_applied {
+                final_damage as u32
+            } else {
+                pre_damage_hp.saturating_sub(
+                    state.sides[def_side].team[def_slot].current_hp,
+                ) as u32
+            };
+            if actually_dealt > 0 {
+                let pct = (-md.drain) as u32;
+                let recoil = ((actually_dealt * pct + 50) / 100).max(1) as u16;
+                result.recoil_damage = result.recoil_damage.saturating_add(recoil);
+            }
+        }
     }
     if result.recoil_damage > 0 {
         deal_damage(state, keys, atk_side, atk_slot, result.recoil_damage);
