@@ -202,6 +202,7 @@ MOVE_EFFECT = {
     "metronome": "Metronome",
     "copycat": "Copycat",
     "mirrormove": "MirrorMove",
+    "assist": "Assist",
 }
 
 # ═══════════════════════════════════════════════════════════════════

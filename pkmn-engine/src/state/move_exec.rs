@@ -19,7 +19,7 @@ use crate::state::switch::{
 };
 use crate::data::moves::{MoveData, MoveFlags};
 use crate::data::types::Type;
-use crate::data::gen_call_family::{COPYCAT_FAIL, ENCORE_FAIL, METRONOME_OK, MIRROR_MOVE_OK, SLEEP_TALK_FAIL};
+use crate::data::gen_call_family::{ASSIST_FAIL, COPYCAT_FAIL, ENCORE_FAIL, METRONOME_OK, MIRROR_MOVE_OK, SLEEP_TALK_FAIL};
 
 #[inline]
 fn apply_immunity_effect(
@@ -1250,6 +1250,46 @@ fn execute_status_move(
             }
         }
 
+        // -- Assist: pick a random move from non-active teammates' movesets --
+        // Showdown moves.ts:608-642. No precondition; iterates target.side.pokemon
+        // skipping the active slot; collects each teammate's moveSlots filtered
+        // against flags.noassist (the 51-entry ASSIST_FAIL sidecar) plus isZ/isMax;
+        // uniform sample; useMove inner-only.
+        MoveEffect::Assist => {
+            let mut pool: [u16; 20] = [0; 20];
+            let mut n: usize = 0;
+            for i in 0..6 {
+                if i == atk_slot { continue; }
+                let team_moves = state.sides[atk_side].team[i].moves;
+                for &mv in &team_moves {
+                    if mv != 0 && ASSIST_FAIL.binary_search(&mv).is_err() {
+                        pool[n] = mv;
+                        n += 1;
+                    }
+                }
+            }
+            if n == 0 { return; }
+            let inner_id = pool[rng(n as u32) as usize];
+            let inner_md = *data_bridge::move_hot(inner_id);
+
+            let outer_last_move = state.sides[atk_side].active.last_move;
+            let had_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+
+            use_move_called(
+                state, keys, atk_side, atk_slot, def_side, def_slot,
+                inner_id, false, false, false, &inner_md, rng, 1,
+            );
+
+            let now_charging = state.sides[atk_side].active.has_volatile(VOL_CHARGING);
+            let now_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
+            if (now_charging && !had_charging) || (now_locked && !had_locked) {
+                state.sides[atk_side].active.last_move = inner_id;
+            } else {
+                state.sides[atk_side].active.last_move = outer_last_move;
+            }
+        }
+
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
@@ -1278,7 +1318,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::Agility | MoveEffect::QuiverDance | MoveEffect::ShellSmash |
         MoveEffect::Coil | MoveEffect::ShiftGear | MoveEffect::HoneClaws |
         MoveEffect::SleepTalk | MoveEffect::Metronome | MoveEffect::Copycat |
-        MoveEffect::MirrorMove => true,
+        MoveEffect::MirrorMove | MoveEffect::Assist => true,
 
         // Screens (set on own side)
         MoveEffect::Reflect | MoveEffect::LightScreen | MoveEffect::AuroraVeil => true,
@@ -7684,6 +7724,187 @@ mod tests {
         assert_eq!(
             state.sides[1].team[1].current_hp, def_hp_before,
             "Mirror Move must no-op after opponent switch zeroes target's last_move"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Assist (move 274) — Wave 3 Batch E. Pool = non-active teammates'
+    // moves, filtered by the 51-entry ASSIST_FAIL sidecar (flags.noassist).
+    // ─────────────────────────────────────────────────────────────────
+
+    fn setup_assist_party() -> (BattleState, ZobristKeys) {
+        // Six-mon attacker party: active slot 0 holds only Assist (274);
+        // five non-active teammates carry one assistable move each in slot 0.
+        // Pool order (iteration of i = 1..=5, slot 0 of each) = [33, 45, 22, 55, 52].
+        let (mut state, keys) = setup();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 100],
+            moves: [274, 0, 0, 0], pp: [16, 0, 0, 0],
+            level: 100,
+            ..Default::default()
+        };
+        for (i, mv) in [33u16, 45, 22, 55, 52].iter().enumerate() {
+            state.sides[0].team[i + 1] = MonSlot {
+                species_id: 6, current_hp: 200, max_hp: 200,
+                stats: [100, 100, 100, 100, 80],
+                moves: [*mv, 0, 0, 0], pp: [24, 0, 0, 0],
+                level: 100,
+                ..Default::default()
+            };
+        }
+        state.zobrist = compute_full_hash(&state, &keys);
+        (state, keys)
+    }
+
+    #[test]
+    fn test_assist_picks_from_teammate_pool_deterministic() {
+        // Fixture #1: party of 1 active + 5 teammates with known single-move
+        // sets; pin RNG seed; assert the dispatch fires the picked teammate
+        // move (Tackle, 33 — pool[0] under rng = 0).
+        let (mut state, keys) = setup_assist_party();
+        let hp_before = state.sides[1].team[0].current_hp;
+        assert!(ASSIST_FAIL.binary_search(&33u16).is_err(), "Tackle eligible");
+        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        assert!(
+            state.sides[1].team[0].current_hp < hp_before,
+            "Assist with rng=0 picks pool[0]=Tackle and dispatches damage to defender"
+        );
+    }
+
+    #[test]
+    fn test_assist_fails_when_pool_empty() {
+        // Fixture #2: every non-active teammate's moveset is fully ASSIST_FAIL-
+        // filtered (Assist itself + Mirror Move + Copycat + Metronome + Sleep Talk —
+        // all in ASSIST_FAIL). Pool empty → no-op.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 100],
+            moves: [274, 0, 0, 0], pp: [16, 0, 0, 0],
+            level: 100,
+            ..Default::default()
+        };
+        for (i, mv) in [274u16, 119, 383, 118, 214].iter().enumerate() {
+            assert!(ASSIST_FAIL.binary_search(mv).is_ok(), "{} in ASSIST_FAIL", mv);
+            state.sides[0].team[i + 1] = MonSlot {
+                species_id: 6, current_hp: 200, max_hp: 200,
+                stats: [100, 100, 100, 100, 80],
+                moves: [*mv, 0, 0, 0], pp: [24, 0, 0, 0],
+                level: 100,
+                ..Default::default()
+            };
+        }
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Assist with fully-filtered teammate pool must no-op"
+        );
+    }
+
+    #[test]
+    fn test_assist_skips_active_slot_when_not_zero() {
+        // Fixture #3: place the user at active_index = 2; only that mon
+        // carries an eligible move (Tackle); teammates' slots are empty.
+        // Pool stays empty because i == atk_slot is skipped — the user's own
+        // moveset is never sampled. Result: Assist no-ops.
+        let (mut state, keys) = setup();
+        // Wipe defaults; only slot 2 holds the active mon (Assist + Tackle).
+        for i in 0..6 {
+            state.sides[0].team[i] = MonSlot::default();
+        }
+        state.sides[0].team[2] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 100],
+            moves: [274, 33, 0, 0], pp: [16, 24, 0, 0],
+            level: 100,
+            ..Default::default()
+        };
+        state.sides[0].active_index = 2;
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 274, 1, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Assist must skip i == active_index (=2); pool empty ⇒ no-op"
+        );
+    }
+
+    #[test]
+    fn test_assist_iterates_only_populated_teammates() {
+        // Fixture #4: two-mon party total (active slot 0 + one teammate in
+        // slot 1). Trailing slots 2..6 are empty MonSlot::default() (moves
+        // all zero); the iteration must skip them without out-of-bounds.
+        let (mut state, keys) = setup();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 100],
+            moves: [274, 0, 0, 0], pp: [16, 0, 0, 0],
+            level: 100,
+            ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 6, current_hp: 200, max_hp: 200,
+            stats: [100, 100, 100, 100, 80],
+            moves: [33, 0, 0, 0], pp: [24, 0, 0, 0],
+            level: 100,
+            ..Default::default()
+        };
+        for i in 2..6 {
+            state.sides[0].team[i] = MonSlot::default();
+        }
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        assert!(
+            state.sides[1].team[0].current_hp < def_hp_before,
+            "Assist with 1 eligible teammate move must pick Tackle (pool len 1)"
+        );
+    }
+
+    #[test]
+    fn test_assist_into_bullet_seed_then_mirror_move_replays_assist() {
+        // Fixture #5: Assist rolls Bullet Seed (331) — multi-hit damaging move.
+        // R-b negative branch then restores OUTER (274 = Assist) into the
+        // user's per-mon last_move because Bullet Seed engages no charge/lock.
+        // Subsequent Mirror Move on the opponent reads the user's last_move =
+        // 274 (Assist), but Assist ∉ MIRROR_MOVE_OK (it's Past-isNonstandard,
+        // lacks flags.mirror), so Mirror Move correctly no-ops on both engines.
+        // Pairs Batch E with Batch D's Mirror Move dispatch path and exercises
+        // the R-b restoration chain across two Call* family outers.
+        let (mut state, keys) = setup_assist_party();
+        // Replace pool[0] with Bullet Seed (331); rng=0 picks pool[0].
+        state.sides[0].team[1].moves = [331, 0, 0, 0];
+        // Opponent (side 1) holds Mirror Move so it can later replay.
+        state.sides[1].team[0].moves = [119, 0, 0, 0];
+        state.zobrist = compute_full_hash(&state, &keys);
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        // T1: Assist → Bullet Seed.
+        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        assert!(
+            state.sides[1].team[0].current_hp < def_hp_before,
+            "Assist must dispatch Bullet Seed (multi-hit damaging)"
+        );
+        assert_eq!(
+            state.sides[0].active.last_move, 274,
+            "R-b negative: user's per-mon last_move holds OUTER Assist"
+        );
+        assert_eq!(
+            state.last_move_globally, 331,
+            "battle-level last-write-wins: inner Bullet Seed"
+        );
+        assert!(
+            MIRROR_MOVE_OK.binary_search(&274u16).is_err(),
+            "Assist NOT in MIRROR_MOVE_OK"
+        );
+        // T2: opponent's Mirror Move reads user's last_move = 274; rejects.
+        let user_hp_before = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 1, 119, 0, &mut fixed_rng(0));
+        assert_eq!(
+            state.sides[0].team[0].current_hp, user_hp_before,
+            "Mirror Move must no-op (read 274 = Assist, absent from MIRROR_MOVE_OK)"
         );
     }
 }

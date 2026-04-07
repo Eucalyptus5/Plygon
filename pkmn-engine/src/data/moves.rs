@@ -266,6 +266,7 @@ pub enum MoveEffect {
     Metronome        = 113, // Pick a random move from METRONOME_OK and dispatch it
     Copycat          = 114, // Replay BattleState.last_move_globally, gated by COPYCAT_FAIL
     MirrorMove       = 115, // Replay target's ActiveMon.last_move, gated by MIRROR_MOVE_OK
+    Assist           = 116, // Pick a random move from non-active teammates' movesets, gated by ASSIST_FAIL
 }
 
 // Flags (16 bits)
