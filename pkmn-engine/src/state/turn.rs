@@ -427,22 +427,20 @@ pub fn execute_turn(
     // Sucker Punch sees "defender already moved".
     state.pending_actions[first.side] = 0xFF;
 
-    // Faint after move 1: pause for forced replacement before continuing
-    if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
-        state.set_turn_resume(SUBPHASE_AFTER_MOVE1, second.side, second_raw);
-        faint_sweep(state, keys);
-        return;
+    // Showdown runs the second mover's action and EOT residuals before any
+    // forced-replacement prompt: a mid-turn faint after move 1 does NOT block
+    // the survivor from moving or from receiving end-of-turn ticks (burn /
+    // toxic counter / weather chip / Leftovers / etc.). Skip the second
+    // action only when the second mover itself is fainted; execute_move and
+    // execute_action are no-ops on fainted attackers, but a queued Switch
+    // would still resolve, so gate explicitly.
+    if !state.active_mon(second.side).is_fainted() {
+        execute_action(state, keys, second.side, &second.action, rng);
     }
 
-    execute_action(state, keys, second.side, &second.action, rng);
-
-    if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
-        state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
-        faint_sweep(state, keys);
-        return;
-    }
-
-    // Pivot moves: transition to switch phase before end-of-turn
+    // Pivot moves: transition to switch phase before end-of-turn. A pending
+    // pivot supersedes residuals (Showdown defers residuals to after the
+    // pivot replacement lands).
     let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
     let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
     if p1_pivot || p2_pivot {
@@ -451,8 +449,21 @@ pub fn execute_turn(
     }
 
     end_of_turn(state, keys);
+
+    // After residuals: if anyone fainted (mid-turn or from EOT), pause for
+    // forced replacement before next turn. Otherwise the turn closes cleanly.
+    if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
+        state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
+        faint_sweep(state, keys);
+        return;
+    }
+
     faint_sweep(state, keys);
     state.clear_turn_resume();
+
+    // second_raw was only meaningful for the deprecated SUBPHASE_AFTER_MOVE1
+    // resume path; bind explicitly to silence unused-variable warnings.
+    let _ = second_raw;
 }
 
 pub fn execute_switch_turn(
@@ -518,19 +529,10 @@ pub fn execute_switch_turn(
         }
 
         SUBPHASE_AFTER_MOVE2 => {
+            // EOT already ran in execute_turn before the replacement pause;
+            // here we only need to clear the resume marker after the switch-in.
             faint_sweep(state, keys);
             if state.phase != PHASE_ACTIONS { return; }
-
-            let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
-            let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
-            if p1_pivot || p2_pivot {
-                state.clear_turn_resume();
-                faint_sweep(state, keys);
-                return;
-            }
-
-            end_of_turn(state, keys);
-            faint_sweep(state, keys);
             state.clear_turn_resume();
         }
 
