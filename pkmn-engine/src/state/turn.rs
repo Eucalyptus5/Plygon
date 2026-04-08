@@ -298,6 +298,20 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     state.sides[side]._padding[0] |= 1;
     state.zobrist ^= keys.species[side][slot][0];
 
+    // Ogerpon Tera forme-change overwrites the held ability with the
+    // mask-specific Embody Aspect (Showdown `formeChange(..., isPermanent=true)`
+    // at sim/pokemon.ts:1467 calls setAbility with the Tera-forme abilities[0]).
+    // Stats are identical between Ogerpon's pre- and post-Tera formes, so no
+    // override_stats install is needed — only the ability swap, which the
+    // Embody Aspect arm below then sees.
+    match mon.species_id {
+        1017 => { mon.ability_id = data_bridge::ABILITY_EMBODY_ASPECT_TEAL; }
+        1300 => { mon.ability_id = data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE; }
+        1302 => { mon.ability_id = data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME; }
+        1305 => { mon.ability_id = data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING; }
+        _ => {}
+    }
+
     // Embody Aspect: boost stat on Terastallization
     let ability = effective_ability(state, side);
     match ability {
