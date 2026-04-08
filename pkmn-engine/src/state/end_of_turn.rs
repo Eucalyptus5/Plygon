@@ -51,8 +51,11 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
         state.sides[side].active.turns_active = state.sides[side].active.turns_active.saturating_add(1);
     }
     for side in 0..2 {                                           // 17
-        // Reset protect_consecutive if Protect was NOT used this turn
-        if !state.sides[side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
+        // Reset protect_consecutive if neither Protect nor Endure was used this turn
+        // (Showdown's `stall` volatile is shared by the Protect/Detect/Endure ladder)
+        if !state.sides[side].active.has_volatile(VOL_PROTECT_THIS_TURN)
+            && !state.sides[side].active.has_volatile(VOL_ENDURE)
+        {
             state.sides[side].active.protect_consecutive = 0;
         }
         let flags_to_clear = state.sides[side].active.volatile_flags & VOL_PER_TURN_MASK;

@@ -291,6 +291,11 @@ fn execute_status_move(
         return;
     }
 
+    if md.effect == MoveEffect::Endure {
+        execute_endure(state, keys, atk_side, rng);
+        return;
+    }
+
     // Weather moves: field-targeting, bypass Protect/accuracy/immunity.
     // The same-weather guard now lives inside set_weather (mutations.rs).
     match move_id as usize {
@@ -1336,7 +1341,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::DestinyBond | MoveEffect::ClangorousSoul |
         MoveEffect::Curse | MoveEffect::NoRetreat | MoveEffect::TidyUp |
         MoveEffect::AquaRing | MoveEffect::Ingrain |
-        MoveEffect::Charge |
+        MoveEffect::Charge | MoveEffect::Endure |
         // Ally-target boosts: in singles resolve to self
         MoveEffect::AllyBoost => true,
 
@@ -1437,6 +1442,28 @@ fn execute_protect(
         };
         state.sides[side].active._padding[0] =
             (state.sides[side].active._padding[0] & !0x06) | (variant << 1);
+    }
+}
+
+// Endure shares Showdown's `stall` volatile ladder with Protect: identical 1/3, 1/9
+// success curve on consecutive uses; clamps Move-effect damage to leave 1 HP (recoil
+// has effectType 'Recoil' and bypasses the clamp).
+fn execute_endure(
+    state: &mut BattleState,
+    keys: &ZobristKeys,
+    side: usize,
+    rng: &mut impl FnMut(u32) -> u32,
+) {
+    let consecutive = state.sides[side].active.protect_consecutive;
+    let succeeds = match consecutive {
+        0 => true,
+        1 => rng(3) == 0,
+        2 => rng(9) == 0,
+        _ => false,
+    };
+    if succeeds {
+        set_volatile(state, keys, side, VOL_ENDURE);
+        state.sides[side].active.protect_consecutive += 1;
     }
 }
 
@@ -2286,6 +2313,15 @@ pub(crate) fn use_move_called(
                 && !mold_breaks(state, def_side, effective_ability(state, atk_side))
             {
                 final_damage = def_mon.current_hp - 1;
+            }
+        }
+        // Endure: clamp Move-effect damage to leave 1 HP (any starting HP). Recoil
+        // and contact-recoil call deal_damage directly so they bypass this branch,
+        // matching Showdown's effectType==='Move' gate on the endure volatile.
+        if state.sides[def_side].active.has_volatile(VOL_ENDURE) {
+            let cur = state.sides[def_side].team[def_slot].current_hp;
+            if cur > 0 && final_damage >= cur {
+                final_damage = cur - 1;
             }
         }
     }

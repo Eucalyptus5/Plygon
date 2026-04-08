@@ -47,6 +47,7 @@ MOVE_EFFECT = {
     "protect": "Protect", "detect": "Protect", "kingsshield": "Protect",
     "banefulbunker": "Protect", "spikyshield": "Protect", "silktrap": "Protect",
     "obstruct": "Protect", "burningbulwark": "Protect",
+    "endure": "Endure",
     "stealthrock": "StealthRock", "spikes": "Spikes",
     "toxicspikes": "ToxicSpikes", "stickyweb": "StickyWeb",
     "defog": "Defog",

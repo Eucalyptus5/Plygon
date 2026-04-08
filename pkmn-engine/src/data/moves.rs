@@ -267,6 +267,8 @@ pub enum MoveEffect {
     Copycat          = 114, // Replay BattleState.last_move_globally, gated by COPYCAT_FAIL
     MirrorMove       = 115, // Replay target's ActiveMon.last_move, gated by MIRROR_MOVE_OK
     Assist           = 116, // Pick a random move from non-active teammates' movesets, gated by ASSIST_FAIL
+
+    Endure           = 117, // Survive at 1 HP from Move-effect damage this turn; shares protect_consecutive ladder
 }
 
 // Flags (16 bits)
