@@ -1103,6 +1103,22 @@ def gen_items():
         # Detect item types from Showdown data
         is_berry = "isBerry: true" in block
 
+        # Showdown sim/dex-items.ts:145-149 supplies default fling BP when an
+        # item lacks an explicit `fling` field. These class-defaults are
+        # applied at runtime by Item.constructor, so the raw data block above
+        # never carries them.
+        if fling_bp == 0:
+            if is_berry:
+                fling_bp = 10
+            elif "onPlate:" in block or key.endswith("plate"):
+                fling_bp = 90
+            elif "onDrive:" in block:
+                fling_bp = 70
+            elif "megaStone:" in block:
+                fling_bp = 80
+            elif "onMemory:" in block:
+                fling_bp = 50
+
         # Mega Stone
         if "megaStone:" in block:
             flags.add("MEGA_STONE")
@@ -1212,8 +1228,8 @@ def gen_items():
 
     for num in sorted(items.keys()):
         key, name_raw, flags, type_param, fling_bp, forme_species = items[num]
-        if not flags and forme_species == 0:
-            continue  # Skip items with no engine-relevant flags and no forme lock
+        if not flags and forme_species == 0 and fling_bp == 0:
+            continue  # Skip items with no engine-relevant flags, no forme lock, and no fling BP
 
         if flags:
             flag_parts = sorted(flags)

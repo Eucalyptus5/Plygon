@@ -2193,6 +2193,24 @@ pub(crate) fn use_move_called(
         if count == 0 { return; }
     }
 
+    // Fling (374): validate the held item BP, then let calc_damage read
+    // power_param for BP and treat atk_item as NONE so Life Orb / Choice Band
+    // / type boosts do not apply. The actual item slot is cleared post-calc,
+    // before any post-damage item reads (Shell Bell / Throat Spray). Showdown
+    // moves.ts:5744-5797 — onPrepareHit sets BP, fling-volatile's onUpdate
+    // clears the item before damage events.
+    // TODO: respect Klutz / Embargo when item-suppression predicate lands;
+    // only Magic Room is honored today.
+    if move_id == 374 {
+        let atk_item_id = state.active_mon(atk_side).item_id;
+        if atk_item_id == 0 || state.field.magic_room_turns() > 0 {
+            return;
+        }
+        if data_bridge::item(atk_item_id).power_param == 0 {
+            return;
+        }
+    }
+
     let per_hit_acc = match move_id {
         167 | 813 | 860 => { // Triple Kick, Triple Axel, Population Bomb
             let atk_item = data_bridge::item(state.active_mon(atk_side).item_id);
@@ -2206,6 +2224,16 @@ pub(crate) fn use_move_called(
         _ => 0,
     };
     let mut result = calc_damage(state, atk_side, move_id, per_hit_acc, rng);
+
+    // Fling: clear the item now (calc already read power_param). Post-damage
+    // reads (Shell Bell, Throat Spray) and EOT item-damage all see item_id=0,
+    // matching Showdown's pre-damage onUpdate.
+    if move_id == 374 {
+        consume_item(state, keys, atk_side, atk_slot);
+        if effective_ability(state, atk_side) == data_bridge::ABILITY_UNBURDEN {
+            set_volatile(state, keys, atk_side, VOL_UNBURDEN);
+        }
+    }
 
     if result.type_immune {
         apply_crash_if_needed(state, keys, atk_side, md);

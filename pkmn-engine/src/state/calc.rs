@@ -71,7 +71,9 @@ pub fn calc_damage(
     // SeismicToss/Night Shade: damage = user's level.
     // SuperFang: damage = 50% of target's current HP.
     // Counter/MirrorCoat/MetalBurst: simplified fixed damage (same as move_exec).
-    if md.base_power == 0 && md.var_power == VarPower::None {
+    // Fling (374) has base_power=0 in the move table; BP comes from item.power_param
+    // — handled below in the main calc path.
+    if md.base_power == 0 && md.var_power == VarPower::None && move_id != 374 {
         let atk_mon = state.active_mon(atk_side);
         match md.effect {
             MoveEffect::SeismicToss => {
@@ -118,6 +120,17 @@ pub fn calc_damage(
     let magic_room = state.field.magic_room_turns() > 0;
     let atk_item = if magic_room { &data_bridge::ItemData::NONE } else { data_bridge::item(atk_mon.item_id) };
     let def_item = if magic_room { &data_bridge::ItemData::NONE } else { data_bridge::item(def_mon.item_id) };
+    // Fling: BP comes from the held item's power_param. The item is consumed
+    // in use_move_called right after calc returns; the user-side recoil arm
+    // below (atk_item.LIFE_ORB at the end of calc) still reads the item, which
+    // matches Showdown — `eachEvent('Update')` clears the item after the move
+    // action completes, not mid-step. We DO skip the recoil arm for move 374
+    // because the consume_item that follows leaves the user with no item by
+    // the time Life Orb's onAfterMoveSecondarySelf would have run.
+    let is_fling = move_id == 374;
+    let fling_bp = if is_fling && !magic_room {
+        atk_item.power_param
+    } else { 0 };
 
     let mut result = DamageResult::default();
 
@@ -228,7 +241,7 @@ pub fn calc_damage(
         }
     }
 
-    let base_power = resolve_power(state, md, atk_side, def_side);
+    let base_power = if is_fling { fling_bp as u16 } else { resolve_power(state, md, atk_side, def_side) };
     let mut power = base_power as u32;
 
     let (ap_n, _) = ability_power_mod(state, md, atk_side, base_power);
@@ -554,8 +567,11 @@ pub fn calc_damage(
     // Rock Head / Magic Guard exemptions applied at the apply site.
     // Life Orb sits on the same recoil byte (Magic Guard blocks it too, effect-type
     // 'Item' triggers magicguard.onDamage's effectType !== 'Move' short-circuit).
+    // Fling skips the recoil — the item is consumed by the move, so by the
+    // time onAfterMoveSecondarySelf would fire, the user no longer holds it.
     if atk_item.has(ItemFlag::LIFE_ORB)
         && atk_ability != data_bridge::ABILITY_MAGIC_GUARD
+        && !is_fling
     {
         let sheer_force_active = atk_ability == data_bridge::ABILITY_SHEER_FORCE
             && md.secondary_chance > 0;
