@@ -340,6 +340,10 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
                 state.sides[side].active.boosts[stat_idx] = 0;
             }
         }
+        // Showdown's checkFainted overwrites status with 'fnt' (battle.ts:2523),
+        // which compare_results normalizes to STATUS_NONE. Mirror by clearing.
+        let slot = state.sides[side].active_index as usize;
+        clear_status(state, keys, side, slot);
     }
 
     let p1_alive = (0..6).any(|i| {
