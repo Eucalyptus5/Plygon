@@ -241,7 +241,25 @@ pub fn calc_damage(
         }
     }
 
-    let base_power = if is_fling { fling_bp as u16 } else { resolve_power(state, md, atk_side, def_side) };
+    let mut base_power = if is_fling { fling_bp as u16 } else { resolve_power(state, md, atk_side, def_side) };
+
+    // Tera min-BP=60 floor (Showdown sim/battle-actions.ts:1657-1665):
+    // terastallized + move type matches Tera type + BP<60 + priority<=0 + !multihit + not variable-BP-callback.
+    // Stellar branch deferred to BUG-P8-M-395.
+    {
+        let atk_mon = state.active_mon(atk_side);
+        if atk_mon.is_terastallized()
+            && move_type as u8 == atk_mon.tera_type
+            && base_power < 60
+            && md.priority <= 0
+            && md.multihit == 0
+            && md.var_power == VarPower::None
+            && !is_fling
+        {
+            base_power = 60;
+        }
+    }
+
     let mut power = base_power as u32;
 
     let (ap_n, _) = ability_power_mod(state, md, atk_side, base_power);
