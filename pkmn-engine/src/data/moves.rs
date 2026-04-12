@@ -269,6 +269,8 @@ pub enum MoveEffect {
     Assist           = 116, // Pick a random move from non-active teammates' movesets, gated by ASSIST_FAIL
 
     Endure           = 117, // Survive at 1 HP from Move-effect damage this turn; shares protect_consecutive ladder
+
+    PoisonPowder     = 118, // Poison Powder: inflict regular poison (not toxic); Sync DOES bounce
 }
 
 // Flags (16 bits)

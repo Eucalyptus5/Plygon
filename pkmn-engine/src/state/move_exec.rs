@@ -455,6 +455,17 @@ fn execute_status_move(
                 }
             }
         }
+        MoveEffect::PoisonPowder => {
+            if !type_immune_to_status(state, def_side, STATUS_POISON)
+                && state.sides[def_side].side_conditions.safeguard_turns() == 0
+                && !terrain_blocks_status(state, def_side, STATUS_POISON)
+                && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+            {
+                if set_status(state, keys, def_side, def_slot, STATUS_POISON, 0) {
+                    try_synchronize_back(state, keys, def_side, atk_side, STATUS_POISON);
+                }
+            }
+        }
         MoveEffect::Sleep       => {
             if state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
@@ -2048,9 +2059,11 @@ pub(crate) fn use_move_called(
     // (Spore, Sleep Powder, Stun Spore, Poison Powder, Cotton Spore, Rage Powder).
     // Not bypassed by Mold Breaker (item, not ability). Must come before the
     // status-move dispatch so status powder moves are fully blocked.
+    // Grass types are also powder-immune (typechart: grass row damageTaken.powder = 3).
     if !is_struggle
         && md.flags & MoveFlags::POWDER != 0
-        && holds_safety_goggles(state, def_side)
+        && (holds_safety_goggles(state, def_side)
+            || has_type(state, def_side, Type::Grass as u8))
     {
         apply_crash_if_needed(state, keys, atk_side, md);
         return;
