@@ -69,6 +69,28 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
 }
 
 pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) {
+    if switch_in_phase_a(state, keys, side, new_index) {
+        apply_switch_in_ability(state, keys, side);
+        apply_switch_in_item(state, keys, side);
+    }
+}
+
+/// Phase A of switch-in: state install only — set active_index, apply entry
+/// hazards, check pinch berry, run faint short-circuit, fire Healing Wish /
+/// Lunar Dance, install Neutralizing-Gas ability suppression. Does NOT run
+/// the switch-in ability (Phase B) or the terrain-seed item check (which
+/// must observe Phase-B-installed terrain).
+///
+/// Returns `true` if Phase B should still run, `false` if the incoming mon
+/// fainted from hazards (Phase B must be skipped for this side).
+///
+/// Showdown defers all `onStart` / `onSwitchIn` ability handlers until after
+/// both mons have switched in on a same-turn double-switch, then speed-sorts
+/// them. The Phase-A/Phase-B split mirrors that ordering so Intimidate (and
+/// any other switch-in ability) reads the post-double-switch field.
+pub fn switch_in_phase_a(
+    state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize,
+) -> bool {
     let old_index = state.sides[side].active_index as usize;
     state.zobrist ^= keys.active_index[side][old_index];
     state.sides[side].active_index = new_index as u8;
@@ -83,7 +105,7 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
 
     // If fainted from hazards, skip ability/item activation
     if state.sides[side].team[slot].is_fainted() {
-        return;
+        return false;
     }
 
     // Palafin Zero to Hero: transform on switch-in
@@ -133,8 +155,7 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
         }
     }
 
-    apply_switch_in_ability(state, keys, side);
-    apply_switch_in_item(state, keys, side);
+    true
 }
 
 /// Check and activate a terrain seed for the given side.
@@ -174,7 +195,7 @@ pub fn check_terrain_seed(state: &mut BattleState, keys: &ZobristKeys, side: usi
     }
 }
 
-fn apply_switch_in_item(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub(crate) fn apply_switch_in_item(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     check_terrain_seed(state, keys, side);
 }
 
@@ -195,6 +216,67 @@ pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, 
     }
     perform_switch_forced(state, keys, side, new_index);
     true
+}
+
+/// Both sides chose Switch on the same turn: state-install both incoming mons
+/// (Phase A), then run switch-in abilities (Phase B) in speed order. Mirrors
+/// Showdown's `fieldEvent('SwitchIn', switchersIn)` which drains all queued
+/// switches before firing `onStart` / `onSwitchIn` handlers, then speed-sorts
+/// the handlers. Trapping (Magnet Pull / Arena Trap / Shadow Tag / binding
+/// volatiles) is honored per side — a trapped side's switch silently no-ops,
+/// matching `perform_switch`'s singleton-path behavior.
+pub fn perform_double_switch(
+    state: &mut BattleState, keys: &ZobristKeys,
+    first_side: usize, first_target: usize,
+    second_side: usize, second_target: usize,
+    rng: &mut impl FnMut(u32) -> u32,
+) {
+    let first_ok = !is_trapped(state, first_side);
+    let second_ok = !is_trapped(state, second_side);
+
+    let mut first_run_b = false;
+    let mut second_run_b = false;
+
+    if first_ok {
+        switch_out(state, keys, first_side);
+        first_run_b = switch_in_phase_a(state, keys, first_side, first_target);
+    }
+    if second_ok {
+        switch_out(state, keys, second_side);
+        second_run_b = switch_in_phase_a(state, keys, second_side, second_target);
+    }
+
+    // Phase B: speed-sorted ability fan-out. Empty if neither side ran a
+    // successful Phase A (both trapped or both fainted from hazards).
+    if !first_run_b && !second_run_b {
+        return;
+    }
+
+    let ability_order = if first_run_b && second_run_b {
+        let spd_first = crate::state::turn::resolve_speed(state, first_side);
+        let spd_second = crate::state::turn::resolve_speed(state, second_side);
+        let trick_room = state.field.trick_room_turns > 0;
+        let first_first = if spd_first != spd_second {
+            if trick_room { spd_first < spd_second } else { spd_first > spd_second }
+        } else {
+            rng(2) == 0
+        };
+        if first_first { [(first_side, true), (second_side, true)] }
+        else { [(second_side, true), (first_side, true)] }
+    } else if first_run_b {
+        [(first_side, true), (second_side, false)]
+    } else {
+        [(first_side, false), (second_side, true)]
+    };
+
+    for &(side, run) in &ability_order {
+        if !run { continue; }
+        apply_switch_in_ability(state, keys, side);
+    }
+    for &(side, run) in &ability_order {
+        if !run { continue; }
+        apply_switch_in_item(state, keys, side);
+    }
 }
 
 /// Force a switch regardless of trap status. Used by faint replacement and
@@ -339,7 +421,7 @@ fn is_untraceable(ability: u16) -> bool {
     )
 }
 
-fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     let ability = effective_ability(state, side);
     let opp = 1 - side;
     let side_mirror = state.field.magic_room_turns() == 0

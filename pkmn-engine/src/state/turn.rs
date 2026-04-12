@@ -11,7 +11,7 @@ use crate::state::data_bridge::{self, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
-use crate::state::switch::{perform_switch, perform_switch_forced};
+use crate::state::switch::{perform_switch, perform_switch_forced, perform_double_switch};
 use crate::state::end_of_turn::end_of_turn;
 use crate::state::move_exec::execute_move;
 use crate::data::moves::MoveFlags;
@@ -62,7 +62,7 @@ struct OrderedAction {
 
 /// Compute effective speed for turn order comparison.
 #[inline]
-fn resolve_speed(state: &BattleState, side: usize) -> u32 {
+pub(crate) fn resolve_speed(state: &BattleState, side: usize) -> u32 {
     let mon = state.active_mon(side);
     let ability = effective_ability(state, side);
     let mut speed = boosted_stat(
@@ -425,21 +425,37 @@ pub fn execute_turn(
     state.pending_actions[0] = action_p1;
     state.pending_actions[1] = action_p2;
 
-    execute_action(state, keys, first.side, &first.action, rng);
+    // Double-switch: defer switch-in abilities until both incoming mons have
+    // landed, then speed-sort the ability fan-out. Mirrors Showdown's
+    // fieldEvent('SwitchIn', switchersIn) drain + speedSort pattern.
+    if let (ActionKind::Switch { target: t_first }, ActionKind::Switch { target: t_second })
+        = (first.action, second.action)
+    {
+        perform_double_switch(
+            state, keys,
+            first.side, t_first as usize,
+            second.side, t_second as usize,
+            rng,
+        );
+        state.pending_actions[0] = 0xFF;
+        state.pending_actions[1] = 0xFF;
+    } else {
+        execute_action(state, keys, first.side, &first.action, rng);
 
-    // First mover has resolved — invalidate their entry so the second mover's
-    // Sucker Punch sees "defender already moved".
-    state.pending_actions[first.side] = 0xFF;
+        // First mover has resolved — invalidate their entry so the second mover's
+        // Sucker Punch sees "defender already moved".
+        state.pending_actions[first.side] = 0xFF;
 
-    // Showdown runs the second mover's action and EOT residuals before any
-    // forced-replacement prompt: a mid-turn faint after move 1 does NOT block
-    // the survivor from moving or from receiving end-of-turn ticks (burn /
-    // toxic counter / weather chip / Leftovers / etc.). Skip the second
-    // action only when the second mover itself is fainted; execute_move and
-    // execute_action are no-ops on fainted attackers, but a queued Switch
-    // would still resolve, so gate explicitly.
-    if !state.active_mon(second.side).is_fainted() {
-        execute_action(state, keys, second.side, &second.action, rng);
+        // Showdown runs the second mover's action and EOT residuals before any
+        // forced-replacement prompt: a mid-turn faint after move 1 does NOT block
+        // the survivor from moving or from receiving end-of-turn ticks (burn /
+        // toxic counter / weather chip / Leftovers / etc.). Skip the second
+        // action only when the second mover itself is fainted; execute_move and
+        // execute_action are no-ops on fainted attackers, but a queued Switch
+        // would still resolve, so gate explicitly.
+        if !state.active_mon(second.side).is_fainted() {
+            execute_action(state, keys, second.side, &second.action, rng);
+        }
     }
 
     // Pivot moves: transition to switch phase before end-of-turn. A pending
