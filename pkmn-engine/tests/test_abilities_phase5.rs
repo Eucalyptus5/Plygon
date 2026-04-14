@@ -301,7 +301,7 @@ fn test_speed_boost_at_eot() {
     state.sides[0].active.turns_active = 1; // must be > 0
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.boosts[SPE], 1);
     assert!(validate_hash(&state, &keys));
@@ -314,7 +314,7 @@ fn test_moody_at_eot() {
     state.sides[0].active.turns_active = 0;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Moody should have changed at least one stat
     let boosts = state.sides[0].active.boosts;
@@ -331,7 +331,7 @@ fn test_bad_dreams_damages_sleeper() {
     state.sides[1].team[0].status_counter = 3;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[1].team[0].current_hp, 300 - 37);
     assert!(validate_hash(&state, &keys));
@@ -346,7 +346,7 @@ fn test_dry_skin_eot() {
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 300 - 37);
 
     // Reset and test Rain
@@ -354,7 +354,7 @@ fn test_dry_skin_eot() {
     state.field.weather = WEATHER_RAIN;
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     // Heal 1/8 of 300 = 37
     assert_eq!(state.sides[0].team[0].current_hp, 237);
 }
@@ -558,7 +558,7 @@ fn test_hydration_in_rain() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     assert!(validate_hash(&state, &keys));
@@ -573,7 +573,7 @@ fn test_rain_dish_heals() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 218);
     assert!(validate_hash(&state, &keys));
@@ -588,7 +588,7 @@ fn test_ice_body_heals_in_snow() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 218);
     assert!(validate_hash(&state, &keys));
@@ -765,7 +765,7 @@ fn test_harvest_restores_berry_in_sun() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
     assert_eq!(state.sides[0].last_consumed_berry(), 0);
@@ -782,7 +782,7 @@ fn test_harvest_no_restore_with_item() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Should NOT replace existing item
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
@@ -809,7 +809,7 @@ fn test_poison_heal_heals() {
     state.sides[0].team[0].current_hp = 200;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // No poison damage (1/8 = 37 skipped), heal 1/8 = 300/8 = 37
     assert_eq!(state.sides[0].team[0].current_hp, 237);
@@ -826,7 +826,7 @@ fn test_poison_heal_replaces_toxic() {
     state.sides[0].active.toxic_counter = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Toxic damage (5*300/16 = 93) should NOT be applied; heal 300/8 = 37
     assert_eq!(state.sides[0].team[0].current_hp, 237);
@@ -843,7 +843,7 @@ fn test_shed_skin_cures() {
     state.sides[0].active.turns_active = 0; // 0 % 3 == 0 → cures
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     assert!(validate_hash(&state, &keys));
@@ -857,7 +857,7 @@ fn test_shed_skin_no_cure() {
     state.sides[0].active.turns_active = 1; // 1 % 3 != 0 → no cure
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
     assert!(validate_hash(&state, &keys));

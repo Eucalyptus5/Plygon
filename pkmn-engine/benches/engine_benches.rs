@@ -529,7 +529,8 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     group.bench_function("end_of_turn (Vanilla)", |b| {
         b.iter(|| {
             let mut state = template_v;
-            end_of_turn(&mut state, &keys_v);
+            let mut rng = deterministic_rng();
+            end_of_turn(&mut state, &keys_v, &mut BattleRng::from_closure(&mut rng));
             black_box(state);
         });
     });
@@ -543,7 +544,8 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     group.bench_function("end_of_turn (Weather + Status)", |b| {
         b.iter(|| {
             let mut state = template_ws;
-            end_of_turn(&mut state, &keys_ws);
+            let mut rng = deterministic_rng();
+            end_of_turn(&mut state, &keys_ws, &mut BattleRng::from_closure(&mut rng));
             black_box(state);
         });
     });

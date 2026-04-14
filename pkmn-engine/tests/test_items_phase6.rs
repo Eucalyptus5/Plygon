@@ -215,7 +215,7 @@ fn test_leftovers_eot_heal() {
     state.sides[1].team[0].current_hp = 300; // keep alive
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 218); // 300/16 = 18 heal
     assert!(validate_hash(&state, &keys));
@@ -229,7 +229,7 @@ fn test_sticky_barb_eot_damage() {
     state.sides[1].team[0].current_hp = 300;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 263); // 300/8 = 37 damage
     assert!(validate_hash(&state, &keys));
@@ -320,7 +320,7 @@ fn test_utility_umbrella_blocks_rain_dish() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 200); // no healing
     assert!(validate_hash(&state, &keys));
@@ -336,7 +336,7 @@ fn test_utility_umbrella_blocks_dry_skin_sun_damage() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[0].team[0].current_hp;
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, hp_before); // no sun damage
     assert!(validate_hash(&state, &keys));
@@ -352,7 +352,7 @@ fn test_utility_umbrella_no_effect_on_snow() {
     state.field.weather_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Snow is NOT blocked by Utility Umbrella — Ice Body healing should apply
     assert!(state.sides[0].team[0].current_hp > 200);

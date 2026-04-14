@@ -107,7 +107,7 @@ fn test_full_turn_simulation() {
 
     let res = calc_damage(&state, 0, 1, 0, &mut |_| 1); // Pound
     deal_damage(&mut state, &keys, 1, 0, res.damage);
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert!(state.sides[1].team[0].current_hp < 300);
     assert_eq!(state.field.turn, 1);
@@ -131,7 +131,7 @@ fn test_switch_hazard_eot_chain() {
     assert!(validate_hash(&state, &keys));
     
     // SR (37) + Spikes (37) = 74 damage, then sand (18) at EOT
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert!(validate_hash(&state, &keys));
     assert!(state.sides[0].team[1].current_hp < 226);
 }
@@ -177,13 +177,13 @@ fn test_weather_lifecycle() {
     let (mut state, keys) = setup();
     set_weather(&mut state, &keys, WEATHER_RAIN, 3);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.field.weather_turns, 2);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.field.weather_turns, 1);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.field.weather, 0);
     assert_eq!(state.field.weather_turns, 0);
 }
@@ -195,18 +195,18 @@ fn test_perish_song_lifecycle() {
     state.sides[0].active.perish_count = 3;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].active.perish_count, 2);
     assert_eq!(state.sides[0].team[0].current_hp, 300);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].active.perish_count, 1);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].active.perish_count, 0);
     assert_eq!(state.sides[0].team[0].current_hp, 300); // Not fainted yet!
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 0); // Fainted
 }
 

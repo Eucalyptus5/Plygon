@@ -28,7 +28,7 @@ fn test_turn_counter() {
     let (mut state, keys) = setup();
     state.field.turn = 1;
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.field.turn, 2);
     assert!(validate_hash(&state, &keys));
@@ -42,7 +42,7 @@ fn test_weather_damage() {
     
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     // Normal type takes 1/16 damage -> 300 / 16 = 18. HP = 282
     assert_eq!(state.sides[0].team[0].current_hp, 282);
@@ -63,7 +63,7 @@ fn test_weather_immune() {
     
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].team[0].current_hp, 300); // Rock immune
     assert_eq!(state.sides[1].team[0].current_hp, 300); // Magic Guard immune
@@ -76,7 +76,7 @@ fn test_weather_expiry() {
     state.field.weather_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.field.weather, 0); // Cleared
     assert_eq!(state.field.weather_turns, 0);
@@ -89,7 +89,7 @@ fn test_weather_permanent() {
     state.field.weather_turns = 0; // Permanent
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.field.weather, WEATHER_SAND);
     assert_eq!(state.field.weather_turns, 0);
@@ -103,7 +103,7 @@ fn test_wish() {
     state.sides[0].team[0].current_hp = 50;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].side_conditions.wish_turns, 0);
     assert_eq!(state.sides[0].team[0].current_hp, 200); // 50 + 150
@@ -117,7 +117,7 @@ fn test_status_damage() {
     state.sides[1].team[0].status = STATUS_POISON;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].team[0].current_hp, 300 - (300 / 16)); // Burn 1/16
     assert_eq!(state.sides[1].team[0].current_hp, 300 - (300 / 8));  // Poison 1/8
@@ -130,12 +130,12 @@ fn test_bad_poison_escalation() {
     state.sides[0].active.toxic_counter = 1; // It uses toxic_counter, not status_counter!
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].team[0].current_hp, 300 - (300 / 16));
     assert_eq!(state.sides[0].active.toxic_counter, 2);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     // Previous HP was 282. floor(300/16)*2 = 18*2 = 36. 282 - 36 = 246.
     assert_eq!(state.sides[0].team[0].current_hp, 246); // floor(max/16)*counter
@@ -150,7 +150,7 @@ fn test_sleep_wakeup() {
     state.sides[0].team[0].status_counter = 1;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].team[0].status, 0); // Woke up
     assert_eq!(state.sides[0].team[0].status_counter, 0);
@@ -164,7 +164,7 @@ fn test_leech_seed() {
     state.sides[1].team[0].current_hp = 100; // Opponent needs healing
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     let drain = 300 / 8; // 37
     assert_eq!(state.sides[0].team[0].current_hp, 300 - drain);
@@ -194,7 +194,7 @@ fn test_aqua_ring_ingrain_grassy() {
     state.field.terrain_turns = 5;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     // Grassy heals 1/16 (18), Aqua Ring heals 1/16 (18). Total 36.
     assert_eq!(state.sides[0].team[0].current_hp, 136);
@@ -210,7 +210,7 @@ fn test_leftovers() {
     state.sides[0].team[0].current_hp = 100;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].team[0].current_hp, 100 + (300 / 16));
 }
@@ -230,7 +230,7 @@ fn test_black_sludge() {
     state.sides[0].active.set_volatile(VOL_TYPES_OVERRIDDEN);
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     // It should take damage, but because of the bug, it heals!
     assert_eq!(state.sides[0].team[1].current_hp, 200 - (300 / 8));
@@ -243,7 +243,7 @@ fn test_screen_tailwind_expiry() {
     state.sides[0].side_conditions.tailwind_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].side_conditions.reflect_turns, 0);
     assert_eq!(state.sides[0].side_conditions.tailwind_turns, 0);
@@ -260,14 +260,14 @@ fn test_perish_song() {
     
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     // Count drops from 1 to 0
     assert_eq!(state.sides[0].active.perish_count, 0);
     assert_eq!(state.sides[0].team[0].current_hp, 300); // Not fainted yet!
     
     // Next turn it faints
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 0); // Fainted
     
     assert_eq!(state.sides[1].active.perish_count, 255); // Unchanged
@@ -281,7 +281,7 @@ fn test_speed_boost() {
     state.sides[0].active.turns_active = 1;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert_eq!(state.sides[0].active.boosts[4], 1); // Spe is index 4
 }
@@ -293,7 +293,7 @@ fn test_flags_cleared() {
     state.sides[0].active.times_hit = 5;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert!(!state.sides[0].active.has_volatile(VOL_FLINCHED));
     assert!(!state.sides[0].active.has_volatile(VOL_MOVED_THIS_TURN));
@@ -314,7 +314,7 @@ fn test_interaction_order() {
     state.sides[0].team[0].item_id = 242; // Leftovers
     state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     // Sand: -18
     // Leech Seed: -37
@@ -335,7 +335,7 @@ fn test_screen_expires() {
     state.field.trick_room_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].side_conditions.light_screen_turns, 0,
         "Light Screen should expire after 1 turn");
@@ -356,12 +356,12 @@ fn test_wish_heals_after_2_turns() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Turn 1: wish_turns decrements from 2 to 1, no heal yet
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 100, "Should not heal on first EOT");
     assert_eq!(state.sides[0].side_conditions.wish_turns, 1);
 
     // Turn 2: wish_turns is 1, heal triggers
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 250, "Should heal 150 HP on second EOT");
     assert_eq!(state.sides[0].side_conditions.wish_turns, 0);
     assert_eq!(state.sides[0].side_conditions.wish_hp, 0);
@@ -384,7 +384,7 @@ fn test_wish_heals_current_mon() {
     state.sides[0].active_index = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Wish should heal the CURRENT active mon (index 1), not the original caster
     assert_eq!(state.sides[0].team[1].current_hp, 200, "Wish should heal current active mon");

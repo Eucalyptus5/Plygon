@@ -1,6 +1,7 @@
 //! End-of-turn processing: the 18-step sequence.
 
 use crate::state::structs::*;
+use crate::state::battle_rng::BattleRng;
 use crate::state::data_bridge::{self, ItemFlag};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
@@ -8,7 +9,7 @@ use crate::state::zobrist::ZobristKeys;
 use crate::state::forme;
 use crate::state::calc_modifiers::{terrain_blocks_status, is_heatproof_effective};
 
-pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
+pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys, rng: &mut BattleRng) {
     step_weather(state, keys);                                   // 1
     step_terrain_countdown(state);                               // 2a: decrement only
     // 3: Future Sight (not yet implemented)
@@ -46,7 +47,7 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys) {
     for side in 0..2 { step_perish_song(state, keys, side); }    // 14
     for side in 0..2 { step_status_orbs(state, keys, side); }   // 14c (order 28: orbs/barb)
     step_soul_heart(state, keys);                               // 14b
-    for side in 0..2 { step_eot_abilities(state, keys, side); }  // 15
+    for side in 0..2 { step_eot_abilities(state, keys, side, rng); }  // 15
     for side in 0..2 {                                           // 16
         state.sides[side].active.turns_active = state.sides[side].active.turns_active.saturating_add(1);
     }
@@ -442,7 +443,7 @@ fn step_weather_abilities(
 }
 
 fn step_eot_abilities(
-    state: &mut BattleState, keys: &ZobristKeys, side: usize,
+    state: &mut BattleState, keys: &ZobristKeys, side: usize, rng: &mut BattleRng,
 ) {
     let slot = state.sides[side].active_index as usize;
     if state.sides[side].team[slot].is_fainted() { return; }
@@ -551,7 +552,7 @@ mod tests {
         (state, keys)
     }
     #[test] fn test_burn() { let (mut s, k) = setup(); s.sides[0].team[0].status = STATUS_BURN; s.zobrist = compute_full_hash(&s, &k); step_status_damage(&mut s, &k, 0); assert_eq!(s.sides[0].team[0].current_hp, 188); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k); assert_eq!(s.field.turn, 1); }
+    #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k, &mut BattleRng::from_closure(&mut |_| 0u32)); assert_eq!(s.field.turn, 1); }
 
 
     #[test]
@@ -609,7 +610,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP 100/400 = 25% → should trigger Zen Mode
-        step_eot_abilities(&mut state, &keys, 0);
+        step_eot_abilities(&mut state, &keys, 0, &mut BattleRng::from_closure(&mut |_| 0u32));
         assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
         assert!(validate_hash(&state, &keys));
     }

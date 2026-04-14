@@ -174,7 +174,7 @@ fn test_perish_song_kos_at_counter_0() {
     set_volatile(&mut state, &keys, 1, VOL_PERISH_SONG);
     state.sides[1].active.perish_count = 2;
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Side 0 should be KO'd
     assert_eq!(state.sides[0].team[0].current_hp, 0,
@@ -666,7 +666,7 @@ fn test_encore_expires() {
     state.sides[0].active.encore_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.encore_turns, 0, "Encore should expire");
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");
@@ -744,7 +744,7 @@ fn test_disable_expires() {
     state.sides[0].active.disable_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.disable_turns, 0, "Disable should expire");
     assert_eq!(state.sides[0].active.disabled_move, 0, "Disabled move should be cleared");
@@ -826,7 +826,7 @@ fn test_taunt_expires() {
     state.sides[0].active.taunt_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.taunt_turns, 0, "Taunt should expire");
     assert!(validate_hash(&state, &keys));
@@ -936,7 +936,7 @@ fn test_encore_pp_early_termination() {
     state.sides[0].team[0].pp[0] = 0; // Pound has 0 PP
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys);
+    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.encore_turns, 0, "Encore should end early with 0 PP");
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");

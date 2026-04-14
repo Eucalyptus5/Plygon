@@ -468,7 +468,7 @@ pub fn execute_turn(
         return;
     }
 
-    end_of_turn(state, keys);
+    end_of_turn(state, keys, &mut crate::state::BattleRng::from_closure(rng));
 
     // After residuals: if anyone fainted (mid-turn or from EOT), pause for
     // forced replacement before next turn. Otherwise the turn closes cleanly.
@@ -543,7 +543,7 @@ pub fn execute_switch_turn(
                 return;
             }
 
-            end_of_turn(state, keys);
+            end_of_turn(state, keys, &mut crate::state::BattleRng::from_closure(rng));
             faint_sweep(state, keys);
             state.clear_turn_resume();
         }

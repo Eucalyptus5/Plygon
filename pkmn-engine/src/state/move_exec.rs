@@ -3490,7 +3490,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         // Mon does NOT use Protect this turn (no VOL_PROTECT_THIS_TURN set)
         // EOT should reset protect_consecutive to 0
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert_eq!(state.sides[0].active.protect_consecutive, 0);
     }
 
@@ -6543,12 +6543,12 @@ mod tests {
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
 
         // After 1st EOT: yawn still active, no sleep yet (2-turn delay)
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert!(state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
 
         // After 2nd EOT: yawn triggers sleep and volatile clears
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_SLEEP);
     }

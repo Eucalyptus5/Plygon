@@ -106,6 +106,12 @@ pub fn hp_bucket(current_hp: u16, max_hp: u16) -> usize {
 // A future "complete the hash" refactor must consciously trade transposition
 // reuse for these moves' correctness — two states differing only in these
 // fields will hash to the same value under the current scheme.
+//
+// The BattleRng cursor (state/battle_rng.rs) is likewise NOT hashed and must
+// never enter compute_full_hash. Moody / Shed Skin / Effect Spore / Static /
+// Flame Body / Poison Point read this; including the RNG cursor would make every
+// post-draw state distinct and tank MCTS transposition reuse for any RNG-driven
+// path.
 pub fn compute_full_hash(state: &BattleState, keys: &ZobristKeys) -> u64 {
     let mut h: u64 = 0;
     for side in 0..2 {

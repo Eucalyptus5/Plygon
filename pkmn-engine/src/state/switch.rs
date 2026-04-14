@@ -1191,7 +1191,7 @@ mod tests {
         state.field.weather_turns = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         // Weather expired, paradox should deactivate
         assert_eq!(state.field.weather, WEATHER_NONE);
@@ -1218,7 +1218,7 @@ mod tests {
         state.field.weather_turns = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         // Weather expired but Booster Energy boost persists
         assert_eq!(state.field.weather, WEATHER_NONE);
@@ -1269,7 +1269,7 @@ mod tests {
         state.field.terrain_turns = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys);
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         assert_eq!(state.field.terrain, TERRAIN_NONE);
         assert_eq!(state.sides[0].active.paradox_stat(), 0);
