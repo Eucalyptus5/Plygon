@@ -373,6 +373,12 @@ pub const ABILITY_UNAWARE: u16        = 109;
 pub const ABILITY_PURIFYING_SALT: u16 = 272;
 pub const ABILITY_IMMUNITY: u16       = 17;
 pub const ABILITY_PASTEL_VEIL: u16    = 257;
+// Status-blocker abilities (all breakable: Mold Breaker bypasses).
+pub const ABILITY_WATER_VEIL: u16     = 41;
+pub const ABILITY_LIMBER: u16         = 7;
+pub const ABILITY_MAGMA_ARMOR: u16    = 40;
+pub const ABILITY_INSOMNIA: u16       = 15;
+pub const ABILITY_VITAL_SPIRIT: u16   = 72;
 pub const ABILITY_WELL_BAKED_BODY: u16 = 273;
 pub const ABILITY_SWORD_OF_RUIN: u16  = 285;
 pub const ABILITY_BEADS_OF_RUIN: u16  = 284;

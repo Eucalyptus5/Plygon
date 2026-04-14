@@ -69,6 +69,24 @@ pub fn effective_ability(state: &BattleState, side: usize) -> u16 {
     mon.ability_id
 }
 
+/// True iff `ability_id` confers immunity to `status`. Covers the status-blocker
+/// ability family. All of these carry Showdown's `breakable: 1` flag, so the
+/// inflict site composes the result with `mold_breaks`.
+#[inline(always)]
+pub fn ability_blocks_status(ability_id: u16, status: u8) -> bool {
+    match status {
+        STATUS_BURN      => ability_id == data_bridge::ABILITY_WATER_VEIL,
+        STATUS_PARALYSIS => ability_id == data_bridge::ABILITY_LIMBER,
+        STATUS_FREEZE    => ability_id == data_bridge::ABILITY_MAGMA_ARMOR,
+        STATUS_SLEEP     => ability_id == data_bridge::ABILITY_INSOMNIA
+                            || ability_id == data_bridge::ABILITY_VITAL_SPIRIT,
+        STATUS_POISON | STATUS_BAD_POISON =>
+            ability_id == data_bridge::ABILITY_IMMUNITY
+            || ability_id == data_bridge::ABILITY_PASTEL_VEIL,
+        _ => false,
+    }
+}
+
 #[inline(always)]
 pub fn effective_stat(state: &BattleState, side: usize, stat_index: usize) -> u16 {
     let active = &state.sides[side].active;

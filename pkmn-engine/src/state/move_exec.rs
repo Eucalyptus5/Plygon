@@ -186,6 +186,15 @@ fn move_secondary_confuses(move_id: u16) -> bool {
     )
 }
 
+/// True iff `victim_side`'s ability blocks `status` and the inflicting
+/// `source_ability` does not break molds. The status-blocker abilities all carry
+/// Showdown's breakable:1 flag, so every inflict site composes the two checks.
+#[inline]
+fn ability_status_immune(state: &BattleState, victim_side: usize, source_ability: u16, status: u8) -> bool {
+    ability_blocks_status(effective_ability(state, victim_side), status)
+        && !mold_breaks(state, victim_side, source_ability)
+}
+
 fn apply_secondary(
     state: &mut BattleState,
     keys: &ZobristKeys,
@@ -248,6 +257,7 @@ fn apply_secondary(
         && !type_immune_to_status(state, def_side, status)
         && state.sides[def_side].side_conditions.safeguard_turns() == 0
         && !terrain_blocks_status(state, def_side, status)
+        && !ability_status_immune(state, def_side, atk_ability, status)
         && !crate::state::forme::is_minior_meteor_forme(state, def_side)
     {
         if set_status(state, keys, def_side, def_slot, status, 0) {
@@ -323,12 +333,12 @@ fn execute_status_move(
     }
 
     // Rest: full heal + 3-turn sleep, fail at full HP / Insomnia / Vital Spirit / Comatose.
-    // Mirrors Showdown moves.ts:15014-15036; ability ids: 15=insomnia, 72=vitalspirit.
+    // Mirrors Showdown moves.ts:15014-15036.
     if move_id as usize == crate::data::MOVE_REST {
         let mon = &state.sides[atk_side].team[atk_slot];
         if mon.current_hp == mon.max_hp { return; }
         let abil = effective_ability(state, atk_side);
-        if abil == 15 || abil == 72 || abil == data_bridge::ABILITY_COMATOSE { return; }
+        if ability_blocks_status(abil, STATUS_SLEEP) || abil == data_bridge::ABILITY_COMATOSE { return; }
         let to_heal = mon.max_hp - mon.current_hp;
         clear_status(state, keys, atk_side, atk_slot);
         set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, 3);
@@ -426,6 +436,7 @@ fn execute_status_move(
             if !type_immune_to_status(state, def_side, STATUS_BURN)
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_BURN)
+                && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_BURN)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 if set_status(state, keys, def_side, def_slot, STATUS_BURN, 0) {
@@ -437,6 +448,7 @@ fn execute_status_move(
             if !type_immune_to_status(state, def_side, STATUS_PARALYSIS)
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_PARALYSIS)
+                && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_PARALYSIS)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 if set_status(state, keys, def_side, def_slot, STATUS_PARALYSIS, 0) {
@@ -448,6 +460,7 @@ fn execute_status_move(
             if !type_immune_to_status(state, def_side, STATUS_BAD_POISON)
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
+                && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_BAD_POISON)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 if set_status(state, keys, def_side, def_slot, STATUS_BAD_POISON, 0) {
@@ -459,6 +472,7 @@ fn execute_status_move(
             if !type_immune_to_status(state, def_side, STATUS_POISON)
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_POISON)
+                && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_POISON)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 if set_status(state, keys, def_side, def_slot, STATUS_POISON, 0) {
@@ -469,6 +483,7 @@ fn execute_status_move(
         MoveEffect::Sleep       => {
             if state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
+                && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_SLEEP)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 let turns = (rng(3) + 2) as u8;
@@ -985,6 +1000,7 @@ fn execute_status_move(
             if !type_immune_to_status(state, def_side, STATUS_POISON)
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_POISON)
+                && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_POISON)
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
             {
                 if set_status(state, keys, def_side, def_slot, STATUS_POISON, 0) {
@@ -1714,6 +1730,7 @@ fn try_synchronize_back(
     if type_immune_to_status(state, source_side, status) { return; }
     if state.sides[source_side].side_conditions.safeguard_turns() > 0 { return; }
     if terrain_blocks_status(state, source_side, status) { return; }
+    if ability_status_immune(state, source_side, effective_ability(state, target_side), status) { return; }
     if crate::state::forme::is_minior_meteor_forme(state, source_side) { return; }
     set_status(state, keys, source_side, source_slot, status, 0);
 }
@@ -2092,6 +2109,7 @@ pub(crate) fn use_move_called(
                         && state.sides[atk_side].side_conditions.safeguard_turns() == 0
                         && !terrain_blocks_status(state, atk_side, STATUS_POISON)
                         && !type_immune_to_status(state, atk_side, STATUS_POISON)
+                        && !ability_status_immune(state, atk_side, effective_ability(state, def_side), STATUS_POISON)
                     {
                         set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0);
                     }
@@ -2739,6 +2757,7 @@ pub(crate) fn use_move_called(
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_POISON)
                     && !type_immune_to_status(state, def_side, STATUS_POISON)
+                    && !ability_status_immune(state, def_side, atk_ability, STATUS_POISON)
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
@@ -2752,6 +2771,7 @@ pub(crate) fn use_move_called(
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
                     && !type_immune_to_status(state, def_side, STATUS_BAD_POISON)
+                    && !ability_status_immune(state, def_side, atk_ability, STATUS_BAD_POISON)
                     && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                     => {
                     if rng(100) < 30 {
@@ -2844,21 +2864,21 @@ pub(crate) fn use_move_called(
             && !crate::state::forme::is_minior_meteor_forme(state, atk_side)
         {
             match def_ability {
-                data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) && !type_immune_to_status(state, atk_side, STATUS_BURN) => {
+                data_bridge::ABILITY_FLAME_BODY if !terrain_blocks_status(state, atk_side, STATUS_BURN) && !type_immune_to_status(state, atk_side, STATUS_BURN) && !ability_status_immune(state, atk_side, def_ability, STATUS_BURN) => {
                     if rng(100) < 30 {
                         if set_status(state, keys, atk_side, atk_slot, STATUS_BURN, 0) {
                             try_synchronize_back(state, keys, atk_side, def_side, STATUS_BURN);
                         }
                     }
                 }
-                data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) => {
+                data_bridge::ABILITY_STATIC if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) && !ability_status_immune(state, atk_side, def_ability, STATUS_PARALYSIS) => {
                     if rng(100) < 30 {
                         if set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0) {
                             try_synchronize_back(state, keys, atk_side, def_side, STATUS_PARALYSIS);
                         }
                     }
                 }
-                data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) => {
+                data_bridge::ABILITY_POISON_POINT if !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) && !ability_status_immune(state, atk_side, def_ability, STATUS_POISON) => {
                     if rng(100) < 30 {
                         if set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0) {
                             try_synchronize_back(state, keys, atk_side, def_side, STATUS_POISON);
@@ -2874,14 +2894,14 @@ pub(crate) fn use_move_called(
                         || holds_safety_goggles(state, atk_side);
                     if !powder_immune {
                         let roll = rng(100);
-                        if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) {
+                        if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) && !ability_status_immune(state, atk_side, def_ability, STATUS_SLEEP) {
                             set_status(state, keys, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
                             // Synchronize does NOT pass sleep
-                        } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) {
+                        } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) && !ability_status_immune(state, atk_side, def_ability, STATUS_PARALYSIS) {
                             if set_status(state, keys, atk_side, atk_slot, STATUS_PARALYSIS, 0) {
                                 try_synchronize_back(state, keys, atk_side, def_side, STATUS_PARALYSIS);
                             }
-                        } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) {
+                        } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) && !ability_status_immune(state, atk_side, def_ability, STATUS_POISON) {
                             if set_status(state, keys, atk_side, atk_slot, STATUS_POISON, 0) {
                                 try_synchronize_back(state, keys, atk_side, def_side, STATUS_POISON);
                             }
