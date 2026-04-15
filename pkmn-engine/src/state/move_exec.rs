@@ -1427,8 +1427,9 @@ fn apply_contact_recoil(
         deal_damage(state, keys, atk_side, atk_slot, atk_max / 6);
     }
     if state.sides[atk_side].team[atk_slot].is_fainted() { return; }
-    // Rough Skin / Iron Barbs: 1/8 attacker's max HP
-    let def_ab = effective_ability(state, def_side);
+    // Rough Skin / Iron Barbs: 1/8 attacker's max HP. Faint-tolerant read: the
+    // defender may have fainted on this same hit but its barbs still fire.
+    let def_ab = effective_ability_ignoring_faint(state, def_side);
     if def_ab == data_bridge::ABILITY_ROUGH_SKIN
         || def_ab == data_bridge::ABILITY_IRON_BARBS
     {
@@ -3060,7 +3061,7 @@ pub(crate) fn use_move_called(
             && !result.hits_substitute
             && !state.sides[atk_side].team[atk_slot].is_fainted()
         {
-            let def_ability = effective_ability(state, def_side);
+            let def_ability = effective_ability_ignoring_faint(state, def_side);
             if def_ability == data_bridge::ABILITY_AFTERMATH {
                 let atk_max = state.active_mon(atk_side).max_hp;
                 deal_damage(state, keys, atk_side, atk_slot, atk_max / 4);
@@ -3071,7 +3072,7 @@ pub(crate) fn use_move_called(
         if !result.hits_substitute
             && !state.sides[atk_side].team[atk_slot].is_fainted()
         {
-            let def_ability = effective_ability(state, def_side);
+            let def_ability = effective_ability_ignoring_faint(state, def_side);
             if def_ability == data_bridge::ABILITY_INNARDS_OUT {
                 deal_damage(state, keys, atk_side, atk_slot, pre_damage_hp);
             }
@@ -4939,10 +4940,6 @@ mod tests {
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
     }
 
-    // Ignored pending fix: effective_ability(def_side) returns 0 after defender
-    // faints (accessors.rs short-circuit), so the KO-trigger comparison silently
-    // fails. See testing_plan/bugs/BUG-effective-ability-post-faint-defender.md.
-    #[ignore = "engine regression: post-faint effective_ability returns 0; see BUG-effective-ability-post-faint-defender.md"]
     #[test]
     fn test_aftermath_damages_attacker_on_ko() {
         let (mut state, keys) = setup();
@@ -4974,6 +4971,57 @@ mod tests {
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp);
+    }
+
+    #[test]
+    fn test_rough_skin_damages_attacker_on_ko() {
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_ROUGH_SKIN;
+        state.sides[1].team[0].current_hp = 1;
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let atk_hp = state.sides[0].team[0].current_hp;
+        let atk_max = state.sides[0].team[0].max_hp;
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        let expected = (atk_max / 8).max(1);
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp - expected);
+    }
+
+    #[test]
+    fn test_aftermath_suppressed_no_trigger_on_ko() {
+        // Gastro-Acid'd Aftermath holder must NOT fire post-faint: a raw
+        // ability_id read would incorrectly trigger here.
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_AFTERMATH;
+        state.sides[1].team[0].current_hp = 1;
+        set_volatile(&mut state, &keys, 1, VOL_ABILITY_SUPPRESSED);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let atk_hp = state.sides[0].team[0].current_hp;
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp);
+    }
+
+    #[test]
+    fn test_aftermath_overridden_fires_on_ko() {
+        // Skill-Swapped/Transformed defender: the KO trigger reads override_ability.
+        let (mut state, keys) = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_INSOMNIA;
+        state.sides[1].team[0].current_hp = 1;
+        state.sides[1].active.override_ability = data_bridge::ABILITY_AFTERMATH;
+        set_volatile(&mut state, &keys, 1, VOL_ABILITY_OVERRIDDEN);
+        state.zobrist = compute_full_hash(&state, &keys);
+
+        let atk_hp = state.sides[0].team[0].current_hp;
+        let atk_max = state.sides[0].team[0].max_hp;
+        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].team[0].current_hp, atk_hp - atk_max / 4);
     }
 
     #[test]
@@ -5718,7 +5766,6 @@ mod tests {
             "Berserk should NOT trigger when already below 50%");
     }
 
-    #[ignore = "engine regression: post-faint effective_ability returns 0; see BUG-effective-ability-post-faint-defender.md"]
     #[test]
     fn test_innards_out_damage() {
         let (mut state, keys) = setup();
