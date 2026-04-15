@@ -81,13 +81,15 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
 /// the switch-in ability (Phase B) or the terrain-seed item check (which
 /// must observe Phase-B-installed terrain).
 ///
-/// Returns `true` if Phase B should still run, `false` if the incoming mon
-/// fainted from hazards (Phase B must be skipped for this side).
+/// Returns `true` if the switch-in ability/item should still run, `false` if
+/// the incoming mon fainted from hazards (skip ability/item for this side).
 ///
-/// Showdown defers all `onStart` / `onSwitchIn` ability handlers until after
-/// both mons have switched in on a same-turn double-switch, then speed-sorts
-/// them. The Phase-A/Phase-B split mirrors that ordering so Intimidate (and
-/// any other switch-in ability) reads the post-double-switch field.
+/// On a same-turn double switch Showdown does NOT batch both switch-ins: it
+/// runs each switch's `runSwitch` (ability + item) immediately, in
+/// outgoing-speed order, so the faster-switching side's switch-in ability
+/// (e.g. Intimidate) fires against the foe present at that instant. The split
+/// from the ability/item step exists so `perform_double_switch` can install
+/// each incoming mon, then fire its ability before the other side switches.
 pub fn switch_in_phase_a(
     state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize,
 ) -> bool {
@@ -218,64 +220,37 @@ pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, 
     true
 }
 
-/// Both sides chose Switch on the same turn: state-install both incoming mons
-/// (Phase A), then run switch-in abilities (Phase B) in speed order. Mirrors
-/// Showdown's `fieldEvent('SwitchIn', switchersIn)` which drains all queued
-/// switches before firing `onStart` / `onSwitchIn` handlers, then speed-sorts
-/// the handlers. Trapping (Magnet Pull / Arena Trap / Shadow Tag / binding
-/// volatiles) is honored per side — a trapped side's switch silently no-ops,
-/// matching `perform_switch`'s singleton-path behavior.
+/// Both sides chose Switch on the same turn. Showdown sorts the two `switch`
+/// actions by the outgoing active's speed and, via `insertChoice`, runs each
+/// switch's `runSwitch` (switch-in ability + item) immediately — the faster
+/// side's switch-in ability fires while the slower side is still its OLD mon.
+/// So Intimidate from the faster-switching side targets the foe present at that
+/// instant, not the foe's incoming replacement. We resolve each side fully
+/// (switch_out + Phase A install + ability + item) in `first`/`second` order;
+/// the caller has already ordered them by outgoing speed.
+///
+/// Trapping (Magnet Pull / Arena Trap / Shadow Tag / binding volatiles) is
+/// honored per side — a trapped side's switch silently no-ops, matching
+/// `perform_switch`'s singleton-path behavior.
 pub fn perform_double_switch(
     state: &mut BattleState, keys: &ZobristKeys,
     first_side: usize, first_target: usize,
     second_side: usize, second_target: usize,
-    rng: &mut impl FnMut(u32) -> u32,
+    _rng: &mut impl FnMut(u32) -> u32,
 ) {
-    let first_ok = !is_trapped(state, first_side);
-    let second_ok = !is_trapped(state, second_side);
-
-    let mut first_run_b = false;
-    let mut second_run_b = false;
-
-    if first_ok {
+    if !is_trapped(state, first_side) {
         switch_out(state, keys, first_side);
-        first_run_b = switch_in_phase_a(state, keys, first_side, first_target);
+        if switch_in_phase_a(state, keys, first_side, first_target) {
+            apply_switch_in_ability(state, keys, first_side);
+            apply_switch_in_item(state, keys, first_side);
+        }
     }
-    if second_ok {
+    if !is_trapped(state, second_side) {
         switch_out(state, keys, second_side);
-        second_run_b = switch_in_phase_a(state, keys, second_side, second_target);
-    }
-
-    // Phase B: speed-sorted ability fan-out. Empty if neither side ran a
-    // successful Phase A (both trapped or both fainted from hazards).
-    if !first_run_b && !second_run_b {
-        return;
-    }
-
-    let ability_order = if first_run_b && second_run_b {
-        let spd_first = crate::state::turn::resolve_speed(state, first_side);
-        let spd_second = crate::state::turn::resolve_speed(state, second_side);
-        let trick_room = state.field.trick_room_turns > 0;
-        let first_first = if spd_first != spd_second {
-            if trick_room { spd_first < spd_second } else { spd_first > spd_second }
-        } else {
-            rng(2) == 0
-        };
-        if first_first { [(first_side, true), (second_side, true)] }
-        else { [(second_side, true), (first_side, true)] }
-    } else if first_run_b {
-        [(first_side, true), (second_side, false)]
-    } else {
-        [(first_side, false), (second_side, true)]
-    };
-
-    for &(side, run) in &ability_order {
-        if !run { continue; }
-        apply_switch_in_ability(state, keys, side);
-    }
-    for &(side, run) in &ability_order {
-        if !run { continue; }
-        apply_switch_in_item(state, keys, side);
+        if switch_in_phase_a(state, keys, second_side, second_target) {
+            apply_switch_in_ability(state, keys, second_side);
+            apply_switch_in_item(state, keys, second_side);
+        }
     }
 }
 

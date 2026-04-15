@@ -195,8 +195,23 @@ fn resolve_order(
         return if pri_a > pri_b { (a, b) } else { (b, a) };
     }
 
+    // Same-turn double switch: Showdown sorts the two `switch` actions by the
+    // OUTGOING active's speed (the switch action's pokemon is the mon leaving),
+    // and each switch's runSwitch fires its switch-in ability immediately —
+    // before the slower side has switched. So the faster-outgoing side's
+    // Intimidate targets the foe present at that instant, not the foe's
+    // replacement. Order by current-active speed here; perform_double_switch
+    // resolves each side fully in this order.
     if matches!(act_a, ActionKind::Switch { .. }) && matches!(act_b, ActionKind::Switch { .. }) {
-        return (a, b);
+        let spd_a = resolve_speed(state, side_a);
+        let spd_b = resolve_speed(state, side_b);
+        let trick_room = state.field.trick_room_turns > 0;
+        let a_faster = if spd_a != spd_b {
+            if trick_room { spd_a < spd_b } else { spd_a > spd_b }
+        } else {
+            rng(2) == 0
+        };
+        return if a_faster { (a, b) } else { (b, a) };
     }
 
     // Quick Claw item: 20% chance to bump priority when both sides are at the
@@ -425,9 +440,10 @@ pub fn execute_turn(
     state.pending_actions[0] = action_p1;
     state.pending_actions[1] = action_p2;
 
-    // Double-switch: defer switch-in abilities until both incoming mons have
-    // landed, then speed-sort the ability fan-out. Mirrors Showdown's
-    // fieldEvent('SwitchIn', switchersIn) drain + speedSort pattern.
+    // Double-switch: resolve each side fully (switch-out + install + ability +
+    // item) in outgoing-speed order. The faster-switching side's switch-in
+    // ability fires before the slower side switches, matching Showdown's
+    // per-switch runSwitch (queued via insertChoice, order 101 < switch 103).
     if let (ActionKind::Switch { target: t_first }, ActionKind::Switch { target: t_second })
         = (first.action, second.action)
     {
