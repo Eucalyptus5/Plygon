@@ -64,6 +64,14 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     for stat in 0..7 {
         if boosts[stat] != 0 { state.zobrist ^= keys.boosts[side][stat][(boosts[stat] + 6) as usize]; }
     }
+    // Skill Swap restore: Showdown's clearVolatile resets this.ability to
+    // baseAbility on switch-out. Mirror that by restoring the stashed pre-swap
+    // ability before the active (which holds the stash) is zeroed.
+    if state.sides[side].team[idx].flags & MON_FLAG_ABILITY_SWAPPED != 0 {
+        state.sides[side].team[idx].ability_id = state.sides[side].active.override_ability;
+        state.sides[side].team[idx].flags &= !MON_FLAG_ABILITY_SWAPPED;
+    }
+
     state.sides[side].active.zero();
     state.sides[side].set_last_consumed_berry(0);
 }

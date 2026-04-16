@@ -99,6 +99,9 @@ pub const MON_FLAG_SHIELD_BOOSTED: u16 = 1 << 5;
 pub const MON_FLAG_SYRUP_TRIGGERED: u16 = 1 << 6;
 pub const MON_FLAG_BOND_TRIGGERED: u16 = 1 << 7;
 pub const MON_FLAG_GENDERLESS: u16   = 1 << 8;
+// Set when Skill Swap (or a sibling) has overwritten this slot's live ability;
+// the pre-swap ability is stashed in ActiveMon.override_ability for switch-out restore.
+pub const MON_FLAG_ABILITY_SWAPPED: u16 = 1 << 9;
 
 pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;

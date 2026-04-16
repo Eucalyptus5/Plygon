@@ -271,6 +271,8 @@ pub enum MoveEffect {
     Endure           = 117, // Survive at 1 HP from Move-effect damage this turn; shares protect_consecutive ladder
 
     PoisonPowder     = 118, // Poison Powder: inflict regular poison (not toxic); Sync DOES bounce
+
+    SkillSwap        = 119, // Swap the user's and target's abilities (base ability_id on both)
 }
 
 // Flags (16 bits)

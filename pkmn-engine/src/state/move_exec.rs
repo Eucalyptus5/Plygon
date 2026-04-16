@@ -929,6 +929,26 @@ fn execute_status_move(
             }
         }
 
+        // -- Skill Swap: swap user's and target's abilities (battle.ts:1300) --
+        MoveEffect::SkillSwap => {
+            if !state.sides[atk_side].team[atk_slot].is_fainted()
+                && !state.sides[def_side].team[def_slot].is_fainted()
+            {
+                let atk_ab = effective_ability(state, atk_side);
+                let def_ab = effective_ability(state, def_side);
+                if !is_failskillswap_ability(atk_ab) && !is_failskillswap_ability(def_ab) {
+                    // Showdown mutates pokemon.ability (the live base) on both sides
+                    // but preserves baseAbility, restoring it via clearVolatile on
+                    // switch-out. Mirror that: write the swapped value into base
+                    // ability_id (so the live ability reads through), stash the
+                    // pre-swap ability in the active for switch-out restore, and
+                    // flag the slot so switch_out knows to restore.
+                    skill_swap_apply(state, atk_side, atk_slot, def_ab);
+                    skill_swap_apply(state, def_side, def_slot, atk_ab);
+                }
+            }
+        }
+
         // -- Haze: reset all stat changes --
         MoveEffect::Haze => {
             for side in 0..2 {
@@ -1935,6 +1955,55 @@ fn is_cantsuppress_ability(ability: u16) -> bool {
         | data_bridge::ABILITY_ZEN_MODE
         | data_bridge::ABILITY_ZERO_TO_HERO
     )
+}
+
+// Abilities carrying Showdown's `failskillswap: 1` flag (data/abilities.ts):
+// Skill Swap fails outright if either side holds one of these.
+fn is_failskillswap_ability(ability: u16) -> bool {
+    matches!(ability,
+        data_bridge::ABILITY_AS_ONE_GLASTRIER
+        | data_bridge::ABILITY_AS_ONE_SPECTRIER
+        | data_bridge::ABILITY_BATTLE_BOND
+        | data_bridge::ABILITY_COMATOSE
+        | data_bridge::ABILITY_COMMANDER
+        | data_bridge::ABILITY_DISGUISE
+        | data_bridge::ABILITY_EMBODY_ASPECT_TEAL
+        | data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING
+        | data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME
+        | data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE
+        | data_bridge::ABILITY_HUNGER_SWITCH
+        | data_bridge::ABILITY_ICE_FACE
+        | data_bridge::ABILITY_ILLUSION
+        | data_bridge::ABILITY_MULTITYPE
+        | data_bridge::ABILITY_NEUTRALIZING_GAS
+        | data_bridge::ABILITY_POISON_PUPPETEER
+        | data_bridge::ABILITY_POWER_CONSTRUCT
+        | data_bridge::ABILITY_PROTOSYNTHESIS
+        | data_bridge::ABILITY_QUARK_DRIVE
+        | data_bridge::ABILITY_RKS_SYSTEM
+        | data_bridge::ABILITY_SCHOOLING
+        | data_bridge::ABILITY_SHIELDS_DOWN
+        | data_bridge::ABILITY_STANCE_CHANGE
+        | data_bridge::ABILITY_TERA_SHELL
+        | data_bridge::ABILITY_TERA_SHIFT
+        | data_bridge::ABILITY_TERAFORM_ZERO
+        | data_bridge::ABILITY_WONDER_GUARD
+        | data_bridge::ABILITY_ZEN_MODE
+        | data_bridge::ABILITY_ZERO_TO_HERO
+    )
+}
+
+// Apply one side of a Skill Swap: overwrite the base ability_id with
+// `new_ability`. The pre-swap (native) ability is stashed for switch-out
+// restore only on the first swap — a second swap must still restore the true
+// baseAbility, not the intermediate value (Showdown resets to baseAbility).
+fn skill_swap_apply(state: &mut BattleState, side: usize, slot: usize, new_ability: u16) {
+    if state.sides[side].team[slot].flags & MON_FLAG_ABILITY_SWAPPED == 0 {
+        state.sides[side].active.override_ability = state.sides[side].team[slot].ability_id;
+        state.sides[side].team[slot].flags |= MON_FLAG_ABILITY_SWAPPED;
+    }
+    state.sides[side].active.volatile_flags &= !VOL_ABILITY_OVERRIDDEN;
+    state.sides[side].team[slot].ability_id = new_ability;
 }
 
 fn foe_pokemon_left(state: &BattleState, side: usize) -> bool {
