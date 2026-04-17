@@ -492,15 +492,9 @@ fn step_eot_abilities(
             // Handled earlier in step_hydration (before status damage)
         }
         data_bridge::ABILITY_SHED_SKIN => {
-            // 33% chance to cure status — use a simple deterministic approach for MCTS
-            // We approximate by always curing (MCTS prefers speed over exact RNG)
-            // Actually, we should use the rng. But step_eot_abilities doesn't take rng.
-            // For now, skip RNG — cure unconditionally (slight inaccuracy, acceptable for MCTS speed).
-            if state.sides[side].team[slot].status != STATUS_NONE {
-                // Deterministic: cure if turns_active is divisible by 3 (approx 33%)
-                if state.sides[side].active.turns_active % 3 == 0 {
-                    clear_status(state, keys, side, slot);
-                }
+            // Showdown: randomChance(33, 100) = random(100) < 33
+            if state.sides[side].team[slot].status != STATUS_NONE && rng.next(100) < 33 {
+                clear_status(state, keys, side, slot);
             }
         }
         data_bridge::ABILITY_HARVEST => {
@@ -553,6 +547,38 @@ mod tests {
     }
     #[test] fn test_burn() { let (mut s, k) = setup(); s.sides[0].team[0].status = STATUS_BURN; s.zobrist = compute_full_hash(&s, &k); step_status_damage(&mut s, &k, 0); assert_eq!(s.sides[0].team[0].current_hp, 188); assert!(validate_hash(&s, &k)); }
     #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k, &mut BattleRng::from_closure(&mut |_| 0u32)); assert_eq!(s.field.turn, 1); }
+
+    #[test]
+    fn test_shed_skin_cures_on_successful_roll() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].ability_id = data_bridge::ABILITY_SHED_SKIN;
+        s.sides[0].team[0].status = STATUS_BURN;
+        s.zobrist = compute_full_hash(&s, &k);
+        step_eot_abilities(&mut s, &k, 0, &mut BattleRng::from_closure(&mut |_| 0u32));
+        assert_eq!(s.sides[0].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_shed_skin_no_cure_on_failed_roll() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].ability_id = data_bridge::ABILITY_SHED_SKIN;
+        s.sides[0].team[0].status = STATUS_BURN;
+        s.zobrist = compute_full_hash(&s, &k);
+        step_eot_abilities(&mut s, &k, 0, &mut BattleRng::from_closure(&mut |_| 50u32));
+        assert_eq!(s.sides[0].team[0].status, STATUS_BURN);
+        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_shed_skin_no_status_is_noop() {
+        let (mut s, k) = setup();
+        s.sides[0].team[0].ability_id = data_bridge::ABILITY_SHED_SKIN;
+        s.zobrist = compute_full_hash(&s, &k);
+        step_eot_abilities(&mut s, &k, 0, &mut BattleRng::from_closure(&mut |_| 0u32));
+        assert_eq!(s.sides[0].team[0].status, STATUS_NONE);
+        assert!(validate_hash(&s, &k));
+    }
 
 
     #[test]
