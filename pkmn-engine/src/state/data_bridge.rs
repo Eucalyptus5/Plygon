@@ -300,6 +300,7 @@ pub const ABILITY_AERILATE: u16      = 184;
 pub const ABILITY_REFRIGERATE: u16   = 174;
 pub const ABILITY_NORMALIZE: u16     = 96;
 pub const ABILITY_LIQUID_VOICE: u16  = 204;
+pub const ABILITY_LIQUID_OOZE: u16   = 64;
 
 // -- Terrain setters --
 pub const ABILITY_ELECTRIC_SURGE: u16 = 226;
@@ -402,6 +403,7 @@ pub const ABILITY_HADRON_ENGINE: u16    = 289;
 pub const ITEM_NONE: u16 = 0;
 pub const ITEM_AGUAV_BERRY: u16 = 5;
 pub const ITEM_AIR_BALLOON: u16 = 6;
+pub const ITEM_BIG_ROOT: u16 = 29;
 pub const ITEM_BERRY_JUICE: u16 = 22;
 pub const ITEM_DEEP_SEA_SCALE: u16 = 93;
 pub const ITEM_FIGY_BERRY: u16 = 140;

@@ -577,7 +577,11 @@ pub fn calc_damage(
     }
 
     if md.drain > 0 {
-        result.drain_heal = (result.damage as u32 * md.drain as u32 / 100) as u16;
+        let mut heal = (result.damage as u32 * md.drain as u32 + 50) / 100;
+        if !magic_room && atk_mon.item_id == data_bridge::ITEM_BIG_ROOT {
+            heal = chain_mod(heal, 5324);
+        }
+        result.drain_heal = heal.min(u16::MAX as u32) as u16;
     }
     // Move-recoil (Take Down / Double-Edge / Brave Bird / Wild Charge / Wood Hammer /
     // Head Smash etc.) is computed in move_exec from HP-clamped actually-dealt damage,

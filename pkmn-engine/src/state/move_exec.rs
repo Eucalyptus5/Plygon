@@ -2546,7 +2546,14 @@ pub(crate) fn use_move_called(
     }
 
     if result.drain_heal > 0 {
-        heal(state, keys, atk_side, atk_slot, result.drain_heal);
+        // Liquid Ooze flips the drain heal into damage on the drainer (Showdown fires
+        // it on the would-be-healer's side). Read the defender's ability faint-tolerant:
+        // it may have just fainted to the drain hit.
+        if effective_ability_ignoring_faint(state, def_side) == data_bridge::ABILITY_LIQUID_OOZE {
+            deal_damage(state, keys, atk_side, atk_slot, result.drain_heal);
+        } else {
+            heal(state, keys, atk_side, atk_slot, result.drain_heal);
+        }
     }
     // Move-recoil (md.drain < 0): mirrors Showdown's calcRecoilDamage on
     // move.totalDamage — i.e. HP-clamped actually-dealt damage, not raw calc damage.
