@@ -474,9 +474,7 @@ fn step_eot_abilities(
             forme::check_shields_down(state, keys, side);
         }
         data_bridge::ABILITY_MOODY => {
-            // +2 to a random stat below +6, -1 to a different stat above -6
-            // Simplified: pick stats 0-4 (battle stats only)
-            step_moody(state, keys, side);
+            step_moody(state, keys, side, rng);
         }
         data_bridge::ABILITY_BAD_DREAMS => {
             let opp = 1 - side;
@@ -511,14 +509,47 @@ fn step_eot_abilities(
     }
 }
 
-/// Moody: +2 random stat, -1 different random stat.
-/// Uses turns_active as a deterministic seed for MCTS (no rng parameter).
-fn step_moody(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
-    let t = state.sides[side].active.turns_active as usize;
-    let boost_stat = t % 5;
-    let drop_stat = (t + 1) % 5;
-    apply_boost(state, keys, side, boost_stat, 2);
-    apply_boost(state, keys, side, drop_stat, -1);
+/// Moody: +2 to a random stat below +6, -1 to a different random stat above -6.
+/// The lower list is built before the raise lands and excludes the just-raised
+/// stat, matching the sample order in Showdown's moody.onResidual. Accuracy and
+/// evasion are excluded; only the five battle stats are eligible.
+fn step_moody(state: &mut BattleState, keys: &ZobristKeys, side: usize, rng: &mut BattleRng) {
+    let boosts = state.sides[side].active.boosts;
+
+    let mut raise_list = [0usize; 5];
+    let mut raise_len = 0;
+    for stat in 0..5 {
+        if (boosts[stat] as i8) < 6 {
+            raise_list[raise_len] = stat;
+            raise_len += 1;
+        }
+    }
+    let raised = if raise_len > 0 {
+        Some(raise_list[rng.next(raise_len as u32) as usize])
+    } else {
+        None
+    };
+
+    let mut drop_list = [0usize; 5];
+    let mut drop_len = 0;
+    for stat in 0..5 {
+        if (boosts[stat] as i8) > -6 && Some(stat) != raised {
+            drop_list[drop_len] = stat;
+            drop_len += 1;
+        }
+    }
+    let dropped = if drop_len > 0 {
+        Some(drop_list[rng.next(drop_len as u32) as usize])
+    } else {
+        None
+    };
+
+    if let Some(stat) = raised {
+        apply_boost(state, keys, side, stat, 2);
+    }
+    if let Some(stat) = dropped {
+        apply_boost(state, keys, side, stat, -1);
+    }
 }
 
 fn step_soul_heart(state: &mut BattleState, keys: &ZobristKeys) {
