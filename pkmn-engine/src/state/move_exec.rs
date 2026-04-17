@@ -202,13 +202,14 @@ fn move_secondary_confuses(move_id: u16) -> bool {
     )
 }
 
-/// True iff `victim_side`'s ability blocks `status` and the inflicting
-/// `source_ability` does not break molds. The status-blocker abilities all carry
-/// Showdown's breakable:1 flag, so every inflict site composes the two checks.
+/// True iff `victim_side`'s ability blocks `status`. Mold Breaker bypasses the
+/// breakable:1 onSetStatus block, but every status-blocker (Water Veil, Limber,
+/// Magma Armor, Insomnia, Vital Spirit, Immunity, Pastel Veil) also carries an
+/// onUpdate cure that fires outside Mold Breaker's ignore scope, so the status
+/// is re-cured the same tick and never sticks — net effect matches the block.
 #[inline]
-fn ability_status_immune(state: &BattleState, victim_side: usize, source_ability: u16, status: u8) -> bool {
+fn ability_status_immune(state: &BattleState, victim_side: usize, _source_ability: u16, status: u8) -> bool {
     ability_blocks_status(effective_ability(state, victim_side), status)
-        && !mold_breaks(state, victim_side, source_ability)
 }
 
 fn apply_secondary(
