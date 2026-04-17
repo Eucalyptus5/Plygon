@@ -19,8 +19,12 @@ pub enum Type {
     Dark     = 15,
     Steel    = 16,
     Fairy    = 17,
+    Stellar  = 18,
 }
 
+// Stellar is excluded from the 18×18 EFFECTIVENESS chart (Showdown gives it no
+// typechart row, neutral everywhere); type_effectiveness gates it before the
+// unchecked index, so NUM_TYPES stays the chart dimension, not the enum count.
 pub const NUM_TYPES: usize = 18;
 
 pub static EFFECTIVENESS: [[u8; NUM_TYPES]; NUM_TYPES] = {
@@ -53,6 +57,12 @@ pub static EFFECTIVENESS: [[u8; NUM_TYPES]; NUM_TYPES] = {
 
 #[inline(always)]
 pub fn type_effectiveness(atk: Type, def: Type) -> u8 {
+    // Stellar is OOB of the 18×18 chart on either axis; Showdown gives it no
+    // typechart row (damageTaken 0 everywhere = neutral). Cold gate before the
+    // unchecked index keeps the non-Stellar path byte-identical.
+    if atk == Type::Stellar || def == Type::Stellar {
+        return 4;
+    }
     unsafe { *EFFECTIVENESS.get_unchecked(atk as usize).get_unchecked(def as usize) }
 }
 

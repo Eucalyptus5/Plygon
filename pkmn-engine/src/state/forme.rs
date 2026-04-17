@@ -5,7 +5,7 @@ use crate::state::data_bridge;
 use crate::state::team_builder::recompute_stats;
 use crate::state::accessors;
 use crate::state::mutations::*;
-use crate::state::zobrist::ZobristKeys;
+use crate::state::zobrist::{ZobristKeys, hp_bucket};
 
 pub fn change_forme(
     state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
@@ -207,6 +207,67 @@ pub fn check_palafin_hero(state: &mut BattleState, keys: &ZobristKeys, teams: &T
 
     if mon.species_id == PALAFIN_ZERO {
         apply_battle_forme(state, keys, teams, side, PALAFIN_HERO);
+    }
+}
+
+/// Terapagos forme chain. Two forward transitions: Tera Shift (Terapagos) →
+/// Tera Shell (Terapagos-Terastal) on switch-in, then Teraform Zero
+/// (Terapagos-Stellar) on terastallize. Unlike every other battle forme,
+/// Terapagos raises its HP base (90 → 95 → 160), so HP is handled explicitly in
+/// `apply_terapagos_forme` rather than left to `apply_battle_forme`.
+pub fn check_tera_shift(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
+    const TERAPAGOS: u16 = 1024;
+    const TERAPAGOS_TERASTAL: u16 = 1415;
+    const TERAPAGOS_STELLAR: u16 = 1414;
+
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+
+    let ability = accessors::effective_ability(state, side);
+    let species = accessors::effective_species(state, side);
+
+    if ability == data_bridge::ABILITY_TERA_SHIFT && species == TERAPAGOS {
+        apply_terapagos_forme(state, keys, teams, side, TERAPAGOS_TERASTAL);
+        state.sides[side].team[slot].ability_id = data_bridge::ABILITY_TERA_SHELL;
+    } else if species == TERAPAGOS_TERASTAL && state.sides[side].team[slot].is_terastallized() {
+        apply_terapagos_forme(state, keys, teams, side, TERAPAGOS_STELLAR);
+        state.sides[side].team[slot].ability_id = data_bridge::ABILITY_TERAFORM_ZERO;
+    }
+}
+
+/// Forme change that also recomputes HP from the new species' HP base. Writes
+/// the five non-HP override stats / types / species like `apply_battle_forme`,
+/// then handles HP explicitly: Showdown preserves damage taken, so the max-HP
+/// gain is ADDED to current_hp (not refilled). hp_bucket is a fraction of
+/// max_hp and BOTH change here, so capture old_bucket from the OLD max_hp before
+/// writing and new_bucket from the NEW max_hp after — a literal deal_damage/heal
+/// mirror holds max_hp fixed and would no-op the XOR, poisoning the Zobrist key.
+fn apply_terapagos_forme(
+    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
+    side: usize, new_species_id: u16,
+) {
+    let slot = state.sides[side].active_index as usize;
+    let level = teams.levels[side][slot];
+    let build = &teams.mons[side][slot];
+    let new_sp = data_bridge::species(new_species_id);
+
+    state.sides[side].active.override_stats =
+        crate::state::team_builder::recompute_override_stats(&new_sp, build, level);
+    set_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
+    state.sides[side].active.override_types = [new_sp.type1 as u8, new_sp.type2 as u8];
+    state.sides[side].active.override_species = new_species_id;
+
+    let new_max_hp = crate::state::team_builder::recompute_max_hp(&new_sp, build, level);
+    let mon = &mut state.sides[side].team[slot];
+    let old_max_hp = mon.max_hp;
+    let old_bucket = hp_bucket(mon.current_hp, old_max_hp);
+    let delta = new_max_hp.saturating_sub(old_max_hp);
+    mon.max_hp = new_max_hp;
+    mon.current_hp = mon.current_hp.saturating_add(delta).clamp(1, new_max_hp);
+    let new_bucket = hp_bucket(mon.current_hp, new_max_hp);
+    if old_bucket != new_bucket {
+        state.zobrist ^= keys.hp_bucket[side][slot][old_bucket];
+        state.zobrist ^= keys.hp_bucket[side][slot][new_bucket];
     }
 }
 

@@ -25,7 +25,7 @@ fn make_mon(species_id: u16, hp: u16, stats: [u16; 5], moves: [u16; 4], pp: [u8;
     }
 }
 
-fn run_battle(template: &BattleState, keys: &ZobristKeys, seed: u32) -> u32 {
+fn run_battle(template: &BattleState, keys: &ZobristKeys, teams: &TeamData, seed: u32) -> u32 {
     let mut state = *template;
     let mut rng = deterministic_rng(seed);
     let mut turns = 0u32;
@@ -48,9 +48,9 @@ fn run_battle(template: &BattleState, keys: &ZobristKeys, seed: u32) -> u32 {
         } else { 0 };
 
         match state.phase {
-            PHASE_ACTIONS => execute_turn(&mut state, keys, act1, act2, &mut rng),
+            PHASE_ACTIONS => execute_turn(&mut state, keys, teams, act1, act2, &mut rng),
             PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
-                execute_switch_turn(&mut state, keys, act1, act2, &mut rng);
+                execute_switch_turn(&mut state, keys, teams, act1, act2, &mut rng);
             }
             _ => break,
         }
@@ -86,6 +86,8 @@ fn main() {
     }
     template.zobrist = compute_full_hash(&template, &keys);
 
+    let teams = TeamData::default();
+
     const NUM_BATTLES: u32 = 100_000;
 
     println!("Running {} battles...", NUM_BATTLES);
@@ -94,7 +96,7 @@ fn main() {
     let mut total_turns = 0u64;
 
     for i in 0..NUM_BATTLES {
-        let turns = run_battle(&template, &keys, i.wrapping_mul(2654435761));
+        let turns = run_battle(&template, &keys, &teams, i.wrapping_mul(2654435761));
         total_turns += turns as u64;
     }
 

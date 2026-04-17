@@ -152,6 +152,15 @@ pub fn recompute_override_stats(new_species: &SpeciesData, build: &MonBuildData,
     stats
 }
 
+/// HP-slot analog of `recompute_override_stats`: the new max_hp for an in-battle
+/// forme change from the new species' HP base. Most battle formes are
+/// HP-invariant, so this is only needed by formes that raise the HP base
+/// (Terapagos: 90 → 95 → 160).
+pub fn recompute_max_hp(new_species: &SpeciesData, build: &MonBuildData, level: u8) -> u16 {
+    let bases = base_stats(new_species);
+    calc_hp(bases[0], build.ivs[0], build.evs[0], level)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
