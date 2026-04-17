@@ -261,6 +261,7 @@ fn resolve_order(
 fn execute_action(
     state: &mut BattleState,
     keys: &ZobristKeys,
+    teams: &TeamData,
     side: usize,
     action: &ActionKind,
     rng: &mut impl FnMut(u32) -> u32,
@@ -272,17 +273,17 @@ fn execute_action(
             // The turn then proceeds without the switch — matches Showdown's
             // validation-layer rejection (though Showdown aborts the whole turn,
             // the engine here silently no-ops to keep the MCTS loop deterministic).
-            let _ = perform_switch(state, keys, side, target as usize);
+            let _ = perform_switch(state, keys, teams, side, target as usize);
         }
         ActionKind::Move { slot, move_id } => {
-            execute_move(state, keys, side, move_id, slot, rng);
+            execute_move(state, keys, teams, side, move_id, slot, rng);
         }
         ActionKind::Tera { move_id } => {
             apply_tera(state, keys, side);
-            execute_move(state, keys, side, move_id, 0, rng);
+            execute_move(state, keys, teams, side, move_id, 0, rng);
         }
         ActionKind::Struggle => {
-            execute_move(state, keys, side, 0, 0, rng);
+            execute_move(state, keys, teams, side, 0, 0, rng);
         }
     }
 }
@@ -393,6 +394,7 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
 pub fn execute_turn(
     state: &mut BattleState,
     keys: &ZobristKeys,
+    teams: &TeamData,
     action_p1: u8,
     action_p2: u8,
     rng: &mut impl FnMut(u32) -> u32,
@@ -448,7 +450,7 @@ pub fn execute_turn(
         = (first.action, second.action)
     {
         perform_double_switch(
-            state, keys,
+            state, keys, teams,
             first.side, t_first as usize,
             second.side, t_second as usize,
             rng,
@@ -456,7 +458,7 @@ pub fn execute_turn(
         state.pending_actions[0] = 0xFF;
         state.pending_actions[1] = 0xFF;
     } else {
-        execute_action(state, keys, first.side, &first.action, rng);
+        execute_action(state, keys, teams, first.side, &first.action, rng);
 
         // First mover has resolved — invalidate their entry so the second mover's
         // Sucker Punch sees "defender already moved".
@@ -470,7 +472,7 @@ pub fn execute_turn(
         // execute_action are no-ops on fainted attackers, but a queued Switch
         // would still resolve, so gate explicitly.
         if !state.active_mon(second.side).is_fainted() {
-            execute_action(state, keys, second.side, &second.action, rng);
+            execute_action(state, keys, teams, second.side, &second.action, rng);
         }
     }
 
@@ -484,7 +486,7 @@ pub fn execute_turn(
         return;
     }
 
-    end_of_turn(state, keys, &mut crate::state::BattleRng::from_closure(rng));
+    end_of_turn(state, keys, teams, &mut crate::state::BattleRng::from_closure(rng));
 
     // After residuals: if anyone fainted (mid-turn or from EOT), pause for
     // forced replacement before next turn. Otherwise the turn closes cleanly.
@@ -505,6 +507,7 @@ pub fn execute_turn(
 pub fn execute_switch_turn(
     state: &mut BattleState,
     keys: &ZobristKeys,
+    teams: &TeamData,
     action_p1: u8,
     action_p2: u8,
     rng: &mut impl FnMut(u32) -> u32,
@@ -514,12 +517,12 @@ pub fn execute_switch_turn(
     if phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 0, action_p1) {
             // Forced replacement (faint) bypasses trapping abilities.
-            perform_switch_forced(state, keys, 0, target as usize);
+            perform_switch_forced(state, keys, teams, 0, target as usize);
         }
     }
     if phase == PHASE_SWITCH_P2 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 1, action_p2) {
-            perform_switch_forced(state, keys, 1, target as usize);
+            perform_switch_forced(state, keys, teams, 1, target as usize);
         }
     }
 
@@ -542,7 +545,7 @@ pub fn execute_switch_turn(
 
             if !second_replaced && !state.active_mon(second_side).is_fainted() {
                 let second_action = decode_action(state, second_side, second_raw);
-                execute_action(state, keys, second_side, &second_action, rng);
+                execute_action(state, keys, teams, second_side, &second_action, rng);
             }
 
             if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
@@ -559,7 +562,7 @@ pub fn execute_switch_turn(
                 return;
             }
 
-            end_of_turn(state, keys, &mut crate::state::BattleRng::from_closure(rng));
+            end_of_turn(state, keys, teams, &mut crate::state::BattleRng::from_closure(rng));
             faint_sweep(state, keys);
             state.clear_turn_resume();
         }

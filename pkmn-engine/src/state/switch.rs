@@ -6,7 +6,7 @@ use crate::state::accessors::{effective_ability, effective_weather_for, battle_t
 use crate::state::mutations::*;
 use crate::state::zobrist::ZobristKeys;
 
-pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let ability = effective_ability(state, side);
     let idx = state.sides[side].active_index as usize;
 
@@ -40,7 +40,7 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
             let opp_ability = effective_ability(state, opp);
             // Imposter only fires on actual switch-in, not ability reactivation
             if opp_ability != data_bridge::ABILITY_IMPOSTER {
-                apply_switch_in_ability(state, keys, opp);
+                apply_switch_in_ability(state, keys, teams, opp);
             }
         }
     }
@@ -76,9 +76,9 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
     state.sides[side].set_last_consumed_berry(0);
 }
 
-pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) {
-    if switch_in_phase_a(state, keys, side, new_index) {
-        apply_switch_in_ability(state, keys, side);
+pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize) {
+    if switch_in_phase_a(state, keys, teams, side, new_index) {
+        apply_switch_in_ability(state, keys, teams, side);
         apply_switch_in_item(state, keys, side);
     }
 }
@@ -99,7 +99,7 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_i
 /// from the ability/item step exists so `perform_double_switch` can install
 /// each incoming mon, then fire its ability before the other side switches.
 pub fn switch_in_phase_a(
-    state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize,
+    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize,
 ) -> bool {
     let old_index = state.sides[side].active_index as usize;
     state.zobrist ^= keys.active_index[side][old_index];
@@ -119,7 +119,7 @@ pub fn switch_in_phase_a(
     }
 
     // Palafin Zero to Hero: transform on switch-in
-    crate::state::forme::check_palafin_hero(state, keys, side);
+    crate::state::forme::check_palafin_hero(state, keys, teams, side);
 
     // Healing Wish / Lunar Dance: fully heal the incoming mon
     {
@@ -220,11 +220,11 @@ const BATON_PASS_VOLATILE_MASK: u32 =
 ///
 /// Forced switches (faint replacement, U-turn) must bypass the trap gate —
 /// use `perform_switch_forced` or call `switch_out` + `switch_in` directly.
-pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) -> bool {
+pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize) -> bool {
     if is_trapped(state, side) {
         return false;
     }
-    perform_switch_forced(state, keys, side, new_index);
+    perform_switch_forced(state, keys, teams, side, new_index);
     true
 }
 
@@ -241,22 +241,22 @@ pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, side: usize, 
 /// honored per side — a trapped side's switch silently no-ops, matching
 /// `perform_switch`'s singleton-path behavior.
 pub fn perform_double_switch(
-    state: &mut BattleState, keys: &ZobristKeys,
+    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
     first_side: usize, first_target: usize,
     second_side: usize, second_target: usize,
     _rng: &mut impl FnMut(u32) -> u32,
 ) {
     if !is_trapped(state, first_side) {
-        switch_out(state, keys, first_side);
-        if switch_in_phase_a(state, keys, first_side, first_target) {
-            apply_switch_in_ability(state, keys, first_side);
+        switch_out(state, keys, teams, first_side);
+        if switch_in_phase_a(state, keys, teams, first_side, first_target) {
+            apply_switch_in_ability(state, keys, teams, first_side);
             apply_switch_in_item(state, keys, first_side);
         }
     }
     if !is_trapped(state, second_side) {
-        switch_out(state, keys, second_side);
-        if switch_in_phase_a(state, keys, second_side, second_target) {
-            apply_switch_in_ability(state, keys, second_side);
+        switch_out(state, keys, teams, second_side);
+        if switch_in_phase_a(state, keys, teams, second_side, second_target) {
+            apply_switch_in_ability(state, keys, teams, second_side);
             apply_switch_in_item(state, keys, second_side);
         }
     }
@@ -264,7 +264,7 @@ pub fn perform_double_switch(
 
 /// Force a switch regardless of trap status. Used by faint replacement and
 /// pivot moves (U-turn, Volt Switch, Baton Pass, etc.) which bypass trapping.
-pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, side: usize, new_index: usize) {
+pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize) {
     let is_baton_pass = state.sides[side].active._padding[0] != 0;
 
     // Save Baton Pass state before switch_out zeros everything
@@ -281,8 +281,8 @@ pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, side: 
         saved_sub_hp = 0;
     }
 
-    switch_out(state, keys, side);
-    switch_in(state, keys, side, new_index);
+    switch_out(state, keys, teams, side);
+    switch_in(state, keys, teams, side, new_index);
 
     if is_baton_pass {
         for stat in 0..7 {
@@ -404,7 +404,7 @@ fn is_untraceable(ability: u16) -> bool {
     )
 }
 
-pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let ability = effective_ability(state, side);
     let opp = 1 - side;
     let side_mirror = state.field.magic_room_turns() == 0
@@ -474,7 +474,7 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
                 state.sides[side].active.override_ability = opp_ability;
                 set_volatile(state, keys, side, VOL_ABILITY_OVERRIDDEN);
                 // Trigger the traced ability's switch-in effect
-                apply_switch_in_ability(state, keys, side);
+                apply_switch_in_ability(state, keys, teams, side);
             }
         }
 
@@ -543,10 +543,10 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
         }
 
         data_bridge::ABILITY_SCHOOLING => {
-            crate::state::forme::check_schooling(state, keys, side);
+            crate::state::forme::check_schooling(state, keys, teams, side);
         }
         data_bridge::ABILITY_SHIELDS_DOWN => {
-            crate::state::forme::check_shields_down(state, keys, side);
+            crate::state::forme::check_shields_down(state, keys, teams, side);
         }
 
         data_bridge::ABILITY_PROTOSYNTHESIS => {
@@ -704,7 +704,7 @@ mod tests {
         state.sides[0].active.boosts[ATK] = 2;
         state.sides[0].active.volatile_flags = VOL_SUBSTITUTE | VOL_LEECH_SEED;
         state.zobrist = compute_full_hash(&state, &keys);
-        switch_out(&mut state, &keys, 0);
+        switch_out(&mut state, &keys, &TeamData::default(), 0);
         assert_eq!(state.sides[0].active.volatile_flags, 0);
         assert!(validate_hash(&state, &keys));
     }
@@ -731,7 +731,7 @@ mod tests {
         state.sides[0].active._padding[0] = 1;
 
         // Perform Baton Pass switch to slot 1
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // New active should inherit boosts
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
@@ -764,7 +764,7 @@ mod tests {
         // Set Baton Pass flag
         state.sides[0].active._padding[0] = 1;
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // Substitute should transfer, Flash Fire should not
         assert!(state.sides[0].active.has_volatile(VOL_SUBSTITUTE));
@@ -790,7 +790,7 @@ mod tests {
         apply_boost(&mut state, &keys, 0, ATK, 2);
 
         // Normal switch (no baton pass flag)
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // Boosts should NOT transfer
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
@@ -834,7 +834,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Switch to Intimidate mon
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[1].active.boosts[ATK], -1);
         assert!(validate_hash(&state, &keys));
@@ -857,7 +857,7 @@ mod tests {
         state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // Should have taken some damage (Rock vs Electric = 1× → 1/8 max HP = 50 damage)
         // The exact amount depends on type effectiveness
@@ -881,7 +881,7 @@ mod tests {
         state.sides[0].side_conditions.spikes = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // 1 layer = 1/8 max HP = 50 damage
         assert_eq!(state.sides[0].team[1].current_hp, 350);
@@ -903,7 +903,7 @@ mod tests {
         state.sides[0].side_conditions.spikes = 3;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // 3 layers = 1/4 max HP = 100 damage
         assert_eq!(state.sides[0].team[1].current_hp, 300);
@@ -925,7 +925,7 @@ mod tests {
         state.sides[0].side_conditions.toxic_spikes = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[0].team[1].status, STATUS_POISON);
         assert!(validate_hash(&state, &keys));
@@ -946,7 +946,7 @@ mod tests {
         state.sides[0].side_conditions.toxic_spikes = 2;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[0].team[1].status, STATUS_BAD_POISON);
         assert!(validate_hash(&state, &keys));
@@ -974,7 +974,7 @@ mod tests {
         state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // Mon fainted from hazards → Intimidate should NOT have activated
         assert_eq!(state.sides[0].team[1].current_hp, 0);
@@ -998,7 +998,7 @@ mod tests {
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
-        switch_out(&mut state, &keys, 0);
+        switch_out(&mut state, &keys, &TeamData::default(), 0);
 
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
         assert!(validate_hash(&state, &keys));
@@ -1020,7 +1020,7 @@ mod tests {
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
-        switch_out(&mut state, &keys, 0);
+        switch_out(&mut state, &keys, &TeamData::default(), 0);
 
         // Should heal 1/3 of 300 = 100
         assert_eq!(state.sides[0].team[0].current_hp, 300);
@@ -1043,7 +1043,7 @@ mod tests {
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         assert_eq!(state.field.terrain, TERRAIN_ELECTRIC);
         assert_eq!(state.field.terrain_turns, 5);
@@ -1071,7 +1071,7 @@ mod tests {
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
         assert!(validate_hash(&state, &keys));
@@ -1095,7 +1095,7 @@ mod tests {
         state.field.weather_turns = 5;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 0);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), ATK as u8 + 1);
         assert!(!state.sides[0].active.paradox_from_booster());
@@ -1120,7 +1120,7 @@ mod tests {
         // No sun — triggers Booster Energy consumption
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 0);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), SPA as u8 + 1);
         assert!(state.sides[0].active.paradox_from_booster());
@@ -1146,7 +1146,7 @@ mod tests {
         state.field.terrain_turns = 5;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 0);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), SPE as u8 + 1);
         assert!(!state.sides[0].active.paradox_from_booster());
@@ -1174,7 +1174,7 @@ mod tests {
         state.field.weather_turns = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         // Weather expired, paradox should deactivate
         assert_eq!(state.field.weather, WEATHER_NONE);
@@ -1201,7 +1201,7 @@ mod tests {
         state.field.weather_turns = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         // Weather expired but Booster Energy boost persists
         assert_eq!(state.field.weather, WEATHER_NONE);
@@ -1226,7 +1226,7 @@ mod tests {
         // No sun, no Booster Energy
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 0);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), 0);
         assert!(validate_hash(&state, &keys));
@@ -1252,7 +1252,7 @@ mod tests {
         state.field.terrain_turns = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         assert_eq!(state.field.terrain, TERRAIN_NONE);
         assert_eq!(state.sides[0].active.paradox_stat(), 0);
@@ -1285,7 +1285,7 @@ mod tests {
         state.field.weather_turns = 5;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 1, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 1, 1);
 
         // Drizzle replaced sun -> Protosynthesis deactivated
         assert_eq!(state.field.weather, WEATHER_RAIN);
@@ -1308,7 +1308,7 @@ mod tests {
         state.sides[0].side_conditions.set_safeguard_turns(5);
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // Safeguard blocks the poison from toxic spikes
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
@@ -1332,7 +1332,7 @@ mod tests {
         state.sides[0].side_conditions.set_mist_turns(5);
         state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
 
         // Mist blocks the speed drop from sticky web
         assert_eq!(state.sides[0].active.boosts[SPE], 0);
@@ -1358,7 +1358,7 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
         assert!(!state.sides[1].active.has_volatile(VOL_ABILITY_SUPPRESSED));
         assert!(validate_hash(&state, &keys));
     }
@@ -1382,7 +1382,7 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.zobrist = compute_full_hash(&state, &keys);
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
         assert!(validate_hash(&state, &keys));
     }
@@ -1407,7 +1407,7 @@ mod tests {
         };
         state.sides[0].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
         state.zobrist = compute_full_hash(&state, &keys);
-        perform_switch(&mut state, &keys, 0, 1);
+        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
         assert_eq!(state.sides[0].active.boosts[SPE], 0);
         assert!(validate_hash(&state, &keys));
     }

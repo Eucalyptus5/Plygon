@@ -70,46 +70,27 @@ pub fn apply_transform(
     }
 }
 
-/// In-battle forme change that uses override_stats instead of TeamData.
-/// Recomputes stats using the standard formula
-/// `stat = (2*base + iv + ev/4) * level / 100 + 5` (neutral nature assumed).
-/// The original build's iv+ev/4 contribution (T) is derived from the mon's
-/// current persistent stats and the old form's base stats, then re-applied
-/// to the new form's base stats. This preserves IVs/EVs exactly (for neutral
-/// natures) instead of the old "scale by ratio" approximation which was
-/// inaccurate due to the additive `+5` term.
+/// In-battle forme change that writes override_stats from the new species'
+/// base stats and the mon's build (IVs/EVs/nature), mirroring the team-builder
+/// formula `(2*base + iv + ev/4) * level / 100 + 5` scaled by the nature
+/// modifier. Reading the build from `teams` keeps stats nature-correct across
+/// formes — Showdown re-derives from the set on every formeChange, so a
+/// non-neutral nature must be reapplied to the new base rather than folded into
+/// the old stat (which the prior neutral-only derivation got wrong by
+/// `(new_base - old_base) * nature_mod`).
 /// Also sets override_types from the new species.
 /// To revert, call `revert_battle_forme`.
 pub fn apply_battle_forme(
-    state: &mut BattleState, keys: &ZobristKeys,
+    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
     side: usize, new_species_id: u16,
 ) {
     let slot = state.sides[side].active_index as usize;
-    let old_species_id = state.sides[side].team[slot].species_id;
-    let level = state.sides[side].team[slot].level.max(1) as u32;
-    let old_sp = data_bridge::species(old_species_id);
+    let level = teams.levels[side][slot];
+    let build = &teams.mons[side][slot];
     let new_sp = data_bridge::species(new_species_id);
 
-    let old_bases = [old_sp.atk as u32, old_sp.def as u32, old_sp.spa as u32, old_sp.spd as u32, old_sp.spe as u32];
-    let new_bases = [new_sp.atk as u32, new_sp.def as u32, new_sp.spa as u32, new_sp.spd as u32, new_sp.spe as u32];
-    // Read the persistent (original-build) stats, not effective_stat — the
-    // latter can return a previous form's override_stats which would compound
-    // errors across successive form changes.
-    let base_stats = state.sides[side].team[slot].stats;
-
-    let mut new_stats = [0u16; 5];
-    for i in 0..5 {
-        let s = base_stats[i] as u32;
-        // Derive training (iv + ev/4) from old stat, assuming neutral nature:
-        // stat = (2*base + T) * level / 100 + 5  =>  T = (stat - 5) * 100 / level - 2*base
-        let s_minus_5 = s.saturating_sub(5);
-        let two_base_plus_t = s_minus_5.saturating_mul(100) / level;
-        let training = two_base_plus_t.saturating_sub(2 * old_bases[i]);
-        // Recompute using new base: stat = (2*new_base + T) * level / 100 + 5
-        let new_stat = ((2 * new_bases[i] + training) * level / 100 + 5).max(1) as u16;
-        new_stats[i] = new_stat;
-    }
-    state.sides[side].active.override_stats = new_stats;
+    state.sides[side].active.override_stats =
+        crate::state::team_builder::recompute_override_stats(&new_sp, build, level);
 
     set_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
     state.sides[side].active.override_types = [new_sp.type1 as u8, new_sp.type2 as u8];
@@ -129,7 +110,7 @@ pub fn revert_battle_forme(
 
 /// Zen Mode check: Darmanitan transforms at ≤50% HP, reverts at >50%.
 /// Called from end-of-turn and after taking damage.
-pub fn check_zen_mode(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_zen_mode(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let ability = accessors::effective_ability(state, side);
     if ability != data_bridge::ABILITY_ZEN_MODE { return; }
 
@@ -147,9 +128,9 @@ pub fn check_zen_mode(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
 
     if mon.current_hp <= half_hp {
         if species == DARMANITAN {
-            apply_battle_forme(state, keys, side, DARMANITAN_ZEN);
+            apply_battle_forme(state, keys, teams, side, DARMANITAN_ZEN);
         } else if species == DARMANITAN_GALAR {
-            apply_battle_forme(state, keys, side, DARMANITAN_GALAR_ZEN);
+            apply_battle_forme(state, keys, teams, side, DARMANITAN_GALAR_ZEN);
         }
     } else if mon.current_hp > half_hp {
         if species == DARMANITAN_ZEN {
@@ -162,7 +143,7 @@ pub fn check_zen_mode(state: &mut BattleState, keys: &ZobristKeys, side: usize) 
 
 /// Wishiwashi Schooling: School forme at >25% HP, Solo at ≤25%.
 /// Called from end-of-turn and after damage.
-pub fn check_schooling(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_schooling(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let ability = accessors::effective_ability(state, side);
     if ability != data_bridge::ABILITY_SCHOOLING { return; }
 
@@ -177,7 +158,7 @@ pub fn check_schooling(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     let quarter_hp = mon.max_hp / 4;
 
     if mon.current_hp > quarter_hp && species == WISHIWASHI_SOLO {
-        apply_battle_forme(state, keys, side, WISHIWASHI_SCHOOL);
+        apply_battle_forme(state, keys, teams, side, WISHIWASHI_SCHOOL);
     } else if mon.current_hp <= quarter_hp && species == WISHIWASHI_SCHOOL {
         revert_battle_forme(state, keys, side);
     }
@@ -185,7 +166,7 @@ pub fn check_schooling(state: &mut BattleState, keys: &ZobristKeys, side: usize)
 
 /// Minior Shields Down: Core forme at ≤50% HP.
 /// Called from end-of-turn and after damage.
-pub fn check_shields_down(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_shields_down(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let ability = accessors::effective_ability(state, side);
     if ability != data_bridge::ABILITY_SHIELDS_DOWN { return; }
 
@@ -200,7 +181,7 @@ pub fn check_shields_down(state: &mut BattleState, keys: &ZobristKeys, side: usi
     let half_hp = mon.max_hp / 2;
 
     if mon.current_hp <= half_hp && species == MINIOR_METEOR {
-        apply_battle_forme(state, keys, side, MINIOR_CORE);
+        apply_battle_forme(state, keys, teams, side, MINIOR_CORE);
     } else if mon.current_hp > half_hp && species == MINIOR_CORE {
         revert_battle_forme(state, keys, side);
     }
@@ -215,7 +196,7 @@ pub fn is_minior_meteor_forme(state: &BattleState, side: usize) -> bool {
 
 /// Palafin Zero to Hero: switch to Hero forme on switch-in if flag is set.
 /// Called from switch_in after hazards.
-pub fn check_palafin_hero(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_palafin_hero(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
     if mon.is_fainted() { return; }
@@ -225,7 +206,7 @@ pub fn check_palafin_hero(state: &mut BattleState, keys: &ZobristKeys, side: usi
     const PALAFIN_HERO: u16 = 1311;
 
     if mon.species_id == PALAFIN_ZERO {
-        apply_battle_forme(state, keys, side, PALAFIN_HERO);
+        apply_battle_forme(state, keys, teams, side, PALAFIN_HERO);
     }
 }
 
@@ -234,6 +215,11 @@ mod tests {
     use super::*;
     use crate::state::zobrist::{compute_full_hash, validate_hash};
     use crate::state::accessors::*;
+
+    fn neutral_31_teams() -> TeamData {
+        let build = MonBuildData { ivs: [31; 6], evs: [0; 6], nature: 0 };
+        TeamData { mons: [[build; 6]; 2], levels: [[100; 6]; 2] }
+    }
 
     #[test]
     fn test_transform() {
@@ -274,7 +260,7 @@ mod tests {
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
-        apply_battle_forme(&mut state, &keys, 0, 1103);
+        apply_battle_forme(&mut state, &keys, &neutral_31_teams(), 0, 1103);
 
         // Stats should be recomputed using new base + original T (31 for IV/EV 31/0):
         // atk = 2*140 + 31 + 5 = 316, def = 2*50 + 31 + 5 = 136, etc.
@@ -316,7 +302,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP is 200/400 = 50% → should trigger (≤50%)
-        check_zen_mode(&mut state, &keys, 0);
+        check_zen_mode(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
         assert_eq!(effective_stat(&state, 0, ATK), 96);
         assert_eq!(effective_stat(&state, 0, SPA), 316);
@@ -324,7 +310,7 @@ mod tests {
 
         // Heal above 50% → should revert
         heal(&mut state, &keys, 0, 0, 201);
-        check_zen_mode(&mut state, &keys, 0);
+        check_zen_mode(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 555);
         assert_eq!(effective_stat(&state, 0, ATK), 316);
         assert!(validate_hash(&state, &keys));
@@ -347,13 +333,13 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Trigger Zen Mode at 25% HP
-        check_zen_mode(&mut state, &keys, 0);
+        check_zen_mode(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 1171);
 
         // Heal above 50% → should revert
         heal(&mut state, &keys, 0, 0, 301);
         assert!(state.sides[0].team[0].current_hp > 200); // > 50%
-        check_zen_mode(&mut state, &keys, 0);
+        check_zen_mode(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 555);
         assert!(validate_hash(&state, &keys));
     }
@@ -375,13 +361,13 @@ mod tests {
         };
         state.zobrist = compute_full_hash(&state, &keys);
 
-        check_zen_mode(&mut state, &keys, 0);
+        check_zen_mode(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 1170); // Darmanitan-Galar-Zen
         assert!(validate_hash(&state, &keys));
 
         // Heal above 50% → should revert
         heal(&mut state, &keys, 0, 0, 301);
-        check_zen_mode(&mut state, &keys, 0);
+        check_zen_mode(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 1169);
         assert!(validate_hash(&state, &keys));
     }
@@ -405,7 +391,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP 100/400 = 25% → ≤25%, stays Solo
-        check_schooling(&mut state, &keys, 0);
+        check_schooling(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 746);
         assert!(validate_hash(&state, &keys));
     }
@@ -429,7 +415,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP 101/400 > 25% → School Forme
-        check_schooling(&mut state, &keys, 0);
+        check_schooling(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 1437); // Wishiwashi-School
         // School (1437): atk:140, def:130, spa:140, spd:135, spe:30
         // L100 neutral 31/0: atk=316, spe=96
@@ -441,7 +427,7 @@ mod tests {
         use crate::state::mutations::deal_damage;
         deal_damage(&mut state, &keys, 0, 0, 2);
         assert!(state.sides[0].team[0].current_hp <= 100); // ≤25%
-        check_schooling(&mut state, &keys, 0);
+        check_schooling(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 746);
         assert!(validate_hash(&state, &keys));
     }
@@ -465,7 +451,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP 200/400 = 50% → ≤50%, change to Core
-        check_shields_down(&mut state, &keys, 0);
+        check_shields_down(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 774); // Minior (Core)
         // Core (774): atk:100, def:60, spa:100, spd:60, spe:120
         // L100 neutral 31/0: atk=236, def=156, spa=236, spd=156, spe=276
@@ -476,7 +462,7 @@ mod tests {
 
         // Heal above 50% → revert to Meteor
         heal(&mut state, &keys, 0, 0, 201);
-        check_shields_down(&mut state, &keys, 0);
+        check_shields_down(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 1291);
         assert!(validate_hash(&state, &keys));
     }
@@ -514,7 +500,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Transition to Core forme
-        check_shields_down(&mut state, &keys, 0);
+        check_shields_down(&mut state, &keys, &neutral_31_teams(), 0);
         assert_eq!(effective_species(&state, 0), 774);
 
         // Core forme is NOT status-immune
@@ -550,15 +536,16 @@ mod tests {
         assert_eq!(state.sides[0].team[0].flags & MON_FLAG_HERO_ACTIVATED, 0);
 
         // Switch out → sets HERO_ACTIVATED flag
-        switch_out(&mut state, &keys, 0);
+        let teams = neutral_31_teams();
+        switch_out(&mut state, &keys, &teams, 0);
         assert!(state.sides[0].team[0].flags & MON_FLAG_HERO_ACTIVATED != 0);
 
         // Switch to slot 1
-        switch_in(&mut state, &keys, 0, 1);
+        switch_in(&mut state, &keys, &teams, 0, 1);
 
         // Switch back to Palafin (slot 0)
-        switch_out(&mut state, &keys, 0);
-        switch_in(&mut state, &keys, 0, 0);
+        switch_out(&mut state, &keys, &teams, 0);
+        switch_in(&mut state, &keys, &teams, 0, 0);
 
         // Should now be Hero forme
         // Palafin-Hero (1311): atk:160, def:97, spa:106, spd:87, spe:100

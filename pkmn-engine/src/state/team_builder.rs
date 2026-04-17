@@ -139,6 +139,19 @@ pub fn recompute_stats(mon: &mut MonSlot, new_species: &SpeciesData, build: &Mon
     }
 }
 
+/// Nature-correct non-HP stats for an in-battle forme change's override_stats.
+/// Mirrors `recompute_stats` but returns the five stats without touching the
+/// persistent build stats or max_hp (HP is unchanged across battle formes).
+pub fn recompute_override_stats(new_species: &SpeciesData, build: &MonBuildData, level: u8) -> [u16; 5] {
+    let bases = base_stats(new_species);
+    let mut stats = [0u16; 5];
+    for i in 0..5 {
+        stats[i] = calc_stat(bases[i+1], build.ivs[i+1], build.evs[i+1],
+                             level, build.nature, i+1);
+    }
+    stats
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

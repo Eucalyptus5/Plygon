@@ -108,6 +108,7 @@ fn run_profiled(keys: &ZobristKeys, num_battles: u64) -> ProfileCounters {
         game_overs: 0, legal_action_calls: 0,
     };
 
+    let teams = TeamData::default();
     for battle_idx in 0..num_battles {
         // --- Setup ---
         let t0 = Instant::now();
@@ -171,26 +172,26 @@ fn run_profiled(keys: &ZobristKeys, num_battles: u64) -> ProfileCounters {
                 c.rng_ns += t3b.elapsed().as_nanos() as u64;
 
                 let t4 = Instant::now();
-                execute_turn(&mut state, keys, act1, act2, &mut rng);
+                execute_turn(&mut state, keys, &teams, act1, act2, &mut rng);
                 c.execute_turn_ns += t4.elapsed().as_nanos() as u64;
                 c.action_turns += 1;
             } else if phase == PHASE_SWITCH_P1 {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let t4 = Instant::now();
-                execute_switch_turn(&mut state, keys, act1, 0, &mut rng);
+                execute_switch_turn(&mut state, keys, &teams, act1, 0, &mut rng);
                 c.execute_switch_ns += t4.elapsed().as_nanos() as u64;
                 c.switch_turns += 1;
             } else if phase == PHASE_SWITCH_P2 {
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
                 let t4 = Instant::now();
-                execute_switch_turn(&mut state, keys, 0, act2, &mut rng);
+                execute_switch_turn(&mut state, keys, &teams, 0, act2, &mut rng);
                 c.execute_switch_ns += t4.elapsed().as_nanos() as u64;
                 c.switch_turns += 1;
             } else if phase == PHASE_SWITCH_BOTH {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
                 let t4 = Instant::now();
-                execute_switch_turn(&mut state, keys, act1, act2, &mut rng);
+                execute_switch_turn(&mut state, keys, &teams, act1, act2, &mut rng);
                 c.execute_switch_ns += t4.elapsed().as_nanos() as u64;
                 c.switch_turns += 1;
             }

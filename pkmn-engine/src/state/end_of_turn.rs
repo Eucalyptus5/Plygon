@@ -9,7 +9,7 @@ use crate::state::zobrist::ZobristKeys;
 use crate::state::forme;
 use crate::state::calc_modifiers::{terrain_blocks_status, is_heatproof_effective};
 
-pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys, rng: &mut BattleRng) {
+pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, rng: &mut BattleRng) {
     step_weather(state, keys);                                   // 1
     step_terrain_countdown(state);                               // 2a: decrement only
     // 3: Future Sight (not yet implemented)
@@ -47,7 +47,7 @@ pub fn end_of_turn(state: &mut BattleState, keys: &ZobristKeys, rng: &mut Battle
     for side in 0..2 { step_perish_song(state, keys, side); }    // 14
     for side in 0..2 { step_status_orbs(state, keys, side); }   // 14c (order 28: orbs/barb)
     step_soul_heart(state, keys);                               // 14b
-    for side in 0..2 { step_eot_abilities(state, keys, side, rng); }  // 15
+    for side in 0..2 { step_eot_abilities(state, keys, teams, side, rng); }  // 15
     for side in 0..2 {                                           // 16
         state.sides[side].active.turns_active = state.sides[side].active.turns_active.saturating_add(1);
     }
@@ -443,7 +443,7 @@ fn step_weather_abilities(
 }
 
 fn step_eot_abilities(
-    state: &mut BattleState, keys: &ZobristKeys, side: usize, rng: &mut BattleRng,
+    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, rng: &mut BattleRng,
 ) {
     let slot = state.sides[side].active_index as usize;
     if state.sides[side].team[slot].is_fainted() { return; }
@@ -465,13 +465,13 @@ fn step_eot_abilities(
             }
         }
         data_bridge::ABILITY_ZEN_MODE => {
-            forme::check_zen_mode(state, keys, side);
+            forme::check_zen_mode(state, keys, teams, side);
         }
         data_bridge::ABILITY_SCHOOLING => {
-            forme::check_schooling(state, keys, side);
+            forme::check_schooling(state, keys, teams, side);
         }
         data_bridge::ABILITY_SHIELDS_DOWN => {
-            forme::check_shields_down(state, keys, side);
+            forme::check_shields_down(state, keys, teams, side);
         }
         data_bridge::ABILITY_MOODY => {
             step_moody(state, keys, side, rng);
@@ -577,7 +577,7 @@ mod tests {
         (state, keys)
     }
     #[test] fn test_burn() { let (mut s, k) = setup(); s.sides[0].team[0].status = STATUS_BURN; s.zobrist = compute_full_hash(&s, &k); step_status_damage(&mut s, &k, 0); assert_eq!(s.sides[0].team[0].current_hp, 188); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k, &mut BattleRng::from_closure(&mut |_| 0u32)); assert_eq!(s.field.turn, 1); }
+    #[test] fn test_turn_inc() { let (mut s, k) = setup(); end_of_turn(&mut s, &k, &TeamData::default(), &mut BattleRng::from_closure(&mut |_| 0u32)); assert_eq!(s.field.turn, 1); }
 
     #[test]
     fn test_shed_skin_cures_on_successful_roll() {
@@ -585,7 +585,7 @@ mod tests {
         s.sides[0].team[0].ability_id = data_bridge::ABILITY_SHED_SKIN;
         s.sides[0].team[0].status = STATUS_BURN;
         s.zobrist = compute_full_hash(&s, &k);
-        step_eot_abilities(&mut s, &k, 0, &mut BattleRng::from_closure(&mut |_| 0u32));
+        step_eot_abilities(&mut s, &k, &TeamData::default(), 0, &mut BattleRng::from_closure(&mut |_| 0u32));
         assert_eq!(s.sides[0].team[0].status, STATUS_NONE);
         assert!(validate_hash(&s, &k));
     }
@@ -596,7 +596,7 @@ mod tests {
         s.sides[0].team[0].ability_id = data_bridge::ABILITY_SHED_SKIN;
         s.sides[0].team[0].status = STATUS_BURN;
         s.zobrist = compute_full_hash(&s, &k);
-        step_eot_abilities(&mut s, &k, 0, &mut BattleRng::from_closure(&mut |_| 50u32));
+        step_eot_abilities(&mut s, &k, &TeamData::default(), 0, &mut BattleRng::from_closure(&mut |_| 50u32));
         assert_eq!(s.sides[0].team[0].status, STATUS_BURN);
         assert!(validate_hash(&s, &k));
     }
@@ -606,7 +606,7 @@ mod tests {
         let (mut s, k) = setup();
         s.sides[0].team[0].ability_id = data_bridge::ABILITY_SHED_SKIN;
         s.zobrist = compute_full_hash(&s, &k);
-        step_eot_abilities(&mut s, &k, 0, &mut BattleRng::from_closure(&mut |_| 0u32));
+        step_eot_abilities(&mut s, &k, &TeamData::default(), 0, &mut BattleRng::from_closure(&mut |_| 0u32));
         assert_eq!(s.sides[0].team[0].status, STATUS_NONE);
         assert!(validate_hash(&s, &k));
     }
@@ -667,7 +667,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // HP 100/400 = 25% → should trigger Zen Mode
-        step_eot_abilities(&mut state, &keys, 0, &mut BattleRng::from_closure(&mut |_| 0u32));
+        step_eot_abilities(&mut state, &keys, &TeamData::default(), 0, &mut BattleRng::from_closure(&mut |_| 0u32));
         assert_eq!(effective_species(&state, 0), 1171); // Darmanitan-Zen
         assert!(validate_hash(&state, &keys));
     }

@@ -25,6 +25,7 @@ fn run_battles(keys: &ZobristKeys, label: &str) -> (u64, u64, std::time::Duratio
 
     let start = Instant::now();
 
+    let teams = TeamData::default();
     for battle_idx in 0..NUM_BATTLES {
         let mut state = BattleState::default();
         let mut seed = battle_idx.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -68,17 +69,17 @@ fn run_battles(keys: &ZobristKeys, label: &str) -> (u64, u64, std::time::Duratio
             if state.phase == PHASE_ACTIONS {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_turn(&mut state, keys, act1, act2, &mut rng);
+                execute_turn(&mut state, keys, &teams, act1, act2, &mut rng);
             } else if state.phase == PHASE_SWITCH_P1 {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
-                execute_switch_turn(&mut state, keys, act1, 0, &mut rng);
+                execute_switch_turn(&mut state, keys, &teams, act1, 0, &mut rng);
             } else if state.phase == PHASE_SWITCH_P2 {
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_switch_turn(&mut state, keys, 0, act2, &mut rng);
+                execute_switch_turn(&mut state, keys, &teams, 0, act2, &mut rng);
             } else if state.phase == PHASE_SWITCH_BOTH {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_switch_turn(&mut state, keys, act1, act2, &mut rng);
+                execute_switch_turn(&mut state, keys, &teams, act1, act2, &mut rng);
             }
 
             total_turns += 1;

@@ -116,7 +116,7 @@ fn setup_complex() -> (BattleState, ZobristKeys) {
 }
 
 /// Run an MCTS-style rollout: legal_actions -> execute_turn, handling switch phases.
-fn run_rollout(state: &mut BattleState, keys: &ZobristKeys, max_turns: u32, rng: &mut impl FnMut(u32) -> u32) {
+fn run_rollout(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, max_turns: u32, rng: &mut impl FnMut(u32) -> u32) {
     for _ in 0..max_turns {
         if state.is_game_over() { break; }
 
@@ -126,9 +126,9 @@ fn run_rollout(state: &mut BattleState, keys: &ZobristKeys, max_turns: u32, rng:
         let act2 = if a2.count > 0 { a2.actions[0] } else { 0 };
 
         match state.phase {
-            PHASE_ACTIONS => execute_turn(state, keys, act1, act2, rng),
+            PHASE_ACTIONS => execute_turn(state, keys, teams, act1, act2, rng),
             PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
-                execute_switch_turn(state, keys, act1, act2, rng);
+                execute_switch_turn(state, keys, teams, act1, act2, rng);
             }
             _ => break,
         }
@@ -273,12 +273,13 @@ fn bench_mcts_simulation(c: &mut Criterion) {
 
     let (template_v, keys_v) = setup_vanilla();
     let (template_c, keys_c) = setup_complex();
+    let teams = TeamData::default();
 
     group.bench_function("Rollout (Vanilla, 50 turns)", |b| {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            run_rollout(&mut state, &keys_v, 50, &mut rng);
+            run_rollout(&mut state, &keys_v, &teams, 50, &mut rng);
             black_box(state);
         });
     });
@@ -287,7 +288,7 @@ fn bench_mcts_simulation(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_c;
             let mut rng = deterministic_rng();
-            run_rollout(&mut state, &keys_c, 50, &mut rng);
+            run_rollout(&mut state, &keys_c, &teams, 50, &mut rng);
             black_box(state);
         });
     });
@@ -296,7 +297,7 @@ fn bench_mcts_simulation(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            run_rollout(&mut state, &keys_v, 200, &mut rng);
+            run_rollout(&mut state, &keys_v, &teams, 200, &mut rng);
             black_box(state);
         });
     });
@@ -320,12 +321,13 @@ fn bench_execute_turn(c: &mut Criterion) {
         { let (s, k) = setup_complex(); ("Complex", s, k) },
     ];
 
+    let teams = TeamData::default();
     for (name, template, keys) in &setups {
         group.bench_function(*name, |b| {
             b.iter(|| {
                 let mut state = *template;
                 let mut rng = deterministic_rng();
-                execute_turn(&mut state, keys, 0, 0, &mut rng);
+                execute_turn(&mut state, keys, &teams, 0, 0, &mut rng);
                 black_box(state);
             });
         });
@@ -482,13 +484,14 @@ fn bench_execute_move(c: &mut Criterion) {
 
     let (template_v, keys_v) = setup_vanilla();
     let (template_cx, keys_cx) = setup_complex();
+    let teams = TeamData::default();
 
     // Vanilla physical
     group.bench_function("Vanilla Physical", |b| {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            execute_move(&mut state, &keys_v, 0, 1, 0, &mut rng);
+            execute_move(&mut state, &keys_v, &teams, 0, 1, 0, &mut rng);
             black_box(state);
         });
     });
@@ -498,7 +501,7 @@ fn bench_execute_move(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            execute_move(&mut state, &keys_v, 0, 4, 3, &mut rng);
+            execute_move(&mut state, &keys_v, &teams, 0, 4, 3, &mut rng);
             black_box(state);
         });
     });
@@ -508,7 +511,7 @@ fn bench_execute_move(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_cx;
             let mut rng = deterministic_rng();
-            execute_move(&mut state, &keys_cx, 0, 1, 0, &mut rng);
+            execute_move(&mut state, &keys_cx, &teams, 0, 1, 0, &mut rng);
             black_box(state);
         });
     });
@@ -524,13 +527,14 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     let mut group = c.benchmark_group("EOT and Switch");
 
     let (template_v, keys_v) = setup_vanilla();
+    let teams = TeamData::default();
 
     // End of turn: vanilla (fast path, no weather/status/hazards)
     group.bench_function("end_of_turn (Vanilla)", |b| {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            end_of_turn(&mut state, &keys_v, &mut BattleRng::from_closure(&mut rng));
+            end_of_turn(&mut state, &keys_v, &teams, &mut BattleRng::from_closure(&mut rng));
             black_box(state);
         });
     });
@@ -545,7 +549,7 @@ fn bench_eot_and_switch(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_ws;
             let mut rng = deterministic_rng();
-            end_of_turn(&mut state, &keys_ws, &mut BattleRng::from_closure(&mut rng));
+            end_of_turn(&mut state, &keys_ws, &teams, &mut BattleRng::from_closure(&mut rng));
             black_box(state);
         });
     });
@@ -554,7 +558,7 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     group.bench_function("perform_switch (Vanilla)", |b| {
         b.iter(|| {
             let mut state = template_v;
-            perform_switch(&mut state, &keys_v, 0, 1);
+            perform_switch(&mut state, &keys_v, &teams, 0, 1);
             black_box(state);
         });
     });
@@ -567,7 +571,7 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     group.bench_function("perform_switch (With Hazards)", |b| {
         b.iter(|| {
             let mut state = template_hz;
-            perform_switch(&mut state, &keys_v, 0, 1);
+            perform_switch(&mut state, &keys_v, &teams, 0, 1);
             black_box(state);
         });
     });

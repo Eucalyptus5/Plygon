@@ -287,6 +287,7 @@ fn apply_secondary(
 fn execute_status_move(
     state: &mut BattleState,
     keys: &ZobristKeys,
+    teams: &TeamData,
     atk_side: usize,
     def_side: usize,
     md: &MoveData,
@@ -912,7 +913,7 @@ fn execute_status_move(
             }
             if cnt > 0 {
                 let pick = targets[rng(cnt as u32) as usize];
-                crate::state::switch::perform_switch_forced(state, keys, def_side, pick);
+                crate::state::switch::perform_switch_forced(state, keys, teams, def_side, pick);
             }
         }
 
@@ -1199,7 +1200,7 @@ fn execute_status_move(
             let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
 
             use_move_called(
-                state, keys, atk_side, atk_slot, def_side, def_slot,
+                state, keys, teams, atk_side, atk_slot, def_side, def_slot,
                 inner_id, false, false, false, &inner_md, rng, 1,
             );
 
@@ -1228,7 +1229,7 @@ fn execute_status_move(
             let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
 
             use_move_called(
-                state, keys, atk_side, atk_slot, def_side, def_slot,
+                state, keys, teams, atk_side, atk_slot, def_side, def_slot,
                 inner_id, false, false, false, &inner_md, rng, 1,
             );
 
@@ -1258,7 +1259,7 @@ fn execute_status_move(
             let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
 
             use_move_called(
-                state, keys, atk_side, atk_slot, def_side, def_slot,
+                state, keys, teams, atk_side, atk_slot, def_side, def_slot,
                 inner_id, false, false, false, &inner_md, rng, 1,
             );
 
@@ -1289,7 +1290,7 @@ fn execute_status_move(
             let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
 
             use_move_called(
-                state, keys, atk_side, atk_slot, def_side, def_slot,
+                state, keys, teams, atk_side, atk_slot, def_side, def_slot,
                 inner_id, false, false, false, &inner_md, rng, 1,
             );
 
@@ -1329,7 +1330,7 @@ fn execute_status_move(
             let had_locked = state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED);
 
             use_move_called(
-                state, keys, atk_side, atk_slot, def_side, def_slot,
+                state, keys, teams, atk_side, atk_slot, def_side, def_slot,
                 inner_id, false, false, false, &inner_md, rng, 1,
             );
 
@@ -2030,6 +2031,7 @@ fn foe_pokemon_left(state: &BattleState, side: usize) -> bool {
 pub(crate) fn use_move_called(
     state: &mut BattleState,
     keys: &ZobristKeys,
+    teams: &TeamData,
     atk_side: usize,
     atk_slot: usize,
     def_side: usize,
@@ -2099,7 +2101,7 @@ pub(crate) fn use_move_called(
             const AEGISLASH_BLADE: u16 = 1103;
             const KING_S_SHIELD: u16 = 588;
             if species == AEGISLASH_SHIELD && md.category != MoveCategory::Status {
-                apply_battle_forme(state, keys, atk_side, AEGISLASH_BLADE);
+                apply_battle_forme(state, keys, teams, atk_side, AEGISLASH_BLADE);
             } else if species == AEGISLASH_BLADE && move_id == KING_S_SHIELD {
                 revert_battle_forme(state, keys, atk_side);
             }
@@ -2157,7 +2159,7 @@ pub(crate) fn use_move_called(
     }
 
     if !is_struggle && md.category == MoveCategory::Status {
-        execute_status_move(state, keys, atk_side, def_side, md, rng, move_id);
+        execute_status_move(state, keys, teams, atk_side, def_side, md, rng, move_id);
         return; // Status moves are never thrash, so return is correct
     }
 
@@ -2591,9 +2593,9 @@ pub(crate) fn use_move_called(
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
-        crate::state::forme::check_zen_mode(state, keys, def_side);
-        crate::state::forme::check_schooling(state, keys, def_side);
-        crate::state::forme::check_shields_down(state, keys, def_side);
+        crate::state::forme::check_zen_mode(state, keys, teams, def_side);
+        crate::state::forme::check_schooling(state, keys, teams, def_side);
+        crate::state::forme::check_shields_down(state, keys, teams, def_side);
     }
 
     if result.item_consumed {
@@ -3111,7 +3113,7 @@ pub(crate) fn use_move_called(
         }
         if cnt > 0 {
             let pick = targets[rng(cnt as u32) as usize];
-            crate::state::switch::perform_switch_forced(state, keys, def_side, pick);
+            crate::state::switch::perform_switch_forced(state, keys, teams, def_side, pick);
         }
     }
 
@@ -3212,6 +3214,7 @@ pub(crate) fn use_move_called(
 pub fn execute_move(
     state: &mut BattleState,
     keys: &ZobristKeys,
+    teams: &TeamData,
     atk_side: usize,
     mut move_id: u16,
     mut move_slot: u8,
@@ -3403,7 +3406,7 @@ pub fn execute_move(
     set_volatile(state, keys, atk_side, VOL_MOVED_THIS_TURN);
 
     use_move_called(
-        state, keys, atk_side, atk_slot, def_side, def_slot,
+        state, keys, teams, atk_side, atk_slot, def_side, def_slot,
         move_id, is_struggle, is_charge_turn2, is_move_locked,
         md, rng, 0,
     );
@@ -3490,7 +3493,7 @@ mod tests {
         state.sides[0].team[0].status = STATUS_PARALYSIS;
         state.zobrist = compute_full_hash(&state, &keys);
         let pp_before = state.sides[0].team[0].pp[0];
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].pp[0], pp_before);
     }
 
@@ -3501,13 +3504,13 @@ mod tests {
         state.sides[0].team[0].status_counter = 2;
         state.zobrist = compute_full_hash(&state, &keys);
         // Turn 1: counter 2→1, still asleep
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
         assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP);
         assert_eq!(state.sides[0].team[0].status_counter, 1);
         // Turn 2: counter 1→0, wake up
         state.zobrist = compute_full_hash(&state, &keys);
         let pp = state.sides[0].team[0].pp[0];
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
         assert_eq!(state.sides[0].team[0].pp[0], pp - 1);
     }
@@ -3518,7 +3521,7 @@ mod tests {
         state.sides[0].active.confusion_turns = 3;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
         assert!(state.sides[0].team[0].current_hp < hp);
     }
 
@@ -3528,7 +3531,7 @@ mod tests {
         execute_protect(&mut state, &keys, 1, 0, &mut fixed_rng(0));
         assert!(state.sides[1].active.has_volatile(VOL_PROTECT_THIS_TURN));
         let hp = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
         assert_eq!(state.sides[1].team[0].current_hp, hp);
     }
 
@@ -3537,7 +3540,7 @@ mod tests {
         let (mut state, keys) = setup();
         set_volatile(&mut state, &keys, 0, VOL_RECHARGING);
         let pp = state.sides[0].team[0].pp[0];
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
         assert!(!state.sides[0].active.has_volatile(VOL_RECHARGING));
         assert_eq!(state.sides[0].team[0].pp[0], pp);
     }
@@ -3549,7 +3552,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp = state.sides[1].team[0].current_hp;
         // rng(3) returns 1 (not 0), so no self-hit; confusion_turns decrements to 0
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(1));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(1));
         assert_eq!(state.sides[0].active.confusion_turns, 0);
         // Mon attacked normally — defender took damage
         assert!(state.sides[1].team[0].current_hp < def_hp);
@@ -3580,7 +3583,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         // Mon does NOT use Protect this turn (no VOL_PROTECT_THIS_TURN set)
         // EOT should reset protect_consecutive to 0
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert_eq!(state.sides[0].active.protect_consecutive, 0);
     }
 
@@ -3665,7 +3668,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(99), 0);
 
         // Opponent should have -1 Atk and -1 SpA
         assert_eq!(state.sides[1].active.boosts[ATK], -1);
@@ -3691,7 +3694,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(99), 0);
 
         // Boosts can't go lower, so no switch
         assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
@@ -3709,7 +3712,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(99), 0);
 
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
         assert_eq!(state.sides[0].active._padding[0], 1); // baton pass flag
@@ -3745,7 +3748,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let pp_before = state.sides[0].team[0].pp[0];
-        execute_move(&mut state, &keys, 0, fly_id, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, fly_id, 0, &mut fixed_rng(0));
 
         // VOL_CHARGING should be set (move has CHARGE flag)
         // But since the MoveEffect in gen data is None (not ChargeFly),
@@ -3766,12 +3769,12 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Turn 1: charge
-        execute_move(&mut state, &keys, 0, fly_id, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, fly_id, 0, &mut fixed_rng(0));
         assert!(state.sides[0].active.has_volatile(VOL_CHARGING));
         let pp_after_turn1 = state.sides[0].team[0].pp[0];
 
         // Turn 2: execute (pass any move_id, it's overridden by last_move)
-        execute_move(&mut state, &keys, 0, 0, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 0, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
         // PP should NOT be deducted again
         assert_eq!(state.sides[0].team[0].pp[0], pp_after_turn1);
@@ -3793,7 +3796,7 @@ mod tests {
         let hp_before = state.sides[1].team[0].current_hp;
 
         // Side 0 uses a normal move (move 1 = Pound)
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Should miss due to semi-invulnerability
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
@@ -3815,7 +3818,7 @@ mod tests {
         state.sides[1].active.last_move = 19;
 
         // Side 0 uses Thunder (should hit through semi-invuln)
-        execute_move(&mut state, &keys, 0, MOVE_THUNDER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_THUNDER as u16, 0, &mut fixed_rng(0));
 
         // Thunder should deal damage through semi-invuln
         assert!(state.sides[1].team[0].current_hp < 300);
@@ -3832,7 +3835,7 @@ mod tests {
         state.sides[1].active._padding[1] = 2; // underground
         state.sides[1].active.last_move = 91; // Dig
 
-        execute_move(&mut state, &keys, 0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < 300);
     }
 
@@ -3846,7 +3849,7 @@ mod tests {
         state.sides[1].active._padding[1] = 3; // underwater
         state.sides[1].active.last_move = 291; // Dive
 
-        execute_move(&mut state, &keys, 0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < 300);
     }
 
@@ -3862,7 +3865,7 @@ mod tests {
 
         let hp_before = state.sides[1].team[0].current_hp;
         // Even Earthquake misses vanished targets
-        execute_move(&mut state, &keys, 0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
     }
 
@@ -3976,7 +3979,7 @@ mod tests {
         assert!(is_self_targeting(&md));
 
         // Dispatch the status effect (as if turn 2 has resolved)
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[SPA], 2);
         assert_eq!(state.sides[0].active.boosts[SPD], 2);
         assert_eq!(state.sides[0].active.boosts[SPE], 2);
@@ -4039,7 +4042,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
 
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
     }
 
@@ -4071,7 +4074,7 @@ mod tests {
 
         let hp_before = state.sides[1].team[0].current_hp;
         // Player action is irrelevant; move_id overridden to last_move=1
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         // Counter decremented from 2→1, still locked
         assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
@@ -4088,7 +4091,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Last locked turn: counter 1→0, lock clears, confusion applied
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
         assert_eq!(state.sides[0].active._padding[2], 0);
@@ -4105,13 +4108,13 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Turn 2: counter 2→1, still locked
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
         assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
         assert_eq!(state.sides[0].active._padding[2], 1);
         assert_eq!(state.sides[0].active.confusion_turns, 0);
 
         // Turn 3: counter 1→0, lock ends, confusion
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
         assert!(state.sides[0].active.confusion_turns >= 2);
         assert!(validate_hash(&state, &keys));
@@ -4126,7 +4129,7 @@ mod tests {
 
         let hp_before = state.sides[1].team[0].current_hp;
         // Player passes move_id=2, slot=1 — but lock overrides to move 1
-        execute_move(&mut state, &keys, 0, 2, 1, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 2, 1, &mut fixed_rng(0));
 
         // Damage dealt using move 1 (Pound), not move 2
         assert!(state.sides[1].team[0].current_hp < hp_before);
@@ -4142,7 +4145,7 @@ mod tests {
 
         let hp_before = state.sides[1].team[0].current_hp;
         // rng(4)==0 triggers full paralysis
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         // Move failed (full para), but lock ended and confusion applied
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
@@ -4158,7 +4161,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         // Didn't attack (flinched), but lock ended and confusion applied
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
@@ -4174,10 +4177,10 @@ mod tests {
         setup_thrash_locked(&mut state, &keys, 0, 1, 2);
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].pp[0], 9); // PP deducted
 
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].pp[0], 8); // PP deducted again
     }
 
@@ -4192,7 +4195,7 @@ mod tests {
         deal_damage(&mut state, &keys, 0, 0, 1);
         assert!(state.sides[0].team[0].is_fainted());
 
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         // No confusion on fainted mon
         assert_eq!(state.sides[0].active.confusion_turns, 0);
@@ -4207,7 +4210,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         // Asleep, didn't attack, but confusion still applied
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
@@ -4224,7 +4227,7 @@ mod tests {
         setup_thrash_locked(&mut state, &keys, 0, 1, 2);
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 99, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
         // Bookkeeping (last_move, consec_move_count) should NOT be updated on locked turns
         // last_move stays as 1 (set by setup_thrash_locked)
@@ -4241,7 +4244,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 200; // missing 100 HP
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
 
         // No damage, healed 25% of max HP (300/4 = 75)
         assert!(state.sides[1].team[0].current_hp > 200);
@@ -4256,7 +4259,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 200;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
 
         assert!(state.sides[1].team[0].current_hp > 200);
         assert!(validate_hash(&state, &keys));
@@ -4270,7 +4273,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 200;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
 
         assert!(state.sides[1].team[0].current_hp > 200);
         assert!(validate_hash(&state, &keys));
@@ -4284,7 +4287,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(state.sides[1].active.has_volatile(VOL_FLASH_FIRE));
@@ -4299,7 +4302,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert_eq!(state.sides[1].active.boosts[SPA], 1);
@@ -4314,7 +4317,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert_eq!(state.sides[1].active.boosts[SPA], 1);
@@ -4329,7 +4332,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert_eq!(state.sides[1].active.boosts[SPE], 1);
@@ -4344,7 +4347,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_ENERGY_BALL as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_ENERGY_BALL as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert_eq!(state.sides[1].active.boosts[ATK], 1);
@@ -4359,7 +4362,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
@@ -4373,7 +4376,7 @@ mod tests {
         state.field.gravity_turns = 3;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
 
         // Gravity overrides Levitate — should take damage
         assert!(state.sides[1].team[0].current_hp < 300);
@@ -4395,7 +4398,7 @@ mod tests {
             move_type: Type::Grass,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Overcoat blocks it — no sleep
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -4447,7 +4450,7 @@ mod tests {
             move_type: Type::Electric,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Should be blocked + healed, no paralysis
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -4468,7 +4471,7 @@ mod tests {
             move_type: Type::Grass,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Blocked by Sap Sipper, +1 Atk
         assert!(!state.sides[1].active.has_volatile(VOL_LEECH_SEED));
@@ -4482,7 +4485,7 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
 
         // Attacker type should now be Fire/Fire
         assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
@@ -4498,11 +4501,11 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // First move: type changes to Fire
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].active.override_types[0], Type::Fire as u8);
 
         // Second move: type should NOT change again (once per switch-in)
-        execute_move(&mut state, &keys, 0, MOVE_THUNDERBOLT as u16, 1, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_THUNDERBOLT as u16, 1, &mut fixed_rng(0));
         assert_eq!(state.sides[0].active.override_types[0], Type::Fire as u8);
         assert_eq!(state.sides[0].active._padding[3], 1);
     }
@@ -4514,7 +4517,7 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_LIBERO;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WATER_GUN as u16, 0, &mut fixed_rng(0));
 
         assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
         assert_eq!(state.sides[0].active.override_types, [Type::Water as u8, Type::Water as u8]);
@@ -4527,7 +4530,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Struggle (move_id=0) should not trigger Protean
-        execute_move(&mut state, &keys, 0, 0, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 0, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
     }
 
@@ -4561,7 +4564,7 @@ mod tests {
         // fallback so no inner dispatch can fire Protean. Metronome (118) now
         // dispatches an inner move; that inner-fire path is asserted by
         // test_metronome_protean_fires_on_inner_type.
-        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 274, 0, &mut fixed_rng(0));
 
         assert!(!state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
         assert_eq!(state.sides[0].active._padding[3] & 1, 0);
@@ -4580,7 +4583,7 @@ mod tests {
             state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
             state.zobrist = compute_full_hash(&state, &keys);
 
-            execute_move(&mut state, &keys, 0, call_id, 0, &mut fixed_rng(0));
+            execute_move(&mut state, &keys, &TeamData::default(),0, call_id, 0, &mut fixed_rng(0));
 
             assert!(
                 !state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN),
@@ -4600,7 +4603,7 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
 
         assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
         assert_eq!(state.sides[0].active.override_types, [Type::Fire as u8, Type::Fire as u8]);
@@ -4618,22 +4621,22 @@ mod tests {
     fn test_stance_change_to_blade() {
         let (mut state, keys) = setup();
         use crate::data::MOVE_SHADOW_BALL;
-        // setup() gives side 0 stats [150, 100, 150, 100, 100], level 100
         state.sides[0].team[0].species_id = 681; // Aegislash Shield
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_STANCE_CHANGE;
         state.zobrist = compute_full_hash(&state, &keys);
 
+        // Blade stats are re-derived from the build (IV 31 / EV 0 / neutral, L100).
+        let build = MonBuildData { ivs: [31; 6], evs: [0; 6], nature: 0 };
+        let teams = TeamData { mons: [[build; 6]; 2], levels: [[100; 6]; 2] };
+
         // Attacking move → should change to Blade forme
-        execute_move(&mut state, &keys, 0, MOVE_SHADOW_BALL as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &teams, 0, MOVE_SHADOW_BALL as u16, 0, &mut fixed_rng(99));
 
         assert_eq!(effective_species(&state, 0), 1103); // Aegislash-Blade
-        // Aegislash Shield: atk:50, def:140, spa:50, spd:140, spe:60
-        // Aegislash Blade:  atk:140, def:50,  spa:140, spd:50,  spe:60
-        // Stat formula at L100 neutral: stat = 2*base + T + 5 where T = stat_old - 5 - 2*base_old
-        //   atk: T = 150 - 5 - 100 = 45, new = 2*140 + 45 + 5 = 330
-        //   def: T = 100 - 5 - 280 = saturating 0, new = 2*50 + 0 + 5 = 105
-        assert_eq!(effective_stat(&state, 0, ATK), 330);
-        assert_eq!(effective_stat(&state, 0, DEF), 105);
+        // Aegislash Blade: atk:140, def:50. L100 neutral 31/0:
+        //   atk = 2*140 + 31 + 5 = 316, def = 2*50 + 31 + 5 = 136
+        assert_eq!(effective_stat(&state, 0, ATK), 316);
+        assert_eq!(effective_stat(&state, 0, DEF), 136);
         assert!(validate_hash(&state, &keys));
     }
 
@@ -4647,11 +4650,11 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // First, manually set to Blade forme
-        crate::state::forme::apply_battle_forme(&mut state, &keys, 0, 1103);
+        crate::state::forme::apply_battle_forme(&mut state, &keys, &TeamData::default(), 0, 1103);
         assert_eq!(effective_species(&state, 0), 1103);
 
         // King's Shield → should revert to Shield forme
-        execute_move(&mut state, &keys, 0, MOVE_KING_S_SHIELD as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_KING_S_SHIELD as u16, 0, &mut fixed_rng(99));
 
         assert_eq!(effective_species(&state, 0), 681);
         assert_eq!(effective_stat(&state, 0, ATK), 100); // back to team stats
@@ -4667,7 +4670,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Status move (not King's Shield) → should NOT change forme
-        execute_move(&mut state, &keys, 0, MOVE_SWORDS_DANCE as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SWORDS_DANCE as u16, 0, &mut fixed_rng(99));
 
         assert_eq!(effective_species(&state, 0), 681); // still Shield
         assert!(validate_hash(&state, &keys));
@@ -4680,7 +4683,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let max_hp = state.sides[1].team[0].max_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Disguise blocks damage but costs 1/8 max HP
         assert_eq!(state.sides[1].team[0].current_hp, max_hp - max_hp / 8);
@@ -4697,7 +4700,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Second hit goes through normally
         assert!(state.sides[1].team[0].current_hp < hp_before);
@@ -4711,7 +4714,7 @@ mod tests {
 
         let hp_before = state.sides[1].team[0].current_hp;
         // Move 1 (Pound) is Physical in gen data
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Ice Face blocks the physical hit — no damage
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
@@ -4728,7 +4731,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Flamethrower is Special — Ice Face doesn't block
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(0));
 
         assert!(state.sides[1].team[0].current_hp < 300);
         // Shield NOT broken by special move
@@ -4743,7 +4746,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Second physical hit goes through
         assert!(state.sides[1].team[0].current_hp < hp_before);
@@ -4758,7 +4761,7 @@ mod tests {
         state.sides[1].active.substitute_hp = 100;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Substitute takes the hit, Disguise NOT consumed
         assert_eq!(state.sides[1].active._padding[4] & 1, 0);
@@ -4773,7 +4776,7 @@ mod tests {
         let atk_hp = state.sides[0].team[0].current_hp;
         let atk_max = state.sides[0].team[0].max_hp;
         // Pound (1) is Contact/Physical
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Attacker should lose 1/8 max HP from Rough Skin
         let expected_rough = (atk_max / 8).max(1);
@@ -4791,7 +4794,7 @@ mod tests {
 
         let atk_hp = state.sides[0].team[0].current_hp;
         // Flamethrower is Special, no Contact — Rough Skin should NOT trigger
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp);
     }
@@ -4804,7 +4807,7 @@ mod tests {
 
         let atk_hp = state.sides[0].team[0].current_hp;
         let atk_max = state.sides[0].team[0].max_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         let expected = (atk_max / 8).max(1);
         assert!(state.sides[0].team[0].current_hp <= atk_hp - expected);
@@ -4817,7 +4820,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Pound is Physical → triggers Weak Armor
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[1].active.boosts[DEF], -1);
         assert_eq!(state.sides[1].active.boosts[SPE], 2);
@@ -4831,7 +4834,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Flamethrower is Special → no Weak Armor
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
         assert_eq!(state.sides[1].active.boosts[SPE], 0);
@@ -4845,7 +4848,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Bite is Dark/Contact
-        execute_move(&mut state, &keys, 0, MOVE_BITE as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_BITE as u16, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[1].active.boosts[ATK], 1);
     }
@@ -4857,7 +4860,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Pound is Normal → no Justified
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
     }
@@ -4868,7 +4871,7 @@ mod tests {
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_STAMINA;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[1].active.boosts[DEF], 1);
     }
@@ -4882,7 +4885,7 @@ mod tests {
         // fixed_rng(0): rng(24)==0 → crit, rng(4)==0 → paralysis...
         // But attacker isn't paralyzed. The defender has Anger Point.
         // We need the move to hit AND crit. fixed_rng(0) gives crit.
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         // Anger Point should maximize Atk to +6
         assert_eq!(state.sides[1].active.boosts[ATK], 6);
@@ -4895,7 +4898,7 @@ mod tests {
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_COLOR_CHANGE;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
 
         // Defender type should now be Fire/Fire
         assert!(state.sides[1].active.has_volatile(VOL_TYPES_OVERRIDDEN));
@@ -4909,7 +4912,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // fixed_rng(0): rng(100)==0 < 30 → triggers
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_BURN);
     }
@@ -4921,7 +4924,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // fixed_rng(99): rng(100)==99 >= 30 → does not trigger
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     }
@@ -4935,7 +4938,7 @@ mod tests {
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_STATIC;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
     }
@@ -4946,7 +4949,7 @@ mod tests {
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_POISON_POINT;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_POISON);
     }
@@ -4960,7 +4963,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let atk_hp = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Rough Skin doesn't trigger through substitute
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp);
@@ -4974,7 +4977,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -4986,7 +4989,7 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_MOXIE;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(!state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
@@ -5001,7 +5004,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         // SPA (index 2) should be boosted
@@ -5019,7 +5022,7 @@ mod tests {
         let atk_hp = state.sides[0].team[0].current_hp;
         let atk_max = state.sides[0].team[0].max_hp;
         // Pound is Contact → Aftermath triggers
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         let expected = atk_max / 4;
@@ -5036,7 +5039,7 @@ mod tests {
 
         let atk_hp = state.sides[0].team[0].current_hp;
         // Flamethrower is Special, no Contact → Aftermath should NOT trigger
-        execute_move(&mut state, &keys, 0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_FLAMETHROWER as u16, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp);
@@ -5051,7 +5054,7 @@ mod tests {
 
         let atk_hp = state.sides[0].team[0].current_hp;
         let atk_max = state.sides[0].team[0].max_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         let expected = (atk_max / 8).max(1);
@@ -5069,7 +5072,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let atk_hp = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp);
@@ -5087,7 +5090,7 @@ mod tests {
 
         let atk_hp = state.sides[0].team[0].current_hp;
         let atk_max = state.sides[0].team[0].max_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp - atk_max / 4);
@@ -5102,7 +5105,7 @@ mod tests {
         // Need rng sequence where: accuracy hits, no crit concern, effect spore roll < 10
         // fixed_rng(0) gives: rng(100)=0 for accuracy (hit), rng(24)=0 (crit, but doesn't matter
         // for status), and rng(100)=0 for effect spore → 0 < 10 → sleep
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP);
     }
@@ -5115,7 +5118,7 @@ mod tests {
         state.sides[1].active.substitute_hp = 200;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Stamina doesn't trigger when sub takes the hit
         assert_eq!(state.sides[1].active.boosts[DEF], 0);
@@ -5131,7 +5134,7 @@ mod tests {
         state.sides[0].team[0].stats[ATK] = 500; // Very high attack to guarantee OHKO
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Should survive with 1 HP
         assert_eq!(state.sides[1].team[0].current_hp, 1);
@@ -5149,7 +5152,7 @@ mod tests {
         state.sides[0].team[0].stats[ATK] = 500;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Should faint — sash only works at full HP
         assert!(state.sides[1].team[0].is_fainted());
@@ -5166,7 +5169,7 @@ mod tests {
         state.sides[0].team[0].stats[ATK] = 500;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Should survive with 1 HP (ability, not consumed)
         assert_eq!(state.sides[1].team[0].current_hp, 1);
@@ -5182,7 +5185,7 @@ mod tests {
         state.sides[0].team[0].stats[ATK] = 500;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
     }
@@ -5216,7 +5219,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_CLOSE_COMBAT as u16;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_CLOSE_COMBAT as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_CLOSE_COMBAT as u16, 0, &mut fixed_rng(0));
         // Damage should have been dealt
         assert!(state.sides[1].team[0].current_hp < hp_before);
         // Attacker should have -1 Def and -1 SpD
@@ -5234,7 +5237,7 @@ mod tests {
         let atk_hp_before = state.sides[0].team[0].current_hp;
         let def_hp_before = state.sides[1].team[0].current_hp;
         // Use rng that always misses (rng(100) returns 99 >= 90 accuracy)
-        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(99));
         // Defender should NOT have taken damage (miss)
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
         // Attacker should have taken 50% max HP crash damage
@@ -5251,7 +5254,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let atk_hp_before = state.sides[0].team[0].current_hp;
         // Use rng that always hits (rng(100) returns 0 < 90 accuracy)
-        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
         // On hit, no crash damage — attacker HP should be unchanged
         // (HJK has no recoil on hit, drain=0)
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp_before);
@@ -5268,7 +5271,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp; // 100
         let max_hp = state.sides[0].team[0].max_hp; // 300
-        execute_move(&mut state, &keys, 0, MOVE_RECOVER as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_RECOVER as u16, 0, &mut fixed_rng(0));
         // Should heal 50% of max HP
         assert_eq!(state.sides[0].team[0].current_hp, hp_before + max_hp / 2);
         assert!(validate_hash(&state, &keys));
@@ -5280,7 +5283,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
         // U-turn should set VOL_MUST_SWITCH (attacker has a bench mon)
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
         assert!(validate_hash(&state, &keys));
@@ -5294,7 +5297,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 200;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_EARTHQUAKE as u16, 0, &mut fixed_rng(0));
 
         // Should heal, not take damage
         assert!(state.sides[1].team[0].current_hp > 200);
@@ -5309,7 +5312,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_AURA_SPHERE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_AURA_SPHERE as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
@@ -5323,7 +5326,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
@@ -5337,7 +5340,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
 
         assert!(state.sides[1].team[0].current_hp < hp_before);
     }
@@ -5456,7 +5459,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_OVERHEAT as u16;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_OVERHEAT as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_OVERHEAT as u16, 0, &mut fixed_rng(0));
         // Damage dealt
         assert!(state.sides[1].team[0].current_hp < hp_before);
         // Attacker should have -2 SpA
@@ -5475,7 +5478,7 @@ mod tests {
         let atk_hp_before = state.sides[0].team[0].current_hp;
         let def_hp_before = state.sides[1].team[0].current_hp;
         // RNG set to hit (0 < 90 accuracy), but Fighting is immune to Ghost
-        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
         // Defender should NOT have taken damage (type immune)
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
         // Attacker should have taken 50% max HP crash damage
@@ -5494,7 +5497,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let atk_hp_before = state.sides[0].team[0].current_hp;
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_HIGH_JUMP_KICK as u16, 0, &mut fixed_rng(0));
         // Defender should NOT have taken damage (Protect)
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before);
         // Attacker should have taken 50% max HP crash damage
@@ -5511,7 +5514,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves[0] = MOVE_WILL_O_WISP as u16;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
         // No stat changes on attacker from self-effect dispatch
         for i in 0..7 {
             assert_eq!(state.sides[0].active.boosts[i], 0);
@@ -5526,7 +5529,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
         state.sides[1].team[0].item_id = 242; // Leftovers (regular item)
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].item_id, 0);
         assert!(validate_hash(&state, &keys));
     }
@@ -5540,7 +5543,7 @@ mod tests {
         state.sides[1].team[0].species_id = 493; // Arceus
         state.sides[1].team[0].item_id = 105;    // Draco Plate
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].item_id, 105); // item NOT removed
         assert!(validate_hash(&state, &keys));
     }
@@ -5553,7 +5556,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_KNOCK_OFF as u16;
         state.sides[1].team[0].item_id = 105; // Draco Plate, but holder is species 50
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].item_id, 0); // item removed
         assert!(validate_hash(&state, &keys));
     }
@@ -5566,7 +5569,7 @@ mod tests {
         state.sides[1].team[0].item_id = 242; // Leftovers
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_STICKY_HOLD;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].item_id, 242); // item kept
         assert!(validate_hash(&state, &keys));
     }
@@ -5582,7 +5585,7 @@ mod tests {
         state_locked.sides[1].team[0].item_id = 105;    // Draco Plate
         state_locked.zobrist = compute_full_hash(&state_locked, &keys);
         let hp_before_locked = state_locked.sides[1].team[0].current_hp;
-        execute_move(&mut state_locked, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state_locked, &keys, &TeamData::default(), 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
         let dmg_locked = hp_before_locked - state_locked.sides[1].team[0].current_hp;
 
         let (mut state_normal, _) = setup();
@@ -5590,7 +5593,7 @@ mod tests {
         state_normal.sides[1].team[0].item_id = 242; // Leftovers (removable)
         state_normal.zobrist = compute_full_hash(&state_normal, &keys);
         let hp_before_normal = state_normal.sides[1].team[0].current_hp;
-        execute_move(&mut state_normal, &keys, 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state_normal, &keys, &TeamData::default(), 0, MOVE_KNOCK_OFF as u16, 0, &mut fixed_rng(0));
         let dmg_normal = hp_before_normal - state_normal.sides[1].team[0].current_hp;
 
         // Normal target with removable item should take MORE damage (1.5x boost)
@@ -5607,7 +5610,7 @@ mod tests {
         state.sides[0].side_conditions.toxic_spikes = 2;
         state.sides[0].side_conditions.hazard_flags = HAZARD_STEALTH_ROCK | HAZARD_STICKY_WEB;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].side_conditions.spikes, 0);
         assert_eq!(state.sides[0].side_conditions.toxic_spikes, 0);
         assert_eq!(state.sides[0].side_conditions.hazard_flags, 0);
@@ -5621,7 +5624,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
         state.sides[0].active.set_volatile(VOL_LEECH_SEED);
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_LEECH_SEED));
         assert!(validate_hash(&state, &keys));
     }
@@ -5633,7 +5636,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
         state.sides[0].active.set_volatile(VOL_BOUND);
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_BOUND));
         assert!(validate_hash(&state, &keys));
     }
@@ -5644,7 +5647,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves[0] = MOVE_RAPID_SPIN as u16;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].active.boosts[SPE], 1);
         assert!(validate_hash(&state, &keys));
     }
@@ -5659,7 +5662,7 @@ mod tests {
         state.sides[0].side_conditions.hazard_flags = HAZARD_STEALTH_ROCK;
         state.sides[0].active.set_volatile(VOL_LEECH_SEED);
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_RAPID_SPIN as u16, 0, &mut fixed_rng(0));
         // Sheer Force suppresses all secondary effects
         assert_eq!(state.sides[0].side_conditions.spikes, 2);
         assert_eq!(state.sides[0].side_conditions.hazard_flags, HAZARD_STEALTH_ROCK);
@@ -5680,7 +5683,7 @@ mod tests {
         state.sides[1].side_conditions.toxic_spikes = 1;
         state.sides[1].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
         // Both sides cleared
         assert_eq!(state.sides[0].side_conditions.spikes, 0);
         assert_eq!(state.sides[0].side_conditions.hazard_flags, 0);
@@ -5699,7 +5702,7 @@ mod tests {
         state.sides[1].side_conditions.light_screen_turns = 3;
         state.sides[1].side_conditions.aurora_veil_turns = 2;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].side_conditions.reflect_turns, 0);
         assert_eq!(state.sides[1].side_conditions.light_screen_turns, 0);
         assert_eq!(state.sides[1].side_conditions.aurora_veil_turns, 0);
@@ -5712,7 +5715,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves[0] = MOVE_DEFOG as u16;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].active.boosts[EVA], -1);
         assert!(validate_hash(&state, &keys));
     }
@@ -5725,7 +5728,7 @@ mod tests {
         state.field.terrain = TERRAIN_ELECTRIC;
         state.field.terrain_turns = 5;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.field.terrain, TERRAIN_NONE);
         assert_eq!(state.field.terrain_turns, 0);
         assert!(validate_hash(&state, &keys));
@@ -5739,7 +5742,7 @@ mod tests {
         state.sides[1].side_conditions.set_safeguard_turns(5);
         state.sides[1].side_conditions.set_mist_turns(5);
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_DEFOG as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].side_conditions.safeguard_turns(), 0);
         assert_eq!(state.sides[1].side_conditions.mist_turns(), 0);
         assert!(validate_hash(&state, &keys));
@@ -5754,7 +5757,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
 
         // Good as Gold blocks status moves — no burn applied
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -5770,7 +5773,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Pound is Contact → triggers Mummy
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[0].active.override_ability, data_bridge::ABILITY_MUMMY);
         assert!(state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
@@ -5785,7 +5788,7 @@ mod tests {
 
         let spikes_before = state.sides[0].side_conditions.toxic_spikes;
         // Pound is Physical → triggers Toxic Debris on attacker's side
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[0].side_conditions.toxic_spikes > spikes_before);
         assert!(validate_hash(&state, &keys));
@@ -5798,7 +5801,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // fixed_rng(0): rng(100)==0 < 30 → triggers
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[1].team[0].status, STATUS_POISON);
         assert!(validate_hash(&state, &keys));
@@ -5813,7 +5816,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 160; // 160/300 > 50%
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         let hp_after = state.sides[1].team[0].current_hp;
         if hp_after > 0 && hp_after * 2 <= 300 {
@@ -5829,7 +5832,7 @@ mod tests {
         state2.sides[1].team[0].current_hp = 100; // 100/300 < 50%
         state2.zobrist = compute_full_hash(&state2, &keys2);
 
-        execute_move(&mut state2, &keys2, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state2, &keys2, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state2.sides[1].active.boosts[SPA], 0,
             "Berserk should NOT trigger when already below 50%");
@@ -5846,7 +5849,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let atk_hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         // Defender should faint
         assert!(state.sides[1].team[0].is_fainted());
@@ -5863,7 +5866,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Pound is Contact → triggers Lingering Aroma
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_eq!(state.sides[0].active.override_ability, data_bridge::ABILITY_LINGERING_AROMA);
         assert!(state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
@@ -5878,7 +5881,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Pound is Contact, but Stance Change is cantsuppress
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert_ne!(state.sides[0].active.override_ability, data_bridge::ABILITY_MUMMY);
         assert!(!state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
@@ -5895,7 +5898,7 @@ mod tests {
         state.sides[1].team[0].species_id = 143; // Snorlax (Normal) — neutral to Electric
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before_with = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(85));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(85));
         let dmg_with = hp_before_with - state.sides[1].team[0].current_hp;
 
         // Same setup without Galvanize (no STAB, no -ate boost)
@@ -5904,7 +5907,7 @@ mod tests {
         state2.sides[1].team[0].species_id = 143;
         state2.zobrist = compute_full_hash(&state2, &keys2);
         let hp_before_without = state2.sides[1].team[0].current_hp;
-        execute_move(&mut state2, &keys2, 0, 1, 0, &mut fixed_rng(85));
+        execute_move(&mut state2, &keys2, &TeamData::default(), 0, 1, 0, &mut fixed_rng(85));
         let dmg_without = hp_before_without - state2.sides[1].team[0].current_hp;
 
         // Galvanize gives 1.2× power boost AND STAB (1.5×), so damage should be ~1.8× higher
@@ -5918,7 +5921,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -5931,7 +5934,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -5944,7 +5947,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -5957,7 +5960,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -5971,7 +5974,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -5989,7 +5992,7 @@ mod tests {
         state.sides[1].team[1].max_hp = 100;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -6006,7 +6009,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
@@ -6021,7 +6024,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -6034,7 +6037,7 @@ mod tests {
         state.sides[1].team[0].current_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[1].active.boosts[SPA], 0);
@@ -6048,7 +6051,7 @@ mod tests {
         state.field.terrain_turns = 5;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_SPORE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SPORE as u16, 0, &mut fixed_rng(0));
 
         // Grounded mon should not be put to sleep
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -6063,7 +6066,7 @@ mod tests {
         state.field.terrain_turns = 5;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_WILL_O_WISP as u16, 0, &mut fixed_rng(0));
 
         // Grounded mon should not be burned
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
@@ -6079,7 +6082,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
 
         // Priority move should fail against grounded target
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
@@ -6095,7 +6098,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SURF as u16, 0, &mut fixed_rng(0));
 
         // Normal priority move should work
         assert!(state.sides[1].team[0].current_hp < hp_before);
@@ -6113,7 +6116,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_QUICK_ATTACK as u16, 0, &mut fixed_rng(0));
 
         // Non-grounded target should still take priority damage
         assert!(state.sides[1].team[0].current_hp < hp_before);
@@ -6128,7 +6131,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < hp_before);
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
         assert!(validate_hash(&state, &keys));
@@ -6141,7 +6144,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
         state.sides[0].team[1].current_hp = 0;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
         assert!(validate_hash(&state, &keys));
     }
@@ -6155,7 +6158,7 @@ mod tests {
         state.sides[1].active.boosts[EVA] = 6;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(99));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(99));
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
         assert!(validate_hash(&state, &keys));
@@ -6171,7 +6174,7 @@ mod tests {
             effect: MoveEffect::PartingShot,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(99), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(99), 0);
         assert_eq!(state.sides[1].active.boosts[ATK], -1);
         assert_eq!(state.sides[1].active.boosts[SPA], -1);
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
@@ -6185,7 +6188,7 @@ mod tests {
         state.sides[1].active.substitute_hp = 200;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(state.sides[1].active.substitute_hp < 200);
         assert!(validate_hash(&state, &keys));
@@ -6197,7 +6200,7 @@ mod tests {
         state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
         state.sides[1].active.substitute_hp = 1;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 1, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
         assert!(!state.sides[1].active.has_volatile(VOL_SUBSTITUTE));
         assert_eq!(state.sides[1].active.substitute_hp, 0);
         assert!(validate_hash(&state, &keys));
@@ -6211,7 +6214,7 @@ mod tests {
         state.sides[1].active.substitute_hp = 500;
         state.sides[0].team[0].moves[0] = MOVE_SCALD as u16;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
         assert!(state.sides[1].active.substitute_hp < 500);
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
         assert!(validate_hash(&state, &keys));
@@ -6226,7 +6229,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_BOOMBURST as u16;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_BOOMBURST as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_BOOMBURST as u16, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < hp_before);
         assert_eq!(state.sides[1].active.substitute_hp, 100);
         assert!(state.sides[1].active.has_volatile(VOL_SUBSTITUTE));
@@ -6241,7 +6244,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
         let helmet_damage = 300 / 6; // 50
         assert!(hp_before - state.sides[0].team[0].current_hp >= helmet_damage as u16);
         assert!(validate_hash(&state, &keys));
@@ -6255,7 +6258,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_SCALD as u16;
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
     }
@@ -6273,7 +6276,7 @@ mod tests {
             move_type: Type::Fire,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
         assert!(validate_hash(&state, &keys));
@@ -6325,7 +6328,7 @@ mod tests {
             effect: MoveEffect::Confuse,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert_eq!(state.sides[1].active.confusion_turns, 0);
     }
@@ -6342,7 +6345,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
     }
@@ -6375,7 +6378,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_CLOSE_COMBAT as u16;
         state.zobrist = compute_full_hash(&state, &keys);
 
-        execute_move(&mut state, &keys, 0, MOVE_CLOSE_COMBAT as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_CLOSE_COMBAT as u16, 0, &mut fixed_rng(0));
 
         // Self-inflicted drops from Close Combat should still apply
         assert_eq!(state.sides[0].active.boosts[DEF], -1);
@@ -6395,7 +6398,7 @@ mod tests {
             effect: MoveEffect::PartingShot,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Mist blocks the stat drops
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
@@ -6457,7 +6460,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // rng(100) < 30 triggers Flame Body — but Safeguard should block
-        execute_move(&mut state, &keys, 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     }
@@ -6474,7 +6477,7 @@ mod tests {
             effect: MoveEffect::Defog,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // EVA drop should be blocked by Mist
         assert_eq!(state.sides[1].active.boosts[EVA], 0);
@@ -6522,25 +6525,25 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         // Stack 1
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPD], 1);
 
         // Stack 2
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 2);
         assert_eq!(state.sides[0].active.boosts[DEF], 2);
         assert_eq!(state.sides[0].active.boosts[SPD], 2);
 
         // Stack 3
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 3);
         assert_eq!(state.sides[0].active.boosts[DEF], 3);
         assert_eq!(state.sides[0].active.boosts[SPD], 3);
 
         // Stack 4 — should NOT increment
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.stockpile & 0x7F, 3);
         assert_eq!(state.sides[0].active.boosts[DEF], 3);
         assert!(validate_hash(&state, &keys));
@@ -6557,7 +6560,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
 
         let hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_SPIT_UP as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SPIT_UP as u16, 0, &mut fixed_rng(0));
         let hp_after = state.sides[1].team[0].current_hp;
 
         // Defender should have taken damage (200 BP through calc)
@@ -6585,7 +6588,7 @@ mod tests {
             effect: MoveEffect::Swallow,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // 2 stacks = heal max_hp/2 = 150; 100 + 150 = 250
         assert_eq!(state.sides[0].team[0].current_hp, 250);
@@ -6610,7 +6613,7 @@ mod tests {
             effect: MoveEffect::Trick,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         assert_eq!(state.sides[0].team[0].item_id, 243);
         assert_eq!(state.sides[1].team[0].item_id, 242);
@@ -6631,7 +6634,7 @@ mod tests {
             effect: MoveEffect::Trick,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Items should NOT be swapped
         assert_eq!(state.sides[0].team[0].item_id, 242);
@@ -6653,7 +6656,7 @@ mod tests {
             effect: MoveEffect::Trick,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Items should NOT be swapped
         assert_eq!(state.sides[0].team[0].item_id, 242);
@@ -6672,19 +6675,19 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // VOL_YAWN should be set, no sleep yet
         assert!(state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
 
         // After 1st EOT: yawn still active, no sleep yet (2-turn delay)
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert!(state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
 
         // After 2nd EOT: yawn triggers sleep and volatile clears
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_SLEEP);
     }
@@ -6701,7 +6704,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // VOL_YAWN should NOT be set
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
@@ -6720,7 +6723,7 @@ mod tests {
             effect: MoveEffect::Yawn,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // VOL_YAWN should NOT be set (terrain blocks sleep)
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
@@ -6738,7 +6741,7 @@ mod tests {
             effect: MoveEffect::BellyDrum,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 6);
         assert_eq!(state.sides[0].team[0].current_hp, 300 - 150);
         assert!(validate_hash(&state, &keys));
@@ -6756,7 +6759,7 @@ mod tests {
             effect: MoveEffect::BellyDrum,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
         assert_eq!(state.sides[0].team[0].current_hp, 150);
         assert!(validate_hash(&state, &keys));
@@ -6771,7 +6774,7 @@ mod tests {
             effect: MoveEffect::ShellSmash,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[0].active.boosts[SPA], 2);
         assert_eq!(state.sides[0].active.boosts[SPE], 2);
@@ -6790,7 +6793,7 @@ mod tests {
             effect: MoveEffect::ClangorousSoul,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -6812,7 +6815,7 @@ mod tests {
             effect: MoveEffect::ClangorousSoul,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
         assert_eq!(state.sides[0].team[0].current_hp, 99);
         assert!(validate_hash(&state, &keys));
@@ -6828,7 +6831,7 @@ mod tests {
             effect: MoveEffect::Curse,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPE], -1);
@@ -6844,7 +6847,7 @@ mod tests {
             effect: MoveEffect::NoRetreat,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[DEF], 1);
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
@@ -6852,7 +6855,7 @@ mod tests {
         assert_eq!(state.sides[0].active.boosts[SPE], 1);
         assert!(state.sides[0].active.has_volatile(VOL_TRAPPED));
         // Second use should fail
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1); // unchanged
         assert!(validate_hash(&state, &keys));
     }
@@ -6878,7 +6881,7 @@ mod tests {
             effect: MoveEffect::TidyUp,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
 
         // Boosts
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
@@ -6905,7 +6908,7 @@ mod tests {
         state.sides[1].team[0].item_id = 417; // Rocky Helmet
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
     }
@@ -6919,7 +6922,7 @@ mod tests {
         state.sides[1].team[0].item_id = 417; // Rocky Helmet
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_SCALD as u16, 0, &mut fixed_rng(0));
         // Scald is non-contact, Rocky Helmet doesn't trigger regardless
         assert_eq!(state.sides[0].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
@@ -6934,7 +6937,7 @@ mod tests {
         state.sides[1].team[0].item_id = 417; // Rocky Helmet
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_MACH_PUNCH as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_MACH_PUNCH as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].current_hp, hp_before);
         assert!(validate_hash(&state, &keys));
     }
@@ -6948,7 +6951,7 @@ mod tests {
         state.sides[1].team[0].item_id = 417; // Rocky Helmet
         state.zobrist = compute_full_hash(&state, &keys);
         let hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
         // Tackle is contact but not punch — Rocky Helmet still triggers
         assert!(state.sides[0].team[0].current_hp < hp_before);
         assert!(validate_hash(&state, &keys));
@@ -6963,7 +6966,7 @@ mod tests {
         state.sides[0].team[0].moves[0] = MOVE_TACKLE as u16;
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_MUMMY;
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
         assert_eq!(effective_ability(&state, 0), data_bridge::ABILITY_INTIMIDATE);
         assert!(validate_hash(&state, &keys));
     }
@@ -7058,7 +7061,7 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[1].active.boosts[ATK], 2);
         assert_eq!(state.sides[1].team[0].item_id, 0);
@@ -7074,7 +7077,7 @@ mod tests {
             effect: MoveEffect::DragonDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
         assert_eq!(state.sides[0].active.boosts[SPE], 1);
         assert_eq!(state.sides[1].active.boosts[ATK], 1);
@@ -7093,7 +7096,7 @@ mod tests {
             effect: MoveEffect::ShellSmash,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         // Attacker gets all boosts/drops
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[0].active.boosts[DEF], -1);
@@ -7115,10 +7118,10 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[1].team[0].item_id, 0);
         // Second Swords Dance: no mirror herb to trigger
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 4);
         assert_eq!(state.sides[1].active.boosts[ATK], 2); // no additional copy
         assert!(validate_hash(&state, &keys));
@@ -7134,7 +7137,7 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert!(state.sides[1].active.has_volatile(VOL_UNBURDEN));
         assert!(validate_hash(&state, &keys));
     }
@@ -7149,7 +7152,7 @@ mod tests {
             effect: MoveEffect::SwordsDance,
             ..unsafe { core::mem::zeroed() }
         };
-        execute_status_move(&mut state, &keys, 0, 1, &md, &mut fixed_rng(0), 0);
+        execute_status_move(&mut state, &keys, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[1].active.boosts[ATK], 0); // blocked
         assert_ne!(state.sides[1].team[0].item_id, 0); // not consumed
@@ -7302,7 +7305,7 @@ mod tests {
     fn test_sleep_talk_outer_pp_only_inner_untouched() {
         // Fixture #1: outer slot PP decrements once; inner slot PP unchanged.
         let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 3);
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].pp[0], 23, "outer Sleep Talk PP not decremented");
         assert_eq!(state.sides[0].team[0].pp[1], 24, "inner move PP must be untouched");
         assert!(validate_hash(&state, &keys));
@@ -7312,7 +7315,7 @@ mod tests {
     fn test_sleep_talk_decrements_sleep_counter_once() {
         // Fixture #5: sleep counter decrements exactly once on a Sleep Talk turn.
         let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 3);
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].status_counter, 2);
         assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP);
         assert!(validate_hash(&state, &keys));
@@ -7323,7 +7326,7 @@ mod tests {
         // counter == 1 → prelude clears sleep AND breaks 'exec; no inner dispatch.
         let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 1);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE, "should have woken up");
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "no inner damage");
     }
@@ -7336,7 +7339,7 @@ mod tests {
         state.sides[0].team[0].pp = [24, 24, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "awake user must not dispatch inner");
     }
 
@@ -7347,7 +7350,7 @@ mod tests {
         // With moveset [Sleep Talk, Meteor Beam], the candidate set is empty → no dispatch.
         let (mut state, keys) = setup_sleeping([214, 800, 0, 0], [24, 10, 0, 0], 3);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].pp[0], 23, "outer PP still deducted");
         assert_eq!(state.sides[0].team[0].pp[1], 10, "Meteor Beam PP untouched");
         assert!(!state.sides[0].active.has_volatile(VOL_CHARGING), "Meteor Beam must NOT be rolled");
@@ -7362,7 +7365,7 @@ mod tests {
         // affirmative writes last_move = inner_id so execute_move:2851's resume
         // reads Outrage on T2 (NOT Sleep Talk).
         let (mut state, keys) = setup_sleeping([214, 200, 0, 0], [24, 24, 0, 0], 3);
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED), "Outrage must engage lock");
         assert!(state.sides[0].active._padding[2] >= 1, "lock turns remaining");
         assert_eq!(state.sides[0].active.last_move, 200, "R-b affirmative: resume target = inner Outrage");
@@ -7376,7 +7379,7 @@ mod tests {
         // Mirror Move read (data/moves.ts:12069) sees Sleep Talk, not Tackle.
         let (mut state, keys) = setup_sleeping([214, 33, 0, 0], [24, 24, 0, 0], 3);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < def_hp_before, "Tackle must hit");
         assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
@@ -7393,7 +7396,7 @@ mod tests {
         state.pending_actions[1] = 0; // defender will use slot 0 (Pound) — damaging
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < def_hp_before, "Sucker Punch must hit");
         assert_eq!(state.sides[0].active.last_move, 214, "R-b negative on damaging inner");
         assert!(validate_hash(&state, &keys));
@@ -7407,7 +7410,7 @@ mod tests {
         state.pending_actions[1] = 0;
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 214, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "defender-already-moved gate must hold");
     }
 
@@ -7430,7 +7433,7 @@ mod tests {
         state.sides[0].team[0].moves = [118, 1, 0, 0];
         state.sides[0].team[0].pp = [10, 24, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].team[0].pp[0], 9, "outer Metronome PP decremented once");
         assert_eq!(state.sides[0].team[0].pp[1], 24, "non-rolled slot untouched");
         assert!(validate_hash(&state, &keys));
@@ -7445,7 +7448,7 @@ mod tests {
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.sides[0].team[0].item_id = 68; // Choice Band
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[0].active.choice_locked_move, 118,
             "Choice-lock latches outer Metronome id, not the inner"
@@ -7464,7 +7467,7 @@ mod tests {
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(76)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(76)));
         assert!(
             state.sides[0].active.has_volatile(VOL_CHARGING),
             "Solar Beam outside sun must engage VOL_CHARGING on T1"
@@ -7488,7 +7491,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(200)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(200)));
         assert!(
             state.sides[0].active.has_volatile(VOL_MOVE_LOCKED),
             "Outrage must engage VOL_MOVE_LOCKED"
@@ -7510,7 +7513,7 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_STANCE_CHANGE;
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(89)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(89)));
         assert_eq!(
             effective_species(&state, 0), 1103,
             "Aegislash-Shield must flip to Blade on inner damaging dispatch"
@@ -7526,7 +7529,7 @@ mod tests {
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(33)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(33)));
         assert!(state.sides[1].team[0].current_hp < def_hp_before, "Tackle must hit");
         assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
@@ -7548,7 +7551,7 @@ mod tests {
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_PROTEAN;
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(89)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(89)));
         assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
         assert_eq!(
             state.sides[0].active.override_types,
@@ -7583,7 +7586,7 @@ mod tests {
         state.sides[0].team[0].status_counter = 3;
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(33)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(33)));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "sleeping Metronome must not dispatch an inner damaging move"
@@ -7615,7 +7618,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(33)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(33)));
         assert_eq!(
             state.last_move_globally, 33,
             "inner-wins: Metronome rolled Tackle, last_move_globally = 33"
@@ -7631,7 +7634,7 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves = [118, 0, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(76)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(76)));
         assert!(
             state.sides[0].active.has_volatile(VOL_CHARGING),
             "Solar Beam outside sun engages VOL_CHARGING on T1"
@@ -7656,7 +7659,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
         assert_eq!(state.last_move_globally, 0);
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "Copycat must no-op when last_move_globally == 0"
@@ -7671,13 +7674,13 @@ mod tests {
         let (mut state, keys) = setup();
         state.sides[0].team[0].moves = [118, 383, 0, 0];
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 118, 0, &mut fixed_rng(metronome_idx(331)));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 118, 0, &mut fixed_rng(metronome_idx(331)));
         assert_eq!(
             state.last_move_globally, 331,
             "Metronome → Bullet Seed: inner wins last-write"
         );
         let def_hp_after_metronome = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert!(
             state.sides[1].team[0].current_hp < def_hp_after_metronome,
             "Copycat must dispatch Bullet Seed and deal damage"
@@ -7698,7 +7701,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
         assert!(COPYCAT_FAIL.binary_search(&383u16).is_ok(), "Copycat self-excluded");
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "Copycat after Copycat must fail (COPYCAT_FAIL filter)"
@@ -7715,7 +7718,7 @@ mod tests {
         state.sides[0].team[0].item_id = 68; // Choice Band
         state.last_move_globally = 33; // Tackle was the last move
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[0].active.choice_locked_move, 383,
             "Choice-lock latches outer Copycat id, not the inner"
@@ -7732,7 +7735,7 @@ mod tests {
         state.last_move_globally = 76; // Solar Beam was the last move
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert!(
             state.sides[0].active.has_volatile(VOL_CHARGING),
             "Solar Beam inner must engage VOL_CHARGING"
@@ -7762,7 +7765,7 @@ mod tests {
         state.last_move_globally = 33; // Tackle was the last move
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert!(state.sides[1].team[0].current_hp < def_hp_before, "Tackle must hit");
         assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
@@ -7786,7 +7789,7 @@ mod tests {
         state.sides[0].team[0].moves = [383, 0, 0, 0];
         state.last_move_globally = 89; // Earthquake was the last move
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert_eq!(
             effective_species(&state, 0), 1103,
             "Aegislash-Shield must flip to Blade on inner damaging dispatch"
@@ -7804,7 +7807,7 @@ mod tests {
         state.sides[0].team[0].moves = [383, 0, 0, 0];
         state.last_move_globally = 89; // Earthquake
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert!(state.sides[0].active.has_volatile(VOL_TYPES_OVERRIDDEN));
         assert_eq!(
             state.sides[0].active.override_types,
@@ -7828,7 +7831,7 @@ mod tests {
         state.last_move_globally = 33; // Tackle
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 383, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 383, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "sleeping Copycat must not dispatch an inner damaging move"
@@ -7868,7 +7871,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
         assert_eq!(state.sides[1].active.last_move, 0);
-        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 119, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "Mirror Move must no-op when target's last_move == 0"
@@ -7889,7 +7892,7 @@ mod tests {
         baseline.sides[0].team[0].moves = [33, 0, 0, 0];
         baseline.zobrist = compute_full_hash(&baseline, &keys);
         let baseline_hp_before = baseline.sides[1].team[0].current_hp;
-        execute_move(&mut baseline, &keys, 0, 33, 0, &mut fixed_rng(0));
+        execute_move(&mut baseline, &keys, &TeamData::default(), 0, 33, 0, &mut fixed_rng(0));
         let baseline_damage = baseline_hp_before - baseline.sides[1].team[0].current_hp;
         assert!(baseline_damage > 0, "Tackle baseline must deal damage");
 
@@ -7899,7 +7902,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let mirror_hp_before = state.sides[1].team[0].current_hp;
         assert!(MIRROR_MOVE_OK.binary_search(&33u16).is_ok(), "Tackle in MIRROR_MOVE_OK");
-        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 119, 0, &mut fixed_rng(0));
         let mirror_damage = mirror_hp_before - state.sides[1].team[0].current_hp;
         assert_eq!(
             mirror_damage, baseline_damage,
@@ -7925,7 +7928,7 @@ mod tests {
         state.sides[1].team[0].moves = [118, 0, 0, 0]; // opponent runs Metronome
         state.sides[0].team[0].moves = [119, 0, 0, 0]; // we run Mirror Move
         state.zobrist = compute_full_hash(&state, &keys);
-        execute_move(&mut state, &keys, 1, 118, 0, &mut fixed_rng(metronome_idx(331)));
+        execute_move(&mut state, &keys, &TeamData::default(),1, 118, 0, &mut fixed_rng(metronome_idx(331)));
         assert_eq!(
             state.sides[1].active.last_move, 118,
             "R-b negative: opponent's per-mon last_move holds OUTER Metronome (Mirror Move source)"
@@ -7940,7 +7943,7 @@ mod tests {
         assert!(MIRROR_MOVE_OK.binary_search(&118u16).is_err(), "Metronome NOT in MIRROR_MOVE_OK");
         let def_hp_before = state.sides[1].team[0].current_hp;
         let last_globally_before = state.last_move_globally;
-        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 119, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "Mirror Move must no-op (read 118 = Metronome, absent from MIRROR_MOVE_OK)"
@@ -7962,13 +7965,13 @@ mod tests {
         state.sides[1].active.last_move = 33; // opponent's prior Tackle
         state.zobrist = compute_full_hash(&state, &keys);
         // Switch the opponent's active to slot 1; active.zero() clears last_move.
-        crate::state::switch::perform_switch(&mut state, &keys, 1, 1);
+        crate::state::switch::perform_switch(&mut state, &keys, &TeamData::default(), 1, 1);
         assert_eq!(
             state.sides[1].active.last_move, 0,
             "switch_out → active.zero() clears last_move"
         );
         let def_hp_before = state.sides[1].team[1].current_hp;
-        execute_move(&mut state, &keys, 0, 119, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 119, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[1].current_hp, def_hp_before,
             "Mirror Move must no-op after opponent switch zeroes target's last_move"
@@ -8013,7 +8016,7 @@ mod tests {
         let (mut state, keys) = setup_assist_party();
         let hp_before = state.sides[1].team[0].current_hp;
         assert!(ASSIST_FAIL.binary_search(&33u16).is_err(), "Tackle eligible");
-        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 274, 0, &mut fixed_rng(0));
         assert!(
             state.sides[1].team[0].current_hp < hp_before,
             "Assist with rng=0 picks pool[0]=Tackle and dispatches damage to defender"
@@ -8045,7 +8048,7 @@ mod tests {
         }
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 274, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "Assist with fully-filtered teammate pool must no-op"
@@ -8073,7 +8076,7 @@ mod tests {
         state.sides[0].active_index = 2;
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 274, 1, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 274, 1, &mut fixed_rng(0));
         assert_eq!(
             state.sides[1].team[0].current_hp, def_hp_before,
             "Assist must skip i == active_index (=2); pool empty ⇒ no-op"
@@ -8105,7 +8108,7 @@ mod tests {
         }
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
-        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 274, 0, &mut fixed_rng(0));
         assert!(
             state.sides[1].team[0].current_hp < def_hp_before,
             "Assist with 1 eligible teammate move must pick Tackle (pool len 1)"
@@ -8130,7 +8133,7 @@ mod tests {
         state.zobrist = compute_full_hash(&state, &keys);
         let def_hp_before = state.sides[1].team[0].current_hp;
         // T1: Assist → Bullet Seed.
-        execute_move(&mut state, &keys, 0, 274, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),0, 274, 0, &mut fixed_rng(0));
         assert!(
             state.sides[1].team[0].current_hp < def_hp_before,
             "Assist must dispatch Bullet Seed (multi-hit damaging)"
@@ -8149,7 +8152,7 @@ mod tests {
         );
         // T2: opponent's Mirror Move reads user's last_move = 274; rejects.
         let user_hp_before = state.sides[0].team[0].current_hp;
-        execute_move(&mut state, &keys, 1, 119, 0, &mut fixed_rng(0));
+        execute_move(&mut state, &keys, &TeamData::default(),1, 119, 0, &mut fixed_rng(0));
         assert_eq!(
             state.sides[0].team[0].current_hp, user_hp_before,
             "Mirror Move must no-op (read 274 = Assist, absent from MIRROR_MOVE_OK)"
