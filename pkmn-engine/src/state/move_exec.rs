@@ -174,6 +174,22 @@ fn secondary_drop_stat_override(move_id: u16) -> Option<usize> {
 }
 
 #[inline]
+/// Self-boost secondaries whose stat differs from the category default
+/// (Physical→ATK / Special→SPA). codegen stores only the boost magnitude, so the
+/// target stat is resolved here for moves whose Showdown `secondary.self.boosts`
+/// stat isn't the category default. Multi-stat self-boosts (Ancient Power etc.)
+/// are not representable in the scalar model and are left on the default path.
+fn secondary_self_boost_stat_override(move_id: u16) -> Option<usize> {
+    use crate::data::*;
+    match move_id as usize {
+        MOVE_FLAME_CHARGE | MOVE_AURA_WHEEL | MOVE_AQUA_STEP
+        | MOVE_TRAILBLAZE | MOVE_ESPER_WING => Some(SPE),
+        MOVE_STEEL_WING | MOVE_PSYSHIELD_BASH => Some(DEF),
+        _ => None,
+    }
+}
+
+#[inline]
 /// Damaging moves whose secondary applies `volatileStatus: 'confusion'` to the target.
 /// codegen.py only extracts status/stat secondaries; the volatile-confusion path
 /// is opted into here.
@@ -221,7 +237,9 @@ fn apply_secondary(
     let def_slot = state.sides[def_side].active_index as usize;
 
     if md.secondary_stat > 0 {
-        let stat = if md.category == MoveCategory::Physical { ATK } else { SPA };
+        let stat = secondary_self_boost_stat_override(move_id).unwrap_or_else(|| {
+            if md.category == MoveCategory::Physical { ATK } else { SPA }
+        });
         apply_boost(state, keys, atk_side, stat, md.secondary_stat as i8);
         try_mirror_herb(state, keys, atk_side, &[(stat, md.secondary_stat as i8)]);
         return;
@@ -1346,10 +1364,16 @@ fn execute_status_move(
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
-                apply_boost(state, keys, atk_side, ATK, md.secondary_stat as i8);
+                let stat = secondary_self_boost_stat_override(move_id).unwrap_or_else(|| {
+                    if md.category == MoveCategory::Physical { ATK } else { SPA }
+                });
+                apply_boost(state, keys, atk_side, stat, md.secondary_stat as i8);
             } else if md.secondary_stat < 0 {
                 if state.sides[def_side].side_conditions.mist_turns() == 0 {
-                    apply_boost(state, keys, def_side, ATK, md.secondary_stat as i8);
+                    let stat = secondary_drop_stat_override(move_id).unwrap_or_else(|| {
+                        if md.category == MoveCategory::Physical { DEF } else { SPD }
+                    });
+                    apply_boost(state, keys, def_side, stat, md.secondary_stat as i8);
                 }
             }
         }
