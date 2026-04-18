@@ -279,7 +279,7 @@ fn execute_action(
             execute_move(state, keys, teams, side, move_id, slot, rng);
         }
         ActionKind::Tera { move_id } => {
-            apply_tera(state, keys, side);
+            apply_tera(state, keys, teams, side);
             execute_move(state, keys, teams, side, move_id, 0, rng);
         }
         ActionKind::Struggle => {
@@ -290,7 +290,7 @@ fn execute_action(
 
 /// Apply Terastallization to the active Pokémon.
 #[inline]
-fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
     let slot = state.sides[side].active_index as usize;
     // Showdown's `chooseMove` rejects terastallize when the user is locked
     // into a multi-turn move (Fly/Dig/Dive/etc. charge state, Outrage/Petal
@@ -337,6 +337,10 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
         data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE => { apply_boost(state, keys, side, DEF, 1); }
         _ => {}
     }
+
+    // Terapagos-Terastal -> Teraform Zero (Terapagos-Stellar): reads the just-set
+    // tera flag, so must run after MON_FLAG_TERASTALLIZED is committed above.
+    crate::state::forme::check_tera_shift(state, keys, teams, side);
 }
 
 fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
@@ -430,8 +434,8 @@ pub fn execute_turn(
     // the Tera flag at turn start so defensive type effectiveness uses the Tera
     // type even if the opponent moves first. apply_tera() is idempotent, so the
     // ActionKind::Tera arm in execute_action will no-op on the second call.
-    if matches!(act0, ActionKind::Tera { .. }) { apply_tera(state, keys, 0); }
-    if matches!(act1, ActionKind::Tera { .. }) { apply_tera(state, keys, 1); }
+    if matches!(act0, ActionKind::Tera { .. }) { apply_tera(state, keys, teams, 0); }
+    if matches!(act1, ActionKind::Tera { .. }) { apply_tera(state, keys, teams, 1); }
 
     let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
 

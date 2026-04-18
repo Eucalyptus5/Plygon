@@ -121,6 +121,9 @@ pub fn switch_in_phase_a(
     // Palafin Zero to Hero: transform on switch-in
     crate::state::forme::check_palafin_hero(state, keys, teams, side);
 
+    // Terapagos Tera Shift -> Tera Shell (Terapagos-Terastal) on switch-in
+    crate::state::forme::check_tera_shift(state, keys, teams, side);
+
     // Healing Wish / Lunar Dance: fully heal the incoming mon
     {
         let sc = &state.sides[side].side_conditions;
