@@ -29,7 +29,32 @@ pub fn battle_types(state: &BattleState, side: usize) -> (u8, u8) {
     if mon.is_terastallized() {
         return (mon.tera_type, mon.tera_type);
     }
+    // Multitype/RKS System are cantsuppress and can't be swapped onto another
+    // species, so the stored ability is a sound (allocation-free) discriminator;
+    // Transform is the only way to lose them, and it overrides types wholesale.
+    if matches!(mon.ability_id,
+        data_bridge::ABILITY_MULTITYPE | data_bridge::ABILITY_RKS_SYSTEM)
+        && !state.sides[side].active.has_volatile(VOL_TRANSFORMED)
+    {
+        let t = multitype_runtime_type(mon.item_id, mon.ability_id);
+        return (t, t);
+    }
     effective_types(state, side)
+}
+
+/// Showdown's `arceus`/`silvally` onType: Multitype/RKS System derive their
+/// runtime type from the held Plate (Arceus) or Memory (Silvally), falling back
+/// to Normal. The forme the item produces carries that type, so reuse the
+/// item→forme table; a cross-family item (e.g. a Memory on Arceus) yields Normal.
+#[inline]
+fn multitype_runtime_type(item_id: u16, ability_id: u16) -> u8 {
+    let base = if ability_id == data_bridge::ABILITY_MULTITYPE { 493 } else { 773 };
+    let forme = data_bridge::item_forme(item_id);
+    if forme != 0 && data_bridge::base_species(forme) == base {
+        data_bridge::species(forme).type1 as u8
+    } else {
+        crate::data::types::Type::Normal as u8
+    }
 }
 
 #[inline(always)]
@@ -275,5 +300,42 @@ mod tests {
         // With Gravity: everything is grounded
         state.field.gravity_turns = 5;
         assert!(is_grounded(&state, 0));
+    }
+
+    #[test]
+    fn test_multitype_runtime_type_reverts_without_plate() {
+        use crate::data::types::Type;
+        let mut state = BattleState::default();
+        let mon = &mut state.sides[0].team[0];
+        mon.species_id = 1113; // Arceus-Bug
+        mon.ability_id = data_bridge::ABILITY_MULTITYPE;
+        mon.item_id = 707; // Clover Sweet (non-Plate)
+        mon.current_hp = 209;
+        // Snapshot type stays Bug; getTypes-equivalent reverts to Normal.
+        assert_eq!(effective_types(&state, 0), (Type::Bug as u8, Type::Bug as u8));
+        assert_eq!(battle_types(&state, 0), (Type::Normal as u8, Type::Normal as u8));
+        // Matching Plate keeps the plate type.
+        state.sides[0].team[0].item_id = 223; // Insect Plate
+        assert_eq!(battle_types(&state, 0), (Type::Bug as u8, Type::Bug as u8));
+        // A mismatched Plate re-types to that plate (Showdown's onPlate).
+        state.sides[0].team[0].item_id = 105; // Draco Plate
+        assert_eq!(battle_types(&state, 0), (Type::Dragon as u8, Type::Dragon as u8));
+    }
+
+    #[test]
+    fn test_rks_system_runtime_type() {
+        use crate::data::types::Type;
+        let mut state = BattleState::default();
+        let mon = &mut state.sides[0].team[0];
+        mon.species_id = 1371; // Silvally-Bug
+        mon.ability_id = data_bridge::ABILITY_RKS_SYSTEM;
+        mon.item_id = 707; // non-Memory
+        mon.current_hp = 200;
+        assert_eq!(battle_types(&state, 0), (Type::Normal as u8, Type::Normal as u8));
+        state.sides[0].team[0].item_id = 673; // Bug Memory
+        assert_eq!(battle_types(&state, 0), (Type::Bug as u8, Type::Bug as u8));
+        // A Plate (Arceus item) on Silvally is cross-family → Normal.
+        state.sides[0].team[0].item_id = 223; // Insect Plate
+        assert_eq!(battle_types(&state, 0), (Type::Normal as u8, Type::Normal as u8));
     }
 }

@@ -30,6 +30,14 @@ pub fn item(id: u16) -> &'static ItemData {
     crate::data::items::item(id as usize)
 }
 
+/// Arceus/Silvally forme produced by a held Plate/Memory. 0 = no forme.
+#[inline(always)]
+pub fn item_forme(item_id: u16) -> u16 {
+    use crate::data::gen_items::ITEM_FORME;
+    let idx = item_id as usize;
+    if idx < ITEM_FORME.len() { ITEM_FORME[idx] } else { 0 }
+}
+
 /// Base species IDs (positive `num` values from `pokemon-showdown/data/pokedex.ts`
 /// entries carrying `gender: "N"`). Sorted ascending for binary_search. Formes
 /// inherit via `FORME_TO_BASE` (see `is_genderless_species`).

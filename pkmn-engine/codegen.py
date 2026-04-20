@@ -1061,10 +1061,25 @@ def gen_call_family():
     print(f"Wrote {OUT / 'gen_call_family.rs'}: {total} entries — {sizes}")
 
 
+def _arceus_silvally_forme_by_type():
+    """type-name → (arceus_forme_id, silvally_forme_id), parsed from the
+    already-generated species consts so the item→forme table stays in sync."""
+    sp_text = (OUT / "gen_species.rs").read_text(encoding="utf-8")
+    arceus, silvally = {}, {}
+    for m in re.finditer(r"pub const FORME_ARCEUS_(\w+): usize = (\d+);", sp_text):
+        arceus[m.group(1).capitalize()] = int(m.group(2))
+    for m in re.finditer(r"pub const FORME_SILVALLY_(\w+): usize = (\d+);", sp_text):
+        silvally[m.group(1).capitalize()] = int(m.group(2))
+    return arceus, silvally
+
+
 def gen_items():
     """Generate gen_items.rs from items.ts."""
     text = (SD / "items.ts").read_text(encoding="utf-8")
     entries = parse_ts_object(text)
+
+    arceus_forme, silvally_forme = _arceus_silvally_forme_by_type()
+    item_forme = {}  # spritenum → forme species id (Arceus/Silvally only)
 
     items = {}  # spritenum → (key, name, flags_set, type_param, fling_bp, forme_species)
     max_num = 0
@@ -1205,6 +1220,15 @@ def gen_items():
 
         forme_species = FORME_LOCKED.get(key, 0)
 
+        # Arceus/Silvally hold their forme entirely from the held item (Showdown
+        # sim/pokemon.ts: targetForme = item.onPlate ? 'Arceus-'+onPlate : 'Arceus').
+        plate_t = re.search(r"onPlate:\s*['\"](\w+)['\"]", block)
+        memory_t = re.search(r"onMemory:\s*['\"](\w+)['\"]", block)
+        if plate_t and plate_t.group(1) in arceus_forme:
+            item_forme[num] = arceus_forme[plate_t.group(1)]
+        elif memory_t and memory_t.group(1) in silvally_forme:
+            item_forme[num] = silvally_forme[memory_t.group(1)]
+
         if num not in items:
             items[num] = (key, name_raw, flags, type_param, fling_bp, forme_species)
 
@@ -1246,10 +1270,19 @@ def gen_items():
     out.append("    t")
     out.append("};")
     out.append("")
+    out.append("/// Arceus/Silvally forme produced by a held Plate/Memory, indexed by item")
+    out.append("/// id. 0 = item produces no forme (revert holder to its base forme).")
+    out.append(f"pub static ITEM_FORME: [u16; {slots}] = {{")
+    out.append(f"    let mut t = [0u16; {slots}];")
+    for num in sorted(item_forme.keys()):
+        out.append(f"    t[{num}] = {item_forme[num]};")
+    out.append("    t")
+    out.append("};")
+    out.append("")
 
     (OUT / "gen_items.rs").write_text("\n".join(out) + "\n", encoding="utf-8")
     active = [n for n in items if items[n][2] or items[n][5]]
-    print(f"Wrote {OUT / 'gen_items.rs'}: {len(active)} items with flags or forme_species")
+    print(f"Wrote {OUT / 'gen_items.rs'}: {len(active)} items with flags or forme_species, {len(item_forme)} plate/memory forme entries")
 
 
 # ═══════════════════════════════════════════════════════════════════
