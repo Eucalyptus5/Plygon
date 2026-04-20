@@ -241,6 +241,18 @@ pub fn calc_damage(
         }
     }
 
+    // Tera Shell: at full HP, a non-immune neutral-or-better hit is floored to
+    // not-very-effective (0.5×). Already-resisted hits keep their multiplier.
+    // Breakable, so Mold Breaker bypasses; effective_ability already honors suppression.
+    if def_ability == data_bridge::ABILITY_TERA_SHELL
+        && eff >= 4
+        && def_mon.current_hp >= def_mon.max_hp
+        && !mold_breaks(state, def_side, atk_ability)
+    {
+        eff = 2;
+        result.effectiveness = eff;
+    }
+
     let mut base_power = if is_fling { fling_bp as u16 } else { resolve_power(state, md, atk_side, def_side) };
 
     // Tera min-BP=60 floor (Showdown sim/battle-actions.ts:1657-1665):
