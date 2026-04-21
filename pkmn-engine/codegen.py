@@ -55,6 +55,7 @@ MOVE_EFFECT = {
     "stunspore": "ThunderWave", "poisonpowder": "PoisonPowder",
     "skillswap": "SkillSwap",
     "transform": "Transform",
+    "gastroacid": "GastroAcid",
     "spore": "Sleep", "sleeppowder": "Sleep", "hypnosis": "Sleep",
     "darkvoid": "Sleep", "grasswhistle": "Sleep", "lovelykiss": "Sleep",
     "sing": "Sleep",

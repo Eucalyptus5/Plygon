@@ -276,6 +276,8 @@ pub enum MoveEffect {
     Transform        = 120, // Copy target's species/ability/types/stats/moves@5pp/boosts (Ditto move)
 
     Teleport         = 121, // Gen-8/9 pivot: self-switch at -6 priority, fail if no bench replacement
+
+    GastroAcid       = 122, // Suppress target's ability (VOL_ABILITY_SUPPRESSED); blocked by Ability Shield / cantsuppress
 }
 
 // Flags (16 bits)

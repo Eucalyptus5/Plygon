@@ -981,6 +981,20 @@ fn execute_status_move(
             }
         }
 
+        // -- Gastro Acid: suppress target's ability (moves.ts gastroacid.onTryHit) --
+        MoveEffect::GastroAcid => {
+            if !state.sides[def_side].team[def_slot].is_fainted()
+                && !state.sides[def_side].active.has_volatile(VOL_ABILITY_SUPPRESSED)
+            {
+                let def_ab = effective_ability(state, def_side);
+                let has_shield = state.field.magic_room_turns() == 0
+                    && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::ABILITY_SHIELD);
+                if !has_shield && !is_cantsuppress_ability(def_ab) {
+                    set_volatile(state, keys, def_side, VOL_ABILITY_SUPPRESSED);
+                }
+            }
+        }
+
         // -- Haze: reset all stat changes --
         MoveEffect::Haze => {
             for side in 0..2 {
