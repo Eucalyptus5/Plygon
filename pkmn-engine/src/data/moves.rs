@@ -273,6 +273,7 @@ pub enum MoveEffect {
     PoisonPowder     = 118, // Poison Powder: inflict regular poison (not toxic); Sync DOES bounce
 
     SkillSwap        = 119, // Swap the user's and target's abilities (base ability_id on both)
+    Transform        = 120, // Copy target's species/ability/types/stats/moves@5pp/boosts (Ditto move)
 }
 
 // Flags (16 bits)

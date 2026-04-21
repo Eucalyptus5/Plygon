@@ -1167,7 +1167,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Transform, secondary_status:0,
         self_effect:SelfEffect::None },
     // [145] Bubble
     MoveData { flags:MoveFlags::PROTECT, base_power:40, accuracy:100,

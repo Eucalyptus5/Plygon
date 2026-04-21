@@ -71,6 +71,12 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
         state.sides[side].team[idx].ability_id = state.sides[side].active.override_ability;
         state.sides[side].team[idx].flags &= !MON_FLAG_ABILITY_SWAPPED;
     }
+    // Transform restore: the live base ability_id was overwritten with the copied
+    // one; revert to the stashed native ability (Showdown's clearVolatile path).
+    if state.sides[side].team[idx].flags & MON_FLAG_TRANSFORMED != 0 {
+        state.sides[side].team[idx].ability_id = state.sides[side].active.transform_orig_ability;
+        state.sides[side].team[idx].flags &= !MON_FLAG_TRANSFORMED;
+    }
 
     state.sides[side].active.zero();
     state.sides[side].set_last_consumed_berry(0);

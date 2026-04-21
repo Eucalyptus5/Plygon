@@ -40,15 +40,24 @@ pub fn apply_transform(
     state: &mut BattleState, keys: &ZobristKeys,
     side: usize, target_side: usize,
 ) {
-    let target_slot = state.sides[target_side].active_index as usize;
+    let slot = state.sides[side].active_index as usize;
 
-    // Copy target data into locals before mutating
-    let t_species_id = state.sides[target_side].team[target_slot].species_id;
-    let t_ability_id = state.sides[target_side].team[target_slot].ability_id;
-    let t_stats = state.sides[target_side].team[target_slot].stats;
-    let t_moves = state.sides[target_side].team[target_slot].moves;
+    // Read the target's live values through the effective accessors so transforming
+    // into an already-transformed / forme-changed target copies what Showdown's
+    // getTypes(true,true) / storedStats see, not the stale base fields.
+    let t_species_id = accessors::effective_species(state, target_side);
+    let t_ability_id = accessors::effective_ability(state, target_side);
+    // Showdown copies getTypes(true, true) — pre-terastallized underlying types.
+    let t_types = accessors::effective_types(state, target_side);
+    let t_stats = [
+        accessors::effective_stat(state, target_side, ATK),
+        accessors::effective_stat(state, target_side, DEF),
+        accessors::effective_stat(state, target_side, SPA),
+        accessors::effective_stat(state, target_side, SPD),
+        accessors::effective_stat(state, target_side, SPE),
+    ];
+    let t_moves = accessors::effective_moves(state, target_side);
     let t_boosts = state.sides[target_side].active.boosts;
-    let target_species = data_bridge::species(t_species_id);
 
     set_volatile(state, keys, side, VOL_TRANSFORMED);
 
@@ -58,7 +67,18 @@ pub fn apply_transform(
     active.override_stats = t_stats;
     active.override_moves = t_moves;
     active.override_pp = [5, 5, 5, 5];
-    active.override_types = [target_species.type1 as u8, target_species.type2 as u8];
+    active.override_types = [t_types.0, t_types.1];
+
+    // Showdown's setAbility(pokemon.ability) mutates the live ability, which the
+    // harness reads as team[].ability_id. Mirror that on the base; stash the native
+    // ability (first transform only) for the switch-out restore. effective_ability
+    // still reads override_ability, so the hot ability accessor is untouched.
+    if state.sides[side].team[slot].flags & MON_FLAG_TRANSFORMED == 0 {
+        state.sides[side].active.transform_orig_ability =
+            state.sides[side].team[slot].ability_id;
+        state.sides[side].team[slot].flags |= MON_FLAG_TRANSFORMED;
+    }
+    state.sides[side].team[slot].ability_id = t_ability_id;
 
     for stat in 0..7 {
         let old = state.sides[side].active.boosts[stat];

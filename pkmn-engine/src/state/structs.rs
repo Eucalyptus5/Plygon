@@ -169,6 +169,9 @@ pub struct ActiveMon {
     pub last_move_hit_by: u16,
     pub override_species: u16,
     pub override_ability: u16,
+    // move Transform overwrites the live base ability_id with the copied one for
+    // snapshot parity; this holds the native ability to restore on switch-out.
+    pub transform_orig_ability: u16,
     pub override_stats: [u16; 5],
     pub override_moves: [u16; 4],
     pub choice_locked_move: u16,

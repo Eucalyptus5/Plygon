@@ -969,6 +969,18 @@ fn execute_status_move(
             }
         }
 
+        // -- Transform: copy target's species/ability/types/stats/moves/boosts (Ditto) --
+        MoveEffect::Transform => {
+            let user_transformed = state.sides[atk_side].active.has_volatile(VOL_TRANSFORMED);
+            let target_transformed = state.sides[def_side].active.has_volatile(VOL_TRANSFORMED);
+            let target_sub = state.sides[def_side].active.has_volatile(VOL_SUBSTITUTE);
+            if !state.sides[def_side].team[def_slot].is_fainted()
+                && !user_transformed && !target_transformed && !target_sub
+            {
+                crate::state::forme::apply_transform(state, keys, atk_side, def_side);
+            }
+        }
+
         // -- Haze: reset all stat changes --
         MoveEffect::Haze => {
             for side in 0..2 {
