@@ -2547,13 +2547,37 @@ pub(crate) fn use_move_called(
     }
 
     if result.drain_heal > 0 {
+        // Showdown heals a fraction of HP *actually removed*, not the uncapped rolled
+        // damage; on a faint/low-HP target the calc-time heal over-heals. Recompute from
+        // HP removed (mirrors the recoil sibling below), re-apply Big Root, then clamp to
+        // the calc-time cap (which already carries Big Root's ×1.3).
+        let actual = if result.hits_substitute {
+            let new_sub = state.sides[def_side].active.substitute_hp;
+            pre_sub_hp.saturating_sub(new_sub) as u32
+        } else if multi_hit_applied {
+            final_damage as u32
+        } else {
+            pre_damage_hp.saturating_sub(
+                state.sides[def_side].team[def_slot].current_hp,
+            ) as u32
+        };
+        let mut heal_from_removed = if actual > 0 {
+            ((actual * md.drain as u32 + 50) / 100).max(1)
+        } else { 0 };
+        if heal_from_removed > 0
+            && state.field.magic_room_turns() == 0
+            && state.sides[atk_side].team[atk_slot].item_id == data_bridge::ITEM_BIG_ROOT
+        {
+            heal_from_removed = crate::state::calc_modifiers::chain_mod(heal_from_removed, 5324);
+        }
+        let drain_heal = (heal_from_removed.min(result.drain_heal as u32)) as u16;
         // Liquid Ooze flips the drain heal into damage on the drainer (Showdown fires
         // it on the would-be-healer's side). Read the defender's ability faint-tolerant:
         // it may have just fainted to the drain hit.
         if effective_ability_ignoring_faint(state, def_side) == data_bridge::ABILITY_LIQUID_OOZE {
-            deal_damage(state, keys, atk_side, atk_slot, result.drain_heal);
+            deal_damage(state, keys, atk_side, atk_slot, drain_heal);
         } else {
-            heal(state, keys, atk_side, atk_slot, result.drain_heal);
+            heal(state, keys, atk_side, atk_slot, drain_heal);
         }
     }
     // Move-recoil (md.drain < 0): mirrors Showdown's calcRecoilDamage on
