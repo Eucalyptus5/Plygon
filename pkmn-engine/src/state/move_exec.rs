@@ -1176,6 +1176,20 @@ fn execute_status_move(
             }
         }
 
+        // -- Teleport: plain self-switch (no boost/volatile transfer); fails if no bench mon --
+        MoveEffect::Teleport => {
+            if !state.sides[atk_side].team[atk_slot].is_fainted() {
+                let has_bench = (0..6).any(|i| {
+                    i != atk_slot
+                        && state.sides[atk_side].team[i].species_id != 0
+                        && state.sides[atk_side].team[i].current_hp > 0
+                });
+                if has_bench {
+                    set_volatile(state, keys, atk_side, VOL_MUST_SWITCH);
+                }
+            }
+        }
+
         // -- Geomancy: +2 SpA/SpD/Spe (resolves on charge turn 2) --
         MoveEffect::ChargeGeomancy => {
             apply_boost(state, keys, atk_side, SPA, 2);

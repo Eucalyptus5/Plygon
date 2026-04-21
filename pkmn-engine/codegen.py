@@ -97,6 +97,7 @@ MOVE_EFFECT = {
 
     # -- Pivots --
     "partingshot": "PartingShot", "batonpass": "BatonPass",
+    "teleport": "Teleport",
 
     # -- Charge moves --
     "fly": "ChargeFly", "bounce": "ChargeFly",
