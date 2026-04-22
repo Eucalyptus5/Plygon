@@ -2713,8 +2713,11 @@ pub(crate) fn use_move_called(
         }
     }
 
-    if !state.sides[def_side].team[def_slot].is_fainted()
-        && !result.hits_substitute
+    // A self-boost secondary (secondary_stat > 0) targets the user, so Showdown
+    // still runs it when the move KO'd the defender; opponent-targeting secondaries
+    // are skipped on a fainted target.
+    if !result.hits_substitute
+        && (md.secondary_stat > 0 || !state.sides[def_side].team[def_slot].is_fainted())
     {
         apply_secondary(state, keys, atk_side, def_side, md, move_id, rng);
     }
