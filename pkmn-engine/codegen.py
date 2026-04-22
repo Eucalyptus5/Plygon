@@ -114,6 +114,7 @@ MOVE_EFFECT = {
     # -- Locked / thrashing --
     "outrage": "Thrash", "petaldance": "Thrash", "thrash": "Thrash",
     "ragingfury": "Thrash",
+    "uproar": "Uproar",
 
     # -- Phase 7: Additional status/utility effects --
     "bellydrum": "BellyDrum",

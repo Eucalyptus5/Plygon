@@ -2201,6 +2201,11 @@ pub(crate) fn use_move_called(
     {
         set_volatile(state, keys, atk_side, VOL_MOVE_LOCKED);
         state.sides[atk_side].active._padding[2] = (rng(2) + 1) as u8; // 1 or 2 more turns
+    } else if !is_charge_turn2 && !is_struggle && !is_move_locked
+        && md.effect == MoveEffect::Uproar
+    {
+        set_volatile(state, keys, atk_side, VOL_MOVE_LOCKED);
+        state.sides[atk_side].active._padding[2] = 2; // Uproar locks a fixed 3 turns total
     }
 
     // Self-Destruct / Explosion / Misty Explosion: user faints before damage
@@ -3519,7 +3524,9 @@ pub fn execute_move(
 
     // Thrash confusion: applied regardless of whether the move executed (para/sleep/etc.
     // still end the lock and cause confusion). Own Tempo blocks this self-confusion.
+    // Uproar locks like Thrash but its Showdown condition has no confusion on end.
     if was_last_locked_turn
+        && md.effect != MoveEffect::Uproar
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && effective_ability(state, atk_side) != data_bridge::ABILITY_OWN_TEMPO
     {

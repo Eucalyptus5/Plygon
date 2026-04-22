@@ -278,6 +278,8 @@ pub enum MoveEffect {
     Teleport         = 121, // Gen-8/9 pivot: self-switch at -6 priority, fail if no bench replacement
 
     GastroAcid       = 122, // Suppress target's ability (VOL_ABILITY_SUPPRESSED); blocked by Ability Shield / cantsuppress
+
+    Uproar           = 123, // 3-turn self-lock + tera-drop like Thrash, but no self-confusion on lock-end
 }
 
 // Flags (16 bits)
