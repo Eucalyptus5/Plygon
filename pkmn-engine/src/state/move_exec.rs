@@ -3248,8 +3248,12 @@ pub(crate) fn use_move_called(
             }
         }
 
+        // Showdown's faintMessages returns at checkWin() before runEvent('AfterFaint'),
+        // so onSourceAfterFaint / onAnyFaint never run when a KO ends the battle.
+        let battle_continues = foe_pokemon_left(state, 0) && foe_pokemon_left(state, 1);
+
         // Moxie / Beast Boost: attacker stat boost on KO
-        if !state.sides[atk_side].team[atk_slot].is_fainted() {
+        if battle_continues && !state.sides[atk_side].team[atk_slot].is_fainted() {
             let atk_ability = effective_ability(state, atk_side);
             match atk_ability {
                 data_bridge::ABILITY_MOXIE => {
@@ -3290,11 +3294,13 @@ pub(crate) fn use_move_called(
         }
 
         // Soul-Heart: +1 SpA when any Pokemon faints
-        for side in 0..2 {
-            let s = state.sides[side].active_index as usize;
-            if state.sides[side].team[s].is_fainted() { continue; }
-            if effective_ability(state, side) == data_bridge::ABILITY_SOUL_HEART {
-                apply_boost(state, keys, side, SPA, 1);
+        if battle_continues {
+            for side in 0..2 {
+                let s = state.sides[side].active_index as usize;
+                if state.sides[side].team[s].is_fainted() { continue; }
+                if effective_ability(state, side) == data_bridge::ABILITY_SOUL_HEART {
+                    apply_boost(state, keys, side, SPA, 1);
+                }
             }
         }
     }
