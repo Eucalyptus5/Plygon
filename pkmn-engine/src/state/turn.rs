@@ -364,6 +364,14 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
         // which compare_results normalizes to STATUS_NONE. Mirror by clearing.
         let slot = state.sides[side].active_index as usize;
         clear_status(state, keys, side, slot);
+        // Showdown's clearVolatile (pokemon.ts:1505) on faint wipes all volatiles.
+        // These per-mon counters are not in the Zobrist hash (mirrors switch-out's
+        // active.zero), so no XOR — just zero what the comparator surfaces.
+        let active = &mut state.sides[side].active;
+        active.confusion_turns = 0;
+        active.taunt_turns = 0;
+        active.encore_turns = 0;
+        active.encore_move = 0;
     }
 
     let p1_alive = (0..6).any(|i| {
