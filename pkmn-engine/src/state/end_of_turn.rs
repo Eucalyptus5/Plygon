@@ -450,12 +450,14 @@ fn step_eot_abilities(
     let ability = effective_ability(state, side);
     match ability {
         data_bridge::ABILITY_SPEED_BOOST => {
-            // Showdown: fires when pokemon.activeTurns is truthy.
-            // But Showdown processes an initial switch-in turn that increments
-            // activeTurns from 0→1 before the first player turn. The engine
-            // does not have this initial turn, so turns_active is 0 during the
-            // first EOT. To match Showdown, fire unconditionally.
-            apply_boost(state, keys, side, SPE, 1);
+            // Showdown gates on pokemon.activeTurns: a mid-battle switch-in has
+            // activeTurns==0 at that EOT and gets no boost. turns_active==0 on
+            // both the turn-1 lead and a mid-battle switch-in; field.turn is
+            // still 0 only during the turn-1 EOT (incremented later), so this
+            // disjunct keeps the lead boost while skipping the switch-in case.
+            if state.sides[side].active.turns_active >= 1 || state.field.turn == 0 {
+                apply_boost(state, keys, side, SPE, 1);
+            }
         }
         data_bridge::ABILITY_POISON_HEAL => {
             let status = state.sides[side].team[slot].status;
