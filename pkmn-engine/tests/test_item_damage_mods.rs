@@ -210,7 +210,7 @@ fn test_weakness_policy_boost() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Fire Punch (move_id=7, Fire/Physical) — SE vs Grass
-    execute_move(&mut state, &keys, 0, 7, 1, &mut no_crit_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 0, 7, 1, &mut no_crit_rng);
 
     // Defender should have +2 Atk (index 0) and +2 SpA (index 2)
     assert_eq!(state.sides[1].active.boosts[ATK], 2,

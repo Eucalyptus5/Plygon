@@ -39,7 +39,7 @@ fn test_switch_out_zeroes() {
     state.sides[0].active.set_volatile(VOL_TYPES_OVERRIDDEN);
     state.zobrist = compute_full_hash(&state, &keys);
     
-    switch_out(&mut state, &keys, 0);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
     
     // Zeroes boosts
     assert_eq!(state.sides[0].active.boosts[1], 0);
@@ -55,7 +55,7 @@ fn test_switch_out_preserves_persistent() {
     state.sides[0].team[0].status = 1;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    switch_out(&mut state, &keys, 0);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
     
     assert_eq!(state.sides[0].team[0].current_hp, 50);
     assert_eq!(state.sides[0].team[0].status, 1);
@@ -69,7 +69,7 @@ fn test_natural_cure() {
     state.sides[0].team[0].status = 1; // Burn
     state.zobrist = compute_full_hash(&state, &keys);
     
-    switch_out(&mut state, &keys, 0);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
     
     assert_eq!(state.sides[0].team[0].status, 0);
     assert!(validate_hash(&state, &keys));
@@ -84,7 +84,7 @@ fn test_regenerator() {
     state.sides[0].team[0].max_hp = 300;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    switch_out(&mut state, &keys, 0);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
     
     // Heals 1/3 of max_hp -> 100
     assert_eq!(state.sides[0].team[0].current_hp, 200);
@@ -96,7 +96,7 @@ fn test_switch_in() {
     let (mut state, keys) = setup();
     assert_eq!(state.sides[0].active_index, 0);
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.sides[0].active_index, 1);
     assert!(validate_hash(&state, &keys));
@@ -108,7 +108,7 @@ fn test_stealth_rock() {
     state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
     // Default mon has Normal type (which is neutral to Rock)
     
-    switch_in(&mut state, &keys, 0, 1); // switch to idx 1
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1); // switch to idx 1
     
     // Normal takes 1/8 of 300 = 37 damage. 300 - 37 = 263
     // Wait, wait, damage = max_hp * 4 / 32? For neutral, 300 * 4 / 32 = 1200 / 32 = 37
@@ -122,19 +122,19 @@ fn test_spikes() {
     
     // 1 layer
     state.sides[0].side_conditions.spikes = 1;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[0].team[1].current_hp, 300 - (300 / 8));
     
     // 2 layers
     let (mut state2, keys2) = setup();
     state2.sides[0].side_conditions.spikes = 2;
-    switch_in(&mut state2, &keys2, 0, 1);
+    switch_in(&mut state2, &keys2, &TeamData::default(), 0, 1);
     assert_eq!(state2.sides[0].team[1].current_hp, 300 - (300 / 6));
     
     // 3 layers
     let (mut state3, keys3) = setup();
     state3.sides[0].side_conditions.spikes = 3;
-    switch_in(&mut state3, &keys3, 0, 1);
+    switch_in(&mut state3, &keys3, &TeamData::default(), 0, 1);
     assert_eq!(state3.sides[0].team[1].current_hp, 300 - (300 / 4));
 }
 
@@ -154,7 +154,7 @@ fn test_spikes_flying_immune() {
     // Can we use Levitate? Yes!
     state.sides[0].team[1].ability_id = ABILITY_LEVITATE;
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[0].team[1].current_hp, 300);
 }
 
@@ -163,12 +163,12 @@ fn test_toxic_spikes() {
     let (mut state, keys) = setup();
     
     state.sides[0].side_conditions.toxic_spikes = 1;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[0].team[1].status, STATUS_POISON);
     
     let (mut state2, keys2) = setup();
     state2.sides[0].side_conditions.toxic_spikes = 2;
-    switch_in(&mut state2, &keys2, 0, 1);
+    switch_in(&mut state2, &keys2, &TeamData::default(), 0, 1);
     assert_eq!(state2.sides[0].team[1].status, STATUS_BAD_POISON);
 }
 
@@ -182,7 +182,7 @@ fn test_toxic_spikes_absorb() {
     state.sides[0].team[1].tera_type = Type::Poison as u8;
     state.sides[0].team[1].flags |= MON_FLAG_TERASTALLIZED;
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.sides[0].side_conditions.toxic_spikes, 0); // Cleared
     assert_eq!(state.sides[0].team[1].status, 0); // Not poisoned
@@ -193,7 +193,7 @@ fn test_sticky_web() {
     let (mut state, keys) = setup();
     state.sides[0].side_conditions.hazard_flags |= HAZARD_STICKY_WEB;
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.sides[0].active.boosts[4], -1); // Spe is index 4
 }
@@ -207,7 +207,7 @@ fn test_heavy_duty_boots() {
     
     state.sides[0].team[1].item_id = 715; // Heavy-Duty Boots
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.sides[0].team[1].current_hp, 300);
     assert_eq!(state.sides[0].team[1].status, 0);
@@ -222,7 +222,7 @@ fn test_magic_guard() {
     
     state.sides[0].team[1].ability_id = ABILITY_MAGIC_GUARD;
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     // Takes no damage
     assert_eq!(state.sides[0].team[1].current_hp, 300);
@@ -233,7 +233,7 @@ fn test_intimidate() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_INTIMIDATE;
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.sides[1].active.boosts[0], -1); // Atk drops by 1
 }
@@ -243,7 +243,7 @@ fn test_drizzle() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_DRIZZLE;
     
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.field.weather, 2); // Assuming 2 is Rain (WEATHER_RAIN)
 }
@@ -257,7 +257,7 @@ fn test_perform_switch() {
     state.sides[0].side_conditions.spikes = 1;
     state.zobrist = compute_full_hash(&state, &keys);
     
-    perform_switch(&mut state, &keys, 0, 1);
+    perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
     
     assert_eq!(state.sides[0].active_index, 1);
     assert_eq!(state.sides[0].active.boosts[1], 0);
@@ -276,7 +276,7 @@ fn test_stealth_rock_4x_weak() {
     state.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
 
     // dual_type_effectiveness(Rock, Fire, Flying) = (8 * 8) / 4 = 16
     // damage = 300 * 16 / 32 = 150
@@ -293,7 +293,7 @@ fn test_stealth_rock_resist() {
     state.sides[0].team[1].flags |= MON_FLAG_TERASTALLIZED;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
 
     // dual_type_effectiveness(Rock, Steel, Steel): mono shortcut returns 2 (resist)
     // damage = (300 * 2 / 32).max(1) = 18
@@ -325,7 +325,7 @@ fn test_hazard_ko_triggers_switch() {
 
     // Action 5 = switch to team slot 1 (decode_action: 4..=9 => Switch { target: action - 4 })
     let mut rng = |_: u32| -> u32 { 0 };
-    execute_switch_turn(&mut state, &keys, 5, 0, &mut rng);
+    execute_switch_turn(&mut state, &keys, &TeamData::default(), 5, 0, &mut rng);
 
     // Mon should be KO'd from stealth rock
     assert_eq!(state.sides[0].team[1].current_hp, 0);
@@ -340,7 +340,7 @@ fn test_hazard_ko_triggers_switch() {
 fn test_intimidate_lowers_atk() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_INTIMIDATE;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[1].active.boosts[ATK], -1);
     assert!(validate_hash(&state, &keys));
 }
@@ -350,7 +350,7 @@ fn test_intimidate_blocked_clear_body() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_INTIMIDATE;
     state.sides[1].team[0].ability_id = ABILITY_CLEAR_BODY;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[1].active.boosts[ATK], 0);
     assert!(validate_hash(&state, &keys));
 }
@@ -361,7 +361,7 @@ fn test_intimidate_blocked_substitute() {
     state.sides[0].team[1].ability_id = ABILITY_INTIMIDATE;
     state.sides[1].active.set_volatile(VOL_SUBSTITUTE);
     state.zobrist = compute_full_hash(&state, &keys);
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[1].active.boosts[ATK], 0);
     assert!(validate_hash(&state, &keys));
 }
@@ -371,7 +371,7 @@ fn test_intimidate_guard_dog_reversal() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_INTIMIDATE;
     state.sides[1].team[0].ability_id = ABILITY_GUARD_DOG;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[1].active.boosts[ATK], 1);
     assert!(validate_hash(&state, &keys));
 }
@@ -381,7 +381,7 @@ fn test_intimidate_rattled_speed() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_INTIMIDATE;
     state.sides[1].team[0].ability_id = ABILITY_RATTLED;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     // Rattled grants +1 Speed AND the -1 Atk still applies (Rattled doesn't block Intimidate)
     assert_eq!(state.sides[1].active.boosts[ATK], -1);
     assert_eq!(state.sides[1].active.boosts[SPE], 1);
@@ -395,7 +395,7 @@ fn test_download_boosts_correct_stat() {
     // Opponent: Def 100, SpD 80 → SpD < Def → boost SpA
     state.sides[1].team[0].stats[DEF] = 100;
     state.sides[1].team[0].stats[SPD] = 80;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[0].active.boosts[SPA], 1);
     assert_eq!(state.sides[0].active.boosts[ATK], 0);
 
@@ -404,7 +404,7 @@ fn test_download_boosts_correct_stat() {
     state2.sides[0].team[1].ability_id = ABILITY_DOWNLOAD;
     state2.sides[1].team[0].stats[DEF] = 80;
     state2.sides[1].team[0].stats[SPD] = 100;
-    switch_in(&mut state2, &keys2, 0, 1);
+    switch_in(&mut state2, &keys2, &TeamData::default(), 0, 1);
     assert_eq!(state2.sides[0].active.boosts[ATK], 1);
     assert_eq!(state2.sides[0].active.boosts[SPA], 0);
 }
@@ -413,7 +413,7 @@ fn test_download_boosts_correct_stat() {
 fn test_drizzle_sets_rain() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_DRIZZLE;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.field.weather, WEATHER_RAIN);
     assert_eq!(state.field.weather_turns, 5);
     assert!(validate_hash(&state, &keys));
@@ -423,7 +423,7 @@ fn test_drizzle_sets_rain() {
 fn test_electric_surge_sets_terrain() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_ELECTRIC_SURGE;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.field.terrain, TERRAIN_ELECTRIC);
     assert_eq!(state.field.terrain_turns, 5);
     assert!(validate_hash(&state, &keys));
@@ -440,14 +440,14 @@ fn test_intrepid_sword_once_only() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // First switch-in: gets +1 Atk
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[0].active.boosts[ATK], 1);
     assert!(state.sides[0].team[1].flags & MON_FLAG_SWORD_BOOSTED != 0);
     assert!(validate_hash(&state, &keys));
 
     // Switch out and back in: no additional boost
-    switch_out(&mut state, &keys, 0);
-    switch_in(&mut state, &keys, 0, 1);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(state.sides[0].active.boosts[ATK], 0); // Boosts were zeroed on switch_out, no new boost
     assert!(validate_hash(&state, &keys));
 }
@@ -461,7 +461,7 @@ fn test_air_lock_suppresses_weather() {
     state.sides[0].team[1].ability_id = ABILITY_AIR_LOCK;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     // Raw weather is still rain, but effective_weather returns NONE
     assert_eq!(state.field.weather, WEATHER_RAIN);
     assert_eq!(effective_weather(&state), WEATHER_NONE);
@@ -480,10 +480,10 @@ fn test_air_lock_switch_out_restores() {
     state.sides[0].team[1].max_hp = 300;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     assert_eq!(effective_weather(&state), WEATHER_NONE);
 
-    switch_out(&mut state, &keys, 0);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
     // Weather suppression cleared
     assert_eq!(effective_weather(&state), WEATHER_RAIN);
     assert_eq!(state.field.field_flags & FIELD_WEATHER_SUPPRESSED, 0);
@@ -510,7 +510,7 @@ fn test_trace_copies_ability() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_TRACE;
     state.sides[1].team[0].ability_id = ABILITY_INTIMIDATE;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     // Trace copies Intimidate
     assert_eq!(state.sides[0].active.override_ability, ABILITY_INTIMIDATE);
     assert!(state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
@@ -524,7 +524,7 @@ fn test_trace_untraceable() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_TRACE;
     state.sides[1].team[0].ability_id = ABILITY_NEUTRALIZING_GAS;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     // Should NOT have copied the ability
     assert!(!state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
 }
@@ -533,7 +533,7 @@ fn test_trace_untraceable() {
 fn test_neutralizing_gas_suppresses() {
     let (mut state, keys) = setup();
     state.sides[0].team[1].ability_id = ABILITY_NEUTRALIZING_GAS;
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
     // Opponent's ability is suppressed
     assert!(state.sides[1].active.has_volatile(VOL_ABILITY_SUPPRESSED));
     assert!(validate_hash(&state, &keys));
@@ -553,7 +553,7 @@ fn test_neutralizing_gas_exit_retriggers() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // N-Gas switches out: opponent's Intimidate should re-trigger
-    switch_out(&mut state, &keys, 0);
+    switch_out(&mut state, &keys, &TeamData::default(), 0);
     // VOL_ABILITY_SUPPRESSED should be cleared
     assert!(!state.sides[1].active.has_volatile(VOL_ABILITY_SUPPRESSED));
     // Intimidate re-triggers targeting the departing N-Gas user (side 0)
@@ -585,7 +585,7 @@ fn test_embody_aspect_on_tera() {
     // We verify that switch-in does NOT trigger the boost anymore:
     let (mut state2, keys2) = setup();
     state2.sides[0].team[1].ability_id = ABILITY_EMBODY_ASPECT_HEARTHFLAME;
-    switch_in(&mut state2, &keys2, 0, 1);
+    switch_in(&mut state2, &keys2, &TeamData::default(), 0, 1);
     // Should NOT have +1 Atk on switch-in (it's now tied to Terastallization)
     assert_eq!(state2.sides[0].active.boosts[ATK], 0);
 }
@@ -604,7 +604,7 @@ fn test_healing_wish_full_heal() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Switch to mon index 1
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
 
     assert_eq!(state.sides[0].team[1].current_hp, 300,
         "Healing Wish should restore HP to max");
@@ -631,7 +631,7 @@ fn test_lunar_dance_restores_pp() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Switch to mon index 1
-    switch_in(&mut state, &keys, 0, 1);
+    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
 
     assert_eq!(state.sides[0].team[1].current_hp, 300,
         "Lunar Dance should restore HP to max");

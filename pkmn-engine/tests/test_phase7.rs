@@ -84,7 +84,7 @@ fn test_taunt_blocks_status_moves() {
     let (mut state, keys) = setup();
     // Side 1 uses Taunt (269) on side 0
     // Taunt effect is wired up in gen_moves, so execute_move should work
-    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 269, 0, &mut dummy_rng);
 
     assert!(state.sides[0].active.taunt_turns > 0, "Taunt should set taunt_turns");
 
@@ -111,7 +111,7 @@ fn test_encore_locks_to_last_move() {
     state.sides[0].active.last_move = 1; // Pound
 
     // Side 1 uses Encore (227) on side 0
-    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 227, 0, &mut dummy_rng);
 
     assert!(state.sides[0].active.encore_turns > 0);
     assert_eq!(state.sides[0].active.encore_move, 1);
@@ -174,7 +174,7 @@ fn test_perish_song_kos_at_counter_0() {
     set_volatile(&mut state, &keys, 1, VOL_PERISH_SONG);
     state.sides[1].active.perish_count = 2;
 
-    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Side 0 should be KO'd
     assert_eq!(state.sides[0].team[0].current_hp, 0,
@@ -197,7 +197,7 @@ fn test_destiny_bond_kos_attacker() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Side 0 uses Pound (move_id=1, physical normal, 40bp)
-    execute_move(&mut state, &keys, 0, 1, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 0, 1, 0, &mut dummy_rng);
 
     // Defender should be fainted
     assert_eq!(state.sides[1].team[0].current_hp, 0,
@@ -241,7 +241,7 @@ fn test_tailwind_doubles_speed() {
     state.sides[0].team[0].current_hp = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     // Side 1 should have moved first due to tailwind → side 0 fainted before acting
     // If side 0 went first it would have hit side 1 with Pound first
@@ -312,7 +312,7 @@ fn test_aegislash_forme_toggle() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Shield → Blade on attacking move
-    apply_battle_forme(&mut state, &keys, 0, 1103);
+    apply_battle_forme(&mut state, &keys, &TeamData::default(), 0, 1103);
     assert_eq!(effective_species(&state, 0), 1103, "Should be Blade forme");
     // Stats should scale: atk 100*140/50=280, def 280*50/140=100
     assert_eq!(effective_stat(&state, 0, ATK), 280);
@@ -396,7 +396,7 @@ fn test_mid_turn_faint_triggers_switch_phase() {
     // Both sides use Pound (action 0)
     // Side 0 has higher speed (100 vs 80), goes first, attacks side 1
     // Side 1 attacks side 0, KOs it
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     // Side 0 should be fainted
     assert_eq!(state.sides[0].team[0].current_hp, 0);
@@ -414,7 +414,7 @@ fn test_mid_turn_faint_triggers_switch_phase() {
             "In switch phase, only switch actions should be legal");
         // Pick first available switch target
         let switch_action = actions.actions[0];
-        execute_switch_turn(&mut state, &keys, switch_action, 0, &mut dummy_rng);
+        execute_switch_turn(&mut state, &keys, &TeamData::default(), switch_action, 0, &mut dummy_rng);
         // Active mon should now be alive
         assert!(state.active_mon(0).current_hp > 0,
             "New active mon should be alive after forced switch");
@@ -430,7 +430,7 @@ fn test_single_faint_triggers_switch_phase() {
 
     // Side 0 speed=100 > Side 1 speed=80, so side 0 goes first
     // Side 0's Pound (action 0) should KO side 1
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[1].team[0].current_hp, 0, "Side 1 should be fainted");
     assert_eq!(state.phase, PHASE_SWITCH_P2,
@@ -463,7 +463,7 @@ fn test_both_faint_triggers_switch_both() {
         "P2 should only have switch actions during PHASE_SWITCH_BOTH");
 
     // Perform the switches — both switch to slot 1
-    execute_switch_turn(&mut state, &keys,
+    execute_switch_turn(&mut state, &keys, &TeamData::default(),
         ACTION_SWITCH_0 + 1, ACTION_SWITCH_0 + 1, &mut dummy_rng);
 
     // Both replacements should be alive
@@ -482,7 +482,7 @@ fn test_forced_switch_resumes_turn() {
     let p1_hp_before = state.sides[0].team[0].current_hp;
 
     // Side 0 uses Pound (action 0), Side 1 uses Pound (action 0)
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     // Should pause for side 1's replacement
     assert_eq!(state.phase, PHASE_SWITCH_P2);
@@ -493,7 +493,7 @@ fn test_forced_switch_resumes_turn() {
         "Side 0 should not have taken damage before Move 2 executes");
 
     // Side 1 switches in slot 1
-    execute_switch_turn(&mut state, &keys, 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);
+    execute_switch_turn(&mut state, &keys, &TeamData::default(), 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);
 
     // The replacement (side 1 slot 1) should have executed Move 2 (Pound on side 0)
     // Side 1 slot 1 has attack=80, side 0 has defense=100, Pound base power=40
@@ -515,7 +515,7 @@ fn test_forced_switch_legal_moves_only_switches() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Side 0 OHKOs side 1
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     assert_eq!(state.phase, PHASE_SWITCH_P2);
 
@@ -541,11 +541,11 @@ fn test_replacement_does_not_act() {
     let p1_hp_before = state.sides[0].team[0].current_hp;
 
     // Both use Pound. Side 0 goes first (faster), KOs side 1.
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
     assert_eq!(state.phase, PHASE_SWITCH_P2);
 
     // Side 1 switches in slot 1
-    execute_switch_turn(&mut state, &keys, 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);
+    execute_switch_turn(&mut state, &keys, &TeamData::default(), 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);
 
     // The replacement should NOT have attacked side 0
     // Side 0's HP should be unchanged (no Move 2 from fainted/replaced side)
@@ -563,7 +563,7 @@ fn test_faint_after_move2_triggers_switch() {
     state.sides[0].team[0].current_hp = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     // Side 0 should be fainted from Move 2
     assert_eq!(state.sides[0].team[0].current_hp, 0,
@@ -574,7 +574,7 @@ fn test_faint_after_move2_triggers_switch() {
         "Should be SUBPHASE_AFTER_MOVE2");
 
     // Switch in replacement, end-of-turn should run
-    execute_switch_turn(&mut state, &keys, ACTION_SWITCH_0 + 1, 0, &mut dummy_rng);
+    execute_switch_turn(&mut state, &keys, &TeamData::default(), ACTION_SWITCH_0 + 1, 0, &mut dummy_rng);
 
     assert_eq!(state.phase, PHASE_ACTIONS,
         "After replacement post-Move 2, should return to PHASE_ACTIONS");
@@ -592,7 +592,7 @@ fn test_trick_room_inverts_speed() {
     state.sides[0].team[0].current_hp = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_turn(&mut state, &keys, 0, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
     // Side 1 moved first (slower under TR), KO'd side 0
     assert_eq!(state.sides[0].team[0].current_hp, 0,
@@ -612,7 +612,7 @@ fn test_trick_room_no_affect_priority() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Side 0 uses Quick Attack (action 2), side 1 uses Pound (action 0)
-    execute_turn(&mut state, &keys, 2, 0, &mut dummy_rng);
+    execute_turn(&mut state, &keys, &TeamData::default(), 2, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[1].team[0].current_hp, 0,
         "Side 1 should be fainted (priority overrides Trick Room)");
@@ -630,7 +630,7 @@ fn test_encore_forces_move() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Side 1 uses Encore (227) on side 0
-    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 227, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.encore_move, 1, "Encore should lock to Pound");
     assert_eq!(state.sides[0].active.encore_turns, 4, "Target already moved => duration 4");
@@ -651,7 +651,7 @@ fn test_encore_fails_no_last_move() {
     state.sides[0].active.last_move = 0;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 227, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore should fail with no last_move");
     assert_eq!(state.sides[0].active.encore_turns, 0);
@@ -666,7 +666,7 @@ fn test_encore_expires() {
     state.sides[0].active.encore_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.encore_turns, 0, "Encore should expire");
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");
@@ -680,7 +680,7 @@ fn test_encore_duration_user_faster() {
     state.sides[0].active.last_move = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 227, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.encore_turns, 3, "Target hasn't moved => duration 3");
     assert!(validate_hash(&state, &keys));
@@ -693,7 +693,7 @@ fn test_encore_fails_failencore_move() {
     state.sides[0].active.last_move = 227;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 227, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore should fail on failencore moves");
     assert_eq!(state.sides[0].active.encore_turns, 0);
@@ -708,7 +708,7 @@ fn test_encore_fails_zero_pp() {
     state.sides[0].team[0].pp[0] = 0; // Pound in slot 0 has 0 PP
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 227, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 227, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore should fail with 0 PP");
     assert_eq!(state.sides[0].active.encore_turns, 0);
@@ -723,7 +723,7 @@ fn test_disable_blocks_move() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Side 1 uses Disable (50) on side 0
-    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 50, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.disabled_move, 85);
     assert!(state.sides[0].active.disable_turns > 0);
@@ -744,7 +744,7 @@ fn test_disable_expires() {
     state.sides[0].active.disable_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.disable_turns, 0, "Disable should expire");
     assert_eq!(state.sides[0].active.disabled_move, 0, "Disabled move should be cleared");
@@ -759,7 +759,7 @@ fn test_disable_duration_turn_order() {
     set_volatile(&mut state, &keys, 0, VOL_MOVED_THIS_TURN);
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 50, 0, &mut dummy_rng);
     assert_eq!(state.sides[0].active.disable_turns, 5, "Target already moved => duration 5");
 
     // Reset and test when target hasn't moved
@@ -767,7 +767,7 @@ fn test_disable_duration_turn_order() {
     state2.sides[0].active.last_move = 85;
     state2.zobrist = compute_full_hash(&state2, &keys2);
 
-    execute_move(&mut state2, &keys2, 1, 50, 0, &mut dummy_rng);
+    execute_move(&mut state2, &keys2, &TeamData::default(), 1, 50, 0, &mut dummy_rng);
     assert_eq!(state2.sides[0].active.disable_turns, 4, "Target hasn't moved => duration 4");
     assert!(validate_hash(&state2, &keys2));
 }
@@ -778,7 +778,7 @@ fn test_disable_fails_no_last_move() {
     state.sides[0].active.last_move = 0;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 50, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.disabled_move, 0, "Disable should fail with no last_move");
     assert!(validate_hash(&state, &keys));
@@ -791,7 +791,7 @@ fn test_disable_fails_zero_pp() {
     state.sides[0].team[0].pp[0] = 0; // Pound has 0 PP
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 50, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 50, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.disabled_move, 0, "Disable should fail with 0 PP");
     assert!(validate_hash(&state, &keys));
@@ -803,7 +803,7 @@ fn test_taunt_blocks_status() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Side 1 uses Taunt (269) on side 0
-    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 269, 0, &mut dummy_rng);
 
     assert!(state.sides[0].active.taunt_turns > 0, "Taunt should set taunt_turns");
 
@@ -826,7 +826,7 @@ fn test_taunt_expires() {
     state.sides[0].active.taunt_turns = 1;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.taunt_turns, 0, "Taunt should expire");
     assert!(validate_hash(&state, &keys));
@@ -840,7 +840,7 @@ fn test_taunt_duration_turn_order() {
     set_volatile(&mut state, &keys, 0, VOL_MOVED_THIS_TURN);
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 269, 0, &mut dummy_rng);
     assert_eq!(state.sides[0].active.taunt_turns, 4, "activeTurns>0 && already moved => 4");
 
     // First turn on field (turns_active == 0) — even if moved, no +1
@@ -849,7 +849,7 @@ fn test_taunt_duration_turn_order() {
     set_volatile(&mut state2, &keys2, 0, VOL_MOVED_THIS_TURN);
     state2.zobrist = compute_full_hash(&state2, &keys2);
 
-    execute_move(&mut state2, &keys2, 1, 269, 0, &mut dummy_rng);
+    execute_move(&mut state2, &keys2, &TeamData::default(), 1, 269, 0, &mut dummy_rng);
     assert_eq!(state2.sides[0].active.taunt_turns, 3, "First turn on field => 3 even if moved");
     assert!(validate_hash(&state2, &keys2));
 }
@@ -860,7 +860,7 @@ fn test_taunt_fails_already_taunted() {
     state.sides[0].active.taunt_turns = 2;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 269, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 269, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].active.taunt_turns, 2, "Should not re-apply Taunt");
     assert!(validate_hash(&state, &keys));
@@ -891,8 +891,8 @@ fn test_torment_clears_on_switch() {
     state.zobrist = compute_full_hash(&state, &keys);
 
     // Switch side 0 to slot 1
-    pkmn_engine::state::switch::switch_out(&mut state, &keys, 0);
-    pkmn_engine::state::switch::switch_in(&mut state, &keys, 0, 1);
+    pkmn_engine::state::switch::switch_out(&mut state, &keys, &TeamData::default(), 0);
+    pkmn_engine::state::switch::switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
 
     assert!(!state.sides[0].active.has_volatile(VOL_TORMENT),
         "Torment should be cleared on switch");
@@ -906,7 +906,7 @@ fn test_torment_via_move() {
     state.sides[1].team[0].moves[0] = 259;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 259, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 259, 0, &mut dummy_rng);
 
     assert!(state.sides[0].active.has_volatile(VOL_TORMENT),
         "Torment move should set VOL_TORMENT");
@@ -920,7 +920,7 @@ fn test_torment_fails_already_set() {
     let hash_before = state.zobrist;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 1, 259, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 1, 259, 0, &mut dummy_rng);
 
     // Should still have Torment, hash unchanged (no double-toggle)
     assert!(state.sides[0].active.has_volatile(VOL_TORMENT));
@@ -936,7 +936,7 @@ fn test_encore_pp_early_termination() {
     state.sides[0].team[0].pp[0] = 0; // Pound has 0 PP
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.encore_turns, 0, "Encore should end early with 0 PP");
     assert_eq!(state.sides[0].active.encore_move, 0, "Encore move should be cleared");
@@ -951,7 +951,7 @@ fn test_healing_wish_user_faints() {
     state.sides[0].team[0].pp[0] = 10;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, 0, 361, 0, &mut dummy_rng);
+    execute_move(&mut state, &keys, &TeamData::default(), 0, 361, 0, &mut dummy_rng);
 
     assert_eq!(state.sides[0].team[0].current_hp, 0,
         "Healing Wish user should faint");
