@@ -295,10 +295,11 @@ fn test_aegislash_forme_toggle() {
     let keys = ZobristKeys::new(42);
     let mut state = BattleState::default();
     // Aegislash Shield (681): atk:50, def:140, spa:50, spd:140, spe:60
+    // L100 neutral 31/0 -> atk=136, def=316, spa=136, spd=316, spe=156
     state.sides[0].team[0] = MonSlot {
         species_id: 681, current_hp: 300, max_hp: 300,
         ability_id: data_bridge::ABILITY_STANCE_CHANGE,
-        stats: [100, 280, 100, 280, 120],
+        stats: [136, 316, 136, 316, 156], level: 100,
         moves: [1, 588, 3, 4], pp: [24, 24, 24, 24],
         // Pound(1), King's Shield(588)
         ..Default::default()
@@ -311,19 +312,22 @@ fn test_aegislash_forme_toggle() {
     state.phase = PHASE_ACTIONS;
     state.zobrist = compute_full_hash(&state, &keys);
 
-    // Shield → Blade on attacking move
-    apply_battle_forme(&mut state, &keys, &TeamData::default(), 0, 1103);
+    // Forme stats are recomputed from the new base + IVs/EVs/level, not ratio-scaled.
+    let build = MonBuildData { ivs: [31; 6], evs: [0; 6], nature: 0 };
+    let teams = TeamData { mons: [[build; 6]; 2], levels: [[100; 6]; 2] };
+
+    // Shield → Blade. Blade (1103): atk:140, def:50 -> L100 31/0 atk=316, def=136.
+    apply_battle_forme(&mut state, &keys, &teams, 0, 1103);
     assert_eq!(effective_species(&state, 0), 1103, "Should be Blade forme");
-    // Stats should scale: atk 100*140/50=280, def 280*50/140=100
-    assert_eq!(effective_stat(&state, 0, ATK), 280);
-    assert_eq!(effective_stat(&state, 0, DEF), 100);
+    assert_eq!(effective_stat(&state, 0, ATK), 316);
+    assert_eq!(effective_stat(&state, 0, DEF), 136);
     assert!(validate_hash(&state, &keys));
 
     // Blade → Shield on King's Shield
     revert_battle_forme(&mut state, &keys, 0);
     assert_eq!(effective_species(&state, 0), 681, "Should revert to Shield forme");
-    assert_eq!(effective_stat(&state, 0, ATK), 100);
-    assert_eq!(effective_stat(&state, 0, DEF), 280);
+    assert_eq!(effective_stat(&state, 0, ATK), 136);
+    assert_eq!(effective_stat(&state, 0, DEF), 316);
     assert!(validate_hash(&state, &keys));
 }
 
@@ -435,8 +439,8 @@ fn test_single_faint_triggers_switch_phase() {
     assert_eq!(state.sides[1].team[0].current_hp, 0, "Side 1 should be fainted");
     assert_eq!(state.phase, PHASE_SWITCH_P2,
         "Side 1 fainted, should be PHASE_SWITCH_P2, got {}", state.phase);
-    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1,
-        "Should be in SUBPHASE_AFTER_MOVE1");
+    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE2,
+        "switch-pause is set after both moves + EOT (AFTER_MOVE1 path is deprecated)");
     assert!(validate_hash(&state, &keys));
 }
 
@@ -484,13 +488,13 @@ fn test_forced_switch_resumes_turn() {
     // Side 0 uses Pound (action 0), Side 1 uses Pound (action 0)
     execute_turn(&mut state, &keys, &TeamData::default(), 0, 0, &mut dummy_rng);
 
-    // Should pause for side 1's replacement
+    // Should pause for side 1's replacement, after both moves + EOT.
     assert_eq!(state.phase, PHASE_SWITCH_P2);
-    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1);
+    assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE2);
 
-    // Side 0 should NOT have taken damage yet (Move 2 hasn't executed)
+    // Side 1 fainted before its move (Move 2 skipped), so side 0 took no damage.
     assert_eq!(state.sides[0].team[0].current_hp, p1_hp_before,
-        "Side 0 should not have taken damage before Move 2 executes");
+        "Side 0 should not have taken damage (Move 2 was skipped)");
 
     // Side 1 switches in slot 1
     execute_switch_turn(&mut state, &keys, &TeamData::default(), 0, ACTION_SWITCH_0 + 1, &mut dummy_rng);

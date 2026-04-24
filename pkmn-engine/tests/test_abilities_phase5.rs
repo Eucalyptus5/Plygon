@@ -854,10 +854,10 @@ fn test_shed_skin_no_cure() {
     let (mut state, keys) = setup();
     state.sides[0].team[0].ability_id = ABILITY_SHED_SKIN;
     state.sides[0].team[0].status = STATUS_PARALYSIS;
-    state.sides[0].active.turns_active = 1; // 1 % 3 != 0 → no cure
     state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    // Shed Skin cures iff rng(100) < 33; a roll of 33 fails the check → no cure.
+    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 33u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
     assert!(validate_hash(&state, &keys));

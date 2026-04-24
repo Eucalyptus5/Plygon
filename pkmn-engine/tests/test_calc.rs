@@ -249,10 +249,14 @@ fn test_drain_recoil() {
     // Absorb (71) - Drain 50%
     let res_drain = calc_damage(&state, 0, 71, 0, &mut |x| 1);
     assert!(res_drain.drain_heal > 0);
-    assert_eq!(res_drain.drain_heal, (res_drain.damage as u32 * 50 / 100) as u16);
+    // Drain heal rounds half-up, mirroring Showdown: (damage*drain + 50) / 100
+    assert_eq!(res_drain.drain_heal, ((res_drain.damage as u32 * 50 + 50) / 100) as u16);
     
-    // Take Down (36) - Recoil 25% (or Double-Edge 38 - Recoil 33%)
-    let res_recoil = calc_damage(&state, 0, 36, 0, &mut |x| 1);
+    // Move-recoil (Take Down etc.) is computed in move_exec from actual dealt
+    // damage; calc_damage emits only item recoil. Life Orb (249) -> max_hp/10.
+    let mut state_lo = setup();
+    state_lo.sides[0].team[0].item_id = 249; // Life Orb
+    let res_recoil = calc_damage(&state_lo, 0, 36, 0, &mut |x| 1);
     assert!(res_recoil.recoil_damage > 0);
 }
 

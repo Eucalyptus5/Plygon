@@ -56,8 +56,11 @@ fn test_eviolite_boosts_def() {
 
 #[test]
 fn test_life_orb_power_mod() {
+    // Life Orb moved from onBasePower (item_power_mod) to onModifyDamage
+    // (item_final_mod) — its 1.3x now applies there, not on base power.
     let itm = item(249); // Life Orb
-    let (num, den) = item_power_mod(itm, 249, Type::Normal, MoveCategory::Physical, 0, 0);
+    assert_eq!(item_power_mod(itm, 249, Type::Normal, MoveCategory::Physical, 0, 0), (4096, 4096));
+    let (num, den, _) = item_final_mod(itm, item(0), Type::Normal, 4);
     assert_eq!(num, 5324);
     assert_eq!(den, 4096);
 }
@@ -104,7 +107,7 @@ fn test_wise_glasses_special_boost() {
 fn test_punching_glove_punch_boost() {
     let itm = item(ITEM_PUNCHING_GLOVE);
     let (num, den) = item_power_mod(itm, ITEM_PUNCHING_GLOVE, Type::Normal, MoveCategory::Physical, MoveFlags::PUNCH, 0);
-    assert_eq!(num, 4505);
+    assert_eq!(num, 4506); // Punching Glove uses Showdown's [4506, 4096]
 }
 
 #[test]
@@ -404,7 +407,9 @@ fn test_no_loaded_dice_can_hit_2() {
         multihit: (5 << 4) | 2, base_power: 25,
         ..unsafe { core::mem::zeroed() }
     };
-    let hits = resolve_hits(&md, 0, 0, &mut |_| 0);
+    // Hit distribution maps rng(100): 0..=34->3, 35..=69->2, 70..=84->4, _->5.
+    // A value in the 2-hit bucket shows 2 is reachable without Loaded Dice.
+    let hits = resolve_hits(&md, 0, 0, &mut |_| 50);
     assert_eq!(hits, 2);
 }
 

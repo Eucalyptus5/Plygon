@@ -26,18 +26,21 @@ fn test_effective_types() {
     state.sides[0].active.set_volatile(VOL_TRANSFORMED);
     assert_eq!(effective_types(&state, 0), (Type::Grass as u8, Type::Ice as u8));
     
-    // Terastallized
+    // Terastallized: effective_types() mirrors Showdown's pokemon.types and
+    // intentionally ignores tera; battle_types() is the tera-aware accessor.
     let mut mon = state.active_mon_mut(0);
     mon.tera_type = Type::Dragon as u8;
     mon.flags |= MON_FLAG_TERASTALLIZED;
-    assert_eq!(effective_types(&state, 0), (Type::Dragon as u8, Type::Dragon as u8));
+    mon.current_hp = 100; // is_terastallized() reports false for a fainted mon
+    assert_eq!(battle_types(&state, 0), (Type::Dragon as u8, Type::Dragon as u8));
 }
 
 #[test]
 fn test_effective_ability() {
     let mut state = BattleState::default();
     
-    // Default
+    // Default (effective_ability returns 0 for a fainted mon — give it HP)
+    state.active_mon_mut(0).current_hp = 100;
     state.active_mon_mut(0).ability_id = 10;
     assert_eq!(effective_ability(&state, 0), 10);
     
@@ -104,6 +107,10 @@ fn test_effective_pp() {
 fn test_is_grounded() {
     let mut state = BattleState::default();
     
+    // Levitate check routes through effective_ability, which returns 0 for a
+    // fainted mon — give the default mon HP so its ability is read.
+    state.active_mon_mut(0).current_hp = 100;
+
     // Default (Normal, no abilities) -> grounded
     assert!(is_grounded(&state, 0));
     
