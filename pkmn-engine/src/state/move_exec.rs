@@ -3509,8 +3509,19 @@ pub fn execute_move(
         && !state.sides[atk_side].team[atk_slot].is_fainted()
         && effective_ability(state, atk_side) != data_bridge::ABILITY_OWN_TEMPO
     {
-        // BUG-P5-M-102: duration is 2-5 turns (rng(4)+2), not 2-4.
-        state.sides[atk_side].active.confusion_turns = (rng(4) + 2) as u8;
+        // The lock-end self-confusion runs through Showdown's residual/onEnd, which is
+        // deferred past the forced-replacement when the opponent faints on this same turn
+        // and has a living switch-in: confusion does not land on the faint turn there.
+        // Apply it only when no such forced switch interrupts the turn (no opponent faint,
+        // or the faint ends the battle). Duration is 2-5 turns (rng(4)+2).
+        let opp_forced_switch = state.sides[def_side].team[def_slot].is_fainted()
+            && (0..6).any(|i| {
+                let m = &state.sides[def_side].team[i];
+                m.species_id != 0 && m.current_hp > 0
+            });
+        if !opp_forced_switch {
+            state.sides[atk_side].active.confusion_turns = (rng(4) + 2) as u8;
+        }
     }
 }
 
@@ -4277,6 +4288,66 @@ mod tests {
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
         assert!(state.sides[0].active.confusion_turns >= 2);
+    }
+
+    #[test]
+    fn test_thrash_lockend_confusion_lands_when_target_survives() {
+        // Continuing lock: the defender survives the lock-end hit, so the self-confusion
+        // lands this turn (mirrors a battle that keeps going). Guards against a fix that
+        // suppresses the lock-end self-confusion outright.
+        let mut state = setup();
+        setup_thrash_locked(&mut state, 0, 1, 1); // last locked turn
+
+        assert!(state.sides[1].team[0].current_hp > 1, "defender must survive the hit");
+        execute_move(&mut state, &TeamData::default(), 0, 99, 0, &mut fixed_rng(0));
+
+        assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
+        assert!(!state.sides[1].team[0].is_fainted());
+        assert!(state.sides[0].active.confusion_turns >= 2);
+    }
+
+    #[test]
+    fn test_thrash_lockend_confusion_deferred_when_target_faints_with_backup() {
+        // Showdown defers the lock-end onEnd confusion past the forced replacement when the
+        // defender faints on the lock-end turn and has a living switch-in; it does not land
+        // on the faint turn. Mirror that: no self-confusion lands here.
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 1;
+        setup_thrash_locked(&mut state, 0, 1, 1); // last locked turn
+
+        execute_move(&mut state, &TeamData::default(), 0, 99, 0, &mut fixed_rng(0));
+
+        assert!(state.sides[1].team[0].is_fainted(), "lock-end hit must KO the defender");
+        assert!(state.sides[1].team[1].current_hp > 0, "defender keeps a living backup");
+        assert_eq!(state.sides[0].active.confusion_turns, 0);
+    }
+
+    #[test]
+    fn test_thrash_lockend_confusion_lands_when_faint_ends_battle() {
+        // When the lock-end KO ends the battle (no living replacement), Showdown still adds
+        // the confusion. The defer only applies to a pending forced replacement.
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 1;
+        state.sides[1].team[1].current_hp = 0; // no living backup
+        setup_thrash_locked(&mut state, 0, 1, 1); // last locked turn
+
+        execute_move(&mut state, &TeamData::default(), 0, 99, 0, &mut fixed_rng(0));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert!(state.sides[0].active.confusion_turns >= 2);
+    }
+
+    #[test]
+    fn test_uproar_lockend_no_self_confusion() {
+        // Uproar locks like Thrash but its Showdown condition adds no confusion on lock-end.
+        let mut state = setup();
+        state.sides[0].team[0].moves = [253, 0, 0, 0];
+        setup_thrash_locked(&mut state, 0, 253, 1); // last locked turn, Uproar
+
+        execute_move(&mut state, &TeamData::default(), 0, 99, 0, &mut fixed_rng(0));
+
+        assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
+        assert_eq!(state.sides[0].active.confusion_turns, 0);
     }
 
     #[test]
