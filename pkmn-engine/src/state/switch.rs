@@ -4,18 +4,17 @@ use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag};
 use crate::state::accessors::{effective_ability, effective_weather_for, battle_types, effective_stat, effective_species, effective_moves, is_grounded, is_trapped};
 use crate::state::mutations::*;
-use crate::state::zobrist::ZobristKeys;
 
-pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
+pub fn switch_out(state: &mut BattleState, teams: &TeamData, side: usize) {
     let ability = effective_ability(state, side);
     let idx = state.sides[side].active_index as usize;
 
     if ability == data_bridge::ABILITY_NATURAL_CURE {
-        clear_status(state, keys, side, idx);
+        clear_status(state, side, idx);
     }
     if ability == data_bridge::ABILITY_REGENERATOR {
         let max_hp = state.sides[side].team[idx].max_hp;
-        heal(state, keys, side, idx, max_hp / 3);
+        heal(state, side, idx, max_hp / 3);
     }
     // Zero to Hero: mark Palafin for Hero forme on next switch-in
     if ability == data_bridge::ABILITY_ZERO_TO_HERO {
@@ -34,13 +33,13 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
     // Neutralizing Gas: re-trigger opponent's switch-in ability
     if ability == data_bridge::ABILITY_NEUTRALIZING_GAS {
         let opp = 1 - side;
-        clear_volatile(state, keys, opp, VOL_ABILITY_SUPPRESSED);
+        clear_volatile(state, opp, VOL_ABILITY_SUPPRESSED);
         let opp_slot = state.sides[opp].active_index as usize;
         if !state.sides[opp].team[opp_slot].is_fainted() {
             let opp_ability = effective_ability(state, opp);
             // Imposter only fires on actual switch-in, not ability reactivation
             if opp_ability != data_bridge::ABILITY_IMPOSTER {
-                apply_switch_in_ability(state, keys, teams, opp);
+                apply_switch_in_ability(state, teams, opp);
             }
         }
     }
@@ -52,18 +51,10 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
     // assumes the binder was always A's outgoing mon.
     let opp = 1 - side;
     if state.sides[opp].active.has_volatile(VOL_BOUND) {
-        clear_volatile(state, keys, opp, VOL_BOUND);
+        clear_volatile(state, opp, VOL_BOUND);
         state.sides[opp].active.set_bind_turns(0);
     }
 
-    let flags = state.sides[side].active.volatile_flags;
-    for bit in 0..32u32 {
-        if flags & (1 << bit) != 0 { state.zobrist ^= keys.volatile_bit[side][bit as usize]; }
-    }
-    let boosts = state.sides[side].active.boosts;
-    for stat in 0..7 {
-        if boosts[stat] != 0 { state.zobrist ^= keys.boosts[side][stat][(boosts[stat] + 6) as usize]; }
-    }
     // Skill Swap restore: Showdown's clearVolatile resets this.ability to
     // baseAbility on switch-out. Mirror that by restoring the stashed pre-swap
     // ability before the active (which holds the stash) is zeroed.
@@ -82,10 +73,10 @@ pub fn switch_out(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
     state.sides[side].set_last_consumed_berry(0);
 }
 
-pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize) {
-    if switch_in_phase_a(state, keys, teams, side, new_index) {
-        apply_switch_in_ability(state, keys, teams, side);
-        apply_switch_in_item(state, keys, side);
+pub fn switch_in(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) {
+    if switch_in_phase_a(state, teams, side, new_index) {
+        apply_switch_in_ability(state, teams, side);
+        apply_switch_in_item(state, side);
     }
 }
 
@@ -105,18 +96,15 @@ pub fn switch_in(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, 
 /// from the ability/item step exists so `perform_double_switch` can install
 /// each incoming mon, then fire its ability before the other side switches.
 pub fn switch_in_phase_a(
-    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize,
+    state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize,
 ) -> bool {
-    let old_index = state.sides[side].active_index as usize;
-    state.zobrist ^= keys.active_index[side][old_index];
     state.sides[side].active_index = new_index as u8;
-    state.zobrist ^= keys.active_index[side][new_index];
-    apply_entry_hazards(state, keys, side);
+    apply_entry_hazards(state, side);
 
     // Check berry activation after hazard damage (e.g. Sitrus Berry can save)
     let slot = state.sides[side].active_index as usize;
     if !state.sides[side].team[slot].is_fainted() {
-        crate::state::move_exec::check_pinch_berry(state, keys, side, slot);
+        crate::state::move_exec::check_pinch_berry(state, side, slot);
     }
 
     // If fainted from hazards, skip ability/item activation
@@ -125,10 +113,10 @@ pub fn switch_in_phase_a(
     }
 
     // Palafin Zero to Hero: transform on switch-in
-    crate::state::forme::check_palafin_hero(state, keys, teams, side);
+    crate::state::forme::check_palafin_hero(state, teams, side);
 
     // Terapagos Tera Shift -> Tera Shell (Terapagos-Terastal) on switch-in
-    crate::state::forme::check_tera_shift(state, keys, teams, side);
+    crate::state::forme::check_tera_shift(state, teams, side);
 
     // Healing Wish / Lunar Dance: fully heal the incoming mon
     {
@@ -137,9 +125,9 @@ pub fn switch_in_phase_a(
         let has_ld = sc.has_lunar_dance();
         if has_hw || has_ld {
             let max_hp = state.sides[side].team[slot].max_hp;
-            heal(state, keys, side, slot, max_hp);
+            heal(state, side, slot, max_hp);
             if state.sides[side].team[slot].status != STATUS_NONE {
-                clear_status(state, keys, side, slot);
+                clear_status(state, side, slot);
             }
             if has_ld {
                 // Restore PP too
@@ -168,7 +156,7 @@ pub fn switch_in_phase_a(
                 let has_shield = state.field.magic_room_turns() == 0
                     && data_bridge::item(state.sides[side].team[slot].item_id).has(ItemFlag::ABILITY_SHIELD);
                 if !has_shield {
-                    set_volatile(state, keys, side, VOL_ABILITY_SUPPRESSED);
+                    set_volatile(state, side, VOL_ABILITY_SUPPRESSED);
                 }
             }
         }
@@ -180,7 +168,7 @@ pub fn switch_in_phase_a(
 /// Check and activate a terrain seed for the given side.
 /// Called on switch-in and when terrain is set by a move or ability.
 #[inline]
-pub fn check_terrain_seed(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_terrain_seed(state: &mut BattleState, side: usize) {
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
@@ -206,16 +194,16 @@ pub fn check_terrain_seed(state: &mut BattleState, keys: &ZobristKeys, side: usi
             3 | 4 => SPD,
             _ => return,
         };
-        apply_boost(state, keys, side, stat, 1);
-        consume_item(state, keys, side, slot);
+        apply_boost(state, side, stat, 1);
+        consume_item(state, side, slot);
         if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
-            set_volatile(state, keys, side, VOL_UNBURDEN);
+            set_volatile(state, side, VOL_UNBURDEN);
         }
     }
 }
 
-pub(crate) fn apply_switch_in_item(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
-    check_terrain_seed(state, keys, side);
+pub(crate) fn apply_switch_in_item(state: &mut BattleState, side: usize) {
+    check_terrain_seed(state, side);
 }
 
 /// Baton Pass volatile mask: volatiles that transfer on Baton Pass.
@@ -229,11 +217,11 @@ const BATON_PASS_VOLATILE_MASK: u32 =
 ///
 /// Forced switches (faint replacement, U-turn) must bypass the trap gate —
 /// use `perform_switch_forced` or call `switch_out` + `switch_in` directly.
-pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize) -> bool {
+pub fn perform_switch(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) -> bool {
     if is_trapped(state, side) {
         return false;
     }
-    perform_switch_forced(state, keys, teams, side, new_index);
+    perform_switch_forced(state, teams, side, new_index);
     true
 }
 
@@ -250,30 +238,30 @@ pub fn perform_switch(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamD
 /// honored per side — a trapped side's switch silently no-ops, matching
 /// `perform_switch`'s singleton-path behavior.
 pub fn perform_double_switch(
-    state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData,
+    state: &mut BattleState, teams: &TeamData,
     first_side: usize, first_target: usize,
     second_side: usize, second_target: usize,
     _rng: &mut impl FnMut(u32) -> u32,
 ) {
     if !is_trapped(state, first_side) {
-        switch_out(state, keys, teams, first_side);
-        if switch_in_phase_a(state, keys, teams, first_side, first_target) {
-            apply_switch_in_ability(state, keys, teams, first_side);
-            apply_switch_in_item(state, keys, first_side);
+        switch_out(state, teams, first_side);
+        if switch_in_phase_a(state, teams, first_side, first_target) {
+            apply_switch_in_ability(state, teams, first_side);
+            apply_switch_in_item(state, first_side);
         }
     }
     if !is_trapped(state, second_side) {
-        switch_out(state, keys, teams, second_side);
-        if switch_in_phase_a(state, keys, teams, second_side, second_target) {
-            apply_switch_in_ability(state, keys, teams, second_side);
-            apply_switch_in_item(state, keys, second_side);
+        switch_out(state, teams, second_side);
+        if switch_in_phase_a(state, teams, second_side, second_target) {
+            apply_switch_in_ability(state, teams, second_side);
+            apply_switch_in_item(state, second_side);
         }
     }
 }
 
 /// Force a switch regardless of trap status. Used by faint replacement and
 /// pivot moves (U-turn, Volt Switch, Baton Pass, etc.) which bypass trapping.
-pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize, new_index: usize) {
+pub fn perform_switch_forced(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) {
     let is_baton_pass = state.sides[side].active._padding[0] != 0;
 
     // Save Baton Pass state before switch_out zeros everything
@@ -290,18 +278,18 @@ pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, teams:
         saved_sub_hp = 0;
     }
 
-    switch_out(state, keys, teams, side);
-    switch_in(state, keys, teams, side, new_index);
+    switch_out(state, teams, side);
+    switch_in(state, teams, side, new_index);
 
     if is_baton_pass {
         for stat in 0..7 {
             if saved_boosts[stat] != 0 {
-                apply_boost(state, keys, side, stat, saved_boosts[stat]);
+                apply_boost(state, side, stat, saved_boosts[stat]);
             }
         }
         for bit in 0..32u32 {
             if saved_volatiles & (1 << bit) != 0 {
-                set_volatile(state, keys, side, 1 << bit);
+                set_volatile(state, side, 1 << bit);
             }
         }
         if saved_sub_hp > 0 {
@@ -310,7 +298,7 @@ pub fn perform_switch_forced(state: &mut BattleState, keys: &ZobristKeys, teams:
     }
 }
 
-fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+fn apply_entry_hazards(state: &mut BattleState, side: usize) {
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
     if state.field.magic_room_turns() == 0
@@ -328,14 +316,14 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
         let eff = dual_type_effectiveness(Type::Rock, def1, def2);
         let max_hp = state.sides[side].team[slot].max_hp as u32;
         let damage = (max_hp * eff as u32 / 32).max(1) as u16;
-        deal_damage(state, keys, side, slot, damage);
+        deal_damage(state, side, slot, damage);
     }
 
     // Spikes (grounded only)
     if sc.spikes > 0 && is_grounded(state, side) {
         let max_hp = state.sides[side].team[slot].max_hp;
         let damage = match sc.spikes { 1 => max_hp / 8, 2 => max_hp / 6, _ => max_hp / 4 };
-        deal_damage(state, keys, side, slot, damage.max(1));
+        deal_damage(state, side, slot, damage.max(1));
     }
 
     // Toxic Spikes (grounded only)
@@ -357,8 +345,8 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
             if !poison_immune {
                 // Steel types are immune to poison; Safeguard blocks status
                 match sc.toxic_spikes {
-                    1 => { set_status(state, keys, side, slot, STATUS_POISON, 0); }
-                    _ => { set_status(state, keys, side, slot, STATUS_BAD_POISON, 0); }
+                    1 => { set_status(state, side, slot, STATUS_POISON, 0); }
+                    _ => { set_status(state, side, slot, STATUS_BAD_POISON, 0); }
                 }
             }
         }
@@ -367,7 +355,7 @@ fn apply_entry_hazards(state: &mut BattleState, keys: &ZobristKeys, side: usize)
     if sc.hazard_flags & HAZARD_STICKY_WEB != 0 && is_grounded(state, side)
         && state.sides[side].side_conditions.mist_turns() == 0
     {
-        try_opponent_stat_drop(state, keys, side, SPE, -1);
+        try_opponent_stat_drop(state, side, SPE, -1);
     }
 }
 
@@ -413,7 +401,7 @@ fn is_untraceable(ability: u16) -> bool {
     )
 }
 
-pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
+pub(crate) fn apply_switch_in_ability(state: &mut BattleState, teams: &TeamData, side: usize) {
     let ability = effective_ability(state, side);
     let opp = 1 - side;
     let side_mirror = state.field.magic_room_turns() == 0
@@ -428,7 +416,7 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
             if !state.sides[opp].active.has_volatile(VOL_SUBSTITUTE) {
                 if opp_ability == data_bridge::ABILITY_GUARD_DOG {
                     // Guard Dog reverses Intimidate into +1 Atk (bypasses Mist)
-                    apply_boost(state, keys, opp, ATK, 1);
+                    apply_boost(state, opp, ATK, 1);
                 } else {
                     let blocked = matches!(opp_ability,
                         data_bridge::ABILITY_CLEAR_BODY
@@ -441,39 +429,39 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
                         | data_bridge::ABILITY_HYPER_CUTTER
                     ) || state.sides[opp].side_conditions.mist_turns() > 0;
                     if !blocked {
-                        try_opponent_stat_drop(state, keys, opp, ATK, -1);
+                        try_opponent_stat_drop(state, opp, ATK, -1);
                     }
                 }
             }
             // Rattled: +1 Speed when targeted by Intimidate, regardless of blocking
             if opp_ability == data_bridge::ABILITY_RATTLED {
-                apply_boost(state, keys, opp, SPE, 1);
+                apply_boost(state, opp, SPE, 1);
             }
         }
 
-        data_bridge::ABILITY_DRIZZLE     => { set_weather(state, keys, WEATHER_RAIN, 5); check_paradox_deactivation(state); }
-        data_bridge::ABILITY_DROUGHT     => { set_weather(state, keys, WEATHER_SUN, 5); check_paradox_deactivation(state); }
-        data_bridge::ABILITY_SAND_STREAM => { set_weather(state, keys, WEATHER_SAND, 5); check_paradox_deactivation(state); }
-        data_bridge::ABILITY_SNOW_WARNING=> { set_weather(state, keys, WEATHER_SNOW, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_DRIZZLE     => { set_weather(state, WEATHER_RAIN, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_DROUGHT     => { set_weather(state, WEATHER_SUN, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_SAND_STREAM => { set_weather(state, WEATHER_SAND, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_SNOW_WARNING=> { set_weather(state, WEATHER_SNOW, 5); check_paradox_deactivation(state); }
 
         data_bridge::ABILITY_AIR_LOCK | data_bridge::ABILITY_CLOUD_NINE => {
             state.field.field_flags |= FIELD_WEATHER_SUPPRESSED;
             check_paradox_deactivation(state);
         }
 
-        data_bridge::ABILITY_ELECTRIC_SURGE => { set_terrain(state, keys, TERRAIN_ELECTRIC, 5); check_paradox_deactivation(state); }
-        data_bridge::ABILITY_GRASSY_SURGE  => { set_terrain(state, keys, TERRAIN_GRASSY, 5); check_paradox_deactivation(state); }
-        data_bridge::ABILITY_MISTY_SURGE   => { set_terrain(state, keys, TERRAIN_MISTY, 5); check_paradox_deactivation(state); }
-        data_bridge::ABILITY_PSYCHIC_SURGE => { set_terrain(state, keys, TERRAIN_PSYCHIC, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_ELECTRIC_SURGE => { set_terrain(state, TERRAIN_ELECTRIC, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_GRASSY_SURGE  => { set_terrain(state, TERRAIN_GRASSY, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_MISTY_SURGE   => { set_terrain(state, TERRAIN_MISTY, 5); check_paradox_deactivation(state); }
+        data_bridge::ABILITY_PSYCHIC_SURGE => { set_terrain(state, TERRAIN_PSYCHIC, 5); check_paradox_deactivation(state); }
 
         // +1 SpA if foe SpD < Def, else +1 Atk
         data_bridge::ABILITY_DOWNLOAD => {
             let opp_def = state.active_mon(opp).stats[DEF] as u32;
             let opp_spd = state.active_mon(opp).stats[SPD] as u32;
             if opp_spd < opp_def {
-                apply_boost(state, keys, side, SPA, 1);
+                apply_boost(state, side, SPA, 1);
             } else {
-                apply_boost(state, keys, side, ATK, 1);
+                apply_boost(state, side, ATK, 1);
             }
         }
 
@@ -481,9 +469,9 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
             let opp_ability = effective_ability(state, opp);
             if opp_ability != 0 && !is_untraceable(opp_ability) {
                 state.sides[side].active.override_ability = opp_ability;
-                set_volatile(state, keys, side, VOL_ABILITY_OVERRIDDEN);
+                set_volatile(state, side, VOL_ABILITY_OVERRIDDEN);
                 // Trigger the traced ability's switch-in effect
-                apply_switch_in_ability(state, keys, teams, side);
+                apply_switch_in_ability(state, teams, side);
             }
         }
 
@@ -508,8 +496,8 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
                 state.sides[side].active.override_moves = opp_moves;
                 state.sides[side].active.override_pp = [5, 5, 5, 5];
                 state.sides[side].active.override_ability = opp_ability_id;
-                set_volatile(state, keys, side, VOL_TRANSFORMED);
-                set_volatile(state, keys, side, VOL_TYPES_OVERRIDDEN);
+                set_volatile(state, side, VOL_TRANSFORMED);
+                set_volatile(state, side, VOL_TYPES_OVERRIDDEN);
             }
         }
 
@@ -517,7 +505,7 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
             let has_shield = state.field.magic_room_turns() == 0
                 && data_bridge::item(state.active_mon(opp).item_id).has(ItemFlag::ABILITY_SHIELD);
             if !has_shield {
-                set_volatile(state, keys, opp, VOL_ABILITY_SUPPRESSED);
+                set_volatile(state, opp, VOL_ABILITY_SUPPRESSED);
             }
         }
 
@@ -525,7 +513,7 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
             let slot = state.sides[side].active_index as usize;
             if state.sides[side].team[slot].flags & MON_FLAG_SWORD_BOOSTED == 0 {
                 state.sides[side].team[slot].flags |= MON_FLAG_SWORD_BOOSTED;
-                apply_boost(state, keys, side, ATK, 1);
+                apply_boost(state, side, ATK, 1);
             }
         }
 
@@ -533,7 +521,7 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
             let slot = state.sides[side].active_index as usize;
             if state.sides[side].team[slot].flags & MON_FLAG_SHIELD_BOOSTED == 0 {
                 state.sides[side].team[slot].flags |= MON_FLAG_SHIELD_BOOSTED;
-                apply_boost(state, keys, side, DEF, 1);
+                apply_boost(state, side, DEF, 1);
             }
         }
 
@@ -546,42 +534,42 @@ pub(crate) fn apply_switch_in_ability(state: &mut BattleState, keys: &ZobristKey
             if state.sides[side].team[slot].flags & MON_FLAG_SYRUP_TRIGGERED == 0 {
                 state.sides[side].team[slot].flags |= MON_FLAG_SYRUP_TRIGGERED;
                 if !state.sides[opp].active.has_volatile(VOL_SUBSTITUTE) {
-                    try_opponent_stat_drop(state, keys, opp, EVA, -1);
+                    try_opponent_stat_drop(state, opp, EVA, -1);
                 }
             }
         }
 
         data_bridge::ABILITY_SCHOOLING => {
-            crate::state::forme::check_schooling(state, keys, teams, side);
+            crate::state::forme::check_schooling(state, teams, side);
         }
         data_bridge::ABILITY_SHIELDS_DOWN => {
-            crate::state::forme::check_shields_down(state, keys, teams, side);
+            crate::state::forme::check_shields_down(state, teams, side);
         }
 
         data_bridge::ABILITY_PROTOSYNTHESIS => {
-            activate_paradox_ability(state, keys, side,
+            activate_paradox_ability(state, side,
                 matches!(effective_weather_for(state, side), WEATHER_SUN | WEATHER_HARSH_SUN));
         }
         data_bridge::ABILITY_QUARK_DRIVE => {
-            activate_paradox_ability(state, keys, side,
+            activate_paradox_ability(state, side,
                 state.field.terrain == TERRAIN_ELECTRIC);
         }
 
         // Orichalcum Pulse: set sun on switch-in (like Drought)
         data_bridge::ABILITY_ORICHALCUM_PULSE => {
-            set_weather(state, keys, WEATHER_SUN, 5);
+            set_weather(state, WEATHER_SUN, 5);
             check_paradox_deactivation(state);
         }
         // Hadron Engine: set Electric Terrain on switch-in (like Electric Surge)
         data_bridge::ABILITY_HADRON_ENGINE => {
-            set_terrain(state, keys, TERRAIN_ELECTRIC, 5);
+            set_terrain(state, TERRAIN_ELECTRIC, 5);
             check_paradox_deactivation(state);
         }
 
         _ => {}
     }
-    if side_mirror { check_mirror_herb_diff(state, keys, side, &side_boosts_before); }
-    if opp_mirror { check_mirror_herb_diff(state, keys, opp, &opp_boosts_before); }
+    if side_mirror { check_mirror_herb_diff(state, side, &side_boosts_before); }
+    if opp_mirror { check_mirror_herb_diff(state, opp, &opp_boosts_before); }
 }
 
 /// Find the highest stat index (first-wins on ties, matching Showdown's getBestStat).
@@ -602,7 +590,7 @@ fn find_best_stat(stats: &[u16; 5], boosts: &[i8; 7]) -> usize {
 /// Activate Protosynthesis or Quark Drive: find highest stat, encode in _padding[3].
 /// `field_active` = true if the ability's weather/terrain is currently active.
 fn activate_paradox_ability(
-    state: &mut BattleState, keys: &ZobristKeys, side: usize, field_active: bool,
+    state: &mut BattleState, side: usize, field_active: bool,
 ) {
     let slot = state.sides[side].active_index as usize;
     let mon = &state.sides[side].team[slot];
@@ -622,9 +610,9 @@ fn activate_paradox_ability(
 
     // Consume Booster Energy if it was the trigger
     if from_booster {
-        consume_item(state, keys, side, slot);
+        consume_item(state, side, slot);
         if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
-            set_volatile(state, keys, side, VOL_UNBURDEN);
+            set_volatile(state, side, VOL_UNBURDEN);
         }
     }
 }
@@ -701,26 +689,21 @@ pub fn clear_hazards(state: &mut BattleState, side: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::zobrist::{compute_full_hash, validate_hash};
 
     #[test]
     fn test_switch_out_zeros_active() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0].species_id = 25;
         state.sides[0].team[0].current_hp = 200;
         state.sides[0].team[0].max_hp = 200;
         state.sides[0].active.boosts[ATK] = 2;
         state.sides[0].active.volatile_flags = VOL_SUBSTITUTE | VOL_LEECH_SEED;
-        state.zobrist = compute_full_hash(&state, &keys);
-        switch_out(&mut state, &keys, &TeamData::default(), 0);
+        switch_out(&mut state, &TeamData::default(), 0);
         assert_eq!(state.sides[0].active.volatile_flags, 0);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_baton_pass_preserves_boosts() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -730,28 +713,25 @@ mod tests {
             species_id: 6, current_hp: 200, max_hp: 200,
             stats: [80; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
         // Set +2 Atk and +1 SpA
-        apply_boost(&mut state, &keys, 0, ATK, 2);
-        apply_boost(&mut state, &keys, 0, SPA, 1);
+        apply_boost(&mut state, 0, ATK, 2);
+        apply_boost(&mut state, 0, SPA, 1);
 
         // Set Baton Pass flag
         state.sides[0].active._padding[0] = 1;
 
         // Perform Baton Pass switch to slot 1
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // New active should inherit boosts
         assert_eq!(state.sides[0].active.boosts[ATK], 2);
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
         assert_eq!(state.sides[0].active_index, 1);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_baton_pass_preserves_substitute() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -761,30 +741,27 @@ mod tests {
             species_id: 6, current_hp: 200, max_hp: 200,
             stats: [80; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
         // Set up Substitute with 50 HP
-        set_volatile(&mut state, &keys, 0, VOL_SUBSTITUTE);
+        set_volatile(&mut state, 0, VOL_SUBSTITUTE);
         state.sides[0].active.substitute_hp = 50;
 
         // Also set a non-Baton volatile (e.g., VOL_FLASH_FIRE) — should NOT transfer
-        set_volatile(&mut state, &keys, 0, VOL_FLASH_FIRE);
+        set_volatile(&mut state, 0, VOL_FLASH_FIRE);
 
         // Set Baton Pass flag
         state.sides[0].active._padding[0] = 1;
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // Substitute should transfer, Flash Fire should not
         assert!(state.sides[0].active.has_volatile(VOL_SUBSTITUTE));
         assert_eq!(state.sides[0].active.substitute_hp, 50);
         assert!(!state.sides[0].active.has_volatile(VOL_FLASH_FIRE));
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_normal_switch_clears_boosts() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -794,37 +771,32 @@ mod tests {
             species_id: 6, current_hp: 200, max_hp: 200,
             stats: [80; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        apply_boost(&mut state, &keys, 0, ATK, 2);
+        apply_boost(&mut state, 0, ATK, 2);
 
         // Normal switch (no baton pass flag)
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // Boosts should NOT transfer
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
-        assert!(validate_hash(&state, &keys));
     }
 
 
     #[test]
     fn test_terrain_seed_no_trigger_without_terrain() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
             stats: [100; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        apply_switch_in_item(&mut state, &keys, 0);
+        apply_switch_in_item(&mut state, 0);
         assert_eq!(state.sides[0].active.boosts[DEF], 0);
     }
 
 
     #[test]
     fn test_intimidate_lowers_opponent_atk() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -840,18 +812,15 @@ mod tests {
             species_id: 50, current_hp: 300, max_hp: 300,
             stats: [100; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
         // Switch to Intimidate mon
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[1].active.boosts[ATK], -1);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_stealth_rock_damage_by_type() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         // Side 0 mon: species 25 (Pikachu, Electric type)
         state.sides[0].team[0] = MonSlot {
@@ -864,19 +833,16 @@ mod tests {
         };
         // Set stealth rock on side 0
         state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // Should have taken some damage (Rock vs Electric = 1× → 1/8 max HP = 50 damage)
         // The exact amount depends on type effectiveness
         assert!(state.sides[0].team[1].current_hp < 400);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_spikes_damage_by_layer() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -888,18 +854,15 @@ mod tests {
         };
         // 1 layer of spikes on side 0
         state.sides[0].side_conditions.spikes = 1;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // 1 layer = 1/8 max HP = 50 damage
         assert_eq!(state.sides[0].team[1].current_hp, 350);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_spikes_3_layers() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -910,18 +873,15 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.sides[0].side_conditions.spikes = 3;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // 3 layers = 1/4 max HP = 100 damage
         assert_eq!(state.sides[0].team[1].current_hp, 300);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_toxic_spikes_poisons_on_switch() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -932,17 +892,14 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.sides[0].side_conditions.toxic_spikes = 1;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[0].team[1].status, STATUS_POISON);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_toxic_spikes_2_layers_badly_poisons() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -953,17 +910,14 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.sides[0].side_conditions.toxic_spikes = 2;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[0].team[1].status, STATUS_BAD_POISON);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_faint_from_hazards_skips_ability() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -981,9 +935,8 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // Mon fainted from hazards → Intimidate should NOT have activated
         assert_eq!(state.sides[0].team[1].current_hp, 0);
@@ -992,7 +945,6 @@ mod tests {
 
     #[test]
     fn test_natural_cure_clears_status() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -1005,17 +957,14 @@ mod tests {
             species_id: 6, current_hp: 200, max_hp: 200,
             stats: [100; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        switch_out(&mut state, &keys, &TeamData::default(), 0);
+        switch_out(&mut state, &TeamData::default(), 0);
 
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_regenerator_heals_on_switch_out() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 300,
@@ -1027,18 +976,15 @@ mod tests {
             species_id: 6, current_hp: 200, max_hp: 200,
             stats: [100; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        switch_out(&mut state, &keys, &TeamData::default(), 0);
+        switch_out(&mut state, &TeamData::default(), 0);
 
         // Should heal 1/3 of 300 = 100
         assert_eq!(state.sides[0].team[0].current_hp, 300);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_electric_surge_sets_terrain() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -1050,9 +996,8 @@ mod tests {
             ability_id: data_bridge::ABILITY_ELECTRIC_SURGE,
             ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         assert_eq!(state.field.terrain, TERRAIN_ELECTRIC);
         assert_eq!(state.field.terrain_turns, 5);
@@ -1060,7 +1005,6 @@ mod tests {
 
     #[test]
     fn test_download_boosts_spa_when_spd_lower() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -1078,17 +1022,14 @@ mod tests {
             stats: [100, 120, 100, 80, 100], // Def=120, SpD=80
             ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         assert_eq!(state.sides[0].active.boosts[SPA], 1);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_protosynthesis_sun_boost() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1102,18 +1043,15 @@ mod tests {
         };
         state.field.weather = WEATHER_SUN;
         state.field.weather_turns = 5;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
+        perform_switch(&mut state, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), ATK as u8 + 1);
         assert!(!state.sides[0].active.paradox_from_booster());
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_protosynthesis_booster_energy() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1127,19 +1065,16 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         // No sun — triggers Booster Energy consumption
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
+        perform_switch(&mut state, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), SPA as u8 + 1);
         assert!(state.sides[0].active.paradox_from_booster());
         assert_eq!(state.sides[0].team[0].item_id, 0); // consumed
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_quark_drive_electric_terrain() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1153,18 +1088,15 @@ mod tests {
         };
         state.field.terrain = TERRAIN_ELECTRIC;
         state.field.terrain_turns = 5;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
+        perform_switch(&mut state, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), SPE as u8 + 1);
         assert!(!state.sides[0].active.paradox_from_booster());
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_paradox_deactivates_weather_end() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1181,9 +1113,8 @@ mod tests {
         // Sun about to expire
         state.field.weather = WEATHER_SUN;
         state.field.weather_turns = 1;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         // Weather expired, paradox should deactivate
         assert_eq!(state.field.weather, WEATHER_NONE);
@@ -1192,7 +1123,6 @@ mod tests {
 
     #[test]
     fn test_paradox_booster_persists_weather_end() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1208,9 +1138,8 @@ mod tests {
         state.sides[0].active.set_paradox(ATK as u8 + 1, true);
         state.field.weather = WEATHER_SUN;
         state.field.weather_turns = 1;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         // Weather expired but Booster Energy boost persists
         assert_eq!(state.field.weather, WEATHER_NONE);
@@ -1220,7 +1149,6 @@ mod tests {
 
     #[test]
     fn test_paradox_no_activate_without_condition() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1233,17 +1161,14 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         // No sun, no Booster Energy
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
+        perform_switch(&mut state, &TeamData::default(), 0, 0);
 
         assert_eq!(state.sides[0].active.paradox_stat(), 0);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_paradox_deactivates_terrain_end() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 200, max_hp: 200,
@@ -1259,9 +1184,8 @@ mod tests {
         state.sides[0].active.set_paradox(SPE as u8 + 1, false);
         state.field.terrain = TERRAIN_ELECTRIC;
         state.field.terrain_turns = 1;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        crate::state::end_of_turn::end_of_turn(&mut state, &keys, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
 
         assert_eq!(state.field.terrain, TERRAIN_NONE);
         assert_eq!(state.sides[0].active.paradox_stat(), 0);
@@ -1269,7 +1193,6 @@ mod tests {
 
     #[test]
     fn test_drizzle_deactivates_protosynthesis() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         // Side 0: Protosynthesis mon active in sun
         state.sides[0].team[0] = MonSlot {
@@ -1292,9 +1215,8 @@ mod tests {
         };
         state.field.weather = WEATHER_SUN;
         state.field.weather_turns = 5;
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 1, 1);
+        perform_switch(&mut state, &TeamData::default(), 1, 1);
 
         // Drizzle replaced sun -> Protosynthesis deactivated
         assert_eq!(state.field.weather, WEATHER_RAIN);
@@ -1303,7 +1225,6 @@ mod tests {
 
     #[test]
     fn test_safeguard_blocks_toxic_spikes() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 400, max_hp: 400,
@@ -1315,9 +1236,8 @@ mod tests {
         };
         state.sides[0].side_conditions.toxic_spikes = 1;
         state.sides[0].side_conditions.set_safeguard_turns(5);
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // Safeguard blocks the poison from toxic spikes
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
@@ -1327,7 +1247,6 @@ mod tests {
 
     #[test]
     fn test_mist_blocks_sticky_web() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 400, max_hp: 400,
@@ -1339,9 +1258,8 @@ mod tests {
         };
         state.sides[0].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
         state.sides[0].side_conditions.set_mist_turns(5);
-        state.zobrist = compute_full_hash(&state, &keys);
 
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
 
         // Mist blocks the speed drop from sticky web
         assert_eq!(state.sides[0].active.boosts[SPE], 0);
@@ -1349,7 +1267,6 @@ mod tests {
 
     #[test]
     fn test_ability_shield_blocks_neutralizing_gas() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -1366,15 +1283,12 @@ mod tests {
             item_id: data_bridge::ITEM_ABILITY_SHIELD,
             stats: [100; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
         assert!(!state.sides[1].active.has_volatile(VOL_ABILITY_SUPPRESSED));
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_clear_amulet_blocks_intimidate() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -1390,15 +1304,12 @@ mod tests {
             item_id: data_bridge::ITEM_CLEAR_AMULET,
             stats: [100; 5], ..Default::default()
         };
-        state.zobrist = compute_full_hash(&state, &keys);
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
-        assert!(validate_hash(&state, &keys));
     }
 
     #[test]
     fn test_clear_amulet_blocks_sticky_web() {
-        let keys = ZobristKeys::new(42);
         let mut state = BattleState::default();
         state.sides[0].team[0] = MonSlot {
             species_id: 25, current_hp: 300, max_hp: 300,
@@ -1415,9 +1326,7 @@ mod tests {
             stats: [100; 5], ..Default::default()
         };
         state.sides[0].side_conditions.hazard_flags = HAZARD_STICKY_WEB;
-        state.zobrist = compute_full_hash(&state, &keys);
-        perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+        perform_switch(&mut state, &TeamData::default(), 0, 1);
         assert_eq!(state.sides[0].active.boosts[SPE], 0);
-        assert!(validate_hash(&state, &keys));
     }
 }

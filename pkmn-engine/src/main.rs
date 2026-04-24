@@ -1,7 +1,4 @@
 use pkmn_engine::state::*;
-use pkmn_engine::state::structs::*;
-use pkmn_engine::state::zobrist::*;
-use pkmn_engine::state::legal_moves::*;
 use pkmn_engine::state::turn::{execute_turn, execute_switch_turn};
 use pkmn_engine::data::types::Type;
 
@@ -19,7 +16,7 @@ const MOVE_POOLS: [[u16; 4]; 6] = [
     [57, 14, 261, 200],   // Surf, Swords Dance, Will-O-Wisp, Outrage
 ];
 
-fn run_battles(keys: &ZobristKeys, label: &str) -> (u64, u64, std::time::Duration) {
+fn run_battles(label: &str) -> (u64, u64, std::time::Duration) {
     let mut total_turns: u64 = 0;
     let mut total_game_overs: u64 = 0;
 
@@ -50,7 +47,6 @@ fn run_battles(keys: &ZobristKeys, label: &str) -> (u64, u64, std::time::Duratio
         }
 
         state.phase = PHASE_ACTIONS;
-        state.zobrist = compute_full_hash(&state, keys);
 
         let mut rng = |max: u32| -> u32 {
             seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
@@ -69,17 +65,17 @@ fn run_battles(keys: &ZobristKeys, label: &str) -> (u64, u64, std::time::Duratio
             if state.phase == PHASE_ACTIONS {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_turn(&mut state, keys, &teams, act1, act2, &mut rng);
+                execute_turn(&mut state, &teams, act1, act2, &mut rng);
             } else if state.phase == PHASE_SWITCH_P1 {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
-                execute_switch_turn(&mut state, keys, &teams, act1, 0, &mut rng);
+                execute_switch_turn(&mut state, &teams, act1, 0, &mut rng);
             } else if state.phase == PHASE_SWITCH_P2 {
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_switch_turn(&mut state, keys, &teams, 0, act2, &mut rng);
+                execute_switch_turn(&mut state, &teams, 0, act2, &mut rng);
             } else if state.phase == PHASE_SWITCH_BOTH {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_switch_turn(&mut state, keys, &teams, act1, act2, &mut rng);
+                execute_switch_turn(&mut state, &teams, act1, act2, &mut rng);
             }
 
             total_turns += 1;
@@ -100,30 +96,16 @@ fn run_battles(keys: &ZobristKeys, label: &str) -> (u64, u64, std::time::Duratio
 }
 
 fn main() {
-    println!("pkmn-engine Zobrist overhead test: {} battles, max {} turns", NUM_BATTLES, MAX_TURNS);
+    println!("pkmn-engine throughput test: {} battles, max {} turns", NUM_BATTLES, MAX_TURNS);
     println!("---");
 
-    let real_keys = ZobristKeys::new(42);
-    let zero_keys = ZobristKeys::new(0);
-
     println!("\nWarmup run (discarded)...");
-    let warmup_keys = ZobristKeys::new(99);
-    run_battles(&warmup_keys, "warmup");
+    run_battles("warmup");
 
-    println!("\nMeasurement runs:");
-    let (turns1, _, elapsed_real) = run_battles(&real_keys, "real keys  ");
-    let (turns2, _, elapsed_zero) = run_battles(&zero_keys, "seed=0 keys");
+    println!("\nMeasurement run:");
+    let (turns, _, elapsed) = run_battles("measure");
 
-    let diff_ms = elapsed_real.as_millis() as i64 - elapsed_zero.as_millis() as i64;
-    let diff_pct = (elapsed_real.as_nanos() as f64 - elapsed_zero.as_nanos() as f64)
-        / elapsed_real.as_nanos() as f64 * 100.0;
-
-    println!("\nDifference: {} ms ({:+.1}%)", diff_ms, diff_pct);
-    println!("(Positive = real keys slower, negative = real keys faster)");
-    println!("Note: seed=0 keys are NOT zeroed, so this is run-to-run variance.");
-    println!();
-
-    let ns_per_turn = elapsed_real.as_nanos() as f64 / turns1 as f64;
-    println!("Estimated XOR cost: ~3-9 ns/turn out of {:.0} ns/turn ({:.2}%)",
-        ns_per_turn, 9.0 / ns_per_turn * 100.0);
+    let ns_per_turn = elapsed.as_nanos() as f64 / turns as f64;
+    println!("\n{:.0} ns/turn over {} turns ({:.0} battles/sec)",
+        ns_per_turn, turns, NUM_BATTLES as f64 / elapsed.as_secs_f64());
 }

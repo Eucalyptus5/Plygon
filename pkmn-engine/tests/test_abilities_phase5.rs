@@ -7,15 +7,13 @@ use pkmn_engine::data::types::Type;
 use pkmn_engine::state::data_bridge::*;
 use pkmn_engine::data::moves::{MoveData, MoveFlags, SelfEffect, VarPower};
 use pkmn_engine::state::structs::*;
-use pkmn_engine::state::zobrist::{ZobristKeys, compute_full_hash, validate_hash};
 use pkmn_engine::state::mutations::*;
 use pkmn_engine::state::accessors::*;
 use pkmn_engine::state::end_of_turn::end_of_turn;
 use pkmn_engine::state::turn::execute_turn;
 use pkmn_engine::state::switch::perform_switch;
 
-fn setup() -> (BattleState, ZobristKeys) {
-    let keys = ZobristKeys::new(42);
+fn setup() -> BattleState {
     let mut state = BattleState::default();
     state.sides[0].team[0] = MonSlot {
         species_id: 25, current_hp: 300, max_hp: 300,
@@ -40,8 +38,7 @@ fn setup() -> (BattleState, ZobristKeys) {
         ..Default::default()
     };
     state.phase = PHASE_ACTIONS;
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
 #[test]
@@ -258,9 +255,8 @@ fn test_punk_rock_defender() {
 
 #[test]
 fn test_serene_grace_doubles_secondary() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_SERENE_GRACE;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     assert_eq!(ABILITY_SERENE_GRACE, 32);
 }
@@ -287,81 +283,72 @@ fn test_sheer_force_skips_life_orb_recoil() {
 
 #[test]
 fn test_weak_armor_interaction() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[1].team[0].ability_id = ABILITY_WEAK_ARMOR;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     assert_eq!(ABILITY_WEAK_ARMOR, 133);
 }
 
 #[test]
 fn test_speed_boost_at_eot() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_SPEED_BOOST;
     state.sides[0].active.turns_active = 1; // must be > 0
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].active.boosts[SPE], 1);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_moody_at_eot() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_MOODY;
     state.sides[0].active.turns_active = 0;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Moody should have changed at least one stat
     let boosts = state.sides[0].active.boosts;
     let any_changed = boosts.iter().any(|&b| b != 0);
     assert!(any_changed, "Moody should change stats");
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_bad_dreams_damages_sleeper() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_BAD_DREAMS;
     state.sides[1].team[0].status = STATUS_SLEEP;
     state.sides[1].team[0].status_counter = 3;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[1].team[0].current_hp, 300 - 37);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_dry_skin_eot() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_DRY_SKIN;
 
     // In Sun: lose 1/8 HP
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 300 - 37);
 
     // Reset and test Rain
     state.sides[0].team[0].current_hp = 200;
     state.field.weather = WEATHER_RAIN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     // Heal 1/8 of 300 = 37
     assert_eq!(state.sides[0].team[0].current_hp, 237);
 }
 
 #[test]
 fn test_chlorophyll_doubles_speed_in_sun() {
-    let (mut state, _keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_CHLOROPHYLL;
     state.sides[0].team[0].stats[SPE] = 100;
 
@@ -379,7 +366,6 @@ fn test_prankster_adds_priority() {
 
 #[test]
 fn test_protosynthesis_activates_in_sun() {
-    let keys = ZobristKeys::new(42);
     let mut state = BattleState::default();
     state.sides[0].team[0] = MonSlot {
         species_id: 25, current_hp: 300, max_hp: 300,
@@ -397,17 +383,15 @@ fn test_protosynthesis_activates_in_sun() {
     };
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     // Switch to activate the ability
-    perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+    perform_switch(&mut state, &TeamData::default(), 0, 1);
     // Switch back to the Protosynthesis mon
-    perform_switch(&mut state, &keys, &TeamData::default(), 0, 0);
+    perform_switch(&mut state, &TeamData::default(), 0, 0);
 
     // _padding[3] upper nibble should encode the boosted stat (SPA = index 2 → value 3)
     let paradox_stat = state.sides[0].active._padding[3] >> 4;
     assert_eq!(paradox_stat, 3, "Should boost SpA (stat index 2 → encoded as 3)");
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
@@ -429,7 +413,6 @@ fn test_seed_sower_constant() {
 
 #[test]
 fn test_intimidate_then_weak_armor() {
-    let keys = ZobristKeys::new(42);
     let mut state = BattleState::default();
     state.sides[0].team[0] = MonSlot {
         species_id: 25, current_hp: 300, max_hp: 300,
@@ -456,12 +439,10 @@ fn test_intimidate_then_weak_armor() {
         ..Default::default()
     };
     state.phase = PHASE_ACTIONS;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+    perform_switch(&mut state, &TeamData::default(), 0, 1);
 
     assert_eq!(state.sides[1].active.boosts[ATK], -1);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
@@ -551,47 +532,41 @@ fn test_slow_start() {
 
 #[test]
 fn test_hydration_in_rain() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_HYDRATION;
     state.sides[0].team[0].status = STATUS_BURN;
     state.field.weather = WEATHER_RAIN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_rain_dish_heals() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_RAIN_DISH;
     state.sides[0].team[0].current_hp = 200;
     state.field.weather = WEATHER_RAIN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 218);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_ice_body_heals_in_snow() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_ICE_BODY;
     state.sides[0].team[0].current_hp = 200;
     state.field.weather = WEATHER_SNOW;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 218);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
@@ -757,108 +732,95 @@ fn test_ice_scales_special_def() {
 
 #[test]
 fn test_harvest_restores_berry_in_sun() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_HARVEST;
     state.sides[0].team[0].item_id = 0; // no item
     state.sides[0].set_last_consumed_berry(ITEM_SITRUS_BERRY);
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
     assert_eq!(state.sides[0].last_consumed_berry(), 0);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_harvest_no_restore_with_item() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_HARVEST;
     state.sides[0].team[0].item_id = ITEM_SITRUS_BERRY; // already has item
     state.sides[0].set_last_consumed_berry(ITEM_LUM_BERRY);
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Should NOT replace existing item
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
     assert_eq!(state.sides[0].last_consumed_berry(), ITEM_LUM_BERRY);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_harvest_clears_on_switch() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].set_last_consumed_berry(ITEM_SITRUS_BERRY);
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+    perform_switch(&mut state, &TeamData::default(), 0, 1);
 
     assert_eq!(state.sides[0].last_consumed_berry(), 0);
 }
 
 #[test]
 fn test_poison_heal_heals() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_POISON_HEAL;
     state.sides[0].team[0].status = STATUS_POISON;
     state.sides[0].team[0].current_hp = 200;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // No poison damage (1/8 = 37 skipped), heal 1/8 = 300/8 = 37
     assert_eq!(state.sides[0].team[0].current_hp, 237);
     assert_eq!(state.sides[0].team[0].status, STATUS_POISON);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_poison_heal_replaces_toxic() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_POISON_HEAL;
     state.sides[0].team[0].status = STATUS_BAD_POISON;
     state.sides[0].team[0].current_hp = 200;
     state.sides[0].active.toxic_counter = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Toxic damage (5*300/16 = 93) should NOT be applied; heal 300/8 = 37
     assert_eq!(state.sides[0].team[0].current_hp, 237);
     // Toxic counter should NOT increment (stayed at 5)
     assert_eq!(state.sides[0].active.toxic_counter, 5);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_shed_skin_cures() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_SHED_SKIN;
     state.sides[0].team[0].status = STATUS_PARALYSIS;
     state.sides[0].active.turns_active = 0; // 0 % 3 == 0 → cures
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_shed_skin_no_cure() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_SHED_SKIN;
     state.sides[0].team[0].status = STATUS_PARALYSIS;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     // Shed Skin cures iff rng(100) < 33; a roll of 33 fails the check → no cure.
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 33u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 33u32));
 
     assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
-    assert!(validate_hash(&state, &keys));
 }

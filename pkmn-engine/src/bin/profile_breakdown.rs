@@ -1,6 +1,5 @@
 use pkmn_engine::state::*;
 use pkmn_engine::state::structs::*;
-use pkmn_engine::state::zobrist::*;
 use pkmn_engine::state::turn::{execute_turn, execute_switch_turn};
 use pkmn_engine::data::types::Type;
 
@@ -36,14 +35,12 @@ fn main() {
     println!("pkmn-engine PROFILE BREAKDOWN: {} battles, max {} turns", NUM_BATTLES, MAX_TURNS);
     println!("========================================================================");
 
-    let keys = ZobristKeys::new(42);
-
     // Warmup
     println!("\nWarming up...");
-    run_profiled(&keys, 10_000);
+    run_profiled(10_000);
 
     println!("\nProfiling...");
-    let c = run_profiled(&keys, NUM_BATTLES);
+    let c = run_profiled(NUM_BATTLES);
 
     let total_ns = c.setup_ns + c.legal_actions_ns + c.execute_turn_ns
         + c.execute_switch_ns + c.game_over_check_ns + c.rng_ns;
@@ -61,7 +58,7 @@ fn main() {
         println!("{:>30} {:>10.1} {:>7.1}% {:>12.1}", name, ms, pct, per_call);
     };
 
-    print_row("Battle setup + zobrist", c.setup_ns, NUM_BATTLES);
+    print_row("Battle setup", c.setup_ns, NUM_BATTLES);
     print_row("is_game_over() checks", c.game_over_check_ns, c.total_turns + c.game_overs);
     print_row("legal_actions()", c.legal_actions_ns, c.legal_action_calls);
     print_row("RNG + action selection", c.rng_ns, c.total_turns);
@@ -100,7 +97,7 @@ fn main() {
     }
 }
 
-fn run_profiled(keys: &ZobristKeys, num_battles: u64) -> ProfileCounters {
+fn run_profiled(num_battles: u64) -> ProfileCounters {
     let mut c = ProfileCounters {
         setup_ns: 0, legal_actions_ns: 0, execute_turn_ns: 0,
         execute_switch_ns: 0, game_over_check_ns: 0, rng_ns: 0,
@@ -134,7 +131,6 @@ fn run_profiled(keys: &ZobristKeys, num_battles: u64) -> ProfileCounters {
             }
         }
         state.phase = PHASE_ACTIONS;
-        state.zobrist = compute_full_hash(&state, keys);
         c.setup_ns += t0.elapsed().as_nanos() as u64;
 
         let mut rng = |max: u32| -> u32 {
@@ -172,26 +168,26 @@ fn run_profiled(keys: &ZobristKeys, num_battles: u64) -> ProfileCounters {
                 c.rng_ns += t3b.elapsed().as_nanos() as u64;
 
                 let t4 = Instant::now();
-                execute_turn(&mut state, keys, &teams, act1, act2, &mut rng);
+                execute_turn(&mut state, &teams, act1, act2, &mut rng);
                 c.execute_turn_ns += t4.elapsed().as_nanos() as u64;
                 c.action_turns += 1;
             } else if phase == PHASE_SWITCH_P1 {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let t4 = Instant::now();
-                execute_switch_turn(&mut state, keys, &teams, act1, 0, &mut rng);
+                execute_switch_turn(&mut state, &teams, act1, 0, &mut rng);
                 c.execute_switch_ns += t4.elapsed().as_nanos() as u64;
                 c.switch_turns += 1;
             } else if phase == PHASE_SWITCH_P2 {
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
                 let t4 = Instant::now();
-                execute_switch_turn(&mut state, keys, &teams, 0, act2, &mut rng);
+                execute_switch_turn(&mut state, &teams, 0, act2, &mut rng);
                 c.execute_switch_ns += t4.elapsed().as_nanos() as u64;
                 c.switch_turns += 1;
             } else if phase == PHASE_SWITCH_BOTH {
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
                 let t4 = Instant::now();
-                execute_switch_turn(&mut state, keys, &teams, act1, act2, &mut rng);
+                execute_switch_turn(&mut state, &teams, act1, act2, &mut rng);
                 c.execute_switch_ns += t4.elapsed().as_nanos() as u64;
                 c.switch_turns += 1;
             }

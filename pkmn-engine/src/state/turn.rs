@@ -10,7 +10,6 @@ use crate::state::structs::*;
 use crate::state::data_bridge::{self, ItemFlag, MoveCategory};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
-use crate::state::zobrist::ZobristKeys;
 use crate::state::switch::{perform_switch, perform_switch_forced, perform_double_switch};
 use crate::state::end_of_turn::end_of_turn;
 use crate::state::move_exec::execute_move;
@@ -260,7 +259,6 @@ fn resolve_order(
 #[inline]
 fn execute_action(
     state: &mut BattleState,
-    keys: &ZobristKeys,
     teams: &TeamData,
     side: usize,
     action: &ActionKind,
@@ -273,24 +271,24 @@ fn execute_action(
             // The turn then proceeds without the switch — matches Showdown's
             // validation-layer rejection (though Showdown aborts the whole turn,
             // the engine here silently no-ops to keep the MCTS loop deterministic).
-            let _ = perform_switch(state, keys, teams, side, target as usize);
+            let _ = perform_switch(state, teams, side, target as usize);
         }
         ActionKind::Move { slot, move_id } => {
-            execute_move(state, keys, teams, side, move_id, slot, rng);
+            execute_move(state, teams, side, move_id, slot, rng);
         }
         ActionKind::Tera { move_id } => {
-            apply_tera(state, keys, teams, side);
-            execute_move(state, keys, teams, side, move_id, 0, rng);
+            apply_tera(state, teams, side);
+            execute_move(state, teams, side, move_id, 0, rng);
         }
         ActionKind::Struggle => {
-            execute_move(state, keys, teams, side, 0, 0, rng);
+            execute_move(state, teams, side, 0, 0, rng);
         }
     }
 }
 
 /// Apply Terastallization to the active Pokémon.
 #[inline]
-fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, side: usize) {
+fn apply_tera(state: &mut BattleState, teams: &TeamData, side: usize) {
     let slot = state.sides[side].active_index as usize;
     // Showdown's `chooseMove` rejects terastallize when the user is locked
     // into a multi-turn move (Fly/Dig/Dive/etc. charge state, Outrage/Petal
@@ -312,7 +310,6 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, sid
     if mon.is_fainted() || mon.is_terastallized() { return; }
     mon.flags |= MON_FLAG_TERASTALLIZED;
     state.sides[side]._padding[0] |= 1;
-    state.zobrist ^= keys.species[side][slot][0];
 
     // Ogerpon Tera forme-change overwrites the held ability with the
     // mask-specific Embody Aspect (Showdown `formeChange(..., isPermanent=true)`
@@ -331,19 +328,19 @@ fn apply_tera(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, sid
     // Embody Aspect: boost stat on Terastallization
     let ability = effective_ability(state, side);
     match ability {
-        data_bridge::ABILITY_EMBODY_ASPECT_TEAL => { apply_boost(state, keys, side, SPE, 1); }
-        data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING => { apply_boost(state, keys, side, SPD, 1); }
-        data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME => { apply_boost(state, keys, side, ATK, 1); }
-        data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE => { apply_boost(state, keys, side, DEF, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_TEAL => { apply_boost(state, side, SPE, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING => { apply_boost(state, side, SPD, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_HEARTHFLAME => { apply_boost(state, side, ATK, 1); }
+        data_bridge::ABILITY_EMBODY_ASPECT_CORNERSTONE => { apply_boost(state, side, DEF, 1); }
         _ => {}
     }
 
     // Terapagos-Terastal -> Teraform Zero (Terapagos-Stellar): reads the just-set
     // tera flag, so must run after MON_FLAG_TERASTALLIZED is committed above.
-    crate::state::forme::check_tera_shift(state, keys, teams, side);
+    crate::state::forme::check_tera_shift(state, teams, side);
 }
 
-fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
+fn faint_sweep(state: &mut BattleState) {
     let p1_fainted = state.active_mon(0).is_fainted();
     let p2_fainted = state.active_mon(1).is_fainted();
 
@@ -354,19 +351,16 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
     for &(fainted, side) in &[(p1_fainted, 0usize), (p2_fainted, 1usize)] {
         if !fainted { continue; }
         for stat_idx in 0..7 {
-            let old = state.sides[side].active.boosts[stat_idx];
-            if old != 0 {
-                state.zobrist ^= keys.boosts[side][stat_idx][(old + 6) as usize];
+            if state.sides[side].active.boosts[stat_idx] != 0 {
                 state.sides[side].active.boosts[stat_idx] = 0;
             }
         }
         // Showdown's checkFainted overwrites status with 'fnt' (battle.ts:2523),
         // which compare_results normalizes to STATUS_NONE. Mirror by clearing.
         let slot = state.sides[side].active_index as usize;
-        clear_status(state, keys, side, slot);
+        clear_status(state, side, slot);
         // Showdown's clearVolatile (pokemon.ts:1505) on faint wipes all volatiles.
-        // These per-mon counters are not in the Zobrist hash (mirrors switch-out's
-        // active.zero), so no XOR — just zero what the comparator surfaces.
+        // Zero the per-mon counters the comparator surfaces (mirrors switch-out's active.zero).
         let active = &mut state.sides[side].active;
         active.confusion_turns = 0;
         active.taunt_turns = 0;
@@ -384,15 +378,15 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
     });
 
     if !p1_alive || !p2_alive {
-        set_phase(state, keys, PHASE_GAME_OVER);
+        set_phase(state, PHASE_GAME_OVER);
         return;
     }
 
     let p1_must = state.sides[0].active.has_volatile(VOL_MUST_SWITCH) && !p1_fainted;
     let p2_must = state.sides[1].active.has_volatile(VOL_MUST_SWITCH) && !p2_fainted;
 
-    if p1_must { clear_volatile(state, keys, 0, VOL_MUST_SWITCH); }
-    if p2_must { clear_volatile(state, keys, 1, VOL_MUST_SWITCH); }
+    if p1_must { clear_volatile(state, 0, VOL_MUST_SWITCH); }
+    if p2_must { clear_volatile(state, 1, VOL_MUST_SWITCH); }
 
     let phase = match (p1_fainted || p1_must, p2_fainted || p2_must) {
         (true, true)   => PHASE_SWITCH_BOTH,
@@ -400,12 +394,11 @@ fn faint_sweep(state: &mut BattleState, keys: &ZobristKeys) {
         (false, true)  => PHASE_SWITCH_P2,
         (false, false) => PHASE_ACTIONS,
     };
-    set_phase(state, keys, phase);
+    set_phase(state, phase);
 }
 
 pub fn execute_turn(
     state: &mut BattleState,
-    keys: &ZobristKeys,
     teams: &TeamData,
     action_p1: u8,
     action_p2: u8,
@@ -431,7 +424,7 @@ pub fn execute_turn(
             if mon.item_id == 0 || mon.is_fainted() { continue; }
             if mon.status == STATUS_NONE && mon.current_hp >= mon.max_hp { continue; }
             if !data_bridge::item(mon.item_id).has(ItemFlag::IS_BERRY) { continue; }
-            crate::state::move_exec::check_berry_activation(state, keys, side, slot);
+            crate::state::move_exec::check_berry_activation(state, side, slot);
         }
     }
 
@@ -442,8 +435,8 @@ pub fn execute_turn(
     // the Tera flag at turn start so defensive type effectiveness uses the Tera
     // type even if the opponent moves first. apply_tera() is idempotent, so the
     // ActionKind::Tera arm in execute_action will no-op on the second call.
-    if matches!(act0, ActionKind::Tera { .. }) { apply_tera(state, keys, teams, 0); }
-    if matches!(act1, ActionKind::Tera { .. }) { apply_tera(state, keys, teams, 1); }
+    if matches!(act0, ActionKind::Tera { .. }) { apply_tera(state, teams, 0); }
+    if matches!(act1, ActionKind::Tera { .. }) { apply_tera(state, teams, 1); }
 
     let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
 
@@ -462,7 +455,7 @@ pub fn execute_turn(
         = (first.action, second.action)
     {
         perform_double_switch(
-            state, keys, teams,
+            state, teams,
             first.side, t_first as usize,
             second.side, t_second as usize,
             rng,
@@ -470,7 +463,7 @@ pub fn execute_turn(
         state.pending_actions[0] = 0xFF;
         state.pending_actions[1] = 0xFF;
     } else {
-        execute_action(state, keys, teams, first.side, &first.action, rng);
+        execute_action(state, teams, first.side, &first.action, rng);
 
         // First mover has resolved — invalidate their entry so the second mover's
         // Sucker Punch sees "defender already moved".
@@ -484,7 +477,7 @@ pub fn execute_turn(
         // execute_action are no-ops on fainted attackers, but a queued Switch
         // would still resolve, so gate explicitly.
         if !state.active_mon(second.side).is_fainted() {
-            execute_action(state, keys, teams, second.side, &second.action, rng);
+            execute_action(state, teams, second.side, &second.action, rng);
         }
     }
 
@@ -494,21 +487,21 @@ pub fn execute_turn(
     let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
     let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
     if p1_pivot || p2_pivot {
-        faint_sweep(state, keys);
+        faint_sweep(state);
         return;
     }
 
-    end_of_turn(state, keys, teams, &mut crate::state::BattleRng::from_closure(rng));
+    end_of_turn(state, teams, &mut crate::state::BattleRng::from_closure(rng));
 
     // After residuals: if anyone fainted (mid-turn or from EOT), pause for
     // forced replacement before next turn. Otherwise the turn closes cleanly.
     if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
         state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
-        faint_sweep(state, keys);
+        faint_sweep(state);
         return;
     }
 
-    faint_sweep(state, keys);
+    faint_sweep(state);
     state.clear_turn_resume();
 
     // second_raw was only meaningful for the deprecated SUBPHASE_AFTER_MOVE1
@@ -518,7 +511,6 @@ pub fn execute_turn(
 
 pub fn execute_switch_turn(
     state: &mut BattleState,
-    keys: &ZobristKeys,
     teams: &TeamData,
     action_p1: u8,
     action_p2: u8,
@@ -529,12 +521,12 @@ pub fn execute_switch_turn(
     if phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 0, action_p1) {
             // Forced replacement (faint) bypasses trapping abilities.
-            perform_switch_forced(state, keys, teams, 0, target as usize);
+            perform_switch_forced(state, teams, 0, target as usize);
         }
     }
     if phase == PHASE_SWITCH_P2 || phase == PHASE_SWITCH_BOTH {
         if let ActionKind::Switch { target } = decode_action(state, 1, action_p2) {
-            perform_switch_forced(state, keys, teams, 1, target as usize);
+            perform_switch_forced(state, teams, 1, target as usize);
         }
     }
 
@@ -542,7 +534,7 @@ pub fn execute_switch_turn(
 
     match subphase {
         SUBPHASE_AFTER_MOVE1 => {
-            faint_sweep(state, keys);
+            faint_sweep(state);
             if state.phase != PHASE_ACTIONS { return; }
 
             let second_side = state.second_mover_side();
@@ -557,12 +549,12 @@ pub fn execute_switch_turn(
 
             if !second_replaced && !state.active_mon(second_side).is_fainted() {
                 let second_action = decode_action(state, second_side, second_raw);
-                execute_action(state, keys, teams, second_side, &second_action, rng);
+                execute_action(state, teams, second_side, &second_action, rng);
             }
 
             if state.active_mon(0).is_fainted() || state.active_mon(1).is_fainted() {
                 state.set_turn_resume(SUBPHASE_AFTER_MOVE2, 0, 0);
-                faint_sweep(state, keys);
+                faint_sweep(state);
                 return;
             }
 
@@ -570,25 +562,42 @@ pub fn execute_switch_turn(
             let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
             if p1_pivot || p2_pivot {
                 state.clear_turn_resume();
-                faint_sweep(state, keys);
+                faint_sweep(state);
                 return;
             }
 
-            end_of_turn(state, keys, teams, &mut crate::state::BattleRng::from_closure(rng));
-            faint_sweep(state, keys);
+            end_of_turn(state, teams, &mut crate::state::BattleRng::from_closure(rng));
+            faint_sweep(state);
             state.clear_turn_resume();
         }
 
         SUBPHASE_AFTER_MOVE2 => {
             // EOT already ran in execute_turn before the replacement pause;
             // here we only need to clear the resume marker after the switch-in.
-            faint_sweep(state, keys);
+            faint_sweep(state);
             if state.phase != PHASE_ACTIONS { return; }
             state.clear_turn_resume();
         }
 
         _ => {
-            faint_sweep(state, keys);
+            faint_sweep(state);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_faint_sweep_clears_boosts() {
+        // Guards the faint_sweep de-thread: dropping the boost-clear write fails here.
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 0, max_hp: 200, ..Default::default() };
+        state.sides[0].team[1] = MonSlot { species_id: 143, current_hp: 200, max_hp: 200, ..Default::default() };
+        state.sides[0].active.boosts = [-2, -1, 0, 3, 0, 0, 0];
+        state.sides[1].team[0] = MonSlot { species_id: 6, current_hp: 200, max_hp: 200, ..Default::default() };
+        faint_sweep(&mut state);
+        assert_eq!(state.sides[0].active.boosts, [0i8; 7]);
     }
 }

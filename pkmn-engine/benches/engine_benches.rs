@@ -8,7 +8,6 @@ use pkmn_engine::data::types::{dual_type_effectiveness, type_effectiveness, Type
 use pkmn_engine::data::{GEN_MOVES, GEN_SPECIES};
 
 use pkmn_engine::state::*;
-use pkmn_engine::state::zobrist::{ZobristKeys, compute_full_hash};
 use pkmn_engine::state::move_exec::execute_move;
 use pkmn_engine::state::end_of_turn::end_of_turn;
 use pkmn_engine::state::switch::perform_switch;
@@ -40,8 +39,7 @@ fn make_mon(species_id: u16, hp: u16, stats: [u16; 5], moves: [u16; 4], pp: [u8;
     }
 }
 
-fn setup_vanilla() -> (BattleState, ZobristKeys) {
-    let keys = ZobristKeys::new(42);
+fn setup_vanilla() -> BattleState {
     let mut state = BattleState::default();
 
     let mon_a = make_mon(25, 300, [150, 100, 150, 100, 100], [1, 2, 3, 4], [24, 24, 24, 24]);
@@ -54,46 +52,41 @@ fn setup_vanilla() -> (BattleState, ZobristKeys) {
         }
     }
 
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
-fn setup_with_abilities() -> (BattleState, ZobristKeys) {
-    let (mut state, keys) = setup_vanilla();
+fn setup_with_abilities() -> BattleState {
+    let mut state = setup_vanilla();
     state.sides[0].team[0].ability_id = 74;  // Pure Power
     state.sides[1].team[0].ability_id = 22;  // Intimidate
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
-fn setup_with_items() -> (BattleState, ZobristKeys) {
-    let (mut state, keys) = setup_vanilla();
+fn setup_with_items() -> BattleState {
+    let mut state = setup_vanilla();
     state.sides[0].team[0].item_id = 68;   // Choice Band
     state.sides[1].team[0].item_id = 249;  // Life Orb
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
-fn setup_with_weather() -> (BattleState, ZobristKeys) {
-    let (mut state, keys) = setup_vanilla();
+fn setup_with_weather() -> BattleState {
+    let mut state = setup_vanilla();
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
-fn setup_with_status() -> (BattleState, ZobristKeys) {
-    let (mut state, keys) = setup_vanilla();
+fn setup_with_status() -> BattleState {
+    let mut state = setup_vanilla();
     state.sides[0].team[0].status = STATUS_BURN;
     state.sides[0].team[0].status_counter = 1;
     state.sides[1].team[0].status = STATUS_BAD_POISON;
     state.sides[1].team[0].status_counter = 1;
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
-fn setup_complex() -> (BattleState, ZobristKeys) {
-    let (mut state, keys) = setup_vanilla();
+fn setup_complex() -> BattleState {
+    let mut state = setup_vanilla();
     // Side 0: Pure Power + Life Orb + Burn + boosted
     state.sides[0].team[0].ability_id = 74;  // Pure Power
     state.sides[0].team[0].item_id = 249;    // Life Orb
@@ -111,12 +104,11 @@ fn setup_complex() -> (BattleState, ZobristKeys) {
     // Stealth Rock on side 0
     state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
 
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
 /// Run an MCTS-style rollout: legal_actions -> execute_turn, handling switch phases.
-fn run_rollout(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, max_turns: u32, rng: &mut impl FnMut(u32) -> u32) {
+fn run_rollout(state: &mut BattleState, teams: &TeamData, max_turns: u32, rng: &mut impl FnMut(u32) -> u32) {
     for _ in 0..max_turns {
         if state.is_game_over() { break; }
 
@@ -126,9 +118,9 @@ fn run_rollout(state: &mut BattleState, keys: &ZobristKeys, teams: &TeamData, ma
         let act2 = if a2.count > 0 { a2.actions[0] } else { 0 };
 
         match state.phase {
-            PHASE_ACTIONS => execute_turn(state, keys, teams, act1, act2, rng),
+            PHASE_ACTIONS => execute_turn(state, teams, act1, act2, rng),
             PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
-                execute_switch_turn(state, keys, teams, act1, act2, rng);
+                execute_switch_turn(state, teams, act1, act2, rng);
             }
             _ => break,
         }
@@ -271,15 +263,15 @@ fn bench_variable_bp(c: &mut Criterion) {
 fn bench_mcts_simulation(c: &mut Criterion) {
     let mut group = c.benchmark_group("MCTS Simulation");
 
-    let (template_v, keys_v) = setup_vanilla();
-    let (template_c, keys_c) = setup_complex();
+    let template_v = setup_vanilla();
+    let template_c = setup_complex();
     let teams = TeamData::default();
 
     group.bench_function("Rollout (Vanilla, 50 turns)", |b| {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            run_rollout(&mut state, &keys_v, &teams, 50, &mut rng);
+            run_rollout(&mut state, &teams, 50, &mut rng);
             black_box(state);
         });
     });
@@ -288,7 +280,7 @@ fn bench_mcts_simulation(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_c;
             let mut rng = deterministic_rng();
-            run_rollout(&mut state, &keys_c, &teams, 50, &mut rng);
+            run_rollout(&mut state, &teams, 50, &mut rng);
             black_box(state);
         });
     });
@@ -297,7 +289,7 @@ fn bench_mcts_simulation(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            run_rollout(&mut state, &keys_v, &teams, 200, &mut rng);
+            run_rollout(&mut state, &teams, 200, &mut rng);
             black_box(state);
         });
     });
@@ -312,22 +304,22 @@ fn bench_mcts_simulation(c: &mut Criterion) {
 fn bench_execute_turn(c: &mut Criterion) {
     let mut group = c.benchmark_group("Execute Turn");
 
-    let setups: Vec<(&str, BattleState, ZobristKeys)> = vec![
-        { let (s, k) = setup_vanilla(); ("Vanilla", s, k) },
-        { let (s, k) = setup_with_abilities(); ("With Abilities", s, k) },
-        { let (s, k) = setup_with_items(); ("With Items", s, k) },
-        { let (s, k) = setup_with_weather(); ("With Weather", s, k) },
-        { let (s, k) = setup_with_status(); ("With Status", s, k) },
-        { let (s, k) = setup_complex(); ("Complex", s, k) },
+    let setups: Vec<(&str, BattleState)> = vec![
+        { let s = setup_vanilla(); ("Vanilla", s) },
+        { let s = setup_with_abilities(); ("With Abilities", s) },
+        { let s = setup_with_items(); ("With Items", s) },
+        { let s = setup_with_weather(); ("With Weather", s) },
+        { let s = setup_with_status(); ("With Status", s) },
+        { let s = setup_complex(); ("Complex", s) },
     ];
 
     let teams = TeamData::default();
-    for (name, template, keys) in &setups {
+    for (name, template) in &setups {
         group.bench_function(*name, |b| {
             b.iter(|| {
                 let mut state = *template;
                 let mut rng = deterministic_rng();
-                execute_turn(&mut state, keys, &teams, 0, 0, &mut rng);
+                execute_turn(&mut state, &teams, 0, 0, &mut rng);
                 black_box(state);
             });
         });
@@ -343,7 +335,7 @@ fn bench_execute_turn(c: &mut Criterion) {
 fn bench_legal_actions(c: &mut Criterion) {
     let mut group = c.benchmark_group("Legal Actions");
 
-    let (state_full, _) = setup_vanilla();
+    let state_full = setup_vanilla();
 
     group.bench_function("Full Team", |b| {
         b.iter(|| {
@@ -401,11 +393,11 @@ fn bench_legal_actions(c: &mut Criterion) {
 fn bench_calc_damage(c: &mut Criterion) {
     let mut group = c.benchmark_group("Calc Damage");
 
-    let (state_v, _) = setup_vanilla();
-    let (state_ab, _) = setup_with_abilities();
-    let (state_it, _) = setup_with_items();
-    let (state_w, _) = setup_with_weather();
-    let (state_cx, _) = setup_complex();
+    let state_v = setup_vanilla();
+    let state_ab = setup_with_abilities();
+    let state_it = setup_with_items();
+    let state_w = setup_with_weather();
+    let state_cx = setup_complex();
 
     // Vanilla physical (move 1 = Pound)
     group.bench_function("Vanilla Physical", |b| {
@@ -482,8 +474,8 @@ fn bench_calc_damage(c: &mut Criterion) {
 fn bench_execute_move(c: &mut Criterion) {
     let mut group = c.benchmark_group("Execute Move");
 
-    let (template_v, keys_v) = setup_vanilla();
-    let (template_cx, keys_cx) = setup_complex();
+    let template_v = setup_vanilla();
+    let template_cx = setup_complex();
     let teams = TeamData::default();
 
     // Vanilla physical
@@ -491,7 +483,7 @@ fn bench_execute_move(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            execute_move(&mut state, &keys_v, &teams, 0, 1, 0, &mut rng);
+            execute_move(&mut state, &teams, 0, 1, 0, &mut rng);
             black_box(state);
         });
     });
@@ -501,7 +493,7 @@ fn bench_execute_move(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            execute_move(&mut state, &keys_v, &teams, 0, 4, 3, &mut rng);
+            execute_move(&mut state, &teams, 0, 4, 3, &mut rng);
             black_box(state);
         });
     });
@@ -511,7 +503,7 @@ fn bench_execute_move(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_cx;
             let mut rng = deterministic_rng();
-            execute_move(&mut state, &keys_cx, &teams, 0, 1, 0, &mut rng);
+            execute_move(&mut state, &teams, 0, 1, 0, &mut rng);
             black_box(state);
         });
     });
@@ -526,7 +518,7 @@ fn bench_execute_move(c: &mut Criterion) {
 fn bench_eot_and_switch(c: &mut Criterion) {
     let mut group = c.benchmark_group("EOT and Switch");
 
-    let (template_v, keys_v) = setup_vanilla();
+    let template_v = setup_vanilla();
     let teams = TeamData::default();
 
     // End of turn: vanilla (fast path, no weather/status/hazards)
@@ -534,13 +526,13 @@ fn bench_eot_and_switch(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_v;
             let mut rng = deterministic_rng();
-            end_of_turn(&mut state, &keys_v, &teams, &mut BattleRng::from_closure(&mut rng));
+            end_of_turn(&mut state, &teams, &mut BattleRng::from_closure(&mut rng));
             black_box(state);
         });
     });
 
     // End of turn: weather + status
-    let (template_ws, keys_ws) = setup_with_status();
+    let template_ws = setup_with_status();
     let mut template_ws = template_ws;
     template_ws.field.weather = WEATHER_SAND;
     template_ws.field.weather_turns = 5;
@@ -549,7 +541,7 @@ fn bench_eot_and_switch(c: &mut Criterion) {
         b.iter(|| {
             let mut state = template_ws;
             let mut rng = deterministic_rng();
-            end_of_turn(&mut state, &keys_ws, &teams, &mut BattleRng::from_closure(&mut rng));
+            end_of_turn(&mut state, &teams, &mut BattleRng::from_closure(&mut rng));
             black_box(state);
         });
     });
@@ -558,7 +550,7 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     group.bench_function("perform_switch (Vanilla)", |b| {
         b.iter(|| {
             let mut state = template_v;
-            perform_switch(&mut state, &keys_v, &teams, 0, 1);
+            perform_switch(&mut state, &teams, 0, 1);
             black_box(state);
         });
     });
@@ -571,27 +563,8 @@ fn bench_eot_and_switch(c: &mut Criterion) {
     group.bench_function("perform_switch (With Hazards)", |b| {
         b.iter(|| {
             let mut state = template_hz;
-            perform_switch(&mut state, &keys_v, &teams, 0, 1);
+            perform_switch(&mut state, &teams, 0, 1);
             black_box(state);
-        });
-    });
-
-    group.finish();
-}
-
-// ---------------------------------------------------------------------------
-// New benchmarks: Zobrist hashing
-// ---------------------------------------------------------------------------
-
-fn bench_zobrist(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Zobrist");
-
-    let (state, keys) = setup_vanilla();
-
-    group.bench_function("compute_full_hash", |b| {
-        b.iter(|| {
-            let hash = compute_full_hash(black_box(&state), black_box(&keys));
-            black_box(hash);
         });
     });
 
@@ -613,6 +586,5 @@ criterion_group!(
     bench_calc_damage,
     bench_execute_move,
     bench_eot_and_switch,
-    bench_zobrist,
 );
 criterion_main!(benches);

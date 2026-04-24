@@ -5,11 +5,9 @@ use pkmn_engine::state::calc::calc_damage;
 use pkmn_engine::state::structs::*;
 use pkmn_engine::state::data_bridge;
 use pkmn_engine::state::move_exec::execute_move;
-use pkmn_engine::state::zobrist::{ZobristKeys, compute_full_hash, validate_hash};
 use pkmn_engine::data::types::Type;
 
-fn setup() -> (BattleState, ZobristKeys) {
-    let keys = ZobristKeys::new(42);
+fn setup() -> BattleState {
     let mut state = BattleState::default();
     // Attacker: side 0 — Bulbasaur (Grass/Poison), species_id=1
     state.sides[0].team[0] = MonSlot {
@@ -43,8 +41,7 @@ fn setup() -> (BattleState, ZobristKeys) {
         ..Default::default()
     };
     state.phase = PHASE_ACTIONS;
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
 /// No-crit, minimum roll RNG.
@@ -54,7 +51,7 @@ fn no_crit_rng(max: u32) -> u32 {
 
 #[test]
 fn test_choice_band_physical() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Baseline: no item, Pound (physical Normal, move_id=1)
     let res_base = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
@@ -73,7 +70,7 @@ fn test_choice_band_physical() {
 
 #[test]
 fn test_eviolite_def_spd() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Physical baseline (Pound, move_id=1)
     let res_phys_base = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
@@ -97,7 +94,7 @@ fn test_eviolite_def_spd() {
 
 #[test]
 fn test_life_orb_boost_and_recoil() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Baseline: no item, Pound
     let res_base = calc_damage(&state, 0, 1, 0, &mut no_crit_rng);
@@ -121,7 +118,7 @@ fn test_life_orb_boost_and_recoil() {
 
 #[test]
 fn test_type_boost_item() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Baseline: Fire Punch (move_id=7, Fire/Physical) without item
     let res_base = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
@@ -146,7 +143,7 @@ fn test_type_boost_item() {
 
 #[test]
 fn test_gem_boost_and_consume() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Baseline: Fire Punch without item
     let res_base = calc_damage(&state, 0, 7, 0, &mut no_crit_rng);
@@ -169,7 +166,7 @@ fn test_gem_boost_and_consume() {
 
 #[test]
 fn test_resist_berry_halves() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Make defender Grass-type so Fire is SE
     state.sides[1].active.override_types = [Type::Grass as u8, Type::Grass as u8];
@@ -197,7 +194,7 @@ fn test_resist_berry_halves() {
 
 #[test]
 fn test_weakness_policy_boost() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
 
     // Make defender Grass-type so Fire is SE
     state.sides[1].active.override_types = [Type::Grass as u8, Type::Grass as u8];
@@ -207,10 +204,9 @@ fn test_weakness_policy_boost() {
     state.sides[1].team[0].current_hp = 999;
     state.sides[1].team[0].max_hp = 999;
     state.sides[1].team[0].stats[1] = 250; // high Def
-    state.zobrist = compute_full_hash(&state, &keys);
 
     // Fire Punch (move_id=7, Fire/Physical) — SE vs Grass
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 7, 1, &mut no_crit_rng);
+    execute_move(&mut state, &TeamData::default(), 0, 7, 1, &mut no_crit_rng);
 
     // Defender should have +2 Atk (index 0) and +2 SpA (index 2)
     assert_eq!(state.sides[1].active.boosts[ATK], 2,
@@ -221,12 +217,11 @@ fn test_weakness_policy_boost() {
     // Item should be consumed
     assert_eq!(state.sides[1].team[0].item_id, 0,
         "Weakness Policy should be consumed");
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_expert_belt_se() {
-    let (mut state, _) = setup();
+    let mut state = setup();
 
     // Make defender Grass-type so Fire is SE
     state.sides[1].active.override_types = [Type::Grass as u8, Type::Grass as u8];

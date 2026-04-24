@@ -284,7 +284,6 @@ impl SideState {
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct BattleState {
-    pub zobrist: u64,
     pub sides: [SideState; 2],
     pub field: FieldState,
     pub phase: u8,
@@ -352,7 +351,6 @@ impl core::fmt::Debug for ActiveMon {
 impl core::fmt::Debug for BattleState {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BattleState")
-            .field("zobrist", &format_args!("0x{:016x}", self.zobrist))
             .field("phase", &self.phase)
             .field("turn", &self.field.turn)
             .finish()

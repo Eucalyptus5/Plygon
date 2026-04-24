@@ -1,59 +1,42 @@
-//! State mutation functions.  Every mutation updates the Zobrist hash.
+//! State mutation functions.
 
 use crate::state::structs::*;
-use crate::state::zobrist::{ZobristKeys, hp_bucket};
 use crate::state::data_bridge;
 use crate::state::accessors::effective_ability;
 use crate::data::items::ItemFlag;
 
-pub fn deal_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize, amount: u16) {
+pub fn deal_damage(state: &mut BattleState, side: usize, slot: usize, amount: u16) {
     let mon = &mut state.sides[side].team[slot];
-    let old_bucket = hp_bucket(mon.current_hp, mon.max_hp);
     mon.current_hp = mon.current_hp.saturating_sub(amount);
-    let new_bucket = hp_bucket(mon.current_hp, mon.max_hp);
-    if old_bucket != new_bucket {
-        state.zobrist ^= keys.hp_bucket[side][slot][old_bucket];
-        state.zobrist ^= keys.hp_bucket[side][slot][new_bucket];
-    }
 }
 
-pub fn heal(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize, amount: u16) {
+pub fn heal(state: &mut BattleState, side: usize, slot: usize, amount: u16) {
     let mon = &mut state.sides[side].team[slot];
-    let old_bucket = hp_bucket(mon.current_hp, mon.max_hp);
     mon.current_hp = mon.current_hp.saturating_add(amount).min(mon.max_hp);
-    let new_bucket = hp_bucket(mon.current_hp, mon.max_hp);
-    if old_bucket != new_bucket {
-        state.zobrist ^= keys.hp_bucket[side][slot][old_bucket];
-        state.zobrist ^= keys.hp_bucket[side][slot][new_bucket];
-    }
 }
 
-pub fn deal_proportional_damage(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize, num: u16, den: u16) {
+pub fn deal_proportional_damage(state: &mut BattleState, side: usize, slot: usize, num: u16, den: u16) {
     let max_hp = state.sides[side].team[slot].max_hp;
     let damage = (max_hp as u32 * num as u32 / den as u32).max(1) as u16;
-    deal_damage(state, keys, side, slot, damage);
+    deal_damage(state, side, slot, damage);
 }
 
-pub fn set_status(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize, status: u8, counter: u8) -> bool {
+pub fn set_status(state: &mut BattleState, side: usize, slot: usize, status: u8, counter: u8) -> bool {
     let mon = &mut state.sides[side].team[slot];
     if mon.status != STATUS_NONE { return false; }
-    state.zobrist ^= keys.status[side][slot][STATUS_NONE as usize];
     mon.status = status;
     mon.status_counter = counter;
-    state.zobrist ^= keys.status[side][slot][status as usize];
     true
 }
 
-pub fn clear_status(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize) {
+pub fn clear_status(state: &mut BattleState, side: usize, slot: usize) {
     let mon = &mut state.sides[side].team[slot];
     if mon.status == STATUS_NONE { return; }
-    state.zobrist ^= keys.status[side][slot][mon.status as usize];
     mon.status = STATUS_NONE;
     mon.status_counter = 0;
-    state.zobrist ^= keys.status[side][slot][STATUS_NONE as usize];
 }
 
-pub fn apply_boost(state: &mut BattleState, keys: &ZobristKeys, side: usize, stat_index: usize, stages: i8) -> i8 {
+pub fn apply_boost(state: &mut BattleState, side: usize, stat_index: usize, stages: i8) -> i8 {
     // Contrary inverts, Simple doubles (onChangeBoost in Showdown)
     let ability = effective_ability(state, side);
     let stages = if ability == data_bridge::ABILITY_CONTRARY {
@@ -63,21 +46,19 @@ pub fn apply_boost(state: &mut BattleState, keys: &ZobristKeys, side: usize, sta
     } else {
         stages
     };
-    apply_boost_raw(state, keys, side, stat_index, stages)
+    apply_boost_raw(state, side, stat_index, stages)
 }
 
 /// Apply a boost without Contrary/Simple modification.
 /// Used when the boost is a reactive response (Competitive/Defiant) that should not be re-inverted.
 #[inline(always)]
-pub fn apply_boost_raw(state: &mut BattleState, keys: &ZobristKeys, side: usize, stat_index: usize, stages: i8) -> i8 {
+pub fn apply_boost_raw(state: &mut BattleState, side: usize, stat_index: usize, stages: i8) -> i8 {
     let active = &mut state.sides[side].active;
     let old = active.boosts[stat_index];
     let new = (old as i16 + stages as i16).clamp(-6, 6) as i8;
     let actual = new - old;
     if actual != 0 {
-        if old != 0 { state.zobrist ^= keys.boosts[side][stat_index][(old + 6) as usize]; }
         active.boosts[stat_index] = new;
-        if new != 0 { state.zobrist ^= keys.boosts[side][stat_index][(new + 6) as usize]; }
     }
     actual
 }
@@ -89,8 +70,7 @@ pub fn apply_boost_raw(state: &mut BattleState, keys: &ZobristKeys, side: usize,
 /// `source` is the side that caused the drop (for Mirror Armor reflect).
 #[inline(always)]
 pub fn try_opponent_stat_drop_from(
-    state: &mut BattleState, keys: &ZobristKeys,
-    target: usize, stat: usize, stages: i8, source: usize,
+    state: &mut BattleState, target: usize, stat: usize, stages: i8, source: usize,
 ) -> i8 {
     // Clear Amulet blocks
     if state.field.magic_room_turns() == 0 {
@@ -105,12 +85,12 @@ pub fn try_opponent_stat_drop_from(
     if target_ability == data_bridge::ABILITY_MIRROR_ARMOR && source != target {
         // Block the drop on target; reflect to source if source is alive
         if state.active_mon(source).current_hp > 0 {
-            apply_boost(state, keys, source, stat, stages);
+            apply_boost(state, source, stat, stages);
         }
         return 0;
     }
 
-    let actual = apply_boost(state, keys, target, stat, stages);
+    let actual = apply_boost(state, target, stat, stages);
 
     // Competitive/Defiant: +2 SpA/Atk when any stat is lowered by opponent
     // Check the ability AFTER Contrary (which may have inverted the drop into a raise).
@@ -125,9 +105,9 @@ pub fn try_opponent_stat_drop_from(
     if actual < 0 {
         let abil = effective_ability(state, target);
         if abil == data_bridge::ABILITY_COMPETITIVE {
-            apply_boost_raw(state, keys, target, SPA, 2);
+            apply_boost_raw(state, target, SPA, 2);
         } else if abil == data_bridge::ABILITY_DEFIANT {
-            apply_boost_raw(state, keys, target, ATK, 2);
+            apply_boost_raw(state, target, ATK, 2);
         }
     }
     actual
@@ -136,26 +116,24 @@ pub fn try_opponent_stat_drop_from(
 /// Backward-compatible wrapper: opponent stat drop where source is the opponent.
 #[inline(always)]
 pub fn try_opponent_stat_drop(
-    state: &mut BattleState, keys: &ZobristKeys,
-    target: usize, stat: usize, stages: i8,
+    state: &mut BattleState, target: usize, stat: usize, stages: i8,
 ) -> i8 {
     let source = 1 - target;
-    try_opponent_stat_drop_from(state, keys, target, stat, stages, source)
+    try_opponent_stat_drop_from(state, target, stat, stages, source)
 }
 
 #[inline(always)]
-fn mirror_herb_core(state: &mut BattleState, keys: &ZobristKeys, herb_side: usize) {
+fn mirror_herb_core(state: &mut BattleState, herb_side: usize) {
     let herb_slot = state.sides[herb_side].active_index as usize;
-    consume_item(state, keys, herb_side, herb_slot);
+    consume_item(state, herb_side, herb_slot);
     if effective_ability(state, herb_side) == data_bridge::ABILITY_UNBURDEN {
-        set_volatile(state, keys, herb_side, VOL_UNBURDEN);
+        set_volatile(state, herb_side, VOL_UNBURDEN);
     }
 }
 
 #[inline(always)]
 pub fn try_mirror_herb(
-    state: &mut BattleState, keys: &ZobristKeys,
-    boosted_side: usize, boosts: &[(usize, i8)],
+    state: &mut BattleState, boosted_side: usize, boosts: &[(usize, i8)],
 ) {
     let herb_side = 1 - boosted_side;
     if state.field.magic_room_turns() != 0 { return; }
@@ -165,17 +143,16 @@ pub fn try_mirror_herb(
     let mut any = false;
     for &(stat, stages) in boosts {
         if stages > 0 {
-            apply_boost(state, keys, herb_side, stat, stages);
+            apply_boost(state, herb_side, stat, stages);
             any = true;
         }
     }
-    if any { mirror_herb_core(state, keys, herb_side); }
+    if any { mirror_herb_core(state, herb_side); }
 }
 
 #[inline(always)]
 pub fn check_mirror_herb_diff(
-    state: &mut BattleState, keys: &ZobristKeys,
-    boosted_side: usize, boosts_before: &[i8; 7],
+    state: &mut BattleState, boosted_side: usize, boosts_before: &[i8; 7],
 ) {
     let herb_side = 1 - boosted_side;
     if state.field.magic_room_turns() != 0 { return; }
@@ -187,17 +164,17 @@ pub fn check_mirror_herb_diff(
     for i in 0..7 {
         let diff = boosts_after[i] - boosts_before[i];
         if diff > 0 {
-            apply_boost(state, keys, herb_side, i, diff);
+            apply_boost(state, herb_side, i, diff);
             any = true;
         }
     }
-    if any { mirror_herb_core(state, keys, herb_side); }
+    if any { mirror_herb_core(state, herb_side); }
 }
 
 /// Check and activate White Herb: restore all negative stat changes and consume item.
 /// Called after self-drops (Close Combat, etc.) and after opponent-caused drops.
 #[inline(always)]
-pub fn check_white_herb(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_white_herb(state: &mut BattleState, side: usize) {
     if state.field.magic_room_turns() != 0 { return; }
     let item_id = state.active_mon(side).item_id;
     if item_id == 0 { return; }
@@ -212,24 +189,21 @@ pub fn check_white_herb(state: &mut BattleState, keys: &ZobristKeys, side: usize
     if !any_negative { return; }
     // Restore all negative boosts to 0
     for i in 0..7 {
-        let old = state.sides[side].active.boosts[i];
-        if old < 0 {
-            if old != 0 { state.zobrist ^= keys.boosts[side][i][(old + 6) as usize]; }
+        if state.sides[side].active.boosts[i] < 0 {
             state.sides[side].active.boosts[i] = 0;
-            // boost 0 has no zobrist contribution (no XOR needed for new=0)
         }
     }
     let slot = state.sides[side].active_index as usize;
-    consume_item(state, keys, side, slot);
+    consume_item(state, side, slot);
     if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
-        set_volatile(state, keys, side, VOL_UNBURDEN);
+        set_volatile(state, side, VOL_UNBURDEN);
     }
 }
 
 /// Check and activate Mental Herb: cure Taunt, Encore, Torment, Disable, Heal Block.
 /// Called after these volatile conditions are set on a target.
 #[inline(always)]
-pub fn check_mental_herb(state: &mut BattleState, keys: &ZobristKeys, side: usize) {
+pub fn check_mental_herb(state: &mut BattleState, side: usize) {
     if state.field.magic_room_turns() != 0 { return; }
     let item_id = state.active_mon(side).item_id;
     if item_id == 0 { return; }
@@ -247,31 +221,29 @@ pub fn check_mental_herb(state: &mut BattleState, keys: &ZobristKeys, side: usiz
     state.sides[side].active.disable_turns = 0;
     state.sides[side].active.disabled_move = 0;
     state.sides[side].active.heal_block_turns = 0;
-    clear_volatile(state, keys, side, VOL_TORMENT);
+    clear_volatile(state, side, VOL_TORMENT);
     let slot = state.sides[side].active_index as usize;
-    consume_item(state, keys, side, slot);
+    consume_item(state, side, slot);
     if effective_ability(state, side) == data_bridge::ABILITY_UNBURDEN {
-        set_volatile(state, keys, side, VOL_UNBURDEN);
+        set_volatile(state, side, VOL_UNBURDEN);
     }
 }
 
-pub fn set_volatile(state: &mut BattleState, keys: &ZobristKeys, side: usize, flag: u32) {
+pub fn set_volatile(state: &mut BattleState, side: usize, flag: u32) {
     let active = &mut state.sides[side].active;
     if active.volatile_flags & flag == 0 {
         active.volatile_flags |= flag;
-        state.zobrist ^= keys.volatile_bit[side][flag.trailing_zeros() as usize];
     }
 }
 
-pub fn clear_volatile(state: &mut BattleState, keys: &ZobristKeys, side: usize, flag: u32) {
+pub fn clear_volatile(state: &mut BattleState, side: usize, flag: u32) {
     let active = &mut state.sides[side].active;
     if active.volatile_flags & flag != 0 {
         active.volatile_flags &= !flag;
-        state.zobrist ^= keys.volatile_bit[side][flag.trailing_zeros() as usize];
     }
 }
 
-pub fn set_weather(state: &mut BattleState, keys: &ZobristKeys, weather: u8, turns: u8) {
+pub fn set_weather(state: &mut BattleState, weather: u8, turns: u8) {
     // Showdown's Field.setWeather (sim/field.ts:45-53) refuses to re-set the
     // same weather while it's still active — non-sandstorm move sources fail
     // in gen >2, ability sources fail in gen >5 unless duration is 0. The
@@ -283,70 +255,53 @@ pub fn set_weather(state: &mut BattleState, keys: &ZobristKeys, weather: u8, tur
     {
         return;
     }
-    state.zobrist ^= keys.weather[state.field.weather as usize];
     state.field.weather = weather;
     state.field.weather_turns = turns;
-    state.zobrist ^= keys.weather[weather as usize];
 }
 
-pub fn clear_weather(state: &mut BattleState, keys: &ZobristKeys) {
-    set_weather(state, keys, WEATHER_NONE, 0);
+pub fn clear_weather(state: &mut BattleState) {
+    set_weather(state, WEATHER_NONE, 0);
 }
 
-pub fn set_terrain(state: &mut BattleState, keys: &ZobristKeys, terrain: u8, turns: u8) {
-    state.zobrist ^= keys.terrain[state.field.terrain as usize];
+pub fn set_terrain(state: &mut BattleState, terrain: u8, turns: u8) {
     state.field.terrain = terrain;
     state.field.terrain_turns = turns;
-    state.zobrist ^= keys.terrain[terrain as usize];
 }
 
-pub fn clear_terrain(state: &mut BattleState, keys: &ZobristKeys) {
-    set_terrain(state, keys, TERRAIN_NONE, 0);
+pub fn clear_terrain(state: &mut BattleState) {
+    set_terrain(state, TERRAIN_NONE, 0);
 }
 
-pub fn set_trick_room(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
-    let was = state.field.trick_room_turns > 0;
+pub fn set_trick_room(state: &mut BattleState, turns: u8) {
     state.field.trick_room_turns = turns;
-    if was != (turns > 0) { state.zobrist ^= keys.trick_room; }
 }
 
-pub fn set_gravity(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
-    let was = state.field.gravity_turns > 0;
+pub fn set_gravity(state: &mut BattleState, turns: u8) {
     state.field.gravity_turns = turns;
-    if was != (turns > 0) { state.zobrist ^= keys.gravity; }
 }
 
-pub fn set_magic_room(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
-    let was = state.field.magic_room_turns() > 0;
+pub fn set_magic_room(state: &mut BattleState, turns: u8) {
     state.field.set_magic_room_turns(turns);
-    if was != (turns > 0) { state.zobrist ^= keys.magic_room; }
 }
 
-pub fn set_wonder_room(state: &mut BattleState, keys: &ZobristKeys, turns: u8) {
-    let was = state.field.wonder_room_turns() > 0;
+pub fn set_wonder_room(state: &mut BattleState, turns: u8) {
     state.field.set_wonder_room_turns(turns);
-    if was != (turns > 0) { state.zobrist ^= keys.wonder_room; }
 }
 
-pub fn consume_item(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize) {
+pub fn consume_item(state: &mut BattleState, side: usize, slot: usize) {
     let mon = &mut state.sides[side].team[slot];
     if mon.item_id != 0 {
-        state.zobrist ^= keys.item[side][slot][mon.item_id as usize];
         mon.item_id = 0;
     }
 }
 
-pub fn set_item(state: &mut BattleState, keys: &ZobristKeys, side: usize, slot: usize, item_id: u16) {
+pub fn set_item(state: &mut BattleState, side: usize, slot: usize, item_id: u16) {
     let mon = &mut state.sides[side].team[slot];
-    if mon.item_id != 0 { state.zobrist ^= keys.item[side][slot][mon.item_id as usize]; }
     mon.item_id = item_id;
-    if item_id != 0 { state.zobrist ^= keys.item[side][slot][item_id as usize]; }
 }
 
-pub fn set_phase(state: &mut BattleState, keys: &ZobristKeys, phase: u8) {
-    state.zobrist ^= keys.phase[state.phase as usize];
+pub fn set_phase(state: &mut BattleState, phase: u8) {
     state.phase = phase;
-    state.zobrist ^= keys.phase[phase as usize];
 }
 
 pub fn deduct_pp(state: &mut BattleState, side: usize, slot: usize, amount: u8) -> bool {
@@ -366,62 +321,51 @@ pub fn deduct_pp(state: &mut BattleState, side: usize, slot: usize, amount: u8) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::zobrist::{compute_full_hash, validate_hash};
 
-    fn setup() -> (BattleState, ZobristKeys) {
-        let keys = ZobristKeys::new(42);
+    fn setup() -> BattleState {
         let mut state = BattleState::default();
         state.sides[0].team[0].species_id = 25;
         state.sides[0].team[0].current_hp = 211;
         state.sides[0].team[0].max_hp = 211;
         state.sides[0].team[0].item_id = 234;
-        state.zobrist = compute_full_hash(&state, &keys);
-        (state, keys)
+        state
     }
 
-    #[test] fn test_damage() { let (mut s, k) = setup(); deal_damage(&mut s, &k, 0, 0, 50); assert_eq!(s.sides[0].team[0].current_hp, 161); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_heal() { let (mut s, k) = setup(); deal_damage(&mut s, &k, 0, 0, 100); heal(&mut s, &k, 0, 0, 50); assert_eq!(s.sides[0].team[0].current_hp, 161); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_status() { let (mut s, k) = setup(); assert!(set_status(&mut s, &k, 0, 0, STATUS_BURN, 0)); assert!(!set_status(&mut s, &k, 0, 0, STATUS_PARALYSIS, 0)); clear_status(&mut s, &k, 0, 0); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_boost_clamp() { let (mut s, k) = setup(); apply_boost(&mut s, &k, 0, ATK, 4); assert_eq!(apply_boost(&mut s, &k, 0, ATK, 4), 2); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_volatile() { let (mut s, k) = setup(); set_volatile(&mut s, &k, 0, VOL_SUBSTITUTE); assert!(s.sides[0].active.has_volatile(VOL_SUBSTITUTE)); clear_volatile(&mut s, &k, 0, VOL_SUBSTITUTE); assert!(validate_hash(&s, &k)); }
-    #[test] fn test_weather() { let (mut s, k) = setup(); set_weather(&mut s, &k, WEATHER_RAIN, 5); clear_weather(&mut s, &k); assert!(validate_hash(&s, &k)); }
+    #[test] fn test_damage() { let mut s = setup(); deal_damage(&mut s, 0, 0, 50); assert_eq!(s.sides[0].team[0].current_hp, 161); }
+    #[test] fn test_heal() { let mut s = setup(); deal_damage(&mut s, 0, 0, 100); heal(&mut s, 0, 0, 50); assert_eq!(s.sides[0].team[0].current_hp, 161); }
+    #[test] fn test_status() { let mut s = setup(); assert!(set_status(&mut s, 0, 0, STATUS_BURN, 0)); assert!(!set_status(&mut s, 0, 0, STATUS_PARALYSIS, 0)); assert_eq!(s.sides[0].team[0].status, STATUS_BURN); clear_status(&mut s, 0, 0); assert_eq!(s.sides[0].team[0].status, STATUS_NONE); }
+    #[test] fn test_boost_clamp() { let mut s = setup(); apply_boost(&mut s, 0, ATK, 4); assert_eq!(apply_boost(&mut s, 0, ATK, 4), 2); assert_eq!(s.sides[0].active.boosts[ATK], 6); }
+    #[test] fn test_volatile() { let mut s = setup(); set_volatile(&mut s, 0, VOL_SUBSTITUTE); assert!(s.sides[0].active.has_volatile(VOL_SUBSTITUTE)); clear_volatile(&mut s, 0, VOL_SUBSTITUTE); assert!(!s.sides[0].active.has_volatile(VOL_SUBSTITUTE)); }
+    #[test] fn test_weather() { let mut s = setup(); set_weather(&mut s, WEATHER_RAIN, 5); assert_eq!(s.field.weather, WEATHER_RAIN); clear_weather(&mut s); assert_eq!(s.field.weather, WEATHER_NONE); }
 
     #[test]
-    fn test_magic_room_zobrist() {
-        let (mut s, k) = setup();
-        let h0 = s.zobrist;
-        set_magic_room(&mut s, &k, 5);
-        assert_ne!(s.zobrist, h0);
-        assert!(validate_hash(&s, &k));
-        set_magic_room(&mut s, &k, 0);
-        assert_eq!(s.zobrist, h0);
-        assert!(validate_hash(&s, &k));
-    }
-
-    #[test]
-    fn test_wonder_room_zobrist() {
-        let (mut s, k) = setup();
-        let h0 = s.zobrist;
-        set_wonder_room(&mut s, &k, 5);
-        assert_ne!(s.zobrist, h0);
-        assert!(validate_hash(&s, &k));
-        set_wonder_room(&mut s, &k, 0);
-        assert_eq!(s.zobrist, h0);
-        assert!(validate_hash(&s, &k));
+    fn test_wonder_room_toggle() {
+        let mut s = setup();
+        set_wonder_room(&mut s, 5);
+        assert_eq!(s.field.wonder_room_turns(), 5);
+        set_wonder_room(&mut s, 0);
+        assert_eq!(s.field.wonder_room_turns(), 0);
     }
 
     #[test]
     fn test_magic_room_toggle() {
-        let (mut s, k) = setup();
-        set_magic_room(&mut s, &k, 5);
+        let mut s = setup();
+        set_magic_room(&mut s, 5);
         assert_eq!(s.field.magic_room_turns(), 5);
-        // Refresh while active: just update turns, hash stays same (still active)
-        set_magic_room(&mut s, &k, 3);
+        set_magic_room(&mut s, 3);
         assert_eq!(s.field.magic_room_turns(), 3);
-        assert!(validate_hash(&s, &k));
-        // Clear
-        set_magic_room(&mut s, &k, 0);
+        set_magic_room(&mut s, 0);
         assert_eq!(s.field.magic_room_turns(), 0);
-        assert!(validate_hash(&s, &k));
+    }
+
+    #[test]
+    fn test_white_herb_restore() {
+        // Guards the check_white_herb de-thread: dropping the boost-restore write fails here.
+        let mut s = setup();
+        s.sides[0].team[0].item_id = 535; // White Herb
+        s.sides[0].active.boosts = [-2, -1, 0, -3, 0, 0, 0];
+        check_white_herb(&mut s, 0);
+        assert_eq!(s.sides[0].active.boosts, [0i8; 7]);
+        assert_eq!(s.sides[0].team[0].item_id, 0);
     }
 }

@@ -1,7 +1,6 @@
 pub mod structs;
 pub mod data_bridge;
 pub mod battle_rng;
-pub mod zobrist;
 pub mod accessors;
 pub mod mutations;
 pub mod team_builder;
@@ -17,7 +16,6 @@ pub mod turn;
 pub use structs::*;
 pub use battle_rng::BattleRng;
 pub use data_bridge::{species, move_hot, move_cold, move_base_pp, item, ABILITY_NONE};
-pub use zobrist::ZobristKeys;
 pub use accessors::*;
 pub use team_builder::*;
 pub use legal_moves::*;

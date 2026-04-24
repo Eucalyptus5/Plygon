@@ -25,8 +25,8 @@ fn test_battle_state_traits() {
     let state = BattleState::default();
     let state_copy = state; // Tests Copy
     let state_clone = state.clone(); // Tests Clone
-    assert_eq!(state.zobrist, state_copy.zobrist);
-    assert_eq!(state.zobrist, state_clone.zobrist);
+    assert_eq!(state, state_copy);
+    assert_eq!(state, state_clone);
 }
 
 #[test]

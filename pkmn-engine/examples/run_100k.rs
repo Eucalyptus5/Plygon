@@ -1,7 +1,6 @@
 use std::time::Instant;
 
 use pkmn_engine::state::*;
-use pkmn_engine::state::zobrist::{ZobristKeys, compute_full_hash};
 
 fn deterministic_rng(seed: u32) -> impl FnMut(u32) -> u32 {
     let mut s: u32 = seed;
@@ -25,7 +24,7 @@ fn make_mon(species_id: u16, hp: u16, stats: [u16; 5], moves: [u16; 4], pp: [u8;
     }
 }
 
-fn run_battle(template: &BattleState, keys: &ZobristKeys, teams: &TeamData, seed: u32) -> u32 {
+fn run_battle(template: &BattleState, teams: &TeamData, seed: u32) -> u32 {
     let mut state = *template;
     let mut rng = deterministic_rng(seed);
     let mut turns = 0u32;
@@ -48,9 +47,9 @@ fn run_battle(template: &BattleState, keys: &ZobristKeys, teams: &TeamData, seed
         } else { 0 };
 
         match state.phase {
-            PHASE_ACTIONS => execute_turn(&mut state, keys, teams, act1, act2, &mut rng),
+            PHASE_ACTIONS => execute_turn(&mut state, teams, act1, act2, &mut rng),
             PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
-                execute_switch_turn(&mut state, keys, teams, act1, act2, &mut rng);
+                execute_switch_turn(&mut state, teams, act1, act2, &mut rng);
             }
             _ => break,
         }
@@ -59,7 +58,6 @@ fn run_battle(template: &BattleState, keys: &ZobristKeys, teams: &TeamData, seed
 }
 
 fn main() {
-    let keys = ZobristKeys::new(42);
     let mut template = BattleState::default();
 
     // Diverse team: different species, abilities, items, moves
@@ -84,7 +82,6 @@ fn main() {
         template.sides[0].team[i] = mons_p1[i];
         template.sides[1].team[i] = mons_p2[i];
     }
-    template.zobrist = compute_full_hash(&template, &keys);
 
     let teams = TeamData::default();
 
@@ -96,7 +93,7 @@ fn main() {
     let mut total_turns = 0u64;
 
     for i in 0..NUM_BATTLES {
-        let turns = run_battle(&template, &keys, &teams, i.wrapping_mul(2654435761));
+        let turns = run_battle(&template, &teams, i.wrapping_mul(2654435761));
         total_turns += turns as u64;
     }
 

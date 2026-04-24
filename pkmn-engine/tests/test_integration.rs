@@ -1,5 +1,4 @@
 use pkmn_engine::state::BattleState;
-use pkmn_engine::state::zobrist::*;
 use pkmn_engine::state::mutations::*;
 use pkmn_engine::state::switch::*;
 use pkmn_engine::state::end_of_turn::*;
@@ -11,9 +10,8 @@ use pkmn_engine::state::move_exec::execute_move;
 use pkmn_engine::state::turn::{execute_turn, execute_switch_turn};
 use pkmn_engine::data::types::Type;
 
-fn setup() -> (BattleState, ZobristKeys) {
+fn setup() -> BattleState {
     let mut state = BattleState::default();
-    let keys = ZobristKeys::new(42);
     
     for i in 0..6 {
         state.sides[0].team[i].species_id = 1;
@@ -27,16 +25,15 @@ fn setup() -> (BattleState, ZobristKeys) {
         state.sides[1].team[i].stats = [300, 100, 100, 100, 100];
     }
     
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
 #[test]
 fn test_copy_independence() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     let mut state_copy = state.clone();
     
-    deal_damage(&mut state_copy, &keys, 0, 0, 50);
+    deal_damage(&mut state_copy, 0, 0, 50);
     
     assert_eq!(state.sides[0].team[0].current_hp, 300);
     assert_eq!(state_copy.sides[0].team[0].current_hp, 250);
@@ -44,14 +41,14 @@ fn test_copy_independence() {
 
 #[test]
 fn test_copy_independence_1000() {
-    let (state, keys) = setup();
+    let state = setup();
     let mut copies = vec![];
     for _ in 0..1000 {
         copies.push(state.clone());
     }
     
     for (i, copy) in copies.iter_mut().enumerate() {
-        deal_damage(copy, &keys, 0, 0, (i % 100) as u16);
+        deal_damage(copy, 0, 0, (i % 100) as u16);
     }
     
     assert_eq!(state.sides[0].team[0].current_hp, 300);
@@ -59,93 +56,51 @@ fn test_copy_independence_1000() {
     assert_eq!(copies[99].sides[0].team[0].current_hp, 201);
 }
 
-#[test]
-fn test_mcts_branch_pattern() {
-    let (state, keys) = setup();
-    
-    let mut branch1 = state.clone();
-    deal_damage(&mut branch1, &keys, 0, 0, 50);
-    
-    let mut branch2 = state.clone();
-    // Apply boost instead of heal, since heal on full HP does nothing
-    apply_boost(&mut branch2, &keys, 0, 1, 1);
-    
-    let mut branch3 = state.clone();
-    set_status(&mut branch3, &keys, 0, 0, STATUS_BURN, 0);
-    
-    assert_ne!(state.zobrist, branch1.zobrist);
-    assert_ne!(state.zobrist, branch2.zobrist);
-    assert_ne!(state.zobrist, branch3.zobrist);
-    
-    assert_ne!(branch1.zobrist, branch2.zobrist);
-    assert_ne!(branch2.zobrist, branch3.zobrist);
-}
 
-#[test]
-fn test_zobrist_50_mutations() {
-    let (mut state, keys) = setup();
-    
-    for i in 0..50 {
-        match i % 5 {
-            0 => deal_damage(&mut state, &keys, 0, 0, 5),
-            1 => heal(&mut state, &keys, 1, 0, 2),
-            2 => { set_status(&mut state, &keys, 0, 0, STATUS_POISON, 0); },
-            3 => { apply_boost(&mut state, &keys, 0, 1, 1); },
-            4 => { set_weather(&mut state, &keys, WEATHER_SAND, 5); },
-            _ => (),
-        }
-        assert!(validate_hash(&state, &keys), "Failed at step {}", i);
-    }
-}
 
 #[test]
 fn test_full_turn_simulation() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     
     let a1 = legal_actions(&state, 0);
     assert!(a1.count > 0);
 
     let res = calc_damage(&state, 0, 1, 0, &mut |_| 1); // Pound
-    deal_damage(&mut state, &keys, 1, 0, res.damage);
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    deal_damage(&mut state, 1, 0, res.damage);
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     
     assert!(state.sides[1].team[0].current_hp < 300);
     assert_eq!(state.field.turn, 1);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_switch_hazard_eot_chain() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     
     state.sides[0].side_conditions.hazard_flags |= HAZARD_STEALTH_ROCK;
     state.sides[0].side_conditions.spikes = 1;
     state.field.weather = WEATHER_SAND;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
     
-    switch_out(&mut state, &keys, &TeamData::default(), 0);
-    assert!(validate_hash(&state, &keys));
+    switch_out(&mut state, &TeamData::default(), 0);
     
-    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
-    assert!(validate_hash(&state, &keys));
+    switch_in(&mut state, &TeamData::default(), 0, 1);
     
     // SR (37) + Spikes (37) = 74 damage, then sand (18) at EOT
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
-    assert!(validate_hash(&state, &keys));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert!(state.sides[0].team[1].current_hp < 226);
 }
 
 #[test]
 fn test_faint_game_over_detection() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     
-    deal_damage(&mut state, &keys, 0, 0, 999); // Lethal
+    deal_damage(&mut state, 0, 0, 999); // Lethal
     assert_eq!(state.sides[0].team[0].current_hp, 0);
     assert!(state.sides[0].team[0].is_fainted());
     
     for i in 1..6 {
-        deal_damage(&mut state, &keys, 0, i, 999);
+        deal_damage(&mut state, 0, i, 999);
     }
     
     state.phase = PHASE_SWITCH_P1;
@@ -155,17 +110,17 @@ fn test_faint_game_over_detection() {
 
 #[test]
 fn test_transform_roundtrip() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[1].team[0].stats = [300, 200, 200, 200, 200];
     state.sides[1].team[0].moves = [1, 2, 0, 0];
     
-    apply_transform(&mut state, &keys, 0, 1);
+    apply_transform(&mut state, 0, 1);
     
     assert!(state.sides[0].active.has_volatile(VOL_TRANSFORMED));
     assert_eq!(state.sides[0].active.override_stats[1], 200);
     assert_eq!(state.sides[0].active.override_moves[0], 1);
     
-    switch_out(&mut state, &keys, &TeamData::default(), 0);
+    switch_out(&mut state, &TeamData::default(), 0);
 
     assert!(!state.sides[0].active.has_volatile(VOL_TRANSFORMED));
     assert_eq!(state.sides[0].active.override_stats[1], 0);
@@ -174,63 +129,62 @@ fn test_transform_roundtrip() {
 
 #[test]
 fn test_weather_lifecycle() {
-    let (mut state, keys) = setup();
-    set_weather(&mut state, &keys, WEATHER_RAIN, 3);
+    let mut state = setup();
+    set_weather(&mut state, WEATHER_RAIN, 3);
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.field.weather_turns, 2);
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.field.weather_turns, 1);
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.field.weather, 0);
     assert_eq!(state.field.weather_turns, 0);
 }
 
 #[test]
 fn test_perish_song_lifecycle() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].active.set_volatile(VOL_PERISH_SONG);
     state.sides[0].active.perish_count = 3;
-    state.zobrist = compute_full_hash(&state, &keys);
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].active.perish_count, 2);
     assert_eq!(state.sides[0].team[0].current_hp, 300);
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].active.perish_count, 1);
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].active.perish_count, 0);
     assert_eq!(state.sides[0].team[0].current_hp, 300); // Not fainted yet!
     
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
     assert_eq!(state.sides[0].team[0].current_hp, 0); // Fainted
 }
 
 #[test]
 fn test_status_persistence() {
-    let (mut state, keys) = setup();
-    set_status(&mut state, &keys, 0, 0, STATUS_BURN, 0);
+    let mut state = setup();
+    set_status(&mut state, 0, 0, STATUS_BURN, 0);
     
-    switch_out(&mut state, &keys, &TeamData::default(), 0);
-    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
-    switch_out(&mut state, &keys, &TeamData::default(), 0); // Active is 1
-    switch_in(&mut state, &keys, &TeamData::default(), 0, 0); // Back to 0
+    switch_out(&mut state, &TeamData::default(), 0);
+    switch_in(&mut state, &TeamData::default(), 0, 1);
+    switch_out(&mut state, &TeamData::default(), 0); // Active is 1
+    switch_in(&mut state, &TeamData::default(), 0, 0); // Back to 0
     
     assert_eq!(state.sides[0].team[0].status, STATUS_BURN);
 }
 
 #[test]
 fn test_volatile_cleared_on_switch() {
-    let (mut state, keys) = setup();
-    apply_boost(&mut state, &keys, 0, 1, 6);
+    let mut state = setup();
+    apply_boost(&mut state, 0, 1, 6);
     assert_eq!(state.sides[0].active.boosts[1], 6);
 
-    switch_out(&mut state, &keys, &TeamData::default(), 0);
-    switch_in(&mut state, &keys, &TeamData::default(), 0, 1);
+    switch_out(&mut state, &TeamData::default(), 0);
+    switch_in(&mut state, &TeamData::default(), 0, 1);
 
     assert_eq!(state.sides[0].active.boosts[1], 0); // Boosts cleared for new mon
 }
@@ -240,9 +194,8 @@ fn test_volatile_cleared_on_switch() {
 fn fixed_rng(val: u32) -> impl FnMut(u32) -> u32 { move |max| val % max }
 
 /// Setup with moves assigned for charge/pivot testing.
-fn setup_with_moves() -> (BattleState, ZobristKeys) {
+fn setup_with_moves() -> BattleState {
     let mut state = BattleState::default();
-    let keys = ZobristKeys::new(42);
 
     for i in 0..6 {
         state.sides[0].team[i].species_id = 25; // Pikachu (Electric)
@@ -265,97 +218,90 @@ fn setup_with_moves() -> (BattleState, ZobristKeys) {
     state.sides[1].team[0].pp = [10, 35, 10, 20];
 
     state.phase = PHASE_ACTIONS;
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
 #[test]
 fn test_fly_semi_invuln_turn1_attacks_turn2() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let fly_id = 19u16;
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, fly_id, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, fly_id, 0, &mut fixed_rng(0));
     assert!(state.sides[0].active.has_volatile(VOL_CHARGING));
     assert!(state.sides[0].active.has_volatile(VOL_SEMI_INVULNERABLE));
     assert_eq!(state.sides[0].active._padding[1], 1); // air
     assert_eq!(state.sides[1].team[0].current_hp, 300);
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 0, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 0, 0, &mut fixed_rng(0));
     assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
     assert!(!state.sides[0].active.has_volatile(VOL_SEMI_INVULNERABLE));
     assert!(state.sides[1].team[0].current_hp < 300);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_earthquake_hits_dig() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
 
-    set_volatile(&mut state, &keys, 1, VOL_CHARGING);
-    set_volatile(&mut state, &keys, 1, VOL_SEMI_INVULNERABLE);
+    set_volatile(&mut state, 1, VOL_CHARGING);
+    set_volatile(&mut state, 1, VOL_SEMI_INVULNERABLE);
     state.sides[1].active._padding[1] = 2; // underground
     state.sides[1].active.last_move = 91; // Dig
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 89, 2, &mut fixed_rng(0)); // Earthquake
+    execute_move(&mut state, &TeamData::default(), 0, 89, 2, &mut fixed_rng(0)); // Earthquake
     assert!(state.sides[1].team[0].current_hp < 300);
 }
 
 #[test]
 fn test_power_herb_skips_charge_consumed() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let fly_id = 19u16;
 
     state.sides[0].team[0].item_id = 358; // Power Herb
-    state.zobrist = compute_full_hash(&state, &keys);
 
     // Power Herb skips charge turn, deals damage immediately, then is consumed
-    execute_move(&mut state, &keys, &TeamData::default(), 0, fly_id, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, fly_id, 0, &mut fixed_rng(0));
 
     assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
     assert!(state.sides[1].team[0].current_hp < 300);
     assert_eq!(state.sides[0].team[0].item_id, 0);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_solar_beam_skips_charge_in_sun() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let solarbeam_id = 76u16;
 
     state.sides[0].team[0].moves[0] = solarbeam_id;
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, solarbeam_id, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, solarbeam_id, 0, &mut fixed_rng(0));
 
     // Sun skips Solar Beam charge (no item consumed, unlike Power Herb)
     assert!(!state.sides[0].active.has_volatile(VOL_CHARGING));
     assert!(state.sides[1].team[0].current_hp < 300);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_outrage_locks_then_confuses() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let outrage_id = 200u16;
 
     // Outrage locks for 2-3 turns; rng(2)=0 means 1 extra turn after this
-    execute_move(&mut state, &keys, &TeamData::default(), 0, outrage_id, 1, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, outrage_id, 1, &mut fixed_rng(0));
     assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
     assert!(state.sides[1].team[0].current_hp < 300);
     let hp_after_t1 = state.sides[1].team[0].current_hp;
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, outrage_id, 1, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, outrage_id, 1, &mut fixed_rng(0));
     assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
     // Outrage inflicts confusion when lock expires
     assert!(state.sides[0].active.confusion_turns > 0);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_legal_moves_during_outrage_lock() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
 
     state.sides[0].active.volatile_flags |= VOL_MOVE_LOCKED;
     state.sides[0].active.last_move = 200; // Outrage
@@ -369,58 +315,54 @@ fn test_legal_moves_during_outrage_lock() {
 
 #[test]
 fn test_uturn_damage_then_switch() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let uturn_id = 369u16;
 
     state.sides[0].team[0].moves[2] = uturn_id;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, uturn_id, 2, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, uturn_id, 2, &mut fixed_rng(0));
 
     assert!(state.sides[1].team[0].current_hp < 300);
     assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_baton_pass_preserves_boosts() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
 
-    apply_boost(&mut state, &keys, 0, ATK, 2);
+    apply_boost(&mut state, 0, ATK, 2);
     assert_eq!(state.sides[0].active.boosts[ATK], 2);
 
     let bpass_id = 226u16;
-    execute_move(&mut state, &keys, &TeamData::default(), 0, bpass_id, 3, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, bpass_id, 3, &mut fixed_rng(0));
 
     assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
     assert_eq!(state.sides[0].active._padding[0], 1); // baton pass flag
 
-    clear_volatile(&mut state, &keys, 0, VOL_MUST_SWITCH);
-    perform_switch(&mut state, &keys, &TeamData::default(), 0, 1);
+    clear_volatile(&mut state, 0, VOL_MUST_SWITCH);
+    perform_switch(&mut state, &TeamData::default(), 0, 1);
 
     assert_eq!(state.sides[0].active_index, 1);
     // Baton Pass preserves boosts to the incoming mon
     assert_eq!(state.sides[0].active.boosts[ATK], 2);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_parting_shot_debuffs_then_switch() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let parting_shot_id = 575u16;
 
-    execute_move(&mut state, &keys, &TeamData::default(), 1, parting_shot_id, 3, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 1, parting_shot_id, 3, &mut fixed_rng(0));
 
     // Parting Shot: -1 Atk/-1 SpA to target, then self-switch
     assert_eq!(state.sides[0].active.boosts[ATK], -1);
     assert_eq!(state.sides[0].active.boosts[SPA], -1);
     assert!(state.sides[1].active.has_volatile(VOL_MUST_SWITCH));
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_legal_moves_switch_phase_only_switches() {
-    let (mut state, _keys) = setup_with_moves();
+    let mut state = setup_with_moves();
 
     state.phase = PHASE_SWITCH_P1;
     let actions = legal_actions(&state, 0);
@@ -431,40 +373,37 @@ fn test_legal_moves_switch_phase_only_switches() {
 
 #[test]
 fn test_must_switch_triggers_switch_phase_via_turn() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let uturn_id = 369u16;
     state.sides[0].team[0].moves[2] = uturn_id;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_turn(&mut state, &keys, &TeamData::default(), 2, 1, &mut fixed_rng(0));
+    execute_turn(&mut state, &TeamData::default(), 2, 1, &mut fixed_rng(0));
     assert!(matches!(state.phase, PHASE_SWITCH_P1 | PHASE_SWITCH_BOTH));
 }
 
 #[test]
 fn test_full_pivot_uturn_then_switch() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let uturn_id = 369u16;
     state.sides[0].team[0].moves[2] = uturn_id;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_turn(&mut state, &keys, &TeamData::default(), 2, 1, &mut fixed_rng(0));
+    execute_turn(&mut state, &TeamData::default(), 2, 1, &mut fixed_rng(0));
 
     let phase = state.phase;
     assert!(phase == PHASE_SWITCH_P1 || phase == PHASE_SWITCH_BOTH);
 
     assert!(state.sides[1].team[0].current_hp < 300);
 
-    execute_switch_turn(&mut state, &keys, &TeamData::default(), ACTION_SWITCH_0 + 1, 0, &mut fixed_rng(0));
+    execute_switch_turn(&mut state, &TeamData::default(), ACTION_SWITCH_0 + 1, 0, &mut fixed_rng(0));
     assert_eq!(state.sides[0].active_index, 1);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_legal_moves_during_charging() {
-    let (mut state, keys) = setup_with_moves();
+    let mut state = setup_with_moves();
     let fly_id = 19u16;
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, fly_id, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, fly_id, 0, &mut fixed_rng(0));
     assert!(state.sides[0].active.has_volatile(VOL_CHARGING));
 
     let actions = legal_actions(&state, 0);
@@ -487,7 +426,6 @@ fn test_random_battles_no_panics() {
 
     for battle_idx in 0..200u64 {
         let mut state = BattleState::default();
-        let keys = ZobristKeys::new(battle_idx);
         let mut seed = battle_idx.wrapping_mul(6364136223846793005).wrapping_add(1);
 
         for side in 0..2 {
@@ -511,7 +449,6 @@ fn test_random_battles_no_panics() {
         }
 
         state.phase = PHASE_ACTIONS;
-        state.zobrist = compute_full_hash(&state, &keys);
 
         let mut rng = move |max: u32| -> u32 {
             seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
@@ -529,21 +466,21 @@ fn test_random_battles_no_panics() {
                 assert!(!a2.is_empty(), "battle {battle_idx}: p2 has no actions in PHASE_ACTIONS");
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_turn(&mut state, &keys, &TeamData::default(), act1, act2, &mut rng);
+                execute_turn(&mut state, &TeamData::default(), act1, act2, &mut rng);
             } else if state.phase == PHASE_SWITCH_P1 {
                 assert!(!a1.is_empty(), "battle {battle_idx}: p1 has no switch targets");
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
-                execute_switch_turn(&mut state, &keys, &TeamData::default(), act1, 0, &mut rng);
+                execute_switch_turn(&mut state, &TeamData::default(), act1, 0, &mut rng);
             } else if state.phase == PHASE_SWITCH_P2 {
                 assert!(!a2.is_empty(), "battle {battle_idx}: p2 has no switch targets");
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_switch_turn(&mut state, &keys, &TeamData::default(), 0, act2, &mut rng);
+                execute_switch_turn(&mut state, &TeamData::default(), 0, act2, &mut rng);
             } else if state.phase == PHASE_SWITCH_BOTH {
                 assert!(!a1.is_empty(), "battle {battle_idx}: p1 has no switch targets (both)");
                 assert!(!a2.is_empty(), "battle {battle_idx}: p2 has no switch targets (both)");
                 let act1 = a1.actions[rng(a1.count as u32) as usize];
                 let act2 = a2.actions[rng(a2.count as u32) as usize];
-                execute_switch_turn(&mut state, &keys, &TeamData::default(), act1, act2, &mut rng);
+                execute_switch_turn(&mut state, &TeamData::default(), act1, act2, &mut rng);
             }
         }
     }
@@ -554,16 +491,15 @@ fn test_random_battles_no_panics() {
 #[test]
 fn test_triple_kick_deals_escalating_damage() {
     // Triple Kick (167): 3 hits, escalating power 10*1 + 10*2 + 10*3
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves[0] = 167;
     state.sides[0].team[0].pp[0] = 24;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[1].team[0].current_hp;
     // fixed_rng(0): accuracy check passes (0 < 90), crit=no, roll=85%
     // Per-hit acc: accuracy=90 base, no modifiers → 90 < 100 → per_hit_acc=90
     // With rng=0: all accuracy checks pass (0 < 90)
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 167, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 167, 0, &mut fixed_rng(0));
     let hp_after = state.sides[1].team[0].current_hp;
 
     // Should deal damage (escalating: 10+20+30 = 60 effective power)
@@ -572,13 +508,12 @@ fn test_triple_kick_deals_escalating_damage() {
 
 #[test]
 fn test_triple_axel_deals_escalating_damage() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves[0] = 813;
     state.sides[0].team[0].pp[0] = 24;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[1].team[0].current_hp;
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 813, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 813, 0, &mut fixed_rng(0));
     let hp_after = state.sides[1].team[0].current_hp;
 
     assert!(hp_after < hp_before, "Triple Axel should deal damage");
@@ -589,25 +524,23 @@ fn test_population_bomb_multiaccuracy_miss() {
     // Population Bomb (860): 10 hits, multiaccuracy
     // With rng always returning 99: accuracy check at main level passes (99 < 90 is false!),
     // so it should miss entirely. Let me use a smarter RNG.
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves[0] = 860;
     state.sides[0].team[0].pp[0] = 24;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[1].team[0].current_hp;
     // RNG=0: main accuracy passes (0 < 90), crit=no, all per-hit accuracy passes (0 < 90)
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 860, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 860, 0, &mut fixed_rng(0));
     let hp_after_all_hit = state.sides[1].team[0].current_hp;
     let damage_all_hit = hp_before - hp_after_all_hit;
 
     // Reset
     state.sides[1].team[0].current_hp = hp_before;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     // Now with high RNG: main accuracy may still pass but per-hit accuracy fails
     // rng=95: accuracy check = 95 < 90 is false → miss entirely
     // So the move should miss at the main accuracy check
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 860, 0, &mut fixed_rng(95));
+    execute_move(&mut state, &TeamData::default(), 0, 860, 0, &mut fixed_rng(95));
     let hp_after_miss = state.sides[1].team[0].current_hp;
 
     // When all hit: significant damage. When miss: no damage.
@@ -618,20 +551,19 @@ fn test_population_bomb_multiaccuracy_miss() {
 #[test]
 fn test_population_bomb_loaded_dice_integration() {
     // Population Bomb + Loaded Dice: multiaccuracy disabled, 4-10 hits
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves[0] = 860;
     state.sides[0].team[0].pp[0] = 24;
     // Set Loaded Dice item (item_id for Loaded Dice)
     // Need to find the item ID from gen_items
     // ItemFlag::LOADED_DICE is set on item 751 per earlier exploration
     state.sides[0].team[0].item_id = 751;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[1].team[0].current_hp;
     // With rng=0: accuracy passes, crit=no
     // per_hit_acc should be 0 (Loaded Dice disables multiaccuracy)
     // resolve_hits with Loaded Dice + lo==hi==10: 4 + rng(7) = 4+0 = 4 hits
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 860, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 860, 0, &mut fixed_rng(0));
     let hp_after = state.sides[1].team[0].current_hp;
 
     // Should deal damage (Loaded Dice: all hits guaranteed, no per-hit accuracy)
@@ -643,20 +575,18 @@ fn test_population_bomb_loaded_dice_integration() {
 fn test_triple_kick_more_damage_than_weak_single_hit() {
     // Triple Kick deals escalating damage: 10+20+30 = 60 effective power
     // Compare with Pound (move 1, base 40): should deal more damage
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves = [167, 1, 0, 0]; // Triple Kick, Pound
     state.sides[0].team[0].pp = [24, 24, 0, 0];
-    state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[1].team[0].current_hp;
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 167, 0, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 167, 0, &mut fixed_rng(0));
     let triple_kick_dmg = hp_before - state.sides[1].team[0].current_hp;
 
     // Reset HP
     state.sides[1].team[0].current_hp = hp_before;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    execute_move(&mut state, &keys, &TeamData::default(), 0, 1, 1, &mut fixed_rng(0));
+    execute_move(&mut state, &TeamData::default(), 0, 1, 1, &mut fixed_rng(0));
     let pound_dmg = hp_before - state.sides[1].team[0].current_hp;
 
     // Triple Kick (60 eff power, Fighting 2x SE vs Normal) vs Pound (40 power, Normal 1x)

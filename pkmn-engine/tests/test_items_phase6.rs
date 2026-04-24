@@ -7,13 +7,11 @@ use pkmn_engine::state::data_bridge::*;
 use pkmn_engine::data::items::ItemFlag;
 use pkmn_engine::data::moves::{MoveCategory, MoveFlags};
 use pkmn_engine::state::structs::*;
-use pkmn_engine::state::zobrist::{ZobristKeys, compute_full_hash, validate_hash};
 use pkmn_engine::state::end_of_turn::end_of_turn;
 use pkmn_engine::state::legal_moves::legal_actions;
 use pkmn_engine::state::move_exec::check_berry_activation;
 
-fn setup() -> (BattleState, ZobristKeys) {
-    let keys = ZobristKeys::new(42);
+fn setup() -> BattleState {
     let mut state = BattleState::default();
     state.sides[0].team[0] = MonSlot {
         species_id: 25, current_hp: 300, max_hp: 300,
@@ -38,8 +36,7 @@ fn setup() -> (BattleState, ZobristKeys) {
         ..Default::default()
     };
     state.phase = PHASE_ACTIONS;
-    state.zobrist = compute_full_hash(&state, &keys);
-    (state, keys)
+    state
 }
 
 #[test]
@@ -136,26 +133,23 @@ fn test_focus_sash_flag() {
 
 #[test]
 fn test_sitrus_berry_heals_at_half() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_SITRUS_BERRY;
     state.sides[0].team[0].current_hp = 140; // 140/300 < 50%
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     assert_eq!(state.sides[0].team[0].current_hp, 215); // heals 25% of max HP
     assert_eq!(state.sides[0].team[0].item_id, 0);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_sitrus_berry_no_heal_above_half() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_SITRUS_BERRY;
     state.sides[0].team[0].current_hp = 200; // 200/300 > 50%
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     assert_eq!(state.sides[0].team[0].current_hp, 200);
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
@@ -163,43 +157,38 @@ fn test_sitrus_berry_no_heal_above_half() {
 
 #[test]
 fn test_gluttony_berry_at_50_percent() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     // Use Figy Berry (heal berry, normally activates at 25%)
     state.sides[0].team[0].item_id = ITEM_FIGY_BERRY;
     state.sides[0].team[0].ability_id = ABILITY_GLUTTONY;
     state.sides[0].team[0].current_hp = 140; // 140/300 < 50% but > 25%
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     // Gluttony raises berry activation threshold from 25% to 50%
     assert!(state.sides[0].team[0].current_hp > 140);
     assert_eq!(state.sides[0].team[0].item_id, 0);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_lum_berry_cures_status() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_LUM_BERRY;
     state.sides[0].team[0].status = STATUS_PARALYSIS;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     assert_eq!(state.sides[0].team[0].item_id, 0);
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_lum_berry_no_cure_if_healthy() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_LUM_BERRY;
     state.sides[0].team[0].status = STATUS_NONE;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     assert_eq!(state.sides[0].team[0].item_id, ITEM_LUM_BERRY);
 }
@@ -212,35 +201,31 @@ fn test_rocky_helmet_flag() {
 
 #[test]
 fn test_leftovers_eot_heal() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = 242; // Leftovers
     state.sides[0].team[0].current_hp = 200;
     state.sides[1].team[0].current_hp = 300; // keep alive
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 218); // 300/16 = 18 heal
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_sticky_barb_eot_damage() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_STICKY_BARB;
     state.sides[0].team[0].current_hp = 300;
     state.sides[1].team[0].current_hp = 300;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 263); // 300/8 = 37 damage
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_choice_lock_restricts_moves() {
-    let (mut state, _) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = 68; // Choice Band
     state.sides[0].active.choice_locked_move = 1;
     state.phase = PHASE_ACTIONS;
@@ -253,7 +238,7 @@ fn test_choice_lock_restricts_moves() {
 
 #[test]
 fn test_assault_vest_blocks_status() {
-    let (mut state, _) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = 581; // Assault Vest
     state.phase = PHASE_ACTIONS;
 
@@ -271,32 +256,28 @@ fn test_weakness_policy_item_exists() {
 
 #[test]
 fn test_berry_juice_heals() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_BERRY_JUICE;
     state.sides[0].team[0].current_hp = 140; // 140/300 < 50%
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     assert_eq!(state.sides[0].team[0].current_hp, 160); // +20
     assert_eq!(state.sides[0].team[0].item_id, 0); // consumed
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_starf_berry_boosts() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].item_id = ITEM_STARF_BERRY;
     state.sides[0].team[0].current_hp = 50; // 50/300 < 25%
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    check_berry_activation(&mut state, &keys, 0, 0);
+    check_berry_activation(&mut state, 0, 0);
 
     assert_eq!(state.sides[0].team[0].item_id, 0);
     let boosts = &state.sides[0].active.boosts;
     let total_boost: i8 = boosts.iter().sum();
     assert_eq!(total_boost, 2); // +2 to one stat
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
@@ -315,51 +296,45 @@ fn test_throat_spray_item_exists() {
 
 #[test]
 fn test_utility_umbrella_blocks_rain_dish() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_RAIN_DISH;
     state.sides[0].team[0].item_id = ITEM_UTILITY_UMBRELLA;
     state.sides[0].team[0].current_hp = 200;
     state.field.weather = WEATHER_RAIN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, 200); // no healing
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_utility_umbrella_blocks_dry_skin_sun_damage() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_DRY_SKIN;
     state.sides[0].team[0].item_id = ITEM_UTILITY_UMBRELLA;
     state.field.weather = WEATHER_SUN;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
     let hp_before = state.sides[0].team[0].current_hp;
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     assert_eq!(state.sides[0].team[0].current_hp, hp_before); // no sun damage
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_utility_umbrella_no_effect_on_snow() {
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_ICE_BODY;
     state.sides[0].team[0].item_id = ITEM_UTILITY_UMBRELLA;
     state.sides[0].team[0].current_hp = 200;
     state.field.weather = WEATHER_SNOW;
     state.field.weather_turns = 5;
-    state.zobrist = compute_full_hash(&state, &keys);
 
-    end_of_turn(&mut state, &keys, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
+    end_of_turn(&mut state, &TeamData::default(), &mut pkmn_engine::state::BattleRng::from_closure(&mut |_| 0u32));
 
     // Snow is NOT blocked by Utility Umbrella — Ice Body healing should apply
     assert!(state.sides[0].team[0].current_hp > 200);
-    assert!(validate_hash(&state, &keys));
 }
 
 // --- Loaded Dice ---
@@ -417,30 +392,26 @@ fn test_no_loaded_dice_can_hit_2() {
 fn test_mirror_herb_copies_swords_dance_integration() {
     use pkmn_engine::state::move_exec::execute_move;
     use pkmn_engine::data::MOVE_SWORDS_DANCE;
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves[0] = MOVE_SWORDS_DANCE as u16;
     state.sides[1].team[0].item_id = ITEM_MIRROR_HERB;
-    state.zobrist = compute_full_hash(&state, &keys);
-    execute_move(&mut state, &keys, &TeamData::default(), 0, MOVE_SWORDS_DANCE as u16, 0, &mut |_| 0);
+    execute_move(&mut state, &TeamData::default(), 0, MOVE_SWORDS_DANCE as u16, 0, &mut |_| 0);
     assert_eq!(state.sides[0].active.boosts[ATK], 2);
     assert_eq!(state.sides[1].active.boosts[ATK], 2);
     assert_eq!(state.sides[1].team[0].item_id, 0); // consumed
-    assert!(validate_hash(&state, &keys));
 }
 
 #[test]
 fn test_mirror_herb_copies_dragon_dance_integration() {
     use pkmn_engine::state::move_exec::execute_move;
     use pkmn_engine::data::MOVE_DRAGON_DANCE;
-    let (mut state, keys) = setup();
+    let mut state = setup();
     state.sides[0].team[0].moves[0] = MOVE_DRAGON_DANCE as u16;
     state.sides[1].team[0].item_id = ITEM_MIRROR_HERB;
-    state.zobrist = compute_full_hash(&state, &keys);
-    execute_move(&mut state, &keys, &TeamData::default(), 0, MOVE_DRAGON_DANCE as u16, 0, &mut |_| 0);
+    execute_move(&mut state, &TeamData::default(), 0, MOVE_DRAGON_DANCE as u16, 0, &mut |_| 0);
     assert_eq!(state.sides[0].active.boosts[ATK], 1);
     assert_eq!(state.sides[0].active.boosts[SPE], 1);
     assert_eq!(state.sides[1].active.boosts[ATK], 1);
     assert_eq!(state.sides[1].active.boosts[SPE], 1);
     assert_eq!(state.sides[1].team[0].item_id, 0);
-    assert!(validate_hash(&state, &keys));
 }
