@@ -3488,12 +3488,15 @@ pub fn execute_move(
     );
     } // end 'exec
 
-    // Thrash confusion: applied regardless of whether the move executed (para/sleep/etc.
+    // Thrash confusion: applied regardless of whether the move executed (para/freeze/etc.
     // still end the lock and cause confusion). Own Tempo blocks this self-confusion.
+    // Sleep is the exception: Showdown's lockedmove.onResidual deletes the lock before
+    // onEnd when status is slp, so an asleep user ends the lock without self-confusing.
     // Uproar locks like Thrash but its Showdown condition has no confusion on end.
     if was_last_locked_turn
         && md.effect != MoveEffect::Uproar
         && !state.sides[atk_side].team[atk_slot].is_fainted()
+        && state.sides[atk_side].team[atk_slot].status != STATUS_SLEEP
         && effective_ability(state, atk_side) != data_bridge::ABILITY_OWN_TEMPO
     {
         // The lock-end self-confusion runs through Showdown's residual/onEnd, which is
@@ -4281,10 +4284,10 @@ mod tests {
         let hp_before = state.sides[1].team[0].current_hp;
         execute_move(&mut state, &TeamData::default(),0, 99, 0, &mut fixed_rng(0));
 
-        // Asleep, didn't attack, but confusion still applied
+        // Asleep at lock-end: lock ends but no self-confusion (Showdown lockedmove.onResidual slp arm)
         assert_eq!(state.sides[1].team[0].current_hp, hp_before);
         assert!(!state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
-        assert!(state.sides[0].active.confusion_turns >= 2);
+        assert_eq!(state.sides[0].active.confusion_turns, 0);
     }
 
     #[test]
