@@ -288,9 +288,6 @@ fn apply_secondary(
             && effective_ability(state, def_side) != data_bridge::ABILITY_OWN_TEMPO
         {
             state.sides[def_side].active.confusion_turns = (rng(4) + 2) as u8;
-            if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
-                state.sides[def_side].active._padding[3] |= 0x08;
-            }
         }
         return;
     }
@@ -1023,9 +1020,6 @@ fn execute_status_move(
             {
                 // BUG-P5-M-102: duration is 2-5 turns (rng(4)+2), not 2-4.
                 state.sides[def_side].active.confusion_turns = (rng(4) + 2) as u8;
-                // BUG-P5-M-101: mark "just confused this turn" so the pre-move
-                // decrement on the target's same-turn action is skipped.
-                state.sides[def_side].active._padding[3] |= 0x08;
             }
             // BUG-P5-M-105: Swagger/Flatter also boost target's offensive stat.
             apply_opp_stat_change(state, def_side, md.self_effect);
@@ -3420,15 +3414,8 @@ pub fn execute_move(
 
     // Confusion: 33% self-hit
     if state.sides[atk_side].active.confusion_turns > 0 {
-        // BUG-P5-M-101: skip the first decrement on the turn confusion was freshly
-        // applied. _padding[3] bit 3 is the "confused this turn" flag, set when
-        // confusion is applied mid-turn before the target has moved.
-        let just_confused = state.sides[atk_side].active._padding[3] & 0x08 != 0;
-        if just_confused {
-            state.sides[atk_side].active._padding[3] &= !0x08;
-        } else {
-            state.sides[atk_side].active.confusion_turns -= 1;
-        }
+        // Showdown's confusion onBeforeMove decrements every move attempt, including the application turn.
+        state.sides[atk_side].active.confusion_turns -= 1;
         if state.sides[atk_side].active.confusion_turns > 0 && rng(3) == 0 {
             let a = boosted_stat(
                 effective_stat(state, atk_side, ATK),
@@ -3650,6 +3637,16 @@ mod tests {
         assert_eq!(state.sides[0].active.confusion_turns, 0);
         // Mon attacked normally — defender took damage
         assert!(state.sides[1].team[0].current_hp < def_hp);
+    }
+
+    #[test]
+    fn test_confusion_decrements_on_first_move() {
+        let mut state = setup();
+        // Confused before moving: the decrement lands this turn (Showdown decrements unconditionally).
+        state.sides[0].active.confusion_turns = 3;
+        // rng(3) returns 1 (not 0), so no self-hit; counter goes 3 -> 2 this turn.
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(1));
+        assert_eq!(state.sides[0].active.confusion_turns, 2);
     }
 
     #[test]

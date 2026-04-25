@@ -198,6 +198,7 @@ pub struct ActiveMon {
     // _padding[1]: charge location (0=none, 1=air, 2=underground, 3=underwater, 4=vanished)
     // _padding[2]: move-lock turns remaining (Outrage/Thrash: 0=not locked, 1-2=turns left)
     // _padding[3]: bit 0 = protean_activated, bit 1 = attracted, bit 2 = paradox_from_booster,
+    //              bit 3 = no_retreat_used,
     //              bits 4-7 = paradox stat+1 (0=inactive, 1=Atk, 2=Def, 3=SpA, 4=SpD, 5=Spe)
     // _padding[4]: shield bits (bit 0 = Disguise broken, bit 1 = Ice Face broken, bit 2 = charge),
     //              bind_turns (bits 3-6: 0-15 turns remaining for partial trap)
