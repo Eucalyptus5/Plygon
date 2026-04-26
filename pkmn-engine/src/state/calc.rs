@@ -463,7 +463,9 @@ pub fn calc_damage(
     }
 
     if !is_physical && def_item.has(ItemFlag::ASSAULT_VEST) { d = (d as u32 * 3 / 2) as u16; }
-    if def_item.has(ItemFlag::EVIOLITE) {
+    if def_item.has(ItemFlag::EVIOLITE)
+        && data_bridge::species(effective_species(state, def_side)).nfe
+    {
         d = (d as u32 * 3 / 2) as u16;
     }
     // Deep Sea Scale: 2× SpD for Clamperl

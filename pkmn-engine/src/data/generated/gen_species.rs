@@ -16,2987 +16,2987 @@ pub const TOTAL_SPECIES: usize = 1454;
 pub static GEN_SPECIES: &[SpeciesData] = &[
     // [0]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1] Bulbasaur
-    SpeciesData { hp:45, atk:49, def:49, spa:65, spd:65, spe:45, type1:Type::Grass, type2:Type::Poison, weight:69 },
+    SpeciesData { hp:45, atk:49, def:49, spa:65, spd:65, spe:45, type1:Type::Grass, type2:Type::Poison, weight:69, nfe:true },
     // [2] Ivysaur
-    SpeciesData { hp:60, atk:62, def:63, spa:80, spd:80, spe:60, type1:Type::Grass, type2:Type::Poison, weight:130 },
+    SpeciesData { hp:60, atk:62, def:63, spa:80, spd:80, spe:60, type1:Type::Grass, type2:Type::Poison, weight:130, nfe:true },
     // [3] Venusaur
-    SpeciesData { hp:80, atk:82, def:83, spa:100, spd:100, spe:80, type1:Type::Grass, type2:Type::Poison, weight:1000 },
+    SpeciesData { hp:80, atk:82, def:83, spa:100, spd:100, spe:80, type1:Type::Grass, type2:Type::Poison, weight:1000, nfe:false },
     // [4] Charmander
-    SpeciesData { hp:39, atk:52, def:43, spa:60, spd:50, spe:65, type1:Type::Fire, type2:Type::Fire, weight:85 },
+    SpeciesData { hp:39, atk:52, def:43, spa:60, spd:50, spe:65, type1:Type::Fire, type2:Type::Fire, weight:85, nfe:true },
     // [5] Charmeleon
-    SpeciesData { hp:58, atk:64, def:58, spa:80, spd:65, spe:80, type1:Type::Fire, type2:Type::Fire, weight:190 },
+    SpeciesData { hp:58, atk:64, def:58, spa:80, spd:65, spe:80, type1:Type::Fire, type2:Type::Fire, weight:190, nfe:true },
     // [6] Charizard
-    SpeciesData { hp:78, atk:84, def:78, spa:109, spd:85, spe:100, type1:Type::Fire, type2:Type::Flying, weight:905 },
+    SpeciesData { hp:78, atk:84, def:78, spa:109, spd:85, spe:100, type1:Type::Fire, type2:Type::Flying, weight:905, nfe:false },
     // [7] Squirtle
-    SpeciesData { hp:44, atk:48, def:65, spa:50, spd:64, spe:43, type1:Type::Water, type2:Type::Water, weight:90 },
+    SpeciesData { hp:44, atk:48, def:65, spa:50, spd:64, spe:43, type1:Type::Water, type2:Type::Water, weight:90, nfe:true },
     // [8] Wartortle
-    SpeciesData { hp:59, atk:63, def:80, spa:65, spd:80, spe:58, type1:Type::Water, type2:Type::Water, weight:225 },
+    SpeciesData { hp:59, atk:63, def:80, spa:65, spd:80, spe:58, type1:Type::Water, type2:Type::Water, weight:225, nfe:true },
     // [9] Blastoise
-    SpeciesData { hp:79, atk:83, def:100, spa:85, spd:105, spe:78, type1:Type::Water, type2:Type::Water, weight:855 },
+    SpeciesData { hp:79, atk:83, def:100, spa:85, spd:105, spe:78, type1:Type::Water, type2:Type::Water, weight:855, nfe:false },
     // [10] Caterpie
-    SpeciesData { hp:45, atk:30, def:35, spa:20, spd:20, spe:45, type1:Type::Bug, type2:Type::Bug, weight:29 },
+    SpeciesData { hp:45, atk:30, def:35, spa:20, spd:20, spe:45, type1:Type::Bug, type2:Type::Bug, weight:29, nfe:true },
     // [11] Metapod
-    SpeciesData { hp:50, atk:20, def:55, spa:25, spd:25, spe:30, type1:Type::Bug, type2:Type::Bug, weight:99 },
+    SpeciesData { hp:50, atk:20, def:55, spa:25, spd:25, spe:30, type1:Type::Bug, type2:Type::Bug, weight:99, nfe:true },
     // [12] Butterfree
-    SpeciesData { hp:60, atk:45, def:50, spa:90, spd:80, spe:70, type1:Type::Bug, type2:Type::Flying, weight:320 },
+    SpeciesData { hp:60, atk:45, def:50, spa:90, spd:80, spe:70, type1:Type::Bug, type2:Type::Flying, weight:320, nfe:false },
     // [13] Weedle
-    SpeciesData { hp:40, atk:35, def:30, spa:20, spd:20, spe:50, type1:Type::Bug, type2:Type::Poison, weight:32 },
+    SpeciesData { hp:40, atk:35, def:30, spa:20, spd:20, spe:50, type1:Type::Bug, type2:Type::Poison, weight:32, nfe:true },
     // [14] Kakuna
-    SpeciesData { hp:45, atk:25, def:50, spa:25, spd:25, spe:35, type1:Type::Bug, type2:Type::Poison, weight:100 },
+    SpeciesData { hp:45, atk:25, def:50, spa:25, spd:25, spe:35, type1:Type::Bug, type2:Type::Poison, weight:100, nfe:true },
     // [15] Beedrill
-    SpeciesData { hp:65, atk:90, def:40, spa:45, spd:80, spe:75, type1:Type::Bug, type2:Type::Poison, weight:295 },
+    SpeciesData { hp:65, atk:90, def:40, spa:45, spd:80, spe:75, type1:Type::Bug, type2:Type::Poison, weight:295, nfe:false },
     // [16] Pidgey
-    SpeciesData { hp:40, atk:45, def:40, spa:35, spd:35, spe:56, type1:Type::Normal, type2:Type::Flying, weight:18 },
+    SpeciesData { hp:40, atk:45, def:40, spa:35, spd:35, spe:56, type1:Type::Normal, type2:Type::Flying, weight:18, nfe:true },
     // [17] Pidgeotto
-    SpeciesData { hp:63, atk:60, def:55, spa:50, spd:50, spe:71, type1:Type::Normal, type2:Type::Flying, weight:300 },
+    SpeciesData { hp:63, atk:60, def:55, spa:50, spd:50, spe:71, type1:Type::Normal, type2:Type::Flying, weight:300, nfe:true },
     // [18] Pidgeot
-    SpeciesData { hp:83, atk:80, def:75, spa:70, spd:70, spe:101, type1:Type::Normal, type2:Type::Flying, weight:395 },
+    SpeciesData { hp:83, atk:80, def:75, spa:70, spd:70, spe:101, type1:Type::Normal, type2:Type::Flying, weight:395, nfe:false },
     // [19] Rattata
-    SpeciesData { hp:30, atk:56, def:35, spa:25, spd:35, spe:72, type1:Type::Normal, type2:Type::Normal, weight:35 },
+    SpeciesData { hp:30, atk:56, def:35, spa:25, spd:35, spe:72, type1:Type::Normal, type2:Type::Normal, weight:35, nfe:true },
     // [20] Raticate
-    SpeciesData { hp:55, atk:81, def:60, spa:50, spd:70, spe:97, type1:Type::Normal, type2:Type::Normal, weight:185 },
+    SpeciesData { hp:55, atk:81, def:60, spa:50, spd:70, spe:97, type1:Type::Normal, type2:Type::Normal, weight:185, nfe:false },
     // [21] Spearow
-    SpeciesData { hp:40, atk:60, def:30, spa:31, spd:31, spe:70, type1:Type::Normal, type2:Type::Flying, weight:20 },
+    SpeciesData { hp:40, atk:60, def:30, spa:31, spd:31, spe:70, type1:Type::Normal, type2:Type::Flying, weight:20, nfe:true },
     // [22] Fearow
-    SpeciesData { hp:65, atk:90, def:65, spa:61, spd:61, spe:100, type1:Type::Normal, type2:Type::Flying, weight:380 },
+    SpeciesData { hp:65, atk:90, def:65, spa:61, spd:61, spe:100, type1:Type::Normal, type2:Type::Flying, weight:380, nfe:false },
     // [23] Ekans
-    SpeciesData { hp:35, atk:60, def:44, spa:40, spd:54, spe:55, type1:Type::Poison, type2:Type::Poison, weight:69 },
+    SpeciesData { hp:35, atk:60, def:44, spa:40, spd:54, spe:55, type1:Type::Poison, type2:Type::Poison, weight:69, nfe:true },
     // [24] Arbok
-    SpeciesData { hp:60, atk:95, def:69, spa:65, spd:79, spe:80, type1:Type::Poison, type2:Type::Poison, weight:650 },
+    SpeciesData { hp:60, atk:95, def:69, spa:65, spd:79, spe:80, type1:Type::Poison, type2:Type::Poison, weight:650, nfe:false },
     // [25] Pikachu
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [26] Raichu
-    SpeciesData { hp:60, atk:90, def:55, spa:90, spd:80, spe:110, type1:Type::Electric, type2:Type::Electric, weight:300 },
+    SpeciesData { hp:60, atk:90, def:55, spa:90, spd:80, spe:110, type1:Type::Electric, type2:Type::Electric, weight:300, nfe:false },
     // [27] Sandshrew
-    SpeciesData { hp:50, atk:75, def:85, spa:20, spd:30, spe:40, type1:Type::Ground, type2:Type::Ground, weight:120 },
+    SpeciesData { hp:50, atk:75, def:85, spa:20, spd:30, spe:40, type1:Type::Ground, type2:Type::Ground, weight:120, nfe:true },
     // [28] Sandslash
-    SpeciesData { hp:75, atk:100, def:110, spa:45, spd:55, spe:65, type1:Type::Ground, type2:Type::Ground, weight:295 },
+    SpeciesData { hp:75, atk:100, def:110, spa:45, spd:55, spe:65, type1:Type::Ground, type2:Type::Ground, weight:295, nfe:false },
     // [29] Nidoran-F
-    SpeciesData { hp:55, atk:47, def:52, spa:40, spd:40, spe:41, type1:Type::Poison, type2:Type::Poison, weight:70 },
+    SpeciesData { hp:55, atk:47, def:52, spa:40, spd:40, spe:41, type1:Type::Poison, type2:Type::Poison, weight:70, nfe:true },
     // [30] Nidorina
-    SpeciesData { hp:70, atk:62, def:67, spa:55, spd:55, spe:56, type1:Type::Poison, type2:Type::Poison, weight:200 },
+    SpeciesData { hp:70, atk:62, def:67, spa:55, spd:55, spe:56, type1:Type::Poison, type2:Type::Poison, weight:200, nfe:true },
     // [31] Nidoqueen
-    SpeciesData { hp:90, atk:92, def:87, spa:75, spd:85, spe:76, type1:Type::Poison, type2:Type::Ground, weight:600 },
+    SpeciesData { hp:90, atk:92, def:87, spa:75, spd:85, spe:76, type1:Type::Poison, type2:Type::Ground, weight:600, nfe:false },
     // [32] Nidoran-M
-    SpeciesData { hp:46, atk:57, def:40, spa:40, spd:40, spe:50, type1:Type::Poison, type2:Type::Poison, weight:90 },
+    SpeciesData { hp:46, atk:57, def:40, spa:40, spd:40, spe:50, type1:Type::Poison, type2:Type::Poison, weight:90, nfe:true },
     // [33] Nidorino
-    SpeciesData { hp:61, atk:72, def:57, spa:55, spd:55, spe:65, type1:Type::Poison, type2:Type::Poison, weight:195 },
+    SpeciesData { hp:61, atk:72, def:57, spa:55, spd:55, spe:65, type1:Type::Poison, type2:Type::Poison, weight:195, nfe:true },
     // [34] Nidoking
-    SpeciesData { hp:81, atk:102, def:77, spa:85, spd:75, spe:85, type1:Type::Poison, type2:Type::Ground, weight:620 },
+    SpeciesData { hp:81, atk:102, def:77, spa:85, spd:75, spe:85, type1:Type::Poison, type2:Type::Ground, weight:620, nfe:false },
     // [35] Clefairy
-    SpeciesData { hp:70, atk:45, def:48, spa:60, spd:65, spe:35, type1:Type::Fairy, type2:Type::Fairy, weight:75 },
+    SpeciesData { hp:70, atk:45, def:48, spa:60, spd:65, spe:35, type1:Type::Fairy, type2:Type::Fairy, weight:75, nfe:true },
     // [36] Clefable
-    SpeciesData { hp:95, atk:70, def:73, spa:95, spd:90, spe:60, type1:Type::Fairy, type2:Type::Fairy, weight:400 },
+    SpeciesData { hp:95, atk:70, def:73, spa:95, spd:90, spe:60, type1:Type::Fairy, type2:Type::Fairy, weight:400, nfe:false },
     // [37] Vulpix
-    SpeciesData { hp:38, atk:41, def:40, spa:50, spd:65, spe:65, type1:Type::Fire, type2:Type::Fire, weight:99 },
+    SpeciesData { hp:38, atk:41, def:40, spa:50, spd:65, spe:65, type1:Type::Fire, type2:Type::Fire, weight:99, nfe:true },
     // [38] Ninetales
-    SpeciesData { hp:73, atk:76, def:75, spa:81, spd:100, spe:100, type1:Type::Fire, type2:Type::Fire, weight:199 },
+    SpeciesData { hp:73, atk:76, def:75, spa:81, spd:100, spe:100, type1:Type::Fire, type2:Type::Fire, weight:199, nfe:false },
     // [39] Jigglypuff
-    SpeciesData { hp:115, atk:45, def:20, spa:45, spd:25, spe:20, type1:Type::Normal, type2:Type::Fairy, weight:55 },
+    SpeciesData { hp:115, atk:45, def:20, spa:45, spd:25, spe:20, type1:Type::Normal, type2:Type::Fairy, weight:55, nfe:true },
     // [40] Wigglytuff
-    SpeciesData { hp:140, atk:70, def:45, spa:85, spd:50, spe:45, type1:Type::Normal, type2:Type::Fairy, weight:120 },
+    SpeciesData { hp:140, atk:70, def:45, spa:85, spd:50, spe:45, type1:Type::Normal, type2:Type::Fairy, weight:120, nfe:false },
     // [41] Zubat
-    SpeciesData { hp:40, atk:45, def:35, spa:30, spd:40, spe:55, type1:Type::Poison, type2:Type::Flying, weight:75 },
+    SpeciesData { hp:40, atk:45, def:35, spa:30, spd:40, spe:55, type1:Type::Poison, type2:Type::Flying, weight:75, nfe:true },
     // [42] Golbat
-    SpeciesData { hp:75, atk:80, def:70, spa:65, spd:75, spe:90, type1:Type::Poison, type2:Type::Flying, weight:550 },
+    SpeciesData { hp:75, atk:80, def:70, spa:65, spd:75, spe:90, type1:Type::Poison, type2:Type::Flying, weight:550, nfe:true },
     // [43] Oddish
-    SpeciesData { hp:45, atk:50, def:55, spa:75, spd:65, spe:30, type1:Type::Grass, type2:Type::Poison, weight:54 },
+    SpeciesData { hp:45, atk:50, def:55, spa:75, spd:65, spe:30, type1:Type::Grass, type2:Type::Poison, weight:54, nfe:true },
     // [44] Gloom
-    SpeciesData { hp:60, atk:65, def:70, spa:85, spd:75, spe:40, type1:Type::Grass, type2:Type::Poison, weight:86 },
+    SpeciesData { hp:60, atk:65, def:70, spa:85, spd:75, spe:40, type1:Type::Grass, type2:Type::Poison, weight:86, nfe:true },
     // [45] Vileplume
-    SpeciesData { hp:75, atk:80, def:85, spa:110, spd:90, spe:50, type1:Type::Grass, type2:Type::Poison, weight:186 },
+    SpeciesData { hp:75, atk:80, def:85, spa:110, spd:90, spe:50, type1:Type::Grass, type2:Type::Poison, weight:186, nfe:false },
     // [46] Paras
-    SpeciesData { hp:35, atk:70, def:55, spa:45, spd:55, spe:25, type1:Type::Bug, type2:Type::Grass, weight:54 },
+    SpeciesData { hp:35, atk:70, def:55, spa:45, spd:55, spe:25, type1:Type::Bug, type2:Type::Grass, weight:54, nfe:true },
     // [47] Parasect
-    SpeciesData { hp:60, atk:95, def:80, spa:60, spd:80, spe:30, type1:Type::Bug, type2:Type::Grass, weight:295 },
+    SpeciesData { hp:60, atk:95, def:80, spa:60, spd:80, spe:30, type1:Type::Bug, type2:Type::Grass, weight:295, nfe:false },
     // [48] Venonat
-    SpeciesData { hp:60, atk:55, def:50, spa:40, spd:55, spe:45, type1:Type::Bug, type2:Type::Poison, weight:300 },
+    SpeciesData { hp:60, atk:55, def:50, spa:40, spd:55, spe:45, type1:Type::Bug, type2:Type::Poison, weight:300, nfe:true },
     // [49] Venomoth
-    SpeciesData { hp:70, atk:65, def:60, spa:90, spd:75, spe:90, type1:Type::Bug, type2:Type::Poison, weight:125 },
+    SpeciesData { hp:70, atk:65, def:60, spa:90, spd:75, spe:90, type1:Type::Bug, type2:Type::Poison, weight:125, nfe:false },
     // [50] Diglett
-    SpeciesData { hp:10, atk:55, def:25, spa:35, spd:45, spe:95, type1:Type::Ground, type2:Type::Ground, weight:8 },
+    SpeciesData { hp:10, atk:55, def:25, spa:35, spd:45, spe:95, type1:Type::Ground, type2:Type::Ground, weight:8, nfe:true },
     // [51] Dugtrio
-    SpeciesData { hp:35, atk:100, def:50, spa:50, spd:70, spe:120, type1:Type::Ground, type2:Type::Ground, weight:333 },
+    SpeciesData { hp:35, atk:100, def:50, spa:50, spd:70, spe:120, type1:Type::Ground, type2:Type::Ground, weight:333, nfe:false },
     // [52] Meowth
-    SpeciesData { hp:40, atk:45, def:35, spa:40, spd:40, spe:90, type1:Type::Normal, type2:Type::Normal, weight:42 },
+    SpeciesData { hp:40, atk:45, def:35, spa:40, spd:40, spe:90, type1:Type::Normal, type2:Type::Normal, weight:42, nfe:true },
     // [53] Persian
-    SpeciesData { hp:65, atk:70, def:60, spa:65, spd:65, spe:115, type1:Type::Normal, type2:Type::Normal, weight:320 },
+    SpeciesData { hp:65, atk:70, def:60, spa:65, spd:65, spe:115, type1:Type::Normal, type2:Type::Normal, weight:320, nfe:false },
     // [54] Psyduck
-    SpeciesData { hp:50, atk:52, def:48, spa:65, spd:50, spe:55, type1:Type::Water, type2:Type::Water, weight:196 },
+    SpeciesData { hp:50, atk:52, def:48, spa:65, spd:50, spe:55, type1:Type::Water, type2:Type::Water, weight:196, nfe:true },
     // [55] Golduck
-    SpeciesData { hp:80, atk:82, def:78, spa:95, spd:80, spe:85, type1:Type::Water, type2:Type::Water, weight:766 },
+    SpeciesData { hp:80, atk:82, def:78, spa:95, spd:80, spe:85, type1:Type::Water, type2:Type::Water, weight:766, nfe:false },
     // [56] Mankey
-    SpeciesData { hp:40, atk:80, def:35, spa:35, spd:45, spe:70, type1:Type::Fighting, type2:Type::Fighting, weight:280 },
+    SpeciesData { hp:40, atk:80, def:35, spa:35, spd:45, spe:70, type1:Type::Fighting, type2:Type::Fighting, weight:280, nfe:true },
     // [57] Primeape
-    SpeciesData { hp:65, atk:105, def:60, spa:60, spd:70, spe:95, type1:Type::Fighting, type2:Type::Fighting, weight:320 },
+    SpeciesData { hp:65, atk:105, def:60, spa:60, spd:70, spe:95, type1:Type::Fighting, type2:Type::Fighting, weight:320, nfe:true },
     // [58] Growlithe
-    SpeciesData { hp:55, atk:70, def:45, spa:70, spd:50, spe:60, type1:Type::Fire, type2:Type::Fire, weight:190 },
+    SpeciesData { hp:55, atk:70, def:45, spa:70, spd:50, spe:60, type1:Type::Fire, type2:Type::Fire, weight:190, nfe:true },
     // [59] Arcanine
-    SpeciesData { hp:90, atk:110, def:80, spa:100, spd:80, spe:95, type1:Type::Fire, type2:Type::Fire, weight:1550 },
+    SpeciesData { hp:90, atk:110, def:80, spa:100, spd:80, spe:95, type1:Type::Fire, type2:Type::Fire, weight:1550, nfe:false },
     // [60] Poliwag
-    SpeciesData { hp:40, atk:50, def:40, spa:40, spd:40, spe:90, type1:Type::Water, type2:Type::Water, weight:124 },
+    SpeciesData { hp:40, atk:50, def:40, spa:40, spd:40, spe:90, type1:Type::Water, type2:Type::Water, weight:124, nfe:true },
     // [61] Poliwhirl
-    SpeciesData { hp:65, atk:65, def:65, spa:50, spd:50, spe:90, type1:Type::Water, type2:Type::Water, weight:200 },
+    SpeciesData { hp:65, atk:65, def:65, spa:50, spd:50, spe:90, type1:Type::Water, type2:Type::Water, weight:200, nfe:true },
     // [62] Poliwrath
-    SpeciesData { hp:90, atk:95, def:95, spa:70, spd:90, spe:70, type1:Type::Water, type2:Type::Fighting, weight:540 },
+    SpeciesData { hp:90, atk:95, def:95, spa:70, spd:90, spe:70, type1:Type::Water, type2:Type::Fighting, weight:540, nfe:false },
     // [63] Abra
-    SpeciesData { hp:25, atk:20, def:15, spa:105, spd:55, spe:90, type1:Type::Psychic, type2:Type::Psychic, weight:195 },
+    SpeciesData { hp:25, atk:20, def:15, spa:105, spd:55, spe:90, type1:Type::Psychic, type2:Type::Psychic, weight:195, nfe:true },
     // [64] Kadabra
-    SpeciesData { hp:40, atk:35, def:30, spa:120, spd:70, spe:105, type1:Type::Psychic, type2:Type::Psychic, weight:565 },
+    SpeciesData { hp:40, atk:35, def:30, spa:120, spd:70, spe:105, type1:Type::Psychic, type2:Type::Psychic, weight:565, nfe:true },
     // [65] Alakazam
-    SpeciesData { hp:55, atk:50, def:45, spa:135, spd:95, spe:120, type1:Type::Psychic, type2:Type::Psychic, weight:480 },
+    SpeciesData { hp:55, atk:50, def:45, spa:135, spd:95, spe:120, type1:Type::Psychic, type2:Type::Psychic, weight:480, nfe:false },
     // [66] Machop
-    SpeciesData { hp:70, atk:80, def:50, spa:35, spd:35, spe:35, type1:Type::Fighting, type2:Type::Fighting, weight:195 },
+    SpeciesData { hp:70, atk:80, def:50, spa:35, spd:35, spe:35, type1:Type::Fighting, type2:Type::Fighting, weight:195, nfe:true },
     // [67] Machoke
-    SpeciesData { hp:80, atk:100, def:70, spa:50, spd:60, spe:45, type1:Type::Fighting, type2:Type::Fighting, weight:705 },
+    SpeciesData { hp:80, atk:100, def:70, spa:50, spd:60, spe:45, type1:Type::Fighting, type2:Type::Fighting, weight:705, nfe:true },
     // [68] Machamp
-    SpeciesData { hp:90, atk:130, def:80, spa:65, spd:85, spe:55, type1:Type::Fighting, type2:Type::Fighting, weight:1300 },
+    SpeciesData { hp:90, atk:130, def:80, spa:65, spd:85, spe:55, type1:Type::Fighting, type2:Type::Fighting, weight:1300, nfe:false },
     // [69] Bellsprout
-    SpeciesData { hp:50, atk:75, def:35, spa:70, spd:30, spe:40, type1:Type::Grass, type2:Type::Poison, weight:40 },
+    SpeciesData { hp:50, atk:75, def:35, spa:70, spd:30, spe:40, type1:Type::Grass, type2:Type::Poison, weight:40, nfe:true },
     // [70] Weepinbell
-    SpeciesData { hp:65, atk:90, def:50, spa:85, spd:45, spe:55, type1:Type::Grass, type2:Type::Poison, weight:64 },
+    SpeciesData { hp:65, atk:90, def:50, spa:85, spd:45, spe:55, type1:Type::Grass, type2:Type::Poison, weight:64, nfe:true },
     // [71] Victreebel
-    SpeciesData { hp:80, atk:105, def:65, spa:100, spd:70, spe:70, type1:Type::Grass, type2:Type::Poison, weight:155 },
+    SpeciesData { hp:80, atk:105, def:65, spa:100, spd:70, spe:70, type1:Type::Grass, type2:Type::Poison, weight:155, nfe:false },
     // [72] Tentacool
-    SpeciesData { hp:40, atk:40, def:35, spa:50, spd:100, spe:70, type1:Type::Water, type2:Type::Poison, weight:455 },
+    SpeciesData { hp:40, atk:40, def:35, spa:50, spd:100, spe:70, type1:Type::Water, type2:Type::Poison, weight:455, nfe:true },
     // [73] Tentacruel
-    SpeciesData { hp:80, atk:70, def:65, spa:80, spd:120, spe:100, type1:Type::Water, type2:Type::Poison, weight:550 },
+    SpeciesData { hp:80, atk:70, def:65, spa:80, spd:120, spe:100, type1:Type::Water, type2:Type::Poison, weight:550, nfe:false },
     // [74] Geodude
-    SpeciesData { hp:40, atk:80, def:100, spa:30, spd:30, spe:20, type1:Type::Rock, type2:Type::Ground, weight:200 },
+    SpeciesData { hp:40, atk:80, def:100, spa:30, spd:30, spe:20, type1:Type::Rock, type2:Type::Ground, weight:200, nfe:true },
     // [75] Graveler
-    SpeciesData { hp:55, atk:95, def:115, spa:45, spd:45, spe:35, type1:Type::Rock, type2:Type::Ground, weight:1050 },
+    SpeciesData { hp:55, atk:95, def:115, spa:45, spd:45, spe:35, type1:Type::Rock, type2:Type::Ground, weight:1050, nfe:true },
     // [76] Golem
-    SpeciesData { hp:80, atk:120, def:130, spa:55, spd:65, spe:45, type1:Type::Rock, type2:Type::Ground, weight:3000 },
+    SpeciesData { hp:80, atk:120, def:130, spa:55, spd:65, spe:45, type1:Type::Rock, type2:Type::Ground, weight:3000, nfe:false },
     // [77] Ponyta
-    SpeciesData { hp:50, atk:85, def:55, spa:65, spd:65, spe:90, type1:Type::Fire, type2:Type::Fire, weight:300 },
+    SpeciesData { hp:50, atk:85, def:55, spa:65, spd:65, spe:90, type1:Type::Fire, type2:Type::Fire, weight:300, nfe:true },
     // [78] Rapidash
-    SpeciesData { hp:65, atk:100, def:70, spa:80, spd:80, spe:105, type1:Type::Fire, type2:Type::Fire, weight:950 },
+    SpeciesData { hp:65, atk:100, def:70, spa:80, spd:80, spe:105, type1:Type::Fire, type2:Type::Fire, weight:950, nfe:false },
     // [79] Slowpoke
-    SpeciesData { hp:90, atk:65, def:65, spa:40, spd:40, spe:15, type1:Type::Water, type2:Type::Psychic, weight:360 },
+    SpeciesData { hp:90, atk:65, def:65, spa:40, spd:40, spe:15, type1:Type::Water, type2:Type::Psychic, weight:360, nfe:true },
     // [80] Slowbro
-    SpeciesData { hp:95, atk:75, def:110, spa:100, spd:80, spe:30, type1:Type::Water, type2:Type::Psychic, weight:785 },
+    SpeciesData { hp:95, atk:75, def:110, spa:100, spd:80, spe:30, type1:Type::Water, type2:Type::Psychic, weight:785, nfe:false },
     // [81] Magnemite
-    SpeciesData { hp:25, atk:35, def:70, spa:95, spd:55, spe:45, type1:Type::Electric, type2:Type::Steel, weight:60 },
+    SpeciesData { hp:25, atk:35, def:70, spa:95, spd:55, spe:45, type1:Type::Electric, type2:Type::Steel, weight:60, nfe:true },
     // [82] Magneton
-    SpeciesData { hp:50, atk:60, def:95, spa:120, spd:70, spe:70, type1:Type::Electric, type2:Type::Steel, weight:600 },
+    SpeciesData { hp:50, atk:60, def:95, spa:120, spd:70, spe:70, type1:Type::Electric, type2:Type::Steel, weight:600, nfe:true },
     // [83] Farfetch’d
-    SpeciesData { hp:52, atk:90, def:55, spa:58, spd:62, spe:60, type1:Type::Normal, type2:Type::Flying, weight:150 },
+    SpeciesData { hp:52, atk:90, def:55, spa:58, spd:62, spe:60, type1:Type::Normal, type2:Type::Flying, weight:150, nfe:false },
     // [84] Doduo
-    SpeciesData { hp:35, atk:85, def:45, spa:35, spd:35, spe:75, type1:Type::Normal, type2:Type::Flying, weight:392 },
+    SpeciesData { hp:35, atk:85, def:45, spa:35, spd:35, spe:75, type1:Type::Normal, type2:Type::Flying, weight:392, nfe:true },
     // [85] Dodrio
-    SpeciesData { hp:60, atk:110, def:70, spa:60, spd:60, spe:110, type1:Type::Normal, type2:Type::Flying, weight:852 },
+    SpeciesData { hp:60, atk:110, def:70, spa:60, spd:60, spe:110, type1:Type::Normal, type2:Type::Flying, weight:852, nfe:false },
     // [86] Seel
-    SpeciesData { hp:65, atk:45, def:55, spa:45, spd:70, spe:45, type1:Type::Water, type2:Type::Water, weight:900 },
+    SpeciesData { hp:65, atk:45, def:55, spa:45, spd:70, spe:45, type1:Type::Water, type2:Type::Water, weight:900, nfe:true },
     // [87] Dewgong
-    SpeciesData { hp:90, atk:70, def:80, spa:70, spd:95, spe:70, type1:Type::Water, type2:Type::Ice, weight:1200 },
+    SpeciesData { hp:90, atk:70, def:80, spa:70, spd:95, spe:70, type1:Type::Water, type2:Type::Ice, weight:1200, nfe:false },
     // [88] Grimer
-    SpeciesData { hp:80, atk:80, def:50, spa:40, spd:50, spe:25, type1:Type::Poison, type2:Type::Poison, weight:300 },
+    SpeciesData { hp:80, atk:80, def:50, spa:40, spd:50, spe:25, type1:Type::Poison, type2:Type::Poison, weight:300, nfe:true },
     // [89] Muk
-    SpeciesData { hp:105, atk:105, def:75, spa:65, spd:100, spe:50, type1:Type::Poison, type2:Type::Poison, weight:300 },
+    SpeciesData { hp:105, atk:105, def:75, spa:65, spd:100, spe:50, type1:Type::Poison, type2:Type::Poison, weight:300, nfe:false },
     // [90] Shellder
-    SpeciesData { hp:30, atk:65, def:100, spa:45, spd:25, spe:40, type1:Type::Water, type2:Type::Water, weight:40 },
+    SpeciesData { hp:30, atk:65, def:100, spa:45, spd:25, spe:40, type1:Type::Water, type2:Type::Water, weight:40, nfe:true },
     // [91] Cloyster
-    SpeciesData { hp:50, atk:95, def:180, spa:85, spd:45, spe:70, type1:Type::Water, type2:Type::Ice, weight:1325 },
+    SpeciesData { hp:50, atk:95, def:180, spa:85, spd:45, spe:70, type1:Type::Water, type2:Type::Ice, weight:1325, nfe:false },
     // [92] Gastly
-    SpeciesData { hp:30, atk:35, def:30, spa:100, spd:35, spe:80, type1:Type::Ghost, type2:Type::Poison, weight:1 },
+    SpeciesData { hp:30, atk:35, def:30, spa:100, spd:35, spe:80, type1:Type::Ghost, type2:Type::Poison, weight:1, nfe:true },
     // [93] Haunter
-    SpeciesData { hp:45, atk:50, def:45, spa:115, spd:55, spe:95, type1:Type::Ghost, type2:Type::Poison, weight:1 },
+    SpeciesData { hp:45, atk:50, def:45, spa:115, spd:55, spe:95, type1:Type::Ghost, type2:Type::Poison, weight:1, nfe:true },
     // [94] Gengar
-    SpeciesData { hp:60, atk:65, def:60, spa:130, spd:75, spe:110, type1:Type::Ghost, type2:Type::Poison, weight:405 },
+    SpeciesData { hp:60, atk:65, def:60, spa:130, spd:75, spe:110, type1:Type::Ghost, type2:Type::Poison, weight:405, nfe:false },
     // [95] Onix
-    SpeciesData { hp:35, atk:45, def:160, spa:30, spd:45, spe:70, type1:Type::Rock, type2:Type::Ground, weight:2100 },
+    SpeciesData { hp:35, atk:45, def:160, spa:30, spd:45, spe:70, type1:Type::Rock, type2:Type::Ground, weight:2100, nfe:true },
     // [96] Drowzee
-    SpeciesData { hp:60, atk:48, def:45, spa:43, spd:90, spe:42, type1:Type::Psychic, type2:Type::Psychic, weight:324 },
+    SpeciesData { hp:60, atk:48, def:45, spa:43, spd:90, spe:42, type1:Type::Psychic, type2:Type::Psychic, weight:324, nfe:true },
     // [97] Hypno
-    SpeciesData { hp:85, atk:73, def:70, spa:73, spd:115, spe:67, type1:Type::Psychic, type2:Type::Psychic, weight:756 },
+    SpeciesData { hp:85, atk:73, def:70, spa:73, spd:115, spe:67, type1:Type::Psychic, type2:Type::Psychic, weight:756, nfe:false },
     // [98] Krabby
-    SpeciesData { hp:30, atk:105, def:90, spa:25, spd:25, spe:50, type1:Type::Water, type2:Type::Water, weight:65 },
+    SpeciesData { hp:30, atk:105, def:90, spa:25, spd:25, spe:50, type1:Type::Water, type2:Type::Water, weight:65, nfe:true },
     // [99] Kingler
-    SpeciesData { hp:55, atk:130, def:115, spa:50, spd:50, spe:75, type1:Type::Water, type2:Type::Water, weight:600 },
+    SpeciesData { hp:55, atk:130, def:115, spa:50, spd:50, spe:75, type1:Type::Water, type2:Type::Water, weight:600, nfe:false },
     // [100] Voltorb
-    SpeciesData { hp:40, atk:30, def:50, spa:55, spd:55, spe:100, type1:Type::Electric, type2:Type::Electric, weight:104 },
+    SpeciesData { hp:40, atk:30, def:50, spa:55, spd:55, spe:100, type1:Type::Electric, type2:Type::Electric, weight:104, nfe:true },
     // [101] Electrode
-    SpeciesData { hp:60, atk:50, def:70, spa:80, spd:80, spe:150, type1:Type::Electric, type2:Type::Electric, weight:666 },
+    SpeciesData { hp:60, atk:50, def:70, spa:80, spd:80, spe:150, type1:Type::Electric, type2:Type::Electric, weight:666, nfe:false },
     // [102] Exeggcute
-    SpeciesData { hp:60, atk:40, def:80, spa:60, spd:45, spe:40, type1:Type::Grass, type2:Type::Psychic, weight:25 },
+    SpeciesData { hp:60, atk:40, def:80, spa:60, spd:45, spe:40, type1:Type::Grass, type2:Type::Psychic, weight:25, nfe:true },
     // [103] Exeggutor
-    SpeciesData { hp:95, atk:95, def:85, spa:125, spd:75, spe:55, type1:Type::Grass, type2:Type::Psychic, weight:1200 },
+    SpeciesData { hp:95, atk:95, def:85, spa:125, spd:75, spe:55, type1:Type::Grass, type2:Type::Psychic, weight:1200, nfe:false },
     // [104] Cubone
-    SpeciesData { hp:50, atk:50, def:95, spa:40, spd:50, spe:35, type1:Type::Ground, type2:Type::Ground, weight:65 },
+    SpeciesData { hp:50, atk:50, def:95, spa:40, spd:50, spe:35, type1:Type::Ground, type2:Type::Ground, weight:65, nfe:true },
     // [105] Marowak
-    SpeciesData { hp:60, atk:80, def:110, spa:50, spd:80, spe:45, type1:Type::Ground, type2:Type::Ground, weight:450 },
+    SpeciesData { hp:60, atk:80, def:110, spa:50, spd:80, spe:45, type1:Type::Ground, type2:Type::Ground, weight:450, nfe:false },
     // [106] Hitmonlee
-    SpeciesData { hp:50, atk:120, def:53, spa:35, spd:110, spe:87, type1:Type::Fighting, type2:Type::Fighting, weight:498 },
+    SpeciesData { hp:50, atk:120, def:53, spa:35, spd:110, spe:87, type1:Type::Fighting, type2:Type::Fighting, weight:498, nfe:false },
     // [107] Hitmonchan
-    SpeciesData { hp:50, atk:105, def:79, spa:35, spd:110, spe:76, type1:Type::Fighting, type2:Type::Fighting, weight:502 },
+    SpeciesData { hp:50, atk:105, def:79, spa:35, spd:110, spe:76, type1:Type::Fighting, type2:Type::Fighting, weight:502, nfe:false },
     // [108] Lickitung
-    SpeciesData { hp:90, atk:55, def:75, spa:60, spd:75, spe:30, type1:Type::Normal, type2:Type::Normal, weight:655 },
+    SpeciesData { hp:90, atk:55, def:75, spa:60, spd:75, spe:30, type1:Type::Normal, type2:Type::Normal, weight:655, nfe:true },
     // [109] Koffing
-    SpeciesData { hp:40, atk:65, def:95, spa:60, spd:45, spe:35, type1:Type::Poison, type2:Type::Poison, weight:10 },
+    SpeciesData { hp:40, atk:65, def:95, spa:60, spd:45, spe:35, type1:Type::Poison, type2:Type::Poison, weight:10, nfe:true },
     // [110] Weezing
-    SpeciesData { hp:65, atk:90, def:120, spa:85, spd:70, spe:60, type1:Type::Poison, type2:Type::Poison, weight:95 },
+    SpeciesData { hp:65, atk:90, def:120, spa:85, spd:70, spe:60, type1:Type::Poison, type2:Type::Poison, weight:95, nfe:false },
     // [111] Rhyhorn
-    SpeciesData { hp:80, atk:85, def:95, spa:30, spd:30, spe:25, type1:Type::Ground, type2:Type::Rock, weight:1150 },
+    SpeciesData { hp:80, atk:85, def:95, spa:30, spd:30, spe:25, type1:Type::Ground, type2:Type::Rock, weight:1150, nfe:true },
     // [112] Rhydon
-    SpeciesData { hp:105, atk:130, def:120, spa:45, spd:45, spe:40, type1:Type::Ground, type2:Type::Rock, weight:1200 },
+    SpeciesData { hp:105, atk:130, def:120, spa:45, spd:45, spe:40, type1:Type::Ground, type2:Type::Rock, weight:1200, nfe:true },
     // [113] Chansey
-    SpeciesData { hp:250, atk:5, def:5, spa:35, spd:105, spe:50, type1:Type::Normal, type2:Type::Normal, weight:346 },
+    SpeciesData { hp:250, atk:5, def:5, spa:35, spd:105, spe:50, type1:Type::Normal, type2:Type::Normal, weight:346, nfe:true },
     // [114] Tangela
-    SpeciesData { hp:65, atk:55, def:115, spa:100, spd:40, spe:60, type1:Type::Grass, type2:Type::Grass, weight:350 },
+    SpeciesData { hp:65, atk:55, def:115, spa:100, spd:40, spe:60, type1:Type::Grass, type2:Type::Grass, weight:350, nfe:true },
     // [115] Kangaskhan
-    SpeciesData { hp:105, atk:95, def:80, spa:40, spd:80, spe:90, type1:Type::Normal, type2:Type::Normal, weight:800 },
+    SpeciesData { hp:105, atk:95, def:80, spa:40, spd:80, spe:90, type1:Type::Normal, type2:Type::Normal, weight:800, nfe:false },
     // [116] Horsea
-    SpeciesData { hp:30, atk:40, def:70, spa:70, spd:25, spe:60, type1:Type::Water, type2:Type::Water, weight:80 },
+    SpeciesData { hp:30, atk:40, def:70, spa:70, spd:25, spe:60, type1:Type::Water, type2:Type::Water, weight:80, nfe:true },
     // [117] Seadra
-    SpeciesData { hp:55, atk:65, def:95, spa:95, spd:45, spe:85, type1:Type::Water, type2:Type::Water, weight:250 },
+    SpeciesData { hp:55, atk:65, def:95, spa:95, spd:45, spe:85, type1:Type::Water, type2:Type::Water, weight:250, nfe:true },
     // [118] Goldeen
-    SpeciesData { hp:45, atk:67, def:60, spa:35, spd:50, spe:63, type1:Type::Water, type2:Type::Water, weight:150 },
+    SpeciesData { hp:45, atk:67, def:60, spa:35, spd:50, spe:63, type1:Type::Water, type2:Type::Water, weight:150, nfe:true },
     // [119] Seaking
-    SpeciesData { hp:80, atk:92, def:65, spa:65, spd:80, spe:68, type1:Type::Water, type2:Type::Water, weight:390 },
+    SpeciesData { hp:80, atk:92, def:65, spa:65, spd:80, spe:68, type1:Type::Water, type2:Type::Water, weight:390, nfe:false },
     // [120] Staryu
-    SpeciesData { hp:30, atk:45, def:55, spa:70, spd:55, spe:85, type1:Type::Water, type2:Type::Water, weight:345 },
+    SpeciesData { hp:30, atk:45, def:55, spa:70, spd:55, spe:85, type1:Type::Water, type2:Type::Water, weight:345, nfe:true },
     // [121] Starmie
-    SpeciesData { hp:60, atk:75, def:85, spa:100, spd:85, spe:115, type1:Type::Water, type2:Type::Psychic, weight:800 },
+    SpeciesData { hp:60, atk:75, def:85, spa:100, spd:85, spe:115, type1:Type::Water, type2:Type::Psychic, weight:800, nfe:false },
     // [122] Mr. Mime
-    SpeciesData { hp:40, atk:45, def:65, spa:100, spd:120, spe:90, type1:Type::Psychic, type2:Type::Fairy, weight:545 },
+    SpeciesData { hp:40, atk:45, def:65, spa:100, spd:120, spe:90, type1:Type::Psychic, type2:Type::Fairy, weight:545, nfe:false },
     // [123] Scyther
-    SpeciesData { hp:70, atk:110, def:80, spa:55, spd:80, spe:105, type1:Type::Bug, type2:Type::Flying, weight:560 },
+    SpeciesData { hp:70, atk:110, def:80, spa:55, spd:80, spe:105, type1:Type::Bug, type2:Type::Flying, weight:560, nfe:true },
     // [124] Jynx
-    SpeciesData { hp:65, atk:50, def:35, spa:115, spd:95, spe:95, type1:Type::Ice, type2:Type::Psychic, weight:406 },
+    SpeciesData { hp:65, atk:50, def:35, spa:115, spd:95, spe:95, type1:Type::Ice, type2:Type::Psychic, weight:406, nfe:false },
     // [125] Electabuzz
-    SpeciesData { hp:65, atk:83, def:57, spa:95, spd:85, spe:105, type1:Type::Electric, type2:Type::Electric, weight:300 },
+    SpeciesData { hp:65, atk:83, def:57, spa:95, spd:85, spe:105, type1:Type::Electric, type2:Type::Electric, weight:300, nfe:true },
     // [126] Magmar
-    SpeciesData { hp:65, atk:95, def:57, spa:100, spd:85, spe:93, type1:Type::Fire, type2:Type::Fire, weight:445 },
+    SpeciesData { hp:65, atk:95, def:57, spa:100, spd:85, spe:93, type1:Type::Fire, type2:Type::Fire, weight:445, nfe:true },
     // [127] Pinsir
-    SpeciesData { hp:65, atk:125, def:100, spa:55, spd:70, spe:85, type1:Type::Bug, type2:Type::Bug, weight:550 },
+    SpeciesData { hp:65, atk:125, def:100, spa:55, spd:70, spe:85, type1:Type::Bug, type2:Type::Bug, weight:550, nfe:false },
     // [128] Tauros
-    SpeciesData { hp:75, atk:100, def:95, spa:40, spd:70, spe:110, type1:Type::Normal, type2:Type::Normal, weight:884 },
+    SpeciesData { hp:75, atk:100, def:95, spa:40, spd:70, spe:110, type1:Type::Normal, type2:Type::Normal, weight:884, nfe:false },
     // [129] Magikarp
-    SpeciesData { hp:20, atk:10, def:55, spa:15, spd:20, spe:80, type1:Type::Water, type2:Type::Water, weight:100 },
+    SpeciesData { hp:20, atk:10, def:55, spa:15, spd:20, spe:80, type1:Type::Water, type2:Type::Water, weight:100, nfe:true },
     // [130] Gyarados
-    SpeciesData { hp:95, atk:125, def:79, spa:60, spd:100, spe:81, type1:Type::Water, type2:Type::Flying, weight:2350 },
+    SpeciesData { hp:95, atk:125, def:79, spa:60, spd:100, spe:81, type1:Type::Water, type2:Type::Flying, weight:2350, nfe:false },
     // [131] Lapras
-    SpeciesData { hp:130, atk:85, def:80, spa:85, spd:95, spe:60, type1:Type::Water, type2:Type::Ice, weight:2200 },
+    SpeciesData { hp:130, atk:85, def:80, spa:85, spd:95, spe:60, type1:Type::Water, type2:Type::Ice, weight:2200, nfe:false },
     // [132] Ditto
-    SpeciesData { hp:48, atk:48, def:48, spa:48, spd:48, spe:48, type1:Type::Normal, type2:Type::Normal, weight:40 },
+    SpeciesData { hp:48, atk:48, def:48, spa:48, spd:48, spe:48, type1:Type::Normal, type2:Type::Normal, weight:40, nfe:false },
     // [133] Eevee
-    SpeciesData { hp:55, atk:55, def:50, spa:45, spd:65, spe:55, type1:Type::Normal, type2:Type::Normal, weight:65 },
+    SpeciesData { hp:55, atk:55, def:50, spa:45, spd:65, spe:55, type1:Type::Normal, type2:Type::Normal, weight:65, nfe:true },
     // [134] Vaporeon
-    SpeciesData { hp:130, atk:65, def:60, spa:110, spd:95, spe:65, type1:Type::Water, type2:Type::Water, weight:290 },
+    SpeciesData { hp:130, atk:65, def:60, spa:110, spd:95, spe:65, type1:Type::Water, type2:Type::Water, weight:290, nfe:false },
     // [135] Jolteon
-    SpeciesData { hp:65, atk:65, def:60, spa:110, spd:95, spe:130, type1:Type::Electric, type2:Type::Electric, weight:245 },
+    SpeciesData { hp:65, atk:65, def:60, spa:110, spd:95, spe:130, type1:Type::Electric, type2:Type::Electric, weight:245, nfe:false },
     // [136] Flareon
-    SpeciesData { hp:65, atk:130, def:60, spa:95, spd:110, spe:65, type1:Type::Fire, type2:Type::Fire, weight:250 },
+    SpeciesData { hp:65, atk:130, def:60, spa:95, spd:110, spe:65, type1:Type::Fire, type2:Type::Fire, weight:250, nfe:false },
     // [137] Porygon
-    SpeciesData { hp:65, atk:60, def:70, spa:85, spd:75, spe:40, type1:Type::Normal, type2:Type::Normal, weight:365 },
+    SpeciesData { hp:65, atk:60, def:70, spa:85, spd:75, spe:40, type1:Type::Normal, type2:Type::Normal, weight:365, nfe:true },
     // [138] Omanyte
-    SpeciesData { hp:35, atk:40, def:100, spa:90, spd:55, spe:35, type1:Type::Rock, type2:Type::Water, weight:75 },
+    SpeciesData { hp:35, atk:40, def:100, spa:90, spd:55, spe:35, type1:Type::Rock, type2:Type::Water, weight:75, nfe:true },
     // [139] Omastar
-    SpeciesData { hp:70, atk:60, def:125, spa:115, spd:70, spe:55, type1:Type::Rock, type2:Type::Water, weight:350 },
+    SpeciesData { hp:70, atk:60, def:125, spa:115, spd:70, spe:55, type1:Type::Rock, type2:Type::Water, weight:350, nfe:false },
     // [140] Kabuto
-    SpeciesData { hp:30, atk:80, def:90, spa:55, spd:45, spe:55, type1:Type::Rock, type2:Type::Water, weight:115 },
+    SpeciesData { hp:30, atk:80, def:90, spa:55, spd:45, spe:55, type1:Type::Rock, type2:Type::Water, weight:115, nfe:true },
     // [141] Kabutops
-    SpeciesData { hp:60, atk:115, def:105, spa:65, spd:70, spe:80, type1:Type::Rock, type2:Type::Water, weight:405 },
+    SpeciesData { hp:60, atk:115, def:105, spa:65, spd:70, spe:80, type1:Type::Rock, type2:Type::Water, weight:405, nfe:false },
     // [142] Aerodactyl
-    SpeciesData { hp:80, atk:105, def:65, spa:60, spd:75, spe:130, type1:Type::Rock, type2:Type::Flying, weight:590 },
+    SpeciesData { hp:80, atk:105, def:65, spa:60, spd:75, spe:130, type1:Type::Rock, type2:Type::Flying, weight:590, nfe:false },
     // [143] Snorlax
-    SpeciesData { hp:160, atk:110, def:65, spa:65, spd:110, spe:30, type1:Type::Normal, type2:Type::Normal, weight:4600 },
+    SpeciesData { hp:160, atk:110, def:65, spa:65, spd:110, spe:30, type1:Type::Normal, type2:Type::Normal, weight:4600, nfe:false },
     // [144] Articuno
-    SpeciesData { hp:90, atk:85, def:100, spa:95, spd:125, spe:85, type1:Type::Ice, type2:Type::Flying, weight:554 },
+    SpeciesData { hp:90, atk:85, def:100, spa:95, spd:125, spe:85, type1:Type::Ice, type2:Type::Flying, weight:554, nfe:false },
     // [145] Zapdos
-    SpeciesData { hp:90, atk:90, def:85, spa:125, spd:90, spe:100, type1:Type::Electric, type2:Type::Flying, weight:526 },
+    SpeciesData { hp:90, atk:90, def:85, spa:125, spd:90, spe:100, type1:Type::Electric, type2:Type::Flying, weight:526, nfe:false },
     // [146] Moltres
-    SpeciesData { hp:90, atk:100, def:90, spa:125, spd:85, spe:90, type1:Type::Fire, type2:Type::Flying, weight:600 },
+    SpeciesData { hp:90, atk:100, def:90, spa:125, spd:85, spe:90, type1:Type::Fire, type2:Type::Flying, weight:600, nfe:false },
     // [147] Dratini
-    SpeciesData { hp:41, atk:64, def:45, spa:50, spd:50, spe:50, type1:Type::Dragon, type2:Type::Dragon, weight:33 },
+    SpeciesData { hp:41, atk:64, def:45, spa:50, spd:50, spe:50, type1:Type::Dragon, type2:Type::Dragon, weight:33, nfe:true },
     // [148] Dragonair
-    SpeciesData { hp:61, atk:84, def:65, spa:70, spd:70, spe:70, type1:Type::Dragon, type2:Type::Dragon, weight:165 },
+    SpeciesData { hp:61, atk:84, def:65, spa:70, spd:70, spe:70, type1:Type::Dragon, type2:Type::Dragon, weight:165, nfe:true },
     // [149] Dragonite
-    SpeciesData { hp:91, atk:134, def:95, spa:100, spd:100, spe:80, type1:Type::Dragon, type2:Type::Flying, weight:2100 },
+    SpeciesData { hp:91, atk:134, def:95, spa:100, spd:100, spe:80, type1:Type::Dragon, type2:Type::Flying, weight:2100, nfe:false },
     // [150] Mewtwo
-    SpeciesData { hp:106, atk:110, def:90, spa:154, spd:90, spe:130, type1:Type::Psychic, type2:Type::Psychic, weight:1220 },
+    SpeciesData { hp:106, atk:110, def:90, spa:154, spd:90, spe:130, type1:Type::Psychic, type2:Type::Psychic, weight:1220, nfe:false },
     // [151] Mew
-    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Psychic, type2:Type::Psychic, weight:40 },
+    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Psychic, type2:Type::Psychic, weight:40, nfe:false },
     // [152] Chikorita
-    SpeciesData { hp:45, atk:49, def:65, spa:49, spd:65, spe:45, type1:Type::Grass, type2:Type::Grass, weight:64 },
+    SpeciesData { hp:45, atk:49, def:65, spa:49, spd:65, spe:45, type1:Type::Grass, type2:Type::Grass, weight:64, nfe:true },
     // [153] Bayleef
-    SpeciesData { hp:60, atk:62, def:80, spa:63, spd:80, spe:60, type1:Type::Grass, type2:Type::Grass, weight:158 },
+    SpeciesData { hp:60, atk:62, def:80, spa:63, spd:80, spe:60, type1:Type::Grass, type2:Type::Grass, weight:158, nfe:true },
     // [154] Meganium
-    SpeciesData { hp:80, atk:82, def:100, spa:83, spd:100, spe:80, type1:Type::Grass, type2:Type::Grass, weight:1005 },
+    SpeciesData { hp:80, atk:82, def:100, spa:83, spd:100, spe:80, type1:Type::Grass, type2:Type::Grass, weight:1005, nfe:false },
     // [155] Cyndaquil
-    SpeciesData { hp:39, atk:52, def:43, spa:60, spd:50, spe:65, type1:Type::Fire, type2:Type::Fire, weight:79 },
+    SpeciesData { hp:39, atk:52, def:43, spa:60, spd:50, spe:65, type1:Type::Fire, type2:Type::Fire, weight:79, nfe:true },
     // [156] Quilava
-    SpeciesData { hp:58, atk:64, def:58, spa:80, spd:65, spe:80, type1:Type::Fire, type2:Type::Fire, weight:190 },
+    SpeciesData { hp:58, atk:64, def:58, spa:80, spd:65, spe:80, type1:Type::Fire, type2:Type::Fire, weight:190, nfe:true },
     // [157] Typhlosion
-    SpeciesData { hp:78, atk:84, def:78, spa:109, spd:85, spe:100, type1:Type::Fire, type2:Type::Fire, weight:795 },
+    SpeciesData { hp:78, atk:84, def:78, spa:109, spd:85, spe:100, type1:Type::Fire, type2:Type::Fire, weight:795, nfe:false },
     // [158] Totodile
-    SpeciesData { hp:50, atk:65, def:64, spa:44, spd:48, spe:43, type1:Type::Water, type2:Type::Water, weight:95 },
+    SpeciesData { hp:50, atk:65, def:64, spa:44, spd:48, spe:43, type1:Type::Water, type2:Type::Water, weight:95, nfe:true },
     // [159] Croconaw
-    SpeciesData { hp:65, atk:80, def:80, spa:59, spd:63, spe:58, type1:Type::Water, type2:Type::Water, weight:250 },
+    SpeciesData { hp:65, atk:80, def:80, spa:59, spd:63, spe:58, type1:Type::Water, type2:Type::Water, weight:250, nfe:true },
     // [160] Feraligatr
-    SpeciesData { hp:85, atk:105, def:100, spa:79, spd:83, spe:78, type1:Type::Water, type2:Type::Water, weight:888 },
+    SpeciesData { hp:85, atk:105, def:100, spa:79, spd:83, spe:78, type1:Type::Water, type2:Type::Water, weight:888, nfe:false },
     // [161] Sentret
-    SpeciesData { hp:35, atk:46, def:34, spa:35, spd:45, spe:20, type1:Type::Normal, type2:Type::Normal, weight:60 },
+    SpeciesData { hp:35, atk:46, def:34, spa:35, spd:45, spe:20, type1:Type::Normal, type2:Type::Normal, weight:60, nfe:true },
     // [162] Furret
-    SpeciesData { hp:85, atk:76, def:64, spa:45, spd:55, spe:90, type1:Type::Normal, type2:Type::Normal, weight:325 },
+    SpeciesData { hp:85, atk:76, def:64, spa:45, spd:55, spe:90, type1:Type::Normal, type2:Type::Normal, weight:325, nfe:false },
     // [163] Hoothoot
-    SpeciesData { hp:60, atk:30, def:30, spa:36, spd:56, spe:50, type1:Type::Normal, type2:Type::Flying, weight:212 },
+    SpeciesData { hp:60, atk:30, def:30, spa:36, spd:56, spe:50, type1:Type::Normal, type2:Type::Flying, weight:212, nfe:true },
     // [164] Noctowl
-    SpeciesData { hp:100, atk:50, def:50, spa:86, spd:96, spe:70, type1:Type::Normal, type2:Type::Flying, weight:408 },
+    SpeciesData { hp:100, atk:50, def:50, spa:86, spd:96, spe:70, type1:Type::Normal, type2:Type::Flying, weight:408, nfe:false },
     // [165] Ledyba
-    SpeciesData { hp:40, atk:20, def:30, spa:40, spd:80, spe:55, type1:Type::Bug, type2:Type::Flying, weight:108 },
+    SpeciesData { hp:40, atk:20, def:30, spa:40, spd:80, spe:55, type1:Type::Bug, type2:Type::Flying, weight:108, nfe:true },
     // [166] Ledian
-    SpeciesData { hp:55, atk:35, def:50, spa:55, spd:110, spe:85, type1:Type::Bug, type2:Type::Flying, weight:356 },
+    SpeciesData { hp:55, atk:35, def:50, spa:55, spd:110, spe:85, type1:Type::Bug, type2:Type::Flying, weight:356, nfe:false },
     // [167] Spinarak
-    SpeciesData { hp:40, atk:60, def:40, spa:40, spd:40, spe:30, type1:Type::Bug, type2:Type::Poison, weight:85 },
+    SpeciesData { hp:40, atk:60, def:40, spa:40, spd:40, spe:30, type1:Type::Bug, type2:Type::Poison, weight:85, nfe:true },
     // [168] Ariados
-    SpeciesData { hp:70, atk:90, def:70, spa:60, spd:70, spe:40, type1:Type::Bug, type2:Type::Poison, weight:335 },
+    SpeciesData { hp:70, atk:90, def:70, spa:60, spd:70, spe:40, type1:Type::Bug, type2:Type::Poison, weight:335, nfe:false },
     // [169] Crobat
-    SpeciesData { hp:85, atk:90, def:80, spa:70, spd:80, spe:130, type1:Type::Poison, type2:Type::Flying, weight:750 },
+    SpeciesData { hp:85, atk:90, def:80, spa:70, spd:80, spe:130, type1:Type::Poison, type2:Type::Flying, weight:750, nfe:false },
     // [170] Chinchou
-    SpeciesData { hp:75, atk:38, def:38, spa:56, spd:56, spe:67, type1:Type::Water, type2:Type::Electric, weight:120 },
+    SpeciesData { hp:75, atk:38, def:38, spa:56, spd:56, spe:67, type1:Type::Water, type2:Type::Electric, weight:120, nfe:true },
     // [171] Lanturn
-    SpeciesData { hp:125, atk:58, def:58, spa:76, spd:76, spe:67, type1:Type::Water, type2:Type::Electric, weight:225 },
+    SpeciesData { hp:125, atk:58, def:58, spa:76, spd:76, spe:67, type1:Type::Water, type2:Type::Electric, weight:225, nfe:false },
     // [172] Pichu
-    SpeciesData { hp:20, atk:40, def:15, spa:35, spd:35, spe:60, type1:Type::Electric, type2:Type::Electric, weight:20 },
+    SpeciesData { hp:20, atk:40, def:15, spa:35, spd:35, spe:60, type1:Type::Electric, type2:Type::Electric, weight:20, nfe:true },
     // [173] Cleffa
-    SpeciesData { hp:50, atk:25, def:28, spa:45, spd:55, spe:15, type1:Type::Fairy, type2:Type::Fairy, weight:30 },
+    SpeciesData { hp:50, atk:25, def:28, spa:45, spd:55, spe:15, type1:Type::Fairy, type2:Type::Fairy, weight:30, nfe:true },
     // [174] Igglybuff
-    SpeciesData { hp:90, atk:30, def:15, spa:40, spd:20, spe:15, type1:Type::Normal, type2:Type::Fairy, weight:10 },
+    SpeciesData { hp:90, atk:30, def:15, spa:40, spd:20, spe:15, type1:Type::Normal, type2:Type::Fairy, weight:10, nfe:true },
     // [175] Togepi
-    SpeciesData { hp:35, atk:20, def:65, spa:40, spd:65, spe:20, type1:Type::Fairy, type2:Type::Fairy, weight:15 },
+    SpeciesData { hp:35, atk:20, def:65, spa:40, spd:65, spe:20, type1:Type::Fairy, type2:Type::Fairy, weight:15, nfe:true },
     // [176] Togetic
-    SpeciesData { hp:55, atk:40, def:85, spa:80, spd:105, spe:40, type1:Type::Fairy, type2:Type::Flying, weight:32 },
+    SpeciesData { hp:55, atk:40, def:85, spa:80, spd:105, spe:40, type1:Type::Fairy, type2:Type::Flying, weight:32, nfe:true },
     // [177] Natu
-    SpeciesData { hp:40, atk:50, def:45, spa:70, spd:45, spe:70, type1:Type::Psychic, type2:Type::Flying, weight:20 },
+    SpeciesData { hp:40, atk:50, def:45, spa:70, spd:45, spe:70, type1:Type::Psychic, type2:Type::Flying, weight:20, nfe:true },
     // [178] Xatu
-    SpeciesData { hp:65, atk:75, def:70, spa:95, spd:70, spe:95, type1:Type::Psychic, type2:Type::Flying, weight:150 },
+    SpeciesData { hp:65, atk:75, def:70, spa:95, spd:70, spe:95, type1:Type::Psychic, type2:Type::Flying, weight:150, nfe:false },
     // [179] Mareep
-    SpeciesData { hp:55, atk:40, def:40, spa:65, spd:45, spe:35, type1:Type::Electric, type2:Type::Electric, weight:78 },
+    SpeciesData { hp:55, atk:40, def:40, spa:65, spd:45, spe:35, type1:Type::Electric, type2:Type::Electric, weight:78, nfe:true },
     // [180] Flaaffy
-    SpeciesData { hp:70, atk:55, def:55, spa:80, spd:60, spe:45, type1:Type::Electric, type2:Type::Electric, weight:133 },
+    SpeciesData { hp:70, atk:55, def:55, spa:80, spd:60, spe:45, type1:Type::Electric, type2:Type::Electric, weight:133, nfe:true },
     // [181] Ampharos
-    SpeciesData { hp:90, atk:75, def:85, spa:115, spd:90, spe:55, type1:Type::Electric, type2:Type::Electric, weight:615 },
+    SpeciesData { hp:90, atk:75, def:85, spa:115, spd:90, spe:55, type1:Type::Electric, type2:Type::Electric, weight:615, nfe:false },
     // [182] Bellossom
-    SpeciesData { hp:75, atk:80, def:95, spa:90, spd:100, spe:50, type1:Type::Grass, type2:Type::Grass, weight:58 },
+    SpeciesData { hp:75, atk:80, def:95, spa:90, spd:100, spe:50, type1:Type::Grass, type2:Type::Grass, weight:58, nfe:false },
     // [183] Marill
-    SpeciesData { hp:70, atk:20, def:50, spa:20, spd:50, spe:40, type1:Type::Water, type2:Type::Fairy, weight:85 },
+    SpeciesData { hp:70, atk:20, def:50, spa:20, spd:50, spe:40, type1:Type::Water, type2:Type::Fairy, weight:85, nfe:true },
     // [184] Azumarill
-    SpeciesData { hp:100, atk:50, def:80, spa:60, spd:80, spe:50, type1:Type::Water, type2:Type::Fairy, weight:285 },
+    SpeciesData { hp:100, atk:50, def:80, spa:60, spd:80, spe:50, type1:Type::Water, type2:Type::Fairy, weight:285, nfe:false },
     // [185] Sudowoodo
-    SpeciesData { hp:70, atk:100, def:115, spa:30, spd:65, spe:30, type1:Type::Rock, type2:Type::Rock, weight:380 },
+    SpeciesData { hp:70, atk:100, def:115, spa:30, spd:65, spe:30, type1:Type::Rock, type2:Type::Rock, weight:380, nfe:false },
     // [186] Politoed
-    SpeciesData { hp:90, atk:75, def:75, spa:90, spd:100, spe:70, type1:Type::Water, type2:Type::Water, weight:339 },
+    SpeciesData { hp:90, atk:75, def:75, spa:90, spd:100, spe:70, type1:Type::Water, type2:Type::Water, weight:339, nfe:false },
     // [187] Hoppip
-    SpeciesData { hp:35, atk:35, def:40, spa:35, spd:55, spe:50, type1:Type::Grass, type2:Type::Flying, weight:5 },
+    SpeciesData { hp:35, atk:35, def:40, spa:35, spd:55, spe:50, type1:Type::Grass, type2:Type::Flying, weight:5, nfe:true },
     // [188] Skiploom
-    SpeciesData { hp:55, atk:45, def:50, spa:45, spd:65, spe:80, type1:Type::Grass, type2:Type::Flying, weight:10 },
+    SpeciesData { hp:55, atk:45, def:50, spa:45, spd:65, spe:80, type1:Type::Grass, type2:Type::Flying, weight:10, nfe:true },
     // [189] Jumpluff
-    SpeciesData { hp:75, atk:55, def:70, spa:55, spd:95, spe:110, type1:Type::Grass, type2:Type::Flying, weight:30 },
+    SpeciesData { hp:75, atk:55, def:70, spa:55, spd:95, spe:110, type1:Type::Grass, type2:Type::Flying, weight:30, nfe:false },
     // [190] Aipom
-    SpeciesData { hp:55, atk:70, def:55, spa:40, spd:55, spe:85, type1:Type::Normal, type2:Type::Normal, weight:115 },
+    SpeciesData { hp:55, atk:70, def:55, spa:40, spd:55, spe:85, type1:Type::Normal, type2:Type::Normal, weight:115, nfe:true },
     // [191] Sunkern
-    SpeciesData { hp:30, atk:30, def:30, spa:30, spd:30, spe:30, type1:Type::Grass, type2:Type::Grass, weight:18 },
+    SpeciesData { hp:30, atk:30, def:30, spa:30, spd:30, spe:30, type1:Type::Grass, type2:Type::Grass, weight:18, nfe:true },
     // [192] Sunflora
-    SpeciesData { hp:75, atk:75, def:55, spa:105, spd:85, spe:30, type1:Type::Grass, type2:Type::Grass, weight:85 },
+    SpeciesData { hp:75, atk:75, def:55, spa:105, spd:85, spe:30, type1:Type::Grass, type2:Type::Grass, weight:85, nfe:false },
     // [193] Yanma
-    SpeciesData { hp:65, atk:65, def:45, spa:75, spd:45, spe:95, type1:Type::Bug, type2:Type::Flying, weight:380 },
+    SpeciesData { hp:65, atk:65, def:45, spa:75, spd:45, spe:95, type1:Type::Bug, type2:Type::Flying, weight:380, nfe:true },
     // [194] Wooper
-    SpeciesData { hp:55, atk:45, def:45, spa:25, spd:25, spe:15, type1:Type::Water, type2:Type::Ground, weight:85 },
+    SpeciesData { hp:55, atk:45, def:45, spa:25, spd:25, spe:15, type1:Type::Water, type2:Type::Ground, weight:85, nfe:true },
     // [195] Quagsire
-    SpeciesData { hp:95, atk:85, def:85, spa:65, spd:65, spe:35, type1:Type::Water, type2:Type::Ground, weight:750 },
+    SpeciesData { hp:95, atk:85, def:85, spa:65, spd:65, spe:35, type1:Type::Water, type2:Type::Ground, weight:750, nfe:false },
     // [196] Espeon
-    SpeciesData { hp:65, atk:65, def:60, spa:130, spd:95, spe:110, type1:Type::Psychic, type2:Type::Psychic, weight:265 },
+    SpeciesData { hp:65, atk:65, def:60, spa:130, spd:95, spe:110, type1:Type::Psychic, type2:Type::Psychic, weight:265, nfe:false },
     // [197] Umbreon
-    SpeciesData { hp:95, atk:65, def:110, spa:60, spd:130, spe:65, type1:Type::Dark, type2:Type::Dark, weight:270 },
+    SpeciesData { hp:95, atk:65, def:110, spa:60, spd:130, spe:65, type1:Type::Dark, type2:Type::Dark, weight:270, nfe:false },
     // [198] Murkrow
-    SpeciesData { hp:60, atk:85, def:42, spa:85, spd:42, spe:91, type1:Type::Dark, type2:Type::Flying, weight:21 },
+    SpeciesData { hp:60, atk:85, def:42, spa:85, spd:42, spe:91, type1:Type::Dark, type2:Type::Flying, weight:21, nfe:true },
     // [199] Slowking
-    SpeciesData { hp:95, atk:75, def:80, spa:100, spd:110, spe:30, type1:Type::Water, type2:Type::Psychic, weight:795 },
+    SpeciesData { hp:95, atk:75, def:80, spa:100, spd:110, spe:30, type1:Type::Water, type2:Type::Psychic, weight:795, nfe:false },
     // [200] Misdreavus
-    SpeciesData { hp:60, atk:60, def:60, spa:85, spd:85, spe:85, type1:Type::Ghost, type2:Type::Ghost, weight:10 },
+    SpeciesData { hp:60, atk:60, def:60, spa:85, spd:85, spe:85, type1:Type::Ghost, type2:Type::Ghost, weight:10, nfe:true },
     // [201] Unown
-    SpeciesData { hp:48, atk:72, def:48, spa:72, spd:48, spe:48, type1:Type::Psychic, type2:Type::Psychic, weight:50 },
+    SpeciesData { hp:48, atk:72, def:48, spa:72, spd:48, spe:48, type1:Type::Psychic, type2:Type::Psychic, weight:50, nfe:false },
     // [202] Wobbuffet
-    SpeciesData { hp:190, atk:33, def:58, spa:33, spd:58, spe:33, type1:Type::Psychic, type2:Type::Psychic, weight:285 },
+    SpeciesData { hp:190, atk:33, def:58, spa:33, spd:58, spe:33, type1:Type::Psychic, type2:Type::Psychic, weight:285, nfe:false },
     // [203] Girafarig
-    SpeciesData { hp:70, atk:80, def:65, spa:90, spd:65, spe:85, type1:Type::Normal, type2:Type::Psychic, weight:415 },
+    SpeciesData { hp:70, atk:80, def:65, spa:90, spd:65, spe:85, type1:Type::Normal, type2:Type::Psychic, weight:415, nfe:true },
     // [204] Pineco
-    SpeciesData { hp:50, atk:65, def:90, spa:35, spd:35, spe:15, type1:Type::Bug, type2:Type::Bug, weight:72 },
+    SpeciesData { hp:50, atk:65, def:90, spa:35, spd:35, spe:15, type1:Type::Bug, type2:Type::Bug, weight:72, nfe:true },
     // [205] Forretress
-    SpeciesData { hp:75, atk:90, def:140, spa:60, spd:60, spe:40, type1:Type::Bug, type2:Type::Steel, weight:1258 },
+    SpeciesData { hp:75, atk:90, def:140, spa:60, spd:60, spe:40, type1:Type::Bug, type2:Type::Steel, weight:1258, nfe:false },
     // [206] Dunsparce
-    SpeciesData { hp:100, atk:70, def:70, spa:65, spd:65, spe:45, type1:Type::Normal, type2:Type::Normal, weight:140 },
+    SpeciesData { hp:100, atk:70, def:70, spa:65, spd:65, spe:45, type1:Type::Normal, type2:Type::Normal, weight:140, nfe:true },
     // [207] Gligar
-    SpeciesData { hp:65, atk:75, def:105, spa:35, spd:65, spe:85, type1:Type::Ground, type2:Type::Flying, weight:648 },
+    SpeciesData { hp:65, atk:75, def:105, spa:35, spd:65, spe:85, type1:Type::Ground, type2:Type::Flying, weight:648, nfe:true },
     // [208] Steelix
-    SpeciesData { hp:75, atk:85, def:200, spa:55, spd:65, spe:30, type1:Type::Steel, type2:Type::Ground, weight:4000 },
+    SpeciesData { hp:75, atk:85, def:200, spa:55, spd:65, spe:30, type1:Type::Steel, type2:Type::Ground, weight:4000, nfe:false },
     // [209] Snubbull
-    SpeciesData { hp:60, atk:80, def:50, spa:40, spd:40, spe:30, type1:Type::Fairy, type2:Type::Fairy, weight:78 },
+    SpeciesData { hp:60, atk:80, def:50, spa:40, spd:40, spe:30, type1:Type::Fairy, type2:Type::Fairy, weight:78, nfe:true },
     // [210] Granbull
-    SpeciesData { hp:90, atk:120, def:75, spa:60, spd:60, spe:45, type1:Type::Fairy, type2:Type::Fairy, weight:487 },
+    SpeciesData { hp:90, atk:120, def:75, spa:60, spd:60, spe:45, type1:Type::Fairy, type2:Type::Fairy, weight:487, nfe:false },
     // [211] Qwilfish
-    SpeciesData { hp:65, atk:95, def:85, spa:55, spd:55, spe:85, type1:Type::Water, type2:Type::Poison, weight:39 },
+    SpeciesData { hp:65, atk:95, def:85, spa:55, spd:55, spe:85, type1:Type::Water, type2:Type::Poison, weight:39, nfe:false },
     // [212] Scizor
-    SpeciesData { hp:70, atk:130, def:100, spa:55, spd:80, spe:65, type1:Type::Bug, type2:Type::Steel, weight:1180 },
+    SpeciesData { hp:70, atk:130, def:100, spa:55, spd:80, spe:65, type1:Type::Bug, type2:Type::Steel, weight:1180, nfe:false },
     // [213] Shuckle
-    SpeciesData { hp:20, atk:10, def:230, spa:10, spd:230, spe:5, type1:Type::Bug, type2:Type::Rock, weight:205 },
+    SpeciesData { hp:20, atk:10, def:230, spa:10, spd:230, spe:5, type1:Type::Bug, type2:Type::Rock, weight:205, nfe:false },
     // [214] Heracross
-    SpeciesData { hp:80, atk:125, def:75, spa:40, spd:95, spe:85, type1:Type::Bug, type2:Type::Fighting, weight:540 },
+    SpeciesData { hp:80, atk:125, def:75, spa:40, spd:95, spe:85, type1:Type::Bug, type2:Type::Fighting, weight:540, nfe:false },
     // [215] Sneasel
-    SpeciesData { hp:55, atk:95, def:55, spa:35, spd:75, spe:115, type1:Type::Dark, type2:Type::Ice, weight:280 },
+    SpeciesData { hp:55, atk:95, def:55, spa:35, spd:75, spe:115, type1:Type::Dark, type2:Type::Ice, weight:280, nfe:true },
     // [216] Teddiursa
-    SpeciesData { hp:60, atk:80, def:50, spa:50, spd:50, spe:40, type1:Type::Normal, type2:Type::Normal, weight:88 },
+    SpeciesData { hp:60, atk:80, def:50, spa:50, spd:50, spe:40, type1:Type::Normal, type2:Type::Normal, weight:88, nfe:true },
     // [217] Ursaring
-    SpeciesData { hp:90, atk:130, def:75, spa:75, spd:75, spe:55, type1:Type::Normal, type2:Type::Normal, weight:1258 },
+    SpeciesData { hp:90, atk:130, def:75, spa:75, spd:75, spe:55, type1:Type::Normal, type2:Type::Normal, weight:1258, nfe:true },
     // [218] Slugma
-    SpeciesData { hp:40, atk:40, def:40, spa:70, spd:40, spe:20, type1:Type::Fire, type2:Type::Fire, weight:350 },
+    SpeciesData { hp:40, atk:40, def:40, spa:70, spd:40, spe:20, type1:Type::Fire, type2:Type::Fire, weight:350, nfe:true },
     // [219] Magcargo
-    SpeciesData { hp:60, atk:50, def:120, spa:90, spd:80, spe:30, type1:Type::Fire, type2:Type::Rock, weight:550 },
+    SpeciesData { hp:60, atk:50, def:120, spa:90, spd:80, spe:30, type1:Type::Fire, type2:Type::Rock, weight:550, nfe:false },
     // [220] Swinub
-    SpeciesData { hp:50, atk:50, def:40, spa:30, spd:30, spe:50, type1:Type::Ice, type2:Type::Ground, weight:65 },
+    SpeciesData { hp:50, atk:50, def:40, spa:30, spd:30, spe:50, type1:Type::Ice, type2:Type::Ground, weight:65, nfe:true },
     // [221] Piloswine
-    SpeciesData { hp:100, atk:100, def:80, spa:60, spd:60, spe:50, type1:Type::Ice, type2:Type::Ground, weight:558 },
+    SpeciesData { hp:100, atk:100, def:80, spa:60, spd:60, spe:50, type1:Type::Ice, type2:Type::Ground, weight:558, nfe:true },
     // [222] Corsola
-    SpeciesData { hp:65, atk:55, def:95, spa:65, spd:95, spe:35, type1:Type::Water, type2:Type::Rock, weight:50 },
+    SpeciesData { hp:65, atk:55, def:95, spa:65, spd:95, spe:35, type1:Type::Water, type2:Type::Rock, weight:50, nfe:false },
     // [223] Remoraid
-    SpeciesData { hp:35, atk:65, def:35, spa:65, spd:35, spe:65, type1:Type::Water, type2:Type::Water, weight:120 },
+    SpeciesData { hp:35, atk:65, def:35, spa:65, spd:35, spe:65, type1:Type::Water, type2:Type::Water, weight:120, nfe:true },
     // [224] Octillery
-    SpeciesData { hp:75, atk:105, def:75, spa:105, spd:75, spe:45, type1:Type::Water, type2:Type::Water, weight:285 },
+    SpeciesData { hp:75, atk:105, def:75, spa:105, spd:75, spe:45, type1:Type::Water, type2:Type::Water, weight:285, nfe:false },
     // [225] Delibird
-    SpeciesData { hp:45, atk:55, def:45, spa:65, spd:45, spe:75, type1:Type::Ice, type2:Type::Flying, weight:160 },
+    SpeciesData { hp:45, atk:55, def:45, spa:65, spd:45, spe:75, type1:Type::Ice, type2:Type::Flying, weight:160, nfe:false },
     // [226] Mantine
-    SpeciesData { hp:85, atk:40, def:70, spa:80, spd:140, spe:70, type1:Type::Water, type2:Type::Flying, weight:2200 },
+    SpeciesData { hp:85, atk:40, def:70, spa:80, spd:140, spe:70, type1:Type::Water, type2:Type::Flying, weight:2200, nfe:false },
     // [227] Skarmory
-    SpeciesData { hp:65, atk:80, def:140, spa:40, spd:70, spe:70, type1:Type::Steel, type2:Type::Flying, weight:505 },
+    SpeciesData { hp:65, atk:80, def:140, spa:40, spd:70, spe:70, type1:Type::Steel, type2:Type::Flying, weight:505, nfe:false },
     // [228] Houndour
-    SpeciesData { hp:45, atk:60, def:30, spa:80, spd:50, spe:65, type1:Type::Dark, type2:Type::Fire, weight:108 },
+    SpeciesData { hp:45, atk:60, def:30, spa:80, spd:50, spe:65, type1:Type::Dark, type2:Type::Fire, weight:108, nfe:true },
     // [229] Houndoom
-    SpeciesData { hp:75, atk:90, def:50, spa:110, spd:80, spe:95, type1:Type::Dark, type2:Type::Fire, weight:350 },
+    SpeciesData { hp:75, atk:90, def:50, spa:110, spd:80, spe:95, type1:Type::Dark, type2:Type::Fire, weight:350, nfe:false },
     // [230] Kingdra
-    SpeciesData { hp:75, atk:95, def:95, spa:95, spd:95, spe:85, type1:Type::Water, type2:Type::Dragon, weight:1520 },
+    SpeciesData { hp:75, atk:95, def:95, spa:95, spd:95, spe:85, type1:Type::Water, type2:Type::Dragon, weight:1520, nfe:false },
     // [231] Phanpy
-    SpeciesData { hp:90, atk:60, def:60, spa:40, spd:40, spe:40, type1:Type::Ground, type2:Type::Ground, weight:335 },
+    SpeciesData { hp:90, atk:60, def:60, spa:40, spd:40, spe:40, type1:Type::Ground, type2:Type::Ground, weight:335, nfe:true },
     // [232] Donphan
-    SpeciesData { hp:90, atk:120, def:120, spa:60, spd:60, spe:50, type1:Type::Ground, type2:Type::Ground, weight:1200 },
+    SpeciesData { hp:90, atk:120, def:120, spa:60, spd:60, spe:50, type1:Type::Ground, type2:Type::Ground, weight:1200, nfe:false },
     // [233] Porygon2
-    SpeciesData { hp:85, atk:80, def:90, spa:105, spd:95, spe:60, type1:Type::Normal, type2:Type::Normal, weight:325 },
+    SpeciesData { hp:85, atk:80, def:90, spa:105, spd:95, spe:60, type1:Type::Normal, type2:Type::Normal, weight:325, nfe:true },
     // [234] Stantler
-    SpeciesData { hp:73, atk:95, def:62, spa:85, spd:65, spe:85, type1:Type::Normal, type2:Type::Normal, weight:712 },
+    SpeciesData { hp:73, atk:95, def:62, spa:85, spd:65, spe:85, type1:Type::Normal, type2:Type::Normal, weight:712, nfe:true },
     // [235] Smeargle
-    SpeciesData { hp:55, atk:20, def:35, spa:20, spd:45, spe:75, type1:Type::Normal, type2:Type::Normal, weight:580 },
+    SpeciesData { hp:55, atk:20, def:35, spa:20, spd:45, spe:75, type1:Type::Normal, type2:Type::Normal, weight:580, nfe:false },
     // [236] Tyrogue
-    SpeciesData { hp:35, atk:35, def:35, spa:35, spd:35, spe:35, type1:Type::Fighting, type2:Type::Fighting, weight:210 },
+    SpeciesData { hp:35, atk:35, def:35, spa:35, spd:35, spe:35, type1:Type::Fighting, type2:Type::Fighting, weight:210, nfe:true },
     // [237] Hitmontop
-    SpeciesData { hp:50, atk:95, def:95, spa:35, spd:110, spe:70, type1:Type::Fighting, type2:Type::Fighting, weight:480 },
+    SpeciesData { hp:50, atk:95, def:95, spa:35, spd:110, spe:70, type1:Type::Fighting, type2:Type::Fighting, weight:480, nfe:false },
     // [238] Smoochum
-    SpeciesData { hp:45, atk:30, def:15, spa:85, spd:65, spe:65, type1:Type::Ice, type2:Type::Psychic, weight:60 },
+    SpeciesData { hp:45, atk:30, def:15, spa:85, spd:65, spe:65, type1:Type::Ice, type2:Type::Psychic, weight:60, nfe:true },
     // [239] Elekid
-    SpeciesData { hp:45, atk:63, def:37, spa:65, spd:55, spe:95, type1:Type::Electric, type2:Type::Electric, weight:235 },
+    SpeciesData { hp:45, atk:63, def:37, spa:65, spd:55, spe:95, type1:Type::Electric, type2:Type::Electric, weight:235, nfe:true },
     // [240] Magby
-    SpeciesData { hp:45, atk:75, def:37, spa:70, spd:55, spe:83, type1:Type::Fire, type2:Type::Fire, weight:214 },
+    SpeciesData { hp:45, atk:75, def:37, spa:70, spd:55, spe:83, type1:Type::Fire, type2:Type::Fire, weight:214, nfe:true },
     // [241] Miltank
-    SpeciesData { hp:95, atk:80, def:105, spa:40, spd:70, spe:100, type1:Type::Normal, type2:Type::Normal, weight:755 },
+    SpeciesData { hp:95, atk:80, def:105, spa:40, spd:70, spe:100, type1:Type::Normal, type2:Type::Normal, weight:755, nfe:false },
     // [242] Blissey
-    SpeciesData { hp:255, atk:10, def:10, spa:75, spd:135, spe:55, type1:Type::Normal, type2:Type::Normal, weight:468 },
+    SpeciesData { hp:255, atk:10, def:10, spa:75, spd:135, spe:55, type1:Type::Normal, type2:Type::Normal, weight:468, nfe:false },
     // [243] Raikou
-    SpeciesData { hp:90, atk:85, def:75, spa:115, spd:100, spe:115, type1:Type::Electric, type2:Type::Electric, weight:1780 },
+    SpeciesData { hp:90, atk:85, def:75, spa:115, spd:100, spe:115, type1:Type::Electric, type2:Type::Electric, weight:1780, nfe:false },
     // [244] Entei
-    SpeciesData { hp:115, atk:115, def:85, spa:90, spd:75, spe:100, type1:Type::Fire, type2:Type::Fire, weight:1980 },
+    SpeciesData { hp:115, atk:115, def:85, spa:90, spd:75, spe:100, type1:Type::Fire, type2:Type::Fire, weight:1980, nfe:false },
     // [245] Suicune
-    SpeciesData { hp:100, atk:75, def:115, spa:90, spd:115, spe:85, type1:Type::Water, type2:Type::Water, weight:1870 },
+    SpeciesData { hp:100, atk:75, def:115, spa:90, spd:115, spe:85, type1:Type::Water, type2:Type::Water, weight:1870, nfe:false },
     // [246] Larvitar
-    SpeciesData { hp:50, atk:64, def:50, spa:45, spd:50, spe:41, type1:Type::Rock, type2:Type::Ground, weight:720 },
+    SpeciesData { hp:50, atk:64, def:50, spa:45, spd:50, spe:41, type1:Type::Rock, type2:Type::Ground, weight:720, nfe:true },
     // [247] Pupitar
-    SpeciesData { hp:70, atk:84, def:70, spa:65, spd:70, spe:51, type1:Type::Rock, type2:Type::Ground, weight:1520 },
+    SpeciesData { hp:70, atk:84, def:70, spa:65, spd:70, spe:51, type1:Type::Rock, type2:Type::Ground, weight:1520, nfe:true },
     // [248] Tyranitar
-    SpeciesData { hp:100, atk:134, def:110, spa:95, spd:100, spe:61, type1:Type::Rock, type2:Type::Dark, weight:2020 },
+    SpeciesData { hp:100, atk:134, def:110, spa:95, spd:100, spe:61, type1:Type::Rock, type2:Type::Dark, weight:2020, nfe:false },
     // [249] Lugia
-    SpeciesData { hp:106, atk:90, def:130, spa:90, spd:154, spe:110, type1:Type::Psychic, type2:Type::Flying, weight:2160 },
+    SpeciesData { hp:106, atk:90, def:130, spa:90, spd:154, spe:110, type1:Type::Psychic, type2:Type::Flying, weight:2160, nfe:false },
     // [250] Ho-Oh
-    SpeciesData { hp:106, atk:130, def:90, spa:110, spd:154, spe:90, type1:Type::Fire, type2:Type::Flying, weight:1990 },
+    SpeciesData { hp:106, atk:130, def:90, spa:110, spd:154, spe:90, type1:Type::Fire, type2:Type::Flying, weight:1990, nfe:false },
     // [251] Celebi
-    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Psychic, type2:Type::Grass, weight:50 },
+    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Psychic, type2:Type::Grass, weight:50, nfe:false },
     // [252] Treecko
-    SpeciesData { hp:40, atk:45, def:35, spa:65, spd:55, spe:70, type1:Type::Grass, type2:Type::Grass, weight:50 },
+    SpeciesData { hp:40, atk:45, def:35, spa:65, spd:55, spe:70, type1:Type::Grass, type2:Type::Grass, weight:50, nfe:true },
     // [253] Grovyle
-    SpeciesData { hp:50, atk:65, def:45, spa:85, spd:65, spe:95, type1:Type::Grass, type2:Type::Grass, weight:216 },
+    SpeciesData { hp:50, atk:65, def:45, spa:85, spd:65, spe:95, type1:Type::Grass, type2:Type::Grass, weight:216, nfe:true },
     // [254] Sceptile
-    SpeciesData { hp:70, atk:85, def:65, spa:105, spd:85, spe:120, type1:Type::Grass, type2:Type::Grass, weight:522 },
+    SpeciesData { hp:70, atk:85, def:65, spa:105, spd:85, spe:120, type1:Type::Grass, type2:Type::Grass, weight:522, nfe:false },
     // [255] Torchic
-    SpeciesData { hp:45, atk:60, def:40, spa:70, spd:50, spe:45, type1:Type::Fire, type2:Type::Fire, weight:25 },
+    SpeciesData { hp:45, atk:60, def:40, spa:70, spd:50, spe:45, type1:Type::Fire, type2:Type::Fire, weight:25, nfe:true },
     // [256] Combusken
-    SpeciesData { hp:60, atk:85, def:60, spa:85, spd:60, spe:55, type1:Type::Fire, type2:Type::Fighting, weight:195 },
+    SpeciesData { hp:60, atk:85, def:60, spa:85, spd:60, spe:55, type1:Type::Fire, type2:Type::Fighting, weight:195, nfe:true },
     // [257] Blaziken
-    SpeciesData { hp:80, atk:120, def:70, spa:110, spd:70, spe:80, type1:Type::Fire, type2:Type::Fighting, weight:520 },
+    SpeciesData { hp:80, atk:120, def:70, spa:110, spd:70, spe:80, type1:Type::Fire, type2:Type::Fighting, weight:520, nfe:false },
     // [258] Mudkip
-    SpeciesData { hp:50, atk:70, def:50, spa:50, spd:50, spe:40, type1:Type::Water, type2:Type::Water, weight:76 },
+    SpeciesData { hp:50, atk:70, def:50, spa:50, spd:50, spe:40, type1:Type::Water, type2:Type::Water, weight:76, nfe:true },
     // [259] Marshtomp
-    SpeciesData { hp:70, atk:85, def:70, spa:60, spd:70, spe:50, type1:Type::Water, type2:Type::Ground, weight:280 },
+    SpeciesData { hp:70, atk:85, def:70, spa:60, spd:70, spe:50, type1:Type::Water, type2:Type::Ground, weight:280, nfe:true },
     // [260] Swampert
-    SpeciesData { hp:100, atk:110, def:90, spa:85, spd:90, spe:60, type1:Type::Water, type2:Type::Ground, weight:819 },
+    SpeciesData { hp:100, atk:110, def:90, spa:85, spd:90, spe:60, type1:Type::Water, type2:Type::Ground, weight:819, nfe:false },
     // [261] Poochyena
-    SpeciesData { hp:35, atk:55, def:35, spa:30, spd:30, spe:35, type1:Type::Dark, type2:Type::Dark, weight:136 },
+    SpeciesData { hp:35, atk:55, def:35, spa:30, spd:30, spe:35, type1:Type::Dark, type2:Type::Dark, weight:136, nfe:true },
     // [262] Mightyena
-    SpeciesData { hp:70, atk:90, def:70, spa:60, spd:60, spe:70, type1:Type::Dark, type2:Type::Dark, weight:370 },
+    SpeciesData { hp:70, atk:90, def:70, spa:60, spd:60, spe:70, type1:Type::Dark, type2:Type::Dark, weight:370, nfe:false },
     // [263] Zigzagoon
-    SpeciesData { hp:38, atk:30, def:41, spa:30, spd:41, spe:60, type1:Type::Normal, type2:Type::Normal, weight:175 },
+    SpeciesData { hp:38, atk:30, def:41, spa:30, spd:41, spe:60, type1:Type::Normal, type2:Type::Normal, weight:175, nfe:true },
     // [264] Linoone
-    SpeciesData { hp:78, atk:70, def:61, spa:50, spd:61, spe:100, type1:Type::Normal, type2:Type::Normal, weight:325 },
+    SpeciesData { hp:78, atk:70, def:61, spa:50, spd:61, spe:100, type1:Type::Normal, type2:Type::Normal, weight:325, nfe:false },
     // [265] Wurmple
-    SpeciesData { hp:45, atk:45, def:35, spa:20, spd:30, spe:20, type1:Type::Bug, type2:Type::Bug, weight:36 },
+    SpeciesData { hp:45, atk:45, def:35, spa:20, spd:30, spe:20, type1:Type::Bug, type2:Type::Bug, weight:36, nfe:true },
     // [266] Silcoon
-    SpeciesData { hp:50, atk:35, def:55, spa:25, spd:25, spe:15, type1:Type::Bug, type2:Type::Bug, weight:100 },
+    SpeciesData { hp:50, atk:35, def:55, spa:25, spd:25, spe:15, type1:Type::Bug, type2:Type::Bug, weight:100, nfe:true },
     // [267] Beautifly
-    SpeciesData { hp:60, atk:70, def:50, spa:100, spd:50, spe:65, type1:Type::Bug, type2:Type::Flying, weight:284 },
+    SpeciesData { hp:60, atk:70, def:50, spa:100, spd:50, spe:65, type1:Type::Bug, type2:Type::Flying, weight:284, nfe:false },
     // [268] Cascoon
-    SpeciesData { hp:50, atk:35, def:55, spa:25, spd:25, spe:15, type1:Type::Bug, type2:Type::Bug, weight:115 },
+    SpeciesData { hp:50, atk:35, def:55, spa:25, spd:25, spe:15, type1:Type::Bug, type2:Type::Bug, weight:115, nfe:true },
     // [269] Dustox
-    SpeciesData { hp:60, atk:50, def:70, spa:50, spd:90, spe:65, type1:Type::Bug, type2:Type::Poison, weight:316 },
+    SpeciesData { hp:60, atk:50, def:70, spa:50, spd:90, spe:65, type1:Type::Bug, type2:Type::Poison, weight:316, nfe:false },
     // [270] Lotad
-    SpeciesData { hp:40, atk:30, def:30, spa:40, spd:50, spe:30, type1:Type::Water, type2:Type::Grass, weight:26 },
+    SpeciesData { hp:40, atk:30, def:30, spa:40, spd:50, spe:30, type1:Type::Water, type2:Type::Grass, weight:26, nfe:true },
     // [271] Lombre
-    SpeciesData { hp:60, atk:50, def:50, spa:60, spd:70, spe:50, type1:Type::Water, type2:Type::Grass, weight:325 },
+    SpeciesData { hp:60, atk:50, def:50, spa:60, spd:70, spe:50, type1:Type::Water, type2:Type::Grass, weight:325, nfe:true },
     // [272] Ludicolo
-    SpeciesData { hp:80, atk:70, def:70, spa:90, spd:100, spe:70, type1:Type::Water, type2:Type::Grass, weight:550 },
+    SpeciesData { hp:80, atk:70, def:70, spa:90, spd:100, spe:70, type1:Type::Water, type2:Type::Grass, weight:550, nfe:false },
     // [273] Seedot
-    SpeciesData { hp:40, atk:40, def:50, spa:30, spd:30, spe:30, type1:Type::Grass, type2:Type::Grass, weight:40 },
+    SpeciesData { hp:40, atk:40, def:50, spa:30, spd:30, spe:30, type1:Type::Grass, type2:Type::Grass, weight:40, nfe:true },
     // [274] Nuzleaf
-    SpeciesData { hp:70, atk:70, def:40, spa:60, spd:40, spe:60, type1:Type::Grass, type2:Type::Dark, weight:280 },
+    SpeciesData { hp:70, atk:70, def:40, spa:60, spd:40, spe:60, type1:Type::Grass, type2:Type::Dark, weight:280, nfe:true },
     // [275] Shiftry
-    SpeciesData { hp:90, atk:100, def:60, spa:90, spd:60, spe:80, type1:Type::Grass, type2:Type::Dark, weight:596 },
+    SpeciesData { hp:90, atk:100, def:60, spa:90, spd:60, spe:80, type1:Type::Grass, type2:Type::Dark, weight:596, nfe:false },
     // [276] Taillow
-    SpeciesData { hp:40, atk:55, def:30, spa:30, spd:30, spe:85, type1:Type::Normal, type2:Type::Flying, weight:23 },
+    SpeciesData { hp:40, atk:55, def:30, spa:30, spd:30, spe:85, type1:Type::Normal, type2:Type::Flying, weight:23, nfe:true },
     // [277] Swellow
-    SpeciesData { hp:60, atk:85, def:60, spa:75, spd:50, spe:125, type1:Type::Normal, type2:Type::Flying, weight:198 },
+    SpeciesData { hp:60, atk:85, def:60, spa:75, spd:50, spe:125, type1:Type::Normal, type2:Type::Flying, weight:198, nfe:false },
     // [278] Wingull
-    SpeciesData { hp:40, atk:30, def:30, spa:55, spd:30, spe:85, type1:Type::Water, type2:Type::Flying, weight:95 },
+    SpeciesData { hp:40, atk:30, def:30, spa:55, spd:30, spe:85, type1:Type::Water, type2:Type::Flying, weight:95, nfe:true },
     // [279] Pelipper
-    SpeciesData { hp:60, atk:50, def:100, spa:95, spd:70, spe:65, type1:Type::Water, type2:Type::Flying, weight:280 },
+    SpeciesData { hp:60, atk:50, def:100, spa:95, spd:70, spe:65, type1:Type::Water, type2:Type::Flying, weight:280, nfe:false },
     // [280] Ralts
-    SpeciesData { hp:28, atk:25, def:25, spa:45, spd:35, spe:40, type1:Type::Psychic, type2:Type::Fairy, weight:66 },
+    SpeciesData { hp:28, atk:25, def:25, spa:45, spd:35, spe:40, type1:Type::Psychic, type2:Type::Fairy, weight:66, nfe:true },
     // [281] Kirlia
-    SpeciesData { hp:38, atk:35, def:35, spa:65, spd:55, spe:50, type1:Type::Psychic, type2:Type::Fairy, weight:202 },
+    SpeciesData { hp:38, atk:35, def:35, spa:65, spd:55, spe:50, type1:Type::Psychic, type2:Type::Fairy, weight:202, nfe:true },
     // [282] Gardevoir
-    SpeciesData { hp:68, atk:65, def:65, spa:125, spd:115, spe:80, type1:Type::Psychic, type2:Type::Fairy, weight:484 },
+    SpeciesData { hp:68, atk:65, def:65, spa:125, spd:115, spe:80, type1:Type::Psychic, type2:Type::Fairy, weight:484, nfe:false },
     // [283] Surskit
-    SpeciesData { hp:40, atk:30, def:32, spa:50, spd:52, spe:65, type1:Type::Bug, type2:Type::Water, weight:17 },
+    SpeciesData { hp:40, atk:30, def:32, spa:50, spd:52, spe:65, type1:Type::Bug, type2:Type::Water, weight:17, nfe:true },
     // [284] Masquerain
-    SpeciesData { hp:70, atk:60, def:62, spa:100, spd:82, spe:80, type1:Type::Bug, type2:Type::Flying, weight:36 },
+    SpeciesData { hp:70, atk:60, def:62, spa:100, spd:82, spe:80, type1:Type::Bug, type2:Type::Flying, weight:36, nfe:false },
     // [285] Shroomish
-    SpeciesData { hp:60, atk:40, def:60, spa:40, spd:60, spe:35, type1:Type::Grass, type2:Type::Grass, weight:45 },
+    SpeciesData { hp:60, atk:40, def:60, spa:40, spd:60, spe:35, type1:Type::Grass, type2:Type::Grass, weight:45, nfe:true },
     // [286] Breloom
-    SpeciesData { hp:60, atk:130, def:80, spa:60, spd:60, spe:70, type1:Type::Grass, type2:Type::Fighting, weight:392 },
+    SpeciesData { hp:60, atk:130, def:80, spa:60, spd:60, spe:70, type1:Type::Grass, type2:Type::Fighting, weight:392, nfe:false },
     // [287] Slakoth
-    SpeciesData { hp:60, atk:60, def:60, spa:35, spd:35, spe:30, type1:Type::Normal, type2:Type::Normal, weight:240 },
+    SpeciesData { hp:60, atk:60, def:60, spa:35, spd:35, spe:30, type1:Type::Normal, type2:Type::Normal, weight:240, nfe:true },
     // [288] Vigoroth
-    SpeciesData { hp:80, atk:80, def:80, spa:55, spd:55, spe:90, type1:Type::Normal, type2:Type::Normal, weight:465 },
+    SpeciesData { hp:80, atk:80, def:80, spa:55, spd:55, spe:90, type1:Type::Normal, type2:Type::Normal, weight:465, nfe:true },
     // [289] Slaking
-    SpeciesData { hp:150, atk:160, def:100, spa:95, spd:65, spe:100, type1:Type::Normal, type2:Type::Normal, weight:1305 },
+    SpeciesData { hp:150, atk:160, def:100, spa:95, spd:65, spe:100, type1:Type::Normal, type2:Type::Normal, weight:1305, nfe:false },
     // [290] Nincada
-    SpeciesData { hp:31, atk:45, def:90, spa:30, spd:30, spe:40, type1:Type::Bug, type2:Type::Ground, weight:55 },
+    SpeciesData { hp:31, atk:45, def:90, spa:30, spd:30, spe:40, type1:Type::Bug, type2:Type::Ground, weight:55, nfe:true },
     // [291] Ninjask
-    SpeciesData { hp:61, atk:90, def:45, spa:50, spd:50, spe:160, type1:Type::Bug, type2:Type::Flying, weight:120 },
+    SpeciesData { hp:61, atk:90, def:45, spa:50, spd:50, spe:160, type1:Type::Bug, type2:Type::Flying, weight:120, nfe:false },
     // [292] Shedinja
-    SpeciesData { hp:1, atk:90, def:45, spa:30, spd:30, spe:40, type1:Type::Bug, type2:Type::Ghost, weight:12 },
+    SpeciesData { hp:1, atk:90, def:45, spa:30, spd:30, spe:40, type1:Type::Bug, type2:Type::Ghost, weight:12, nfe:false },
     // [293] Whismur
-    SpeciesData { hp:64, atk:51, def:23, spa:51, spd:23, spe:28, type1:Type::Normal, type2:Type::Normal, weight:163 },
+    SpeciesData { hp:64, atk:51, def:23, spa:51, spd:23, spe:28, type1:Type::Normal, type2:Type::Normal, weight:163, nfe:true },
     // [294] Loudred
-    SpeciesData { hp:84, atk:71, def:43, spa:71, spd:43, spe:48, type1:Type::Normal, type2:Type::Normal, weight:405 },
+    SpeciesData { hp:84, atk:71, def:43, spa:71, spd:43, spe:48, type1:Type::Normal, type2:Type::Normal, weight:405, nfe:true },
     // [295] Exploud
-    SpeciesData { hp:104, atk:91, def:63, spa:91, spd:73, spe:68, type1:Type::Normal, type2:Type::Normal, weight:840 },
+    SpeciesData { hp:104, atk:91, def:63, spa:91, spd:73, spe:68, type1:Type::Normal, type2:Type::Normal, weight:840, nfe:false },
     // [296] Makuhita
-    SpeciesData { hp:72, atk:60, def:30, spa:20, spd:30, spe:25, type1:Type::Fighting, type2:Type::Fighting, weight:864 },
+    SpeciesData { hp:72, atk:60, def:30, spa:20, spd:30, spe:25, type1:Type::Fighting, type2:Type::Fighting, weight:864, nfe:true },
     // [297] Hariyama
-    SpeciesData { hp:144, atk:120, def:60, spa:40, spd:60, spe:50, type1:Type::Fighting, type2:Type::Fighting, weight:2538 },
+    SpeciesData { hp:144, atk:120, def:60, spa:40, spd:60, spe:50, type1:Type::Fighting, type2:Type::Fighting, weight:2538, nfe:false },
     // [298] Azurill
-    SpeciesData { hp:50, atk:20, def:40, spa:20, spd:40, spe:20, type1:Type::Normal, type2:Type::Fairy, weight:20 },
+    SpeciesData { hp:50, atk:20, def:40, spa:20, spd:40, spe:20, type1:Type::Normal, type2:Type::Fairy, weight:20, nfe:true },
     // [299] Nosepass
-    SpeciesData { hp:30, atk:45, def:135, spa:45, spd:90, spe:30, type1:Type::Rock, type2:Type::Rock, weight:970 },
+    SpeciesData { hp:30, atk:45, def:135, spa:45, spd:90, spe:30, type1:Type::Rock, type2:Type::Rock, weight:970, nfe:true },
     // [300] Skitty
-    SpeciesData { hp:50, atk:45, def:45, spa:35, spd:35, spe:50, type1:Type::Normal, type2:Type::Normal, weight:110 },
+    SpeciesData { hp:50, atk:45, def:45, spa:35, spd:35, spe:50, type1:Type::Normal, type2:Type::Normal, weight:110, nfe:true },
     // [301] Delcatty
-    SpeciesData { hp:70, atk:65, def:65, spa:55, spd:55, spe:90, type1:Type::Normal, type2:Type::Normal, weight:326 },
+    SpeciesData { hp:70, atk:65, def:65, spa:55, spd:55, spe:90, type1:Type::Normal, type2:Type::Normal, weight:326, nfe:false },
     // [302] Sableye
-    SpeciesData { hp:50, atk:75, def:75, spa:65, spd:65, spe:50, type1:Type::Dark, type2:Type::Ghost, weight:110 },
+    SpeciesData { hp:50, atk:75, def:75, spa:65, spd:65, spe:50, type1:Type::Dark, type2:Type::Ghost, weight:110, nfe:false },
     // [303] Mawile
-    SpeciesData { hp:50, atk:85, def:85, spa:55, spd:55, spe:50, type1:Type::Steel, type2:Type::Fairy, weight:115 },
+    SpeciesData { hp:50, atk:85, def:85, spa:55, spd:55, spe:50, type1:Type::Steel, type2:Type::Fairy, weight:115, nfe:false },
     // [304] Aron
-    SpeciesData { hp:50, atk:70, def:100, spa:40, spd:40, spe:30, type1:Type::Steel, type2:Type::Rock, weight:600 },
+    SpeciesData { hp:50, atk:70, def:100, spa:40, spd:40, spe:30, type1:Type::Steel, type2:Type::Rock, weight:600, nfe:true },
     // [305] Lairon
-    SpeciesData { hp:60, atk:90, def:140, spa:50, spd:50, spe:40, type1:Type::Steel, type2:Type::Rock, weight:1200 },
+    SpeciesData { hp:60, atk:90, def:140, spa:50, spd:50, spe:40, type1:Type::Steel, type2:Type::Rock, weight:1200, nfe:true },
     // [306] Aggron
-    SpeciesData { hp:70, atk:110, def:180, spa:60, spd:60, spe:50, type1:Type::Steel, type2:Type::Rock, weight:3600 },
+    SpeciesData { hp:70, atk:110, def:180, spa:60, spd:60, spe:50, type1:Type::Steel, type2:Type::Rock, weight:3600, nfe:false },
     // [307] Meditite
-    SpeciesData { hp:30, atk:40, def:55, spa:40, spd:55, spe:60, type1:Type::Fighting, type2:Type::Psychic, weight:112 },
+    SpeciesData { hp:30, atk:40, def:55, spa:40, spd:55, spe:60, type1:Type::Fighting, type2:Type::Psychic, weight:112, nfe:true },
     // [308] Medicham
-    SpeciesData { hp:60, atk:60, def:75, spa:60, spd:75, spe:80, type1:Type::Fighting, type2:Type::Psychic, weight:315 },
+    SpeciesData { hp:60, atk:60, def:75, spa:60, spd:75, spe:80, type1:Type::Fighting, type2:Type::Psychic, weight:315, nfe:false },
     // [309] Electrike
-    SpeciesData { hp:40, atk:45, def:40, spa:65, spd:40, spe:65, type1:Type::Electric, type2:Type::Electric, weight:152 },
+    SpeciesData { hp:40, atk:45, def:40, spa:65, spd:40, spe:65, type1:Type::Electric, type2:Type::Electric, weight:152, nfe:true },
     // [310] Manectric
-    SpeciesData { hp:70, atk:75, def:60, spa:105, spd:60, spe:105, type1:Type::Electric, type2:Type::Electric, weight:402 },
+    SpeciesData { hp:70, atk:75, def:60, spa:105, spd:60, spe:105, type1:Type::Electric, type2:Type::Electric, weight:402, nfe:false },
     // [311] Plusle
-    SpeciesData { hp:60, atk:50, def:40, spa:85, spd:75, spe:95, type1:Type::Electric, type2:Type::Electric, weight:42 },
+    SpeciesData { hp:60, atk:50, def:40, spa:85, spd:75, spe:95, type1:Type::Electric, type2:Type::Electric, weight:42, nfe:false },
     // [312] Minun
-    SpeciesData { hp:60, atk:40, def:50, spa:75, spd:85, spe:95, type1:Type::Electric, type2:Type::Electric, weight:42 },
+    SpeciesData { hp:60, atk:40, def:50, spa:75, spd:85, spe:95, type1:Type::Electric, type2:Type::Electric, weight:42, nfe:false },
     // [313] Volbeat
-    SpeciesData { hp:65, atk:73, def:75, spa:47, spd:85, spe:85, type1:Type::Bug, type2:Type::Bug, weight:177 },
+    SpeciesData { hp:65, atk:73, def:75, spa:47, spd:85, spe:85, type1:Type::Bug, type2:Type::Bug, weight:177, nfe:false },
     // [314] Illumise
-    SpeciesData { hp:65, atk:47, def:75, spa:73, spd:85, spe:85, type1:Type::Bug, type2:Type::Bug, weight:177 },
+    SpeciesData { hp:65, atk:47, def:75, spa:73, spd:85, spe:85, type1:Type::Bug, type2:Type::Bug, weight:177, nfe:false },
     // [315] Roselia
-    SpeciesData { hp:50, atk:60, def:45, spa:100, spd:80, spe:65, type1:Type::Grass, type2:Type::Poison, weight:20 },
+    SpeciesData { hp:50, atk:60, def:45, spa:100, spd:80, spe:65, type1:Type::Grass, type2:Type::Poison, weight:20, nfe:true },
     // [316] Gulpin
-    SpeciesData { hp:70, atk:43, def:53, spa:43, spd:53, spe:40, type1:Type::Poison, type2:Type::Poison, weight:103 },
+    SpeciesData { hp:70, atk:43, def:53, spa:43, spd:53, spe:40, type1:Type::Poison, type2:Type::Poison, weight:103, nfe:true },
     // [317] Swalot
-    SpeciesData { hp:100, atk:73, def:83, spa:73, spd:83, spe:55, type1:Type::Poison, type2:Type::Poison, weight:800 },
+    SpeciesData { hp:100, atk:73, def:83, spa:73, spd:83, spe:55, type1:Type::Poison, type2:Type::Poison, weight:800, nfe:false },
     // [318] Carvanha
-    SpeciesData { hp:45, atk:90, def:20, spa:65, spd:20, spe:65, type1:Type::Water, type2:Type::Dark, weight:208 },
+    SpeciesData { hp:45, atk:90, def:20, spa:65, spd:20, spe:65, type1:Type::Water, type2:Type::Dark, weight:208, nfe:true },
     // [319] Sharpedo
-    SpeciesData { hp:70, atk:120, def:40, spa:95, spd:40, spe:95, type1:Type::Water, type2:Type::Dark, weight:888 },
+    SpeciesData { hp:70, atk:120, def:40, spa:95, spd:40, spe:95, type1:Type::Water, type2:Type::Dark, weight:888, nfe:false },
     // [320] Wailmer
-    SpeciesData { hp:130, atk:70, def:35, spa:70, spd:35, spe:60, type1:Type::Water, type2:Type::Water, weight:1300 },
+    SpeciesData { hp:130, atk:70, def:35, spa:70, spd:35, spe:60, type1:Type::Water, type2:Type::Water, weight:1300, nfe:true },
     // [321] Wailord
-    SpeciesData { hp:170, atk:90, def:45, spa:90, spd:45, spe:60, type1:Type::Water, type2:Type::Water, weight:3980 },
+    SpeciesData { hp:170, atk:90, def:45, spa:90, spd:45, spe:60, type1:Type::Water, type2:Type::Water, weight:3980, nfe:false },
     // [322] Numel
-    SpeciesData { hp:60, atk:60, def:40, spa:65, spd:45, spe:35, type1:Type::Fire, type2:Type::Ground, weight:240 },
+    SpeciesData { hp:60, atk:60, def:40, spa:65, spd:45, spe:35, type1:Type::Fire, type2:Type::Ground, weight:240, nfe:true },
     // [323] Camerupt
-    SpeciesData { hp:70, atk:100, def:70, spa:105, spd:75, spe:40, type1:Type::Fire, type2:Type::Ground, weight:2200 },
+    SpeciesData { hp:70, atk:100, def:70, spa:105, spd:75, spe:40, type1:Type::Fire, type2:Type::Ground, weight:2200, nfe:false },
     // [324] Torkoal
-    SpeciesData { hp:70, atk:85, def:140, spa:85, spd:70, spe:20, type1:Type::Fire, type2:Type::Fire, weight:804 },
+    SpeciesData { hp:70, atk:85, def:140, spa:85, spd:70, spe:20, type1:Type::Fire, type2:Type::Fire, weight:804, nfe:false },
     // [325] Spoink
-    SpeciesData { hp:60, atk:25, def:35, spa:70, spd:80, spe:60, type1:Type::Psychic, type2:Type::Psychic, weight:306 },
+    SpeciesData { hp:60, atk:25, def:35, spa:70, spd:80, spe:60, type1:Type::Psychic, type2:Type::Psychic, weight:306, nfe:true },
     // [326] Grumpig
-    SpeciesData { hp:80, atk:45, def:65, spa:90, spd:110, spe:80, type1:Type::Psychic, type2:Type::Psychic, weight:715 },
+    SpeciesData { hp:80, atk:45, def:65, spa:90, spd:110, spe:80, type1:Type::Psychic, type2:Type::Psychic, weight:715, nfe:false },
     // [327] Spinda
-    SpeciesData { hp:60, atk:60, def:60, spa:60, spd:60, spe:60, type1:Type::Normal, type2:Type::Normal, weight:50 },
+    SpeciesData { hp:60, atk:60, def:60, spa:60, spd:60, spe:60, type1:Type::Normal, type2:Type::Normal, weight:50, nfe:false },
     // [328] Trapinch
-    SpeciesData { hp:45, atk:100, def:45, spa:45, spd:45, spe:10, type1:Type::Ground, type2:Type::Ground, weight:150 },
+    SpeciesData { hp:45, atk:100, def:45, spa:45, spd:45, spe:10, type1:Type::Ground, type2:Type::Ground, weight:150, nfe:true },
     // [329] Vibrava
-    SpeciesData { hp:50, atk:70, def:50, spa:50, spd:50, spe:70, type1:Type::Ground, type2:Type::Dragon, weight:153 },
+    SpeciesData { hp:50, atk:70, def:50, spa:50, spd:50, spe:70, type1:Type::Ground, type2:Type::Dragon, weight:153, nfe:true },
     // [330] Flygon
-    SpeciesData { hp:80, atk:100, def:80, spa:80, spd:80, spe:100, type1:Type::Ground, type2:Type::Dragon, weight:820 },
+    SpeciesData { hp:80, atk:100, def:80, spa:80, spd:80, spe:100, type1:Type::Ground, type2:Type::Dragon, weight:820, nfe:false },
     // [331] Cacnea
-    SpeciesData { hp:50, atk:85, def:40, spa:85, spd:40, spe:35, type1:Type::Grass, type2:Type::Grass, weight:513 },
+    SpeciesData { hp:50, atk:85, def:40, spa:85, spd:40, spe:35, type1:Type::Grass, type2:Type::Grass, weight:513, nfe:true },
     // [332] Cacturne
-    SpeciesData { hp:70, atk:115, def:60, spa:115, spd:60, spe:55, type1:Type::Grass, type2:Type::Dark, weight:774 },
+    SpeciesData { hp:70, atk:115, def:60, spa:115, spd:60, spe:55, type1:Type::Grass, type2:Type::Dark, weight:774, nfe:false },
     // [333] Swablu
-    SpeciesData { hp:45, atk:40, def:60, spa:40, spd:75, spe:50, type1:Type::Normal, type2:Type::Flying, weight:12 },
+    SpeciesData { hp:45, atk:40, def:60, spa:40, spd:75, spe:50, type1:Type::Normal, type2:Type::Flying, weight:12, nfe:true },
     // [334] Altaria
-    SpeciesData { hp:75, atk:70, def:90, spa:70, spd:105, spe:80, type1:Type::Dragon, type2:Type::Flying, weight:206 },
+    SpeciesData { hp:75, atk:70, def:90, spa:70, spd:105, spe:80, type1:Type::Dragon, type2:Type::Flying, weight:206, nfe:false },
     // [335] Zangoose
-    SpeciesData { hp:73, atk:115, def:60, spa:60, spd:60, spe:90, type1:Type::Normal, type2:Type::Normal, weight:403 },
+    SpeciesData { hp:73, atk:115, def:60, spa:60, spd:60, spe:90, type1:Type::Normal, type2:Type::Normal, weight:403, nfe:false },
     // [336] Seviper
-    SpeciesData { hp:73, atk:100, def:60, spa:100, spd:60, spe:65, type1:Type::Poison, type2:Type::Poison, weight:525 },
+    SpeciesData { hp:73, atk:100, def:60, spa:100, spd:60, spe:65, type1:Type::Poison, type2:Type::Poison, weight:525, nfe:false },
     // [337] Lunatone
-    SpeciesData { hp:90, atk:55, def:65, spa:95, spd:85, spe:70, type1:Type::Rock, type2:Type::Psychic, weight:1680 },
+    SpeciesData { hp:90, atk:55, def:65, spa:95, spd:85, spe:70, type1:Type::Rock, type2:Type::Psychic, weight:1680, nfe:false },
     // [338] Solrock
-    SpeciesData { hp:90, atk:95, def:85, spa:55, spd:65, spe:70, type1:Type::Rock, type2:Type::Psychic, weight:1540 },
+    SpeciesData { hp:90, atk:95, def:85, spa:55, spd:65, spe:70, type1:Type::Rock, type2:Type::Psychic, weight:1540, nfe:false },
     // [339] Barboach
-    SpeciesData { hp:50, atk:48, def:43, spa:46, spd:41, spe:60, type1:Type::Water, type2:Type::Ground, weight:19 },
+    SpeciesData { hp:50, atk:48, def:43, spa:46, spd:41, spe:60, type1:Type::Water, type2:Type::Ground, weight:19, nfe:true },
     // [340] Whiscash
-    SpeciesData { hp:110, atk:78, def:73, spa:76, spd:71, spe:60, type1:Type::Water, type2:Type::Ground, weight:236 },
+    SpeciesData { hp:110, atk:78, def:73, spa:76, spd:71, spe:60, type1:Type::Water, type2:Type::Ground, weight:236, nfe:false },
     // [341] Corphish
-    SpeciesData { hp:43, atk:80, def:65, spa:50, spd:35, spe:35, type1:Type::Water, type2:Type::Water, weight:115 },
+    SpeciesData { hp:43, atk:80, def:65, spa:50, spd:35, spe:35, type1:Type::Water, type2:Type::Water, weight:115, nfe:true },
     // [342] Crawdaunt
-    SpeciesData { hp:63, atk:120, def:85, spa:90, spd:55, spe:55, type1:Type::Water, type2:Type::Dark, weight:328 },
+    SpeciesData { hp:63, atk:120, def:85, spa:90, spd:55, spe:55, type1:Type::Water, type2:Type::Dark, weight:328, nfe:false },
     // [343] Baltoy
-    SpeciesData { hp:40, atk:40, def:55, spa:40, spd:70, spe:55, type1:Type::Ground, type2:Type::Psychic, weight:215 },
+    SpeciesData { hp:40, atk:40, def:55, spa:40, spd:70, spe:55, type1:Type::Ground, type2:Type::Psychic, weight:215, nfe:true },
     // [344] Claydol
-    SpeciesData { hp:60, atk:70, def:105, spa:70, spd:120, spe:75, type1:Type::Ground, type2:Type::Psychic, weight:1080 },
+    SpeciesData { hp:60, atk:70, def:105, spa:70, spd:120, spe:75, type1:Type::Ground, type2:Type::Psychic, weight:1080, nfe:false },
     // [345] Lileep
-    SpeciesData { hp:66, atk:41, def:77, spa:61, spd:87, spe:23, type1:Type::Rock, type2:Type::Grass, weight:238 },
+    SpeciesData { hp:66, atk:41, def:77, spa:61, spd:87, spe:23, type1:Type::Rock, type2:Type::Grass, weight:238, nfe:true },
     // [346] Cradily
-    SpeciesData { hp:86, atk:81, def:97, spa:81, spd:107, spe:43, type1:Type::Rock, type2:Type::Grass, weight:604 },
+    SpeciesData { hp:86, atk:81, def:97, spa:81, spd:107, spe:43, type1:Type::Rock, type2:Type::Grass, weight:604, nfe:false },
     // [347] Anorith
-    SpeciesData { hp:45, atk:95, def:50, spa:40, spd:50, spe:75, type1:Type::Rock, type2:Type::Bug, weight:125 },
+    SpeciesData { hp:45, atk:95, def:50, spa:40, spd:50, spe:75, type1:Type::Rock, type2:Type::Bug, weight:125, nfe:true },
     // [348] Armaldo
-    SpeciesData { hp:75, atk:125, def:100, spa:70, spd:80, spe:45, type1:Type::Rock, type2:Type::Bug, weight:682 },
+    SpeciesData { hp:75, atk:125, def:100, spa:70, spd:80, spe:45, type1:Type::Rock, type2:Type::Bug, weight:682, nfe:false },
     // [349] Feebas
-    SpeciesData { hp:20, atk:15, def:20, spa:10, spd:55, spe:80, type1:Type::Water, type2:Type::Water, weight:74 },
+    SpeciesData { hp:20, atk:15, def:20, spa:10, spd:55, spe:80, type1:Type::Water, type2:Type::Water, weight:74, nfe:true },
     // [350] Milotic
-    SpeciesData { hp:95, atk:60, def:79, spa:100, spd:125, spe:81, type1:Type::Water, type2:Type::Water, weight:1620 },
+    SpeciesData { hp:95, atk:60, def:79, spa:100, spd:125, spe:81, type1:Type::Water, type2:Type::Water, weight:1620, nfe:false },
     // [351] Castform
-    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Normal, type2:Type::Normal, weight:8 },
+    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Normal, type2:Type::Normal, weight:8, nfe:false },
     // [352] Kecleon
-    SpeciesData { hp:60, atk:90, def:70, spa:60, spd:120, spe:40, type1:Type::Normal, type2:Type::Normal, weight:220 },
+    SpeciesData { hp:60, atk:90, def:70, spa:60, spd:120, spe:40, type1:Type::Normal, type2:Type::Normal, weight:220, nfe:false },
     // [353] Shuppet
-    SpeciesData { hp:44, atk:75, def:35, spa:63, spd:33, spe:45, type1:Type::Ghost, type2:Type::Ghost, weight:23 },
+    SpeciesData { hp:44, atk:75, def:35, spa:63, spd:33, spe:45, type1:Type::Ghost, type2:Type::Ghost, weight:23, nfe:true },
     // [354] Banette
-    SpeciesData { hp:64, atk:115, def:65, spa:83, spd:63, spe:65, type1:Type::Ghost, type2:Type::Ghost, weight:125 },
+    SpeciesData { hp:64, atk:115, def:65, spa:83, spd:63, spe:65, type1:Type::Ghost, type2:Type::Ghost, weight:125, nfe:false },
     // [355] Duskull
-    SpeciesData { hp:20, atk:40, def:90, spa:30, spd:90, spe:25, type1:Type::Ghost, type2:Type::Ghost, weight:150 },
+    SpeciesData { hp:20, atk:40, def:90, spa:30, spd:90, spe:25, type1:Type::Ghost, type2:Type::Ghost, weight:150, nfe:true },
     // [356] Dusclops
-    SpeciesData { hp:40, atk:70, def:130, spa:60, spd:130, spe:25, type1:Type::Ghost, type2:Type::Ghost, weight:306 },
+    SpeciesData { hp:40, atk:70, def:130, spa:60, spd:130, spe:25, type1:Type::Ghost, type2:Type::Ghost, weight:306, nfe:true },
     // [357] Tropius
-    SpeciesData { hp:99, atk:68, def:83, spa:72, spd:87, spe:51, type1:Type::Grass, type2:Type::Flying, weight:1000 },
+    SpeciesData { hp:99, atk:68, def:83, spa:72, spd:87, spe:51, type1:Type::Grass, type2:Type::Flying, weight:1000, nfe:false },
     // [358] Chimecho
-    SpeciesData { hp:75, atk:50, def:80, spa:95, spd:90, spe:65, type1:Type::Psychic, type2:Type::Psychic, weight:10 },
+    SpeciesData { hp:75, atk:50, def:80, spa:95, spd:90, spe:65, type1:Type::Psychic, type2:Type::Psychic, weight:10, nfe:false },
     // [359] Absol
-    SpeciesData { hp:65, atk:130, def:60, spa:75, spd:60, spe:75, type1:Type::Dark, type2:Type::Dark, weight:470 },
+    SpeciesData { hp:65, atk:130, def:60, spa:75, spd:60, spe:75, type1:Type::Dark, type2:Type::Dark, weight:470, nfe:false },
     // [360] Wynaut
-    SpeciesData { hp:95, atk:23, def:48, spa:23, spd:48, spe:23, type1:Type::Psychic, type2:Type::Psychic, weight:140 },
+    SpeciesData { hp:95, atk:23, def:48, spa:23, spd:48, spe:23, type1:Type::Psychic, type2:Type::Psychic, weight:140, nfe:true },
     // [361] Snorunt
-    SpeciesData { hp:50, atk:50, def:50, spa:50, spd:50, spe:50, type1:Type::Ice, type2:Type::Ice, weight:168 },
+    SpeciesData { hp:50, atk:50, def:50, spa:50, spd:50, spe:50, type1:Type::Ice, type2:Type::Ice, weight:168, nfe:true },
     // [362] Glalie
-    SpeciesData { hp:80, atk:80, def:80, spa:80, spd:80, spe:80, type1:Type::Ice, type2:Type::Ice, weight:2565 },
+    SpeciesData { hp:80, atk:80, def:80, spa:80, spd:80, spe:80, type1:Type::Ice, type2:Type::Ice, weight:2565, nfe:false },
     // [363] Spheal
-    SpeciesData { hp:70, atk:40, def:50, spa:55, spd:50, spe:25, type1:Type::Ice, type2:Type::Water, weight:395 },
+    SpeciesData { hp:70, atk:40, def:50, spa:55, spd:50, spe:25, type1:Type::Ice, type2:Type::Water, weight:395, nfe:true },
     // [364] Sealeo
-    SpeciesData { hp:90, atk:60, def:70, spa:75, spd:70, spe:45, type1:Type::Ice, type2:Type::Water, weight:876 },
+    SpeciesData { hp:90, atk:60, def:70, spa:75, spd:70, spe:45, type1:Type::Ice, type2:Type::Water, weight:876, nfe:true },
     // [365] Walrein
-    SpeciesData { hp:110, atk:80, def:90, spa:95, spd:90, spe:65, type1:Type::Ice, type2:Type::Water, weight:1506 },
+    SpeciesData { hp:110, atk:80, def:90, spa:95, spd:90, spe:65, type1:Type::Ice, type2:Type::Water, weight:1506, nfe:false },
     // [366] Clamperl
-    SpeciesData { hp:35, atk:64, def:85, spa:74, spd:55, spe:32, type1:Type::Water, type2:Type::Water, weight:525 },
+    SpeciesData { hp:35, atk:64, def:85, spa:74, spd:55, spe:32, type1:Type::Water, type2:Type::Water, weight:525, nfe:true },
     // [367] Huntail
-    SpeciesData { hp:55, atk:104, def:105, spa:94, spd:75, spe:52, type1:Type::Water, type2:Type::Water, weight:270 },
+    SpeciesData { hp:55, atk:104, def:105, spa:94, spd:75, spe:52, type1:Type::Water, type2:Type::Water, weight:270, nfe:false },
     // [368] Gorebyss
-    SpeciesData { hp:55, atk:84, def:105, spa:114, spd:75, spe:52, type1:Type::Water, type2:Type::Water, weight:226 },
+    SpeciesData { hp:55, atk:84, def:105, spa:114, spd:75, spe:52, type1:Type::Water, type2:Type::Water, weight:226, nfe:false },
     // [369] Relicanth
-    SpeciesData { hp:100, atk:90, def:130, spa:45, spd:65, spe:55, type1:Type::Water, type2:Type::Rock, weight:234 },
+    SpeciesData { hp:100, atk:90, def:130, spa:45, spd:65, spe:55, type1:Type::Water, type2:Type::Rock, weight:234, nfe:false },
     // [370] Luvdisc
-    SpeciesData { hp:43, atk:30, def:55, spa:40, spd:65, spe:97, type1:Type::Water, type2:Type::Water, weight:87 },
+    SpeciesData { hp:43, atk:30, def:55, spa:40, spd:65, spe:97, type1:Type::Water, type2:Type::Water, weight:87, nfe:false },
     // [371] Bagon
-    SpeciesData { hp:45, atk:75, def:60, spa:40, spd:30, spe:50, type1:Type::Dragon, type2:Type::Dragon, weight:421 },
+    SpeciesData { hp:45, atk:75, def:60, spa:40, spd:30, spe:50, type1:Type::Dragon, type2:Type::Dragon, weight:421, nfe:true },
     // [372] Shelgon
-    SpeciesData { hp:65, atk:95, def:100, spa:60, spd:50, spe:50, type1:Type::Dragon, type2:Type::Dragon, weight:1105 },
+    SpeciesData { hp:65, atk:95, def:100, spa:60, spd:50, spe:50, type1:Type::Dragon, type2:Type::Dragon, weight:1105, nfe:true },
     // [373] Salamence
-    SpeciesData { hp:95, atk:135, def:80, spa:110, spd:80, spe:100, type1:Type::Dragon, type2:Type::Flying, weight:1026 },
+    SpeciesData { hp:95, atk:135, def:80, spa:110, spd:80, spe:100, type1:Type::Dragon, type2:Type::Flying, weight:1026, nfe:false },
     // [374] Beldum
-    SpeciesData { hp:40, atk:55, def:80, spa:35, spd:60, spe:30, type1:Type::Steel, type2:Type::Psychic, weight:952 },
+    SpeciesData { hp:40, atk:55, def:80, spa:35, spd:60, spe:30, type1:Type::Steel, type2:Type::Psychic, weight:952, nfe:true },
     // [375] Metang
-    SpeciesData { hp:60, atk:75, def:100, spa:55, spd:80, spe:50, type1:Type::Steel, type2:Type::Psychic, weight:2025 },
+    SpeciesData { hp:60, atk:75, def:100, spa:55, spd:80, spe:50, type1:Type::Steel, type2:Type::Psychic, weight:2025, nfe:true },
     // [376] Metagross
-    SpeciesData { hp:80, atk:135, def:130, spa:95, spd:90, spe:70, type1:Type::Steel, type2:Type::Psychic, weight:5500 },
+    SpeciesData { hp:80, atk:135, def:130, spa:95, spd:90, spe:70, type1:Type::Steel, type2:Type::Psychic, weight:5500, nfe:false },
     // [377] Regirock
-    SpeciesData { hp:80, atk:100, def:200, spa:50, spd:100, spe:50, type1:Type::Rock, type2:Type::Rock, weight:2300 },
+    SpeciesData { hp:80, atk:100, def:200, spa:50, spd:100, spe:50, type1:Type::Rock, type2:Type::Rock, weight:2300, nfe:false },
     // [378] Regice
-    SpeciesData { hp:80, atk:50, def:100, spa:100, spd:200, spe:50, type1:Type::Ice, type2:Type::Ice, weight:1750 },
+    SpeciesData { hp:80, atk:50, def:100, spa:100, spd:200, spe:50, type1:Type::Ice, type2:Type::Ice, weight:1750, nfe:false },
     // [379] Registeel
-    SpeciesData { hp:80, atk:75, def:150, spa:75, spd:150, spe:50, type1:Type::Steel, type2:Type::Steel, weight:2050 },
+    SpeciesData { hp:80, atk:75, def:150, spa:75, spd:150, spe:50, type1:Type::Steel, type2:Type::Steel, weight:2050, nfe:false },
     // [380] Latias
-    SpeciesData { hp:80, atk:80, def:90, spa:110, spd:130, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:400 },
+    SpeciesData { hp:80, atk:80, def:90, spa:110, spd:130, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:400, nfe:false },
     // [381] Latios
-    SpeciesData { hp:80, atk:90, def:80, spa:130, spd:110, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:600 },
+    SpeciesData { hp:80, atk:90, def:80, spa:130, spd:110, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:600, nfe:false },
     // [382] Kyogre
-    SpeciesData { hp:100, atk:100, def:90, spa:150, spd:140, spe:90, type1:Type::Water, type2:Type::Water, weight:3520 },
+    SpeciesData { hp:100, atk:100, def:90, spa:150, spd:140, spe:90, type1:Type::Water, type2:Type::Water, weight:3520, nfe:false },
     // [383] Groudon
-    SpeciesData { hp:100, atk:150, def:140, spa:100, spd:90, spe:90, type1:Type::Ground, type2:Type::Ground, weight:9500 },
+    SpeciesData { hp:100, atk:150, def:140, spa:100, spd:90, spe:90, type1:Type::Ground, type2:Type::Ground, weight:9500, nfe:false },
     // [384] Rayquaza
-    SpeciesData { hp:105, atk:150, def:90, spa:150, spd:90, spe:95, type1:Type::Dragon, type2:Type::Flying, weight:2065 },
+    SpeciesData { hp:105, atk:150, def:90, spa:150, spd:90, spe:95, type1:Type::Dragon, type2:Type::Flying, weight:2065, nfe:false },
     // [385] Jirachi
-    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Steel, type2:Type::Psychic, weight:11 },
+    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Steel, type2:Type::Psychic, weight:11, nfe:false },
     // [386] Deoxys
-    SpeciesData { hp:50, atk:150, def:50, spa:150, spd:50, spe:150, type1:Type::Psychic, type2:Type::Psychic, weight:608 },
+    SpeciesData { hp:50, atk:150, def:50, spa:150, spd:50, spe:150, type1:Type::Psychic, type2:Type::Psychic, weight:608, nfe:false },
     // [387] Turtwig
-    SpeciesData { hp:55, atk:68, def:64, spa:45, spd:55, spe:31, type1:Type::Grass, type2:Type::Grass, weight:102 },
+    SpeciesData { hp:55, atk:68, def:64, spa:45, spd:55, spe:31, type1:Type::Grass, type2:Type::Grass, weight:102, nfe:true },
     // [388] Grotle
-    SpeciesData { hp:75, atk:89, def:85, spa:55, spd:65, spe:36, type1:Type::Grass, type2:Type::Grass, weight:970 },
+    SpeciesData { hp:75, atk:89, def:85, spa:55, spd:65, spe:36, type1:Type::Grass, type2:Type::Grass, weight:970, nfe:true },
     // [389] Torterra
-    SpeciesData { hp:95, atk:109, def:105, spa:75, spd:85, spe:56, type1:Type::Grass, type2:Type::Ground, weight:3100 },
+    SpeciesData { hp:95, atk:109, def:105, spa:75, spd:85, spe:56, type1:Type::Grass, type2:Type::Ground, weight:3100, nfe:false },
     // [390] Chimchar
-    SpeciesData { hp:44, atk:58, def:44, spa:58, spd:44, spe:61, type1:Type::Fire, type2:Type::Fire, weight:62 },
+    SpeciesData { hp:44, atk:58, def:44, spa:58, spd:44, spe:61, type1:Type::Fire, type2:Type::Fire, weight:62, nfe:true },
     // [391] Monferno
-    SpeciesData { hp:64, atk:78, def:52, spa:78, spd:52, spe:81, type1:Type::Fire, type2:Type::Fighting, weight:220 },
+    SpeciesData { hp:64, atk:78, def:52, spa:78, spd:52, spe:81, type1:Type::Fire, type2:Type::Fighting, weight:220, nfe:true },
     // [392] Infernape
-    SpeciesData { hp:76, atk:104, def:71, spa:104, spd:71, spe:108, type1:Type::Fire, type2:Type::Fighting, weight:550 },
+    SpeciesData { hp:76, atk:104, def:71, spa:104, spd:71, spe:108, type1:Type::Fire, type2:Type::Fighting, weight:550, nfe:false },
     // [393] Piplup
-    SpeciesData { hp:53, atk:51, def:53, spa:61, spd:56, spe:40, type1:Type::Water, type2:Type::Water, weight:52 },
+    SpeciesData { hp:53, atk:51, def:53, spa:61, spd:56, spe:40, type1:Type::Water, type2:Type::Water, weight:52, nfe:true },
     // [394] Prinplup
-    SpeciesData { hp:64, atk:66, def:68, spa:81, spd:76, spe:50, type1:Type::Water, type2:Type::Water, weight:230 },
+    SpeciesData { hp:64, atk:66, def:68, spa:81, spd:76, spe:50, type1:Type::Water, type2:Type::Water, weight:230, nfe:true },
     // [395] Empoleon
-    SpeciesData { hp:84, atk:86, def:88, spa:111, spd:101, spe:60, type1:Type::Water, type2:Type::Steel, weight:845 },
+    SpeciesData { hp:84, atk:86, def:88, spa:111, spd:101, spe:60, type1:Type::Water, type2:Type::Steel, weight:845, nfe:false },
     // [396] Starly
-    SpeciesData { hp:40, atk:55, def:30, spa:30, spd:30, spe:60, type1:Type::Normal, type2:Type::Flying, weight:20 },
+    SpeciesData { hp:40, atk:55, def:30, spa:30, spd:30, spe:60, type1:Type::Normal, type2:Type::Flying, weight:20, nfe:true },
     // [397] Staravia
-    SpeciesData { hp:55, atk:75, def:50, spa:40, spd:40, spe:80, type1:Type::Normal, type2:Type::Flying, weight:155 },
+    SpeciesData { hp:55, atk:75, def:50, spa:40, spd:40, spe:80, type1:Type::Normal, type2:Type::Flying, weight:155, nfe:true },
     // [398] Staraptor
-    SpeciesData { hp:85, atk:120, def:70, spa:50, spd:60, spe:100, type1:Type::Normal, type2:Type::Flying, weight:249 },
+    SpeciesData { hp:85, atk:120, def:70, spa:50, spd:60, spe:100, type1:Type::Normal, type2:Type::Flying, weight:249, nfe:false },
     // [399] Bidoof
-    SpeciesData { hp:59, atk:45, def:40, spa:35, spd:40, spe:31, type1:Type::Normal, type2:Type::Normal, weight:200 },
+    SpeciesData { hp:59, atk:45, def:40, spa:35, spd:40, spe:31, type1:Type::Normal, type2:Type::Normal, weight:200, nfe:true },
     // [400] Bibarel
-    SpeciesData { hp:79, atk:85, def:60, spa:55, spd:60, spe:71, type1:Type::Normal, type2:Type::Water, weight:315 },
+    SpeciesData { hp:79, atk:85, def:60, spa:55, spd:60, spe:71, type1:Type::Normal, type2:Type::Water, weight:315, nfe:false },
     // [401] Kricketot
-    SpeciesData { hp:37, atk:25, def:41, spa:25, spd:41, spe:25, type1:Type::Bug, type2:Type::Bug, weight:22 },
+    SpeciesData { hp:37, atk:25, def:41, spa:25, spd:41, spe:25, type1:Type::Bug, type2:Type::Bug, weight:22, nfe:true },
     // [402] Kricketune
-    SpeciesData { hp:77, atk:85, def:51, spa:55, spd:51, spe:65, type1:Type::Bug, type2:Type::Bug, weight:255 },
+    SpeciesData { hp:77, atk:85, def:51, spa:55, spd:51, spe:65, type1:Type::Bug, type2:Type::Bug, weight:255, nfe:false },
     // [403] Shinx
-    SpeciesData { hp:45, atk:65, def:34, spa:40, spd:34, spe:45, type1:Type::Electric, type2:Type::Electric, weight:95 },
+    SpeciesData { hp:45, atk:65, def:34, spa:40, spd:34, spe:45, type1:Type::Electric, type2:Type::Electric, weight:95, nfe:true },
     // [404] Luxio
-    SpeciesData { hp:60, atk:85, def:49, spa:60, spd:49, spe:60, type1:Type::Electric, type2:Type::Electric, weight:305 },
+    SpeciesData { hp:60, atk:85, def:49, spa:60, spd:49, spe:60, type1:Type::Electric, type2:Type::Electric, weight:305, nfe:true },
     // [405] Luxray
-    SpeciesData { hp:80, atk:120, def:79, spa:95, spd:79, spe:70, type1:Type::Electric, type2:Type::Electric, weight:420 },
+    SpeciesData { hp:80, atk:120, def:79, spa:95, spd:79, spe:70, type1:Type::Electric, type2:Type::Electric, weight:420, nfe:false },
     // [406] Budew
-    SpeciesData { hp:40, atk:30, def:35, spa:50, spd:70, spe:55, type1:Type::Grass, type2:Type::Poison, weight:12 },
+    SpeciesData { hp:40, atk:30, def:35, spa:50, spd:70, spe:55, type1:Type::Grass, type2:Type::Poison, weight:12, nfe:true },
     // [407] Roserade
-    SpeciesData { hp:60, atk:70, def:65, spa:125, spd:105, spe:90, type1:Type::Grass, type2:Type::Poison, weight:145 },
+    SpeciesData { hp:60, atk:70, def:65, spa:125, spd:105, spe:90, type1:Type::Grass, type2:Type::Poison, weight:145, nfe:false },
     // [408] Cranidos
-    SpeciesData { hp:67, atk:125, def:40, spa:30, spd:30, spe:58, type1:Type::Rock, type2:Type::Rock, weight:315 },
+    SpeciesData { hp:67, atk:125, def:40, spa:30, spd:30, spe:58, type1:Type::Rock, type2:Type::Rock, weight:315, nfe:true },
     // [409] Rampardos
-    SpeciesData { hp:97, atk:165, def:60, spa:65, spd:50, spe:58, type1:Type::Rock, type2:Type::Rock, weight:1025 },
+    SpeciesData { hp:97, atk:165, def:60, spa:65, spd:50, spe:58, type1:Type::Rock, type2:Type::Rock, weight:1025, nfe:false },
     // [410] Shieldon
-    SpeciesData { hp:30, atk:42, def:118, spa:42, spd:88, spe:30, type1:Type::Rock, type2:Type::Steel, weight:570 },
+    SpeciesData { hp:30, atk:42, def:118, spa:42, spd:88, spe:30, type1:Type::Rock, type2:Type::Steel, weight:570, nfe:true },
     // [411] Bastiodon
-    SpeciesData { hp:60, atk:52, def:168, spa:47, spd:138, spe:30, type1:Type::Rock, type2:Type::Steel, weight:1495 },
+    SpeciesData { hp:60, atk:52, def:168, spa:47, spd:138, spe:30, type1:Type::Rock, type2:Type::Steel, weight:1495, nfe:false },
     // [412] Burmy
-    SpeciesData { hp:40, atk:29, def:45, spa:29, spd:45, spe:36, type1:Type::Bug, type2:Type::Bug, weight:34 },
+    SpeciesData { hp:40, atk:29, def:45, spa:29, spd:45, spe:36, type1:Type::Bug, type2:Type::Bug, weight:34, nfe:true },
     // [413] Wormadam
-    SpeciesData { hp:60, atk:59, def:85, spa:79, spd:105, spe:36, type1:Type::Bug, type2:Type::Grass, weight:65 },
+    SpeciesData { hp:60, atk:59, def:85, spa:79, spd:105, spe:36, type1:Type::Bug, type2:Type::Grass, weight:65, nfe:false },
     // [414] Mothim
-    SpeciesData { hp:70, atk:94, def:50, spa:94, spd:50, spe:66, type1:Type::Bug, type2:Type::Flying, weight:233 },
+    SpeciesData { hp:70, atk:94, def:50, spa:94, spd:50, spe:66, type1:Type::Bug, type2:Type::Flying, weight:233, nfe:false },
     // [415] Combee
-    SpeciesData { hp:30, atk:30, def:42, spa:30, spd:42, spe:70, type1:Type::Bug, type2:Type::Flying, weight:55 },
+    SpeciesData { hp:30, atk:30, def:42, spa:30, spd:42, spe:70, type1:Type::Bug, type2:Type::Flying, weight:55, nfe:true },
     // [416] Vespiquen
-    SpeciesData { hp:70, atk:80, def:102, spa:80, spd:102, spe:40, type1:Type::Bug, type2:Type::Flying, weight:385 },
+    SpeciesData { hp:70, atk:80, def:102, spa:80, spd:102, spe:40, type1:Type::Bug, type2:Type::Flying, weight:385, nfe:false },
     // [417] Pachirisu
-    SpeciesData { hp:60, atk:45, def:70, spa:45, spd:90, spe:95, type1:Type::Electric, type2:Type::Electric, weight:39 },
+    SpeciesData { hp:60, atk:45, def:70, spa:45, spd:90, spe:95, type1:Type::Electric, type2:Type::Electric, weight:39, nfe:false },
     // [418] Buizel
-    SpeciesData { hp:55, atk:65, def:35, spa:60, spd:30, spe:85, type1:Type::Water, type2:Type::Water, weight:295 },
+    SpeciesData { hp:55, atk:65, def:35, spa:60, spd:30, spe:85, type1:Type::Water, type2:Type::Water, weight:295, nfe:true },
     // [419] Floatzel
-    SpeciesData { hp:85, atk:105, def:55, spa:85, spd:50, spe:115, type1:Type::Water, type2:Type::Water, weight:335 },
+    SpeciesData { hp:85, atk:105, def:55, spa:85, spd:50, spe:115, type1:Type::Water, type2:Type::Water, weight:335, nfe:false },
     // [420] Cherubi
-    SpeciesData { hp:45, atk:35, def:45, spa:62, spd:53, spe:35, type1:Type::Grass, type2:Type::Grass, weight:33 },
+    SpeciesData { hp:45, atk:35, def:45, spa:62, spd:53, spe:35, type1:Type::Grass, type2:Type::Grass, weight:33, nfe:true },
     // [421] Cherrim
-    SpeciesData { hp:70, atk:60, def:70, spa:87, spd:78, spe:85, type1:Type::Grass, type2:Type::Grass, weight:93 },
+    SpeciesData { hp:70, atk:60, def:70, spa:87, spd:78, spe:85, type1:Type::Grass, type2:Type::Grass, weight:93, nfe:false },
     // [422] Shellos
-    SpeciesData { hp:76, atk:48, def:48, spa:57, spd:62, spe:34, type1:Type::Water, type2:Type::Water, weight:63 },
+    SpeciesData { hp:76, atk:48, def:48, spa:57, spd:62, spe:34, type1:Type::Water, type2:Type::Water, weight:63, nfe:true },
     // [423] Gastrodon
-    SpeciesData { hp:111, atk:83, def:68, spa:92, spd:82, spe:39, type1:Type::Water, type2:Type::Ground, weight:299 },
+    SpeciesData { hp:111, atk:83, def:68, spa:92, spd:82, spe:39, type1:Type::Water, type2:Type::Ground, weight:299, nfe:false },
     // [424] Ambipom
-    SpeciesData { hp:75, atk:100, def:66, spa:60, spd:66, spe:115, type1:Type::Normal, type2:Type::Normal, weight:203 },
+    SpeciesData { hp:75, atk:100, def:66, spa:60, spd:66, spe:115, type1:Type::Normal, type2:Type::Normal, weight:203, nfe:false },
     // [425] Drifloon
-    SpeciesData { hp:90, atk:50, def:34, spa:60, spd:44, spe:70, type1:Type::Ghost, type2:Type::Flying, weight:12 },
+    SpeciesData { hp:90, atk:50, def:34, spa:60, spd:44, spe:70, type1:Type::Ghost, type2:Type::Flying, weight:12, nfe:true },
     // [426] Drifblim
-    SpeciesData { hp:150, atk:80, def:44, spa:90, spd:54, spe:80, type1:Type::Ghost, type2:Type::Flying, weight:150 },
+    SpeciesData { hp:150, atk:80, def:44, spa:90, spd:54, spe:80, type1:Type::Ghost, type2:Type::Flying, weight:150, nfe:false },
     // [427] Buneary
-    SpeciesData { hp:55, atk:66, def:44, spa:44, spd:56, spe:85, type1:Type::Normal, type2:Type::Normal, weight:55 },
+    SpeciesData { hp:55, atk:66, def:44, spa:44, spd:56, spe:85, type1:Type::Normal, type2:Type::Normal, weight:55, nfe:true },
     // [428] Lopunny
-    SpeciesData { hp:65, atk:76, def:84, spa:54, spd:96, spe:105, type1:Type::Normal, type2:Type::Normal, weight:333 },
+    SpeciesData { hp:65, atk:76, def:84, spa:54, spd:96, spe:105, type1:Type::Normal, type2:Type::Normal, weight:333, nfe:false },
     // [429] Mismagius
-    SpeciesData { hp:60, atk:60, def:60, spa:105, spd:105, spe:105, type1:Type::Ghost, type2:Type::Ghost, weight:44 },
+    SpeciesData { hp:60, atk:60, def:60, spa:105, spd:105, spe:105, type1:Type::Ghost, type2:Type::Ghost, weight:44, nfe:false },
     // [430] Honchkrow
-    SpeciesData { hp:100, atk:125, def:52, spa:105, spd:52, spe:71, type1:Type::Dark, type2:Type::Flying, weight:273 },
+    SpeciesData { hp:100, atk:125, def:52, spa:105, spd:52, spe:71, type1:Type::Dark, type2:Type::Flying, weight:273, nfe:false },
     // [431] Glameow
-    SpeciesData { hp:49, atk:55, def:42, spa:42, spd:37, spe:85, type1:Type::Normal, type2:Type::Normal, weight:39 },
+    SpeciesData { hp:49, atk:55, def:42, spa:42, spd:37, spe:85, type1:Type::Normal, type2:Type::Normal, weight:39, nfe:true },
     // [432] Purugly
-    SpeciesData { hp:71, atk:82, def:64, spa:64, spd:59, spe:112, type1:Type::Normal, type2:Type::Normal, weight:438 },
+    SpeciesData { hp:71, atk:82, def:64, spa:64, spd:59, spe:112, type1:Type::Normal, type2:Type::Normal, weight:438, nfe:false },
     // [433] Chingling
-    SpeciesData { hp:45, atk:30, def:50, spa:65, spd:50, spe:45, type1:Type::Psychic, type2:Type::Psychic, weight:6 },
+    SpeciesData { hp:45, atk:30, def:50, spa:65, spd:50, spe:45, type1:Type::Psychic, type2:Type::Psychic, weight:6, nfe:true },
     // [434] Stunky
-    SpeciesData { hp:63, atk:63, def:47, spa:41, spd:41, spe:74, type1:Type::Poison, type2:Type::Dark, weight:192 },
+    SpeciesData { hp:63, atk:63, def:47, spa:41, spd:41, spe:74, type1:Type::Poison, type2:Type::Dark, weight:192, nfe:true },
     // [435] Skuntank
-    SpeciesData { hp:103, atk:93, def:67, spa:71, spd:61, spe:84, type1:Type::Poison, type2:Type::Dark, weight:380 },
+    SpeciesData { hp:103, atk:93, def:67, spa:71, spd:61, spe:84, type1:Type::Poison, type2:Type::Dark, weight:380, nfe:false },
     // [436] Bronzor
-    SpeciesData { hp:57, atk:24, def:86, spa:24, spd:86, spe:23, type1:Type::Steel, type2:Type::Psychic, weight:605 },
+    SpeciesData { hp:57, atk:24, def:86, spa:24, spd:86, spe:23, type1:Type::Steel, type2:Type::Psychic, weight:605, nfe:true },
     // [437] Bronzong
-    SpeciesData { hp:67, atk:89, def:116, spa:79, spd:116, spe:33, type1:Type::Steel, type2:Type::Psychic, weight:1870 },
+    SpeciesData { hp:67, atk:89, def:116, spa:79, spd:116, spe:33, type1:Type::Steel, type2:Type::Psychic, weight:1870, nfe:false },
     // [438] Bonsly
-    SpeciesData { hp:50, atk:80, def:95, spa:10, spd:45, spe:10, type1:Type::Rock, type2:Type::Rock, weight:150 },
+    SpeciesData { hp:50, atk:80, def:95, spa:10, spd:45, spe:10, type1:Type::Rock, type2:Type::Rock, weight:150, nfe:true },
     // [439] Mime Jr.
-    SpeciesData { hp:20, atk:25, def:45, spa:70, spd:90, spe:60, type1:Type::Psychic, type2:Type::Fairy, weight:130 },
+    SpeciesData { hp:20, atk:25, def:45, spa:70, spd:90, spe:60, type1:Type::Psychic, type2:Type::Fairy, weight:130, nfe:true },
     // [440] Happiny
-    SpeciesData { hp:100, atk:5, def:5, spa:15, spd:65, spe:30, type1:Type::Normal, type2:Type::Normal, weight:244 },
+    SpeciesData { hp:100, atk:5, def:5, spa:15, spd:65, spe:30, type1:Type::Normal, type2:Type::Normal, weight:244, nfe:true },
     // [441] Chatot
-    SpeciesData { hp:76, atk:65, def:45, spa:92, spd:42, spe:91, type1:Type::Normal, type2:Type::Flying, weight:19 },
+    SpeciesData { hp:76, atk:65, def:45, spa:92, spd:42, spe:91, type1:Type::Normal, type2:Type::Flying, weight:19, nfe:false },
     // [442] Spiritomb
-    SpeciesData { hp:50, atk:92, def:108, spa:92, spd:108, spe:35, type1:Type::Ghost, type2:Type::Dark, weight:1080 },
+    SpeciesData { hp:50, atk:92, def:108, spa:92, spd:108, spe:35, type1:Type::Ghost, type2:Type::Dark, weight:1080, nfe:false },
     // [443] Gible
-    SpeciesData { hp:58, atk:70, def:45, spa:40, spd:45, spe:42, type1:Type::Dragon, type2:Type::Ground, weight:205 },
+    SpeciesData { hp:58, atk:70, def:45, spa:40, spd:45, spe:42, type1:Type::Dragon, type2:Type::Ground, weight:205, nfe:true },
     // [444] Gabite
-    SpeciesData { hp:68, atk:90, def:65, spa:50, spd:55, spe:82, type1:Type::Dragon, type2:Type::Ground, weight:560 },
+    SpeciesData { hp:68, atk:90, def:65, spa:50, spd:55, spe:82, type1:Type::Dragon, type2:Type::Ground, weight:560, nfe:true },
     // [445] Garchomp
-    SpeciesData { hp:108, atk:130, def:95, spa:80, spd:85, spe:102, type1:Type::Dragon, type2:Type::Ground, weight:950 },
+    SpeciesData { hp:108, atk:130, def:95, spa:80, spd:85, spe:102, type1:Type::Dragon, type2:Type::Ground, weight:950, nfe:false },
     // [446] Munchlax
-    SpeciesData { hp:135, atk:85, def:40, spa:40, spd:85, spe:5, type1:Type::Normal, type2:Type::Normal, weight:1050 },
+    SpeciesData { hp:135, atk:85, def:40, spa:40, spd:85, spe:5, type1:Type::Normal, type2:Type::Normal, weight:1050, nfe:true },
     // [447] Riolu
-    SpeciesData { hp:40, atk:70, def:40, spa:35, spd:40, spe:60, type1:Type::Fighting, type2:Type::Fighting, weight:202 },
+    SpeciesData { hp:40, atk:70, def:40, spa:35, spd:40, spe:60, type1:Type::Fighting, type2:Type::Fighting, weight:202, nfe:true },
     // [448] Lucario
-    SpeciesData { hp:70, atk:110, def:70, spa:115, spd:70, spe:90, type1:Type::Fighting, type2:Type::Steel, weight:540 },
+    SpeciesData { hp:70, atk:110, def:70, spa:115, spd:70, spe:90, type1:Type::Fighting, type2:Type::Steel, weight:540, nfe:false },
     // [449] Hippopotas
-    SpeciesData { hp:68, atk:72, def:78, spa:38, spd:42, spe:32, type1:Type::Ground, type2:Type::Ground, weight:495 },
+    SpeciesData { hp:68, atk:72, def:78, spa:38, spd:42, spe:32, type1:Type::Ground, type2:Type::Ground, weight:495, nfe:true },
     // [450] Hippowdon
-    SpeciesData { hp:108, atk:112, def:118, spa:68, spd:72, spe:47, type1:Type::Ground, type2:Type::Ground, weight:3000 },
+    SpeciesData { hp:108, atk:112, def:118, spa:68, spd:72, spe:47, type1:Type::Ground, type2:Type::Ground, weight:3000, nfe:false },
     // [451] Skorupi
-    SpeciesData { hp:40, atk:50, def:90, spa:30, spd:55, spe:65, type1:Type::Poison, type2:Type::Bug, weight:120 },
+    SpeciesData { hp:40, atk:50, def:90, spa:30, spd:55, spe:65, type1:Type::Poison, type2:Type::Bug, weight:120, nfe:true },
     // [452] Drapion
-    SpeciesData { hp:70, atk:90, def:110, spa:60, spd:75, spe:95, type1:Type::Poison, type2:Type::Dark, weight:615 },
+    SpeciesData { hp:70, atk:90, def:110, spa:60, spd:75, spe:95, type1:Type::Poison, type2:Type::Dark, weight:615, nfe:false },
     // [453] Croagunk
-    SpeciesData { hp:48, atk:61, def:40, spa:61, spd:40, spe:50, type1:Type::Poison, type2:Type::Fighting, weight:230 },
+    SpeciesData { hp:48, atk:61, def:40, spa:61, spd:40, spe:50, type1:Type::Poison, type2:Type::Fighting, weight:230, nfe:true },
     // [454] Toxicroak
-    SpeciesData { hp:83, atk:106, def:65, spa:86, spd:65, spe:85, type1:Type::Poison, type2:Type::Fighting, weight:444 },
+    SpeciesData { hp:83, atk:106, def:65, spa:86, spd:65, spe:85, type1:Type::Poison, type2:Type::Fighting, weight:444, nfe:false },
     // [455] Carnivine
-    SpeciesData { hp:74, atk:100, def:72, spa:90, spd:72, spe:46, type1:Type::Grass, type2:Type::Grass, weight:270 },
+    SpeciesData { hp:74, atk:100, def:72, spa:90, spd:72, spe:46, type1:Type::Grass, type2:Type::Grass, weight:270, nfe:false },
     // [456] Finneon
-    SpeciesData { hp:49, atk:49, def:56, spa:49, spd:61, spe:66, type1:Type::Water, type2:Type::Water, weight:70 },
+    SpeciesData { hp:49, atk:49, def:56, spa:49, spd:61, spe:66, type1:Type::Water, type2:Type::Water, weight:70, nfe:true },
     // [457] Lumineon
-    SpeciesData { hp:69, atk:69, def:76, spa:69, spd:86, spe:91, type1:Type::Water, type2:Type::Water, weight:240 },
+    SpeciesData { hp:69, atk:69, def:76, spa:69, spd:86, spe:91, type1:Type::Water, type2:Type::Water, weight:240, nfe:false },
     // [458] Mantyke
-    SpeciesData { hp:45, atk:20, def:50, spa:60, spd:120, spe:50, type1:Type::Water, type2:Type::Flying, weight:650 },
+    SpeciesData { hp:45, atk:20, def:50, spa:60, spd:120, spe:50, type1:Type::Water, type2:Type::Flying, weight:650, nfe:true },
     // [459] Snover
-    SpeciesData { hp:60, atk:62, def:50, spa:62, spd:60, spe:40, type1:Type::Grass, type2:Type::Ice, weight:505 },
+    SpeciesData { hp:60, atk:62, def:50, spa:62, spd:60, spe:40, type1:Type::Grass, type2:Type::Ice, weight:505, nfe:true },
     // [460] Abomasnow
-    SpeciesData { hp:90, atk:92, def:75, spa:92, spd:85, spe:60, type1:Type::Grass, type2:Type::Ice, weight:1355 },
+    SpeciesData { hp:90, atk:92, def:75, spa:92, spd:85, spe:60, type1:Type::Grass, type2:Type::Ice, weight:1355, nfe:false },
     // [461] Weavile
-    SpeciesData { hp:70, atk:120, def:65, spa:45, spd:85, spe:125, type1:Type::Dark, type2:Type::Ice, weight:340 },
+    SpeciesData { hp:70, atk:120, def:65, spa:45, spd:85, spe:125, type1:Type::Dark, type2:Type::Ice, weight:340, nfe:false },
     // [462] Magnezone
-    SpeciesData { hp:70, atk:70, def:115, spa:130, spd:90, spe:60, type1:Type::Electric, type2:Type::Steel, weight:1800 },
+    SpeciesData { hp:70, atk:70, def:115, spa:130, spd:90, spe:60, type1:Type::Electric, type2:Type::Steel, weight:1800, nfe:false },
     // [463] Lickilicky
-    SpeciesData { hp:110, atk:85, def:95, spa:80, spd:95, spe:50, type1:Type::Normal, type2:Type::Normal, weight:1400 },
+    SpeciesData { hp:110, atk:85, def:95, spa:80, spd:95, spe:50, type1:Type::Normal, type2:Type::Normal, weight:1400, nfe:false },
     // [464] Rhyperior
-    SpeciesData { hp:115, atk:140, def:130, spa:55, spd:55, spe:40, type1:Type::Ground, type2:Type::Rock, weight:2828 },
+    SpeciesData { hp:115, atk:140, def:130, spa:55, spd:55, spe:40, type1:Type::Ground, type2:Type::Rock, weight:2828, nfe:false },
     // [465] Tangrowth
-    SpeciesData { hp:100, atk:100, def:125, spa:110, spd:50, spe:50, type1:Type::Grass, type2:Type::Grass, weight:1286 },
+    SpeciesData { hp:100, atk:100, def:125, spa:110, spd:50, spe:50, type1:Type::Grass, type2:Type::Grass, weight:1286, nfe:false },
     // [466] Electivire
-    SpeciesData { hp:75, atk:123, def:67, spa:95, spd:85, spe:95, type1:Type::Electric, type2:Type::Electric, weight:1386 },
+    SpeciesData { hp:75, atk:123, def:67, spa:95, spd:85, spe:95, type1:Type::Electric, type2:Type::Electric, weight:1386, nfe:false },
     // [467] Magmortar
-    SpeciesData { hp:75, atk:95, def:67, spa:125, spd:95, spe:83, type1:Type::Fire, type2:Type::Fire, weight:680 },
+    SpeciesData { hp:75, atk:95, def:67, spa:125, spd:95, spe:83, type1:Type::Fire, type2:Type::Fire, weight:680, nfe:false },
     // [468] Togekiss
-    SpeciesData { hp:85, atk:50, def:95, spa:120, spd:115, spe:80, type1:Type::Fairy, type2:Type::Flying, weight:380 },
+    SpeciesData { hp:85, atk:50, def:95, spa:120, spd:115, spe:80, type1:Type::Fairy, type2:Type::Flying, weight:380, nfe:false },
     // [469] Yanmega
-    SpeciesData { hp:86, atk:76, def:86, spa:116, spd:56, spe:95, type1:Type::Bug, type2:Type::Flying, weight:515 },
+    SpeciesData { hp:86, atk:76, def:86, spa:116, spd:56, spe:95, type1:Type::Bug, type2:Type::Flying, weight:515, nfe:false },
     // [470] Leafeon
-    SpeciesData { hp:65, atk:110, def:130, spa:60, spd:65, spe:95, type1:Type::Grass, type2:Type::Grass, weight:255 },
+    SpeciesData { hp:65, atk:110, def:130, spa:60, spd:65, spe:95, type1:Type::Grass, type2:Type::Grass, weight:255, nfe:false },
     // [471] Glaceon
-    SpeciesData { hp:65, atk:60, def:110, spa:130, spd:95, spe:65, type1:Type::Ice, type2:Type::Ice, weight:259 },
+    SpeciesData { hp:65, atk:60, def:110, spa:130, spd:95, spe:65, type1:Type::Ice, type2:Type::Ice, weight:259, nfe:false },
     // [472] Gliscor
-    SpeciesData { hp:75, atk:95, def:125, spa:45, spd:75, spe:95, type1:Type::Ground, type2:Type::Flying, weight:425 },
+    SpeciesData { hp:75, atk:95, def:125, spa:45, spd:75, spe:95, type1:Type::Ground, type2:Type::Flying, weight:425, nfe:false },
     // [473] Mamoswine
-    SpeciesData { hp:110, atk:130, def:80, spa:70, spd:60, spe:80, type1:Type::Ice, type2:Type::Ground, weight:2910 },
+    SpeciesData { hp:110, atk:130, def:80, spa:70, spd:60, spe:80, type1:Type::Ice, type2:Type::Ground, weight:2910, nfe:false },
     // [474] Porygon-Z
-    SpeciesData { hp:85, atk:80, def:70, spa:135, spd:75, spe:90, type1:Type::Normal, type2:Type::Normal, weight:340 },
+    SpeciesData { hp:85, atk:80, def:70, spa:135, spd:75, spe:90, type1:Type::Normal, type2:Type::Normal, weight:340, nfe:false },
     // [475] Gallade
-    SpeciesData { hp:68, atk:125, def:65, spa:65, spd:115, spe:80, type1:Type::Psychic, type2:Type::Fighting, weight:520 },
+    SpeciesData { hp:68, atk:125, def:65, spa:65, spd:115, spe:80, type1:Type::Psychic, type2:Type::Fighting, weight:520, nfe:false },
     // [476] Probopass
-    SpeciesData { hp:60, atk:55, def:145, spa:75, spd:150, spe:40, type1:Type::Rock, type2:Type::Steel, weight:3400 },
+    SpeciesData { hp:60, atk:55, def:145, spa:75, spd:150, spe:40, type1:Type::Rock, type2:Type::Steel, weight:3400, nfe:false },
     // [477] Dusknoir
-    SpeciesData { hp:45, atk:100, def:135, spa:65, spd:135, spe:45, type1:Type::Ghost, type2:Type::Ghost, weight:1066 },
+    SpeciesData { hp:45, atk:100, def:135, spa:65, spd:135, spe:45, type1:Type::Ghost, type2:Type::Ghost, weight:1066, nfe:false },
     // [478] Froslass
-    SpeciesData { hp:70, atk:80, def:70, spa:80, spd:70, spe:110, type1:Type::Ice, type2:Type::Ghost, weight:266 },
+    SpeciesData { hp:70, atk:80, def:70, spa:80, spd:70, spe:110, type1:Type::Ice, type2:Type::Ghost, weight:266, nfe:false },
     // [479] Rotom
-    SpeciesData { hp:50, atk:50, def:77, spa:95, spd:77, spe:91, type1:Type::Electric, type2:Type::Ghost, weight:3 },
+    SpeciesData { hp:50, atk:50, def:77, spa:95, spd:77, spe:91, type1:Type::Electric, type2:Type::Ghost, weight:3, nfe:false },
     // [480] Uxie
-    SpeciesData { hp:75, atk:75, def:130, spa:75, spd:130, spe:95, type1:Type::Psychic, type2:Type::Psychic, weight:3 },
+    SpeciesData { hp:75, atk:75, def:130, spa:75, spd:130, spe:95, type1:Type::Psychic, type2:Type::Psychic, weight:3, nfe:false },
     // [481] Mesprit
-    SpeciesData { hp:80, atk:105, def:105, spa:105, spd:105, spe:80, type1:Type::Psychic, type2:Type::Psychic, weight:3 },
+    SpeciesData { hp:80, atk:105, def:105, spa:105, spd:105, spe:80, type1:Type::Psychic, type2:Type::Psychic, weight:3, nfe:false },
     // [482] Azelf
-    SpeciesData { hp:75, atk:125, def:70, spa:125, spd:70, spe:115, type1:Type::Psychic, type2:Type::Psychic, weight:3 },
+    SpeciesData { hp:75, atk:125, def:70, spa:125, spd:70, spe:115, type1:Type::Psychic, type2:Type::Psychic, weight:3, nfe:false },
     // [483] Dialga
-    SpeciesData { hp:100, atk:120, def:120, spa:150, spd:100, spe:90, type1:Type::Steel, type2:Type::Dragon, weight:6830 },
+    SpeciesData { hp:100, atk:120, def:120, spa:150, spd:100, spe:90, type1:Type::Steel, type2:Type::Dragon, weight:6830, nfe:false },
     // [484] Palkia
-    SpeciesData { hp:90, atk:120, def:100, spa:150, spd:120, spe:100, type1:Type::Water, type2:Type::Dragon, weight:3360 },
+    SpeciesData { hp:90, atk:120, def:100, spa:150, spd:120, spe:100, type1:Type::Water, type2:Type::Dragon, weight:3360, nfe:false },
     // [485] Heatran
-    SpeciesData { hp:91, atk:90, def:106, spa:130, spd:106, spe:77, type1:Type::Fire, type2:Type::Steel, weight:4300 },
+    SpeciesData { hp:91, atk:90, def:106, spa:130, spd:106, spe:77, type1:Type::Fire, type2:Type::Steel, weight:4300, nfe:false },
     // [486] Regigigas
-    SpeciesData { hp:110, atk:160, def:110, spa:80, spd:110, spe:100, type1:Type::Normal, type2:Type::Normal, weight:4200 },
+    SpeciesData { hp:110, atk:160, def:110, spa:80, spd:110, spe:100, type1:Type::Normal, type2:Type::Normal, weight:4200, nfe:false },
     // [487] Giratina
-    SpeciesData { hp:150, atk:100, def:120, spa:100, spd:120, spe:90, type1:Type::Ghost, type2:Type::Dragon, weight:7500 },
+    SpeciesData { hp:150, atk:100, def:120, spa:100, spd:120, spe:90, type1:Type::Ghost, type2:Type::Dragon, weight:7500, nfe:false },
     // [488] Cresselia
-    SpeciesData { hp:120, atk:70, def:110, spa:75, spd:120, spe:85, type1:Type::Psychic, type2:Type::Psychic, weight:856 },
+    SpeciesData { hp:120, atk:70, def:110, spa:75, spd:120, spe:85, type1:Type::Psychic, type2:Type::Psychic, weight:856, nfe:false },
     // [489] Phione
-    SpeciesData { hp:80, atk:80, def:80, spa:80, spd:80, spe:80, type1:Type::Water, type2:Type::Water, weight:31 },
+    SpeciesData { hp:80, atk:80, def:80, spa:80, spd:80, spe:80, type1:Type::Water, type2:Type::Water, weight:31, nfe:false },
     // [490] Manaphy
-    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Water, type2:Type::Water, weight:14 },
+    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Water, type2:Type::Water, weight:14, nfe:false },
     // [491] Darkrai
-    SpeciesData { hp:70, atk:90, def:90, spa:135, spd:90, spe:125, type1:Type::Dark, type2:Type::Dark, weight:505 },
+    SpeciesData { hp:70, atk:90, def:90, spa:135, spd:90, spe:125, type1:Type::Dark, type2:Type::Dark, weight:505, nfe:false },
     // [492] Shaymin
-    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Grass, type2:Type::Grass, weight:21 },
+    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Grass, type2:Type::Grass, weight:21, nfe:false },
     // [493] Arceus
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Normal, type2:Type::Normal, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Normal, type2:Type::Normal, weight:3200, nfe:false },
     // [494] Victini
-    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Psychic, type2:Type::Fire, weight:40 },
+    SpeciesData { hp:100, atk:100, def:100, spa:100, spd:100, spe:100, type1:Type::Psychic, type2:Type::Fire, weight:40, nfe:false },
     // [495] Snivy
-    SpeciesData { hp:45, atk:45, def:55, spa:45, spd:55, spe:63, type1:Type::Grass, type2:Type::Grass, weight:81 },
+    SpeciesData { hp:45, atk:45, def:55, spa:45, spd:55, spe:63, type1:Type::Grass, type2:Type::Grass, weight:81, nfe:true },
     // [496] Servine
-    SpeciesData { hp:60, atk:60, def:75, spa:60, spd:75, spe:83, type1:Type::Grass, type2:Type::Grass, weight:160 },
+    SpeciesData { hp:60, atk:60, def:75, spa:60, spd:75, spe:83, type1:Type::Grass, type2:Type::Grass, weight:160, nfe:true },
     // [497] Serperior
-    SpeciesData { hp:75, atk:75, def:95, spa:75, spd:95, spe:113, type1:Type::Grass, type2:Type::Grass, weight:630 },
+    SpeciesData { hp:75, atk:75, def:95, spa:75, spd:95, spe:113, type1:Type::Grass, type2:Type::Grass, weight:630, nfe:false },
     // [498] Tepig
-    SpeciesData { hp:65, atk:63, def:45, spa:45, spd:45, spe:45, type1:Type::Fire, type2:Type::Fire, weight:99 },
+    SpeciesData { hp:65, atk:63, def:45, spa:45, spd:45, spe:45, type1:Type::Fire, type2:Type::Fire, weight:99, nfe:true },
     // [499] Pignite
-    SpeciesData { hp:90, atk:93, def:55, spa:70, spd:55, spe:55, type1:Type::Fire, type2:Type::Fighting, weight:555 },
+    SpeciesData { hp:90, atk:93, def:55, spa:70, spd:55, spe:55, type1:Type::Fire, type2:Type::Fighting, weight:555, nfe:true },
     // [500] Emboar
-    SpeciesData { hp:110, atk:123, def:65, spa:100, spd:65, spe:65, type1:Type::Fire, type2:Type::Fighting, weight:1500 },
+    SpeciesData { hp:110, atk:123, def:65, spa:100, spd:65, spe:65, type1:Type::Fire, type2:Type::Fighting, weight:1500, nfe:false },
     // [501] Oshawott
-    SpeciesData { hp:55, atk:55, def:45, spa:63, spd:45, spe:45, type1:Type::Water, type2:Type::Water, weight:59 },
+    SpeciesData { hp:55, atk:55, def:45, spa:63, spd:45, spe:45, type1:Type::Water, type2:Type::Water, weight:59, nfe:true },
     // [502] Dewott
-    SpeciesData { hp:75, atk:75, def:60, spa:83, spd:60, spe:60, type1:Type::Water, type2:Type::Water, weight:245 },
+    SpeciesData { hp:75, atk:75, def:60, spa:83, spd:60, spe:60, type1:Type::Water, type2:Type::Water, weight:245, nfe:true },
     // [503] Samurott
-    SpeciesData { hp:95, atk:100, def:85, spa:108, spd:70, spe:70, type1:Type::Water, type2:Type::Water, weight:946 },
+    SpeciesData { hp:95, atk:100, def:85, spa:108, spd:70, spe:70, type1:Type::Water, type2:Type::Water, weight:946, nfe:false },
     // [504] Patrat
-    SpeciesData { hp:45, atk:55, def:39, spa:35, spd:39, spe:42, type1:Type::Normal, type2:Type::Normal, weight:116 },
+    SpeciesData { hp:45, atk:55, def:39, spa:35, spd:39, spe:42, type1:Type::Normal, type2:Type::Normal, weight:116, nfe:true },
     // [505] Watchog
-    SpeciesData { hp:60, atk:85, def:69, spa:60, spd:69, spe:77, type1:Type::Normal, type2:Type::Normal, weight:270 },
+    SpeciesData { hp:60, atk:85, def:69, spa:60, spd:69, spe:77, type1:Type::Normal, type2:Type::Normal, weight:270, nfe:false },
     // [506] Lillipup
-    SpeciesData { hp:45, atk:60, def:45, spa:25, spd:45, spe:55, type1:Type::Normal, type2:Type::Normal, weight:41 },
+    SpeciesData { hp:45, atk:60, def:45, spa:25, spd:45, spe:55, type1:Type::Normal, type2:Type::Normal, weight:41, nfe:true },
     // [507] Herdier
-    SpeciesData { hp:65, atk:80, def:65, spa:35, spd:65, spe:60, type1:Type::Normal, type2:Type::Normal, weight:147 },
+    SpeciesData { hp:65, atk:80, def:65, spa:35, spd:65, spe:60, type1:Type::Normal, type2:Type::Normal, weight:147, nfe:true },
     // [508] Stoutland
-    SpeciesData { hp:85, atk:110, def:90, spa:45, spd:90, spe:80, type1:Type::Normal, type2:Type::Normal, weight:610 },
+    SpeciesData { hp:85, atk:110, def:90, spa:45, spd:90, spe:80, type1:Type::Normal, type2:Type::Normal, weight:610, nfe:false },
     // [509] Purrloin
-    SpeciesData { hp:41, atk:50, def:37, spa:50, spd:37, spe:66, type1:Type::Dark, type2:Type::Dark, weight:101 },
+    SpeciesData { hp:41, atk:50, def:37, spa:50, spd:37, spe:66, type1:Type::Dark, type2:Type::Dark, weight:101, nfe:true },
     // [510] Liepard
-    SpeciesData { hp:64, atk:88, def:50, spa:88, spd:50, spe:106, type1:Type::Dark, type2:Type::Dark, weight:375 },
+    SpeciesData { hp:64, atk:88, def:50, spa:88, spd:50, spe:106, type1:Type::Dark, type2:Type::Dark, weight:375, nfe:false },
     // [511] Pansage
-    SpeciesData { hp:50, atk:53, def:48, spa:53, spd:48, spe:64, type1:Type::Grass, type2:Type::Grass, weight:105 },
+    SpeciesData { hp:50, atk:53, def:48, spa:53, spd:48, spe:64, type1:Type::Grass, type2:Type::Grass, weight:105, nfe:true },
     // [512] Simisage
-    SpeciesData { hp:75, atk:98, def:63, spa:98, spd:63, spe:101, type1:Type::Grass, type2:Type::Grass, weight:305 },
+    SpeciesData { hp:75, atk:98, def:63, spa:98, spd:63, spe:101, type1:Type::Grass, type2:Type::Grass, weight:305, nfe:false },
     // [513] Pansear
-    SpeciesData { hp:50, atk:53, def:48, spa:53, spd:48, spe:64, type1:Type::Fire, type2:Type::Fire, weight:110 },
+    SpeciesData { hp:50, atk:53, def:48, spa:53, spd:48, spe:64, type1:Type::Fire, type2:Type::Fire, weight:110, nfe:true },
     // [514] Simisear
-    SpeciesData { hp:75, atk:98, def:63, spa:98, spd:63, spe:101, type1:Type::Fire, type2:Type::Fire, weight:280 },
+    SpeciesData { hp:75, atk:98, def:63, spa:98, spd:63, spe:101, type1:Type::Fire, type2:Type::Fire, weight:280, nfe:false },
     // [515] Panpour
-    SpeciesData { hp:50, atk:53, def:48, spa:53, spd:48, spe:64, type1:Type::Water, type2:Type::Water, weight:135 },
+    SpeciesData { hp:50, atk:53, def:48, spa:53, spd:48, spe:64, type1:Type::Water, type2:Type::Water, weight:135, nfe:true },
     // [516] Simipour
-    SpeciesData { hp:75, atk:98, def:63, spa:98, spd:63, spe:101, type1:Type::Water, type2:Type::Water, weight:290 },
+    SpeciesData { hp:75, atk:98, def:63, spa:98, spd:63, spe:101, type1:Type::Water, type2:Type::Water, weight:290, nfe:false },
     // [517] Munna
-    SpeciesData { hp:76, atk:25, def:45, spa:67, spd:55, spe:24, type1:Type::Psychic, type2:Type::Psychic, weight:233 },
+    SpeciesData { hp:76, atk:25, def:45, spa:67, spd:55, spe:24, type1:Type::Psychic, type2:Type::Psychic, weight:233, nfe:true },
     // [518] Musharna
-    SpeciesData { hp:116, atk:55, def:85, spa:107, spd:95, spe:29, type1:Type::Psychic, type2:Type::Psychic, weight:605 },
+    SpeciesData { hp:116, atk:55, def:85, spa:107, spd:95, spe:29, type1:Type::Psychic, type2:Type::Psychic, weight:605, nfe:false },
     // [519] Pidove
-    SpeciesData { hp:50, atk:55, def:50, spa:36, spd:30, spe:43, type1:Type::Normal, type2:Type::Flying, weight:21 },
+    SpeciesData { hp:50, atk:55, def:50, spa:36, spd:30, spe:43, type1:Type::Normal, type2:Type::Flying, weight:21, nfe:true },
     // [520] Tranquill
-    SpeciesData { hp:62, atk:77, def:62, spa:50, spd:42, spe:65, type1:Type::Normal, type2:Type::Flying, weight:150 },
+    SpeciesData { hp:62, atk:77, def:62, spa:50, spd:42, spe:65, type1:Type::Normal, type2:Type::Flying, weight:150, nfe:true },
     // [521] Unfezant
-    SpeciesData { hp:80, atk:115, def:80, spa:65, spd:55, spe:93, type1:Type::Normal, type2:Type::Flying, weight:290 },
+    SpeciesData { hp:80, atk:115, def:80, spa:65, spd:55, spe:93, type1:Type::Normal, type2:Type::Flying, weight:290, nfe:false },
     // [522] Blitzle
-    SpeciesData { hp:45, atk:60, def:32, spa:50, spd:32, spe:76, type1:Type::Electric, type2:Type::Electric, weight:298 },
+    SpeciesData { hp:45, atk:60, def:32, spa:50, spd:32, spe:76, type1:Type::Electric, type2:Type::Electric, weight:298, nfe:true },
     // [523] Zebstrika
-    SpeciesData { hp:75, atk:100, def:63, spa:80, spd:63, spe:116, type1:Type::Electric, type2:Type::Electric, weight:795 },
+    SpeciesData { hp:75, atk:100, def:63, spa:80, spd:63, spe:116, type1:Type::Electric, type2:Type::Electric, weight:795, nfe:false },
     // [524] Roggenrola
-    SpeciesData { hp:55, atk:75, def:85, spa:25, spd:25, spe:15, type1:Type::Rock, type2:Type::Rock, weight:180 },
+    SpeciesData { hp:55, atk:75, def:85, spa:25, spd:25, spe:15, type1:Type::Rock, type2:Type::Rock, weight:180, nfe:true },
     // [525] Boldore
-    SpeciesData { hp:70, atk:105, def:105, spa:50, spd:40, spe:20, type1:Type::Rock, type2:Type::Rock, weight:1020 },
+    SpeciesData { hp:70, atk:105, def:105, spa:50, spd:40, spe:20, type1:Type::Rock, type2:Type::Rock, weight:1020, nfe:true },
     // [526] Gigalith
-    SpeciesData { hp:85, atk:135, def:130, spa:60, spd:80, spe:25, type1:Type::Rock, type2:Type::Rock, weight:2600 },
+    SpeciesData { hp:85, atk:135, def:130, spa:60, spd:80, spe:25, type1:Type::Rock, type2:Type::Rock, weight:2600, nfe:false },
     // [527] Woobat
-    SpeciesData { hp:65, atk:45, def:43, spa:55, spd:43, spe:72, type1:Type::Psychic, type2:Type::Flying, weight:21 },
+    SpeciesData { hp:65, atk:45, def:43, spa:55, spd:43, spe:72, type1:Type::Psychic, type2:Type::Flying, weight:21, nfe:true },
     // [528] Swoobat
-    SpeciesData { hp:67, atk:57, def:55, spa:77, spd:55, spe:114, type1:Type::Psychic, type2:Type::Flying, weight:105 },
+    SpeciesData { hp:67, atk:57, def:55, spa:77, spd:55, spe:114, type1:Type::Psychic, type2:Type::Flying, weight:105, nfe:false },
     // [529] Drilbur
-    SpeciesData { hp:60, atk:85, def:40, spa:30, spd:45, spe:68, type1:Type::Ground, type2:Type::Ground, weight:85 },
+    SpeciesData { hp:60, atk:85, def:40, spa:30, spd:45, spe:68, type1:Type::Ground, type2:Type::Ground, weight:85, nfe:true },
     // [530] Excadrill
-    SpeciesData { hp:110, atk:135, def:60, spa:50, spd:65, spe:88, type1:Type::Ground, type2:Type::Steel, weight:404 },
+    SpeciesData { hp:110, atk:135, def:60, spa:50, spd:65, spe:88, type1:Type::Ground, type2:Type::Steel, weight:404, nfe:false },
     // [531] Audino
-    SpeciesData { hp:103, atk:60, def:86, spa:60, spd:86, spe:50, type1:Type::Normal, type2:Type::Normal, weight:310 },
+    SpeciesData { hp:103, atk:60, def:86, spa:60, spd:86, spe:50, type1:Type::Normal, type2:Type::Normal, weight:310, nfe:false },
     // [532] Timburr
-    SpeciesData { hp:75, atk:80, def:55, spa:25, spd:35, spe:35, type1:Type::Fighting, type2:Type::Fighting, weight:125 },
+    SpeciesData { hp:75, atk:80, def:55, spa:25, spd:35, spe:35, type1:Type::Fighting, type2:Type::Fighting, weight:125, nfe:true },
     // [533] Gurdurr
-    SpeciesData { hp:85, atk:105, def:85, spa:40, spd:50, spe:40, type1:Type::Fighting, type2:Type::Fighting, weight:400 },
+    SpeciesData { hp:85, atk:105, def:85, spa:40, spd:50, spe:40, type1:Type::Fighting, type2:Type::Fighting, weight:400, nfe:true },
     // [534] Conkeldurr
-    SpeciesData { hp:105, atk:140, def:95, spa:55, spd:65, spe:45, type1:Type::Fighting, type2:Type::Fighting, weight:870 },
+    SpeciesData { hp:105, atk:140, def:95, spa:55, spd:65, spe:45, type1:Type::Fighting, type2:Type::Fighting, weight:870, nfe:false },
     // [535] Tympole
-    SpeciesData { hp:50, atk:50, def:40, spa:50, spd:40, spe:64, type1:Type::Water, type2:Type::Water, weight:45 },
+    SpeciesData { hp:50, atk:50, def:40, spa:50, spd:40, spe:64, type1:Type::Water, type2:Type::Water, weight:45, nfe:true },
     // [536] Palpitoad
-    SpeciesData { hp:75, atk:65, def:55, spa:65, spd:55, spe:69, type1:Type::Water, type2:Type::Ground, weight:170 },
+    SpeciesData { hp:75, atk:65, def:55, spa:65, spd:55, spe:69, type1:Type::Water, type2:Type::Ground, weight:170, nfe:true },
     // [537] Seismitoad
-    SpeciesData { hp:105, atk:95, def:75, spa:85, spd:75, spe:74, type1:Type::Water, type2:Type::Ground, weight:620 },
+    SpeciesData { hp:105, atk:95, def:75, spa:85, spd:75, spe:74, type1:Type::Water, type2:Type::Ground, weight:620, nfe:false },
     // [538] Throh
-    SpeciesData { hp:120, atk:100, def:85, spa:30, spd:85, spe:45, type1:Type::Fighting, type2:Type::Fighting, weight:555 },
+    SpeciesData { hp:120, atk:100, def:85, spa:30, spd:85, spe:45, type1:Type::Fighting, type2:Type::Fighting, weight:555, nfe:false },
     // [539] Sawk
-    SpeciesData { hp:75, atk:125, def:75, spa:30, spd:75, spe:85, type1:Type::Fighting, type2:Type::Fighting, weight:510 },
+    SpeciesData { hp:75, atk:125, def:75, spa:30, spd:75, spe:85, type1:Type::Fighting, type2:Type::Fighting, weight:510, nfe:false },
     // [540] Sewaddle
-    SpeciesData { hp:45, atk:53, def:70, spa:40, spd:60, spe:42, type1:Type::Bug, type2:Type::Grass, weight:25 },
+    SpeciesData { hp:45, atk:53, def:70, spa:40, spd:60, spe:42, type1:Type::Bug, type2:Type::Grass, weight:25, nfe:true },
     // [541] Swadloon
-    SpeciesData { hp:55, atk:63, def:90, spa:50, spd:80, spe:42, type1:Type::Bug, type2:Type::Grass, weight:73 },
+    SpeciesData { hp:55, atk:63, def:90, spa:50, spd:80, spe:42, type1:Type::Bug, type2:Type::Grass, weight:73, nfe:true },
     // [542] Leavanny
-    SpeciesData { hp:75, atk:103, def:80, spa:70, spd:80, spe:92, type1:Type::Bug, type2:Type::Grass, weight:205 },
+    SpeciesData { hp:75, atk:103, def:80, spa:70, spd:80, spe:92, type1:Type::Bug, type2:Type::Grass, weight:205, nfe:false },
     // [543] Venipede
-    SpeciesData { hp:30, atk:45, def:59, spa:30, spd:39, spe:57, type1:Type::Bug, type2:Type::Poison, weight:53 },
+    SpeciesData { hp:30, atk:45, def:59, spa:30, spd:39, spe:57, type1:Type::Bug, type2:Type::Poison, weight:53, nfe:true },
     // [544] Whirlipede
-    SpeciesData { hp:40, atk:55, def:99, spa:40, spd:79, spe:47, type1:Type::Bug, type2:Type::Poison, weight:585 },
+    SpeciesData { hp:40, atk:55, def:99, spa:40, spd:79, spe:47, type1:Type::Bug, type2:Type::Poison, weight:585, nfe:true },
     // [545] Scolipede
-    SpeciesData { hp:60, atk:100, def:89, spa:55, spd:69, spe:112, type1:Type::Bug, type2:Type::Poison, weight:2005 },
+    SpeciesData { hp:60, atk:100, def:89, spa:55, spd:69, spe:112, type1:Type::Bug, type2:Type::Poison, weight:2005, nfe:false },
     // [546] Cottonee
-    SpeciesData { hp:40, atk:27, def:60, spa:37, spd:50, spe:66, type1:Type::Grass, type2:Type::Fairy, weight:6 },
+    SpeciesData { hp:40, atk:27, def:60, spa:37, spd:50, spe:66, type1:Type::Grass, type2:Type::Fairy, weight:6, nfe:true },
     // [547] Whimsicott
-    SpeciesData { hp:60, atk:67, def:85, spa:77, spd:75, spe:116, type1:Type::Grass, type2:Type::Fairy, weight:66 },
+    SpeciesData { hp:60, atk:67, def:85, spa:77, spd:75, spe:116, type1:Type::Grass, type2:Type::Fairy, weight:66, nfe:false },
     // [548] Petilil
-    SpeciesData { hp:45, atk:35, def:50, spa:70, spd:50, spe:30, type1:Type::Grass, type2:Type::Grass, weight:66 },
+    SpeciesData { hp:45, atk:35, def:50, spa:70, spd:50, spe:30, type1:Type::Grass, type2:Type::Grass, weight:66, nfe:true },
     // [549] Lilligant
-    SpeciesData { hp:70, atk:60, def:75, spa:110, spd:75, spe:90, type1:Type::Grass, type2:Type::Grass, weight:163 },
+    SpeciesData { hp:70, atk:60, def:75, spa:110, spd:75, spe:90, type1:Type::Grass, type2:Type::Grass, weight:163, nfe:false },
     // [550] Basculin
-    SpeciesData { hp:70, atk:92, def:65, spa:80, spd:55, spe:98, type1:Type::Water, type2:Type::Water, weight:180 },
+    SpeciesData { hp:70, atk:92, def:65, spa:80, spd:55, spe:98, type1:Type::Water, type2:Type::Water, weight:180, nfe:false },
     // [551] Sandile
-    SpeciesData { hp:50, atk:72, def:35, spa:35, spd:35, spe:65, type1:Type::Ground, type2:Type::Dark, weight:152 },
+    SpeciesData { hp:50, atk:72, def:35, spa:35, spd:35, spe:65, type1:Type::Ground, type2:Type::Dark, weight:152, nfe:true },
     // [552] Krokorok
-    SpeciesData { hp:60, atk:82, def:45, spa:45, spd:45, spe:74, type1:Type::Ground, type2:Type::Dark, weight:334 },
+    SpeciesData { hp:60, atk:82, def:45, spa:45, spd:45, spe:74, type1:Type::Ground, type2:Type::Dark, weight:334, nfe:true },
     // [553] Krookodile
-    SpeciesData { hp:95, atk:117, def:80, spa:65, spd:70, spe:92, type1:Type::Ground, type2:Type::Dark, weight:963 },
+    SpeciesData { hp:95, atk:117, def:80, spa:65, spd:70, spe:92, type1:Type::Ground, type2:Type::Dark, weight:963, nfe:false },
     // [554] Darumaka
-    SpeciesData { hp:70, atk:90, def:45, spa:15, spd:45, spe:50, type1:Type::Fire, type2:Type::Fire, weight:375 },
+    SpeciesData { hp:70, atk:90, def:45, spa:15, spd:45, spe:50, type1:Type::Fire, type2:Type::Fire, weight:375, nfe:true },
     // [555] Darmanitan
-    SpeciesData { hp:105, atk:140, def:55, spa:30, spd:55, spe:95, type1:Type::Fire, type2:Type::Fire, weight:929 },
+    SpeciesData { hp:105, atk:140, def:55, spa:30, spd:55, spe:95, type1:Type::Fire, type2:Type::Fire, weight:929, nfe:false },
     // [556] Maractus
-    SpeciesData { hp:75, atk:86, def:67, spa:106, spd:67, spe:60, type1:Type::Grass, type2:Type::Grass, weight:280 },
+    SpeciesData { hp:75, atk:86, def:67, spa:106, spd:67, spe:60, type1:Type::Grass, type2:Type::Grass, weight:280, nfe:false },
     // [557] Dwebble
-    SpeciesData { hp:50, atk:65, def:85, spa:35, spd:35, spe:55, type1:Type::Bug, type2:Type::Rock, weight:145 },
+    SpeciesData { hp:50, atk:65, def:85, spa:35, spd:35, spe:55, type1:Type::Bug, type2:Type::Rock, weight:145, nfe:true },
     // [558] Crustle
-    SpeciesData { hp:70, atk:105, def:125, spa:65, spd:75, spe:45, type1:Type::Bug, type2:Type::Rock, weight:2000 },
+    SpeciesData { hp:70, atk:105, def:125, spa:65, spd:75, spe:45, type1:Type::Bug, type2:Type::Rock, weight:2000, nfe:false },
     // [559] Scraggy
-    SpeciesData { hp:50, atk:75, def:70, spa:35, spd:70, spe:48, type1:Type::Dark, type2:Type::Fighting, weight:118 },
+    SpeciesData { hp:50, atk:75, def:70, spa:35, spd:70, spe:48, type1:Type::Dark, type2:Type::Fighting, weight:118, nfe:true },
     // [560] Scrafty
-    SpeciesData { hp:65, atk:90, def:115, spa:45, spd:115, spe:58, type1:Type::Dark, type2:Type::Fighting, weight:300 },
+    SpeciesData { hp:65, atk:90, def:115, spa:45, spd:115, spe:58, type1:Type::Dark, type2:Type::Fighting, weight:300, nfe:false },
     // [561] Sigilyph
-    SpeciesData { hp:72, atk:58, def:80, spa:103, spd:80, spe:97, type1:Type::Psychic, type2:Type::Flying, weight:140 },
+    SpeciesData { hp:72, atk:58, def:80, spa:103, spd:80, spe:97, type1:Type::Psychic, type2:Type::Flying, weight:140, nfe:false },
     // [562] Yamask
-    SpeciesData { hp:38, atk:30, def:85, spa:55, spd:65, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:15 },
+    SpeciesData { hp:38, atk:30, def:85, spa:55, spd:65, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:15, nfe:true },
     // [563] Cofagrigus
-    SpeciesData { hp:58, atk:50, def:145, spa:95, spd:105, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:765 },
+    SpeciesData { hp:58, atk:50, def:145, spa:95, spd:105, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:765, nfe:false },
     // [564] Tirtouga
-    SpeciesData { hp:54, atk:78, def:103, spa:53, spd:45, spe:22, type1:Type::Water, type2:Type::Rock, weight:165 },
+    SpeciesData { hp:54, atk:78, def:103, spa:53, spd:45, spe:22, type1:Type::Water, type2:Type::Rock, weight:165, nfe:true },
     // [565] Carracosta
-    SpeciesData { hp:74, atk:108, def:133, spa:83, spd:65, spe:32, type1:Type::Water, type2:Type::Rock, weight:810 },
+    SpeciesData { hp:74, atk:108, def:133, spa:83, spd:65, spe:32, type1:Type::Water, type2:Type::Rock, weight:810, nfe:false },
     // [566] Archen
-    SpeciesData { hp:55, atk:112, def:45, spa:74, spd:45, spe:70, type1:Type::Rock, type2:Type::Flying, weight:95 },
+    SpeciesData { hp:55, atk:112, def:45, spa:74, spd:45, spe:70, type1:Type::Rock, type2:Type::Flying, weight:95, nfe:true },
     // [567] Archeops
-    SpeciesData { hp:75, atk:140, def:65, spa:112, spd:65, spe:110, type1:Type::Rock, type2:Type::Flying, weight:320 },
+    SpeciesData { hp:75, atk:140, def:65, spa:112, spd:65, spe:110, type1:Type::Rock, type2:Type::Flying, weight:320, nfe:false },
     // [568] Trubbish
-    SpeciesData { hp:50, atk:50, def:62, spa:40, spd:62, spe:65, type1:Type::Poison, type2:Type::Poison, weight:310 },
+    SpeciesData { hp:50, atk:50, def:62, spa:40, spd:62, spe:65, type1:Type::Poison, type2:Type::Poison, weight:310, nfe:true },
     // [569] Garbodor
-    SpeciesData { hp:80, atk:95, def:82, spa:60, spd:82, spe:75, type1:Type::Poison, type2:Type::Poison, weight:1073 },
+    SpeciesData { hp:80, atk:95, def:82, spa:60, spd:82, spe:75, type1:Type::Poison, type2:Type::Poison, weight:1073, nfe:false },
     // [570] Zorua
-    SpeciesData { hp:40, atk:65, def:40, spa:80, spd:40, spe:65, type1:Type::Dark, type2:Type::Dark, weight:125 },
+    SpeciesData { hp:40, atk:65, def:40, spa:80, spd:40, spe:65, type1:Type::Dark, type2:Type::Dark, weight:125, nfe:true },
     // [571] Zoroark
-    SpeciesData { hp:60, atk:105, def:60, spa:120, spd:60, spe:105, type1:Type::Dark, type2:Type::Dark, weight:811 },
+    SpeciesData { hp:60, atk:105, def:60, spa:120, spd:60, spe:105, type1:Type::Dark, type2:Type::Dark, weight:811, nfe:false },
     // [572] Minccino
-    SpeciesData { hp:55, atk:50, def:40, spa:40, spd:40, spe:75, type1:Type::Normal, type2:Type::Normal, weight:58 },
+    SpeciesData { hp:55, atk:50, def:40, spa:40, spd:40, spe:75, type1:Type::Normal, type2:Type::Normal, weight:58, nfe:true },
     // [573] Cinccino
-    SpeciesData { hp:75, atk:95, def:60, spa:65, spd:60, spe:115, type1:Type::Normal, type2:Type::Normal, weight:75 },
+    SpeciesData { hp:75, atk:95, def:60, spa:65, spd:60, spe:115, type1:Type::Normal, type2:Type::Normal, weight:75, nfe:false },
     // [574] Gothita
-    SpeciesData { hp:45, atk:30, def:50, spa:55, spd:65, spe:45, type1:Type::Psychic, type2:Type::Psychic, weight:58 },
+    SpeciesData { hp:45, atk:30, def:50, spa:55, spd:65, spe:45, type1:Type::Psychic, type2:Type::Psychic, weight:58, nfe:true },
     // [575] Gothorita
-    SpeciesData { hp:60, atk:45, def:70, spa:75, spd:85, spe:55, type1:Type::Psychic, type2:Type::Psychic, weight:180 },
+    SpeciesData { hp:60, atk:45, def:70, spa:75, spd:85, spe:55, type1:Type::Psychic, type2:Type::Psychic, weight:180, nfe:true },
     // [576] Gothitelle
-    SpeciesData { hp:70, atk:55, def:95, spa:95, spd:110, spe:65, type1:Type::Psychic, type2:Type::Psychic, weight:440 },
+    SpeciesData { hp:70, atk:55, def:95, spa:95, spd:110, spe:65, type1:Type::Psychic, type2:Type::Psychic, weight:440, nfe:false },
     // [577] Solosis
-    SpeciesData { hp:45, atk:30, def:40, spa:105, spd:50, spe:20, type1:Type::Psychic, type2:Type::Psychic, weight:10 },
+    SpeciesData { hp:45, atk:30, def:40, spa:105, spd:50, spe:20, type1:Type::Psychic, type2:Type::Psychic, weight:10, nfe:true },
     // [578] Duosion
-    SpeciesData { hp:65, atk:40, def:50, spa:125, spd:60, spe:30, type1:Type::Psychic, type2:Type::Psychic, weight:80 },
+    SpeciesData { hp:65, atk:40, def:50, spa:125, spd:60, spe:30, type1:Type::Psychic, type2:Type::Psychic, weight:80, nfe:true },
     // [579] Reuniclus
-    SpeciesData { hp:110, atk:65, def:75, spa:125, spd:85, spe:30, type1:Type::Psychic, type2:Type::Psychic, weight:201 },
+    SpeciesData { hp:110, atk:65, def:75, spa:125, spd:85, spe:30, type1:Type::Psychic, type2:Type::Psychic, weight:201, nfe:false },
     // [580] Ducklett
-    SpeciesData { hp:62, atk:44, def:50, spa:44, spd:50, spe:55, type1:Type::Water, type2:Type::Flying, weight:55 },
+    SpeciesData { hp:62, atk:44, def:50, spa:44, spd:50, spe:55, type1:Type::Water, type2:Type::Flying, weight:55, nfe:true },
     // [581] Swanna
-    SpeciesData { hp:75, atk:87, def:63, spa:87, spd:63, spe:98, type1:Type::Water, type2:Type::Flying, weight:242 },
+    SpeciesData { hp:75, atk:87, def:63, spa:87, spd:63, spe:98, type1:Type::Water, type2:Type::Flying, weight:242, nfe:false },
     // [582] Vanillite
-    SpeciesData { hp:36, atk:50, def:50, spa:65, spd:60, spe:44, type1:Type::Ice, type2:Type::Ice, weight:57 },
+    SpeciesData { hp:36, atk:50, def:50, spa:65, spd:60, spe:44, type1:Type::Ice, type2:Type::Ice, weight:57, nfe:true },
     // [583] Vanillish
-    SpeciesData { hp:51, atk:65, def:65, spa:80, spd:75, spe:59, type1:Type::Ice, type2:Type::Ice, weight:410 },
+    SpeciesData { hp:51, atk:65, def:65, spa:80, spd:75, spe:59, type1:Type::Ice, type2:Type::Ice, weight:410, nfe:true },
     // [584] Vanilluxe
-    SpeciesData { hp:71, atk:95, def:85, spa:110, spd:95, spe:79, type1:Type::Ice, type2:Type::Ice, weight:575 },
+    SpeciesData { hp:71, atk:95, def:85, spa:110, spd:95, spe:79, type1:Type::Ice, type2:Type::Ice, weight:575, nfe:false },
     // [585] Deerling
-    SpeciesData { hp:60, atk:60, def:50, spa:40, spd:50, spe:75, type1:Type::Normal, type2:Type::Grass, weight:195 },
+    SpeciesData { hp:60, atk:60, def:50, spa:40, spd:50, spe:75, type1:Type::Normal, type2:Type::Grass, weight:195, nfe:true },
     // [586] Sawsbuck
-    SpeciesData { hp:80, atk:100, def:70, spa:60, spd:70, spe:95, type1:Type::Normal, type2:Type::Grass, weight:925 },
+    SpeciesData { hp:80, atk:100, def:70, spa:60, spd:70, spe:95, type1:Type::Normal, type2:Type::Grass, weight:925, nfe:false },
     // [587] Emolga
-    SpeciesData { hp:55, atk:75, def:60, spa:75, spd:60, spe:103, type1:Type::Electric, type2:Type::Flying, weight:50 },
+    SpeciesData { hp:55, atk:75, def:60, spa:75, spd:60, spe:103, type1:Type::Electric, type2:Type::Flying, weight:50, nfe:false },
     // [588] Karrablast
-    SpeciesData { hp:50, atk:75, def:45, spa:40, spd:45, spe:60, type1:Type::Bug, type2:Type::Bug, weight:59 },
+    SpeciesData { hp:50, atk:75, def:45, spa:40, spd:45, spe:60, type1:Type::Bug, type2:Type::Bug, weight:59, nfe:true },
     // [589] Escavalier
-    SpeciesData { hp:70, atk:135, def:105, spa:60, spd:105, spe:20, type1:Type::Bug, type2:Type::Steel, weight:330 },
+    SpeciesData { hp:70, atk:135, def:105, spa:60, spd:105, spe:20, type1:Type::Bug, type2:Type::Steel, weight:330, nfe:false },
     // [590] Foongus
-    SpeciesData { hp:69, atk:55, def:45, spa:55, spd:55, spe:15, type1:Type::Grass, type2:Type::Poison, weight:10 },
+    SpeciesData { hp:69, atk:55, def:45, spa:55, spd:55, spe:15, type1:Type::Grass, type2:Type::Poison, weight:10, nfe:true },
     // [591] Amoonguss
-    SpeciesData { hp:114, atk:85, def:70, spa:85, spd:80, spe:30, type1:Type::Grass, type2:Type::Poison, weight:105 },
+    SpeciesData { hp:114, atk:85, def:70, spa:85, spd:80, spe:30, type1:Type::Grass, type2:Type::Poison, weight:105, nfe:false },
     // [592] Frillish
-    SpeciesData { hp:55, atk:40, def:50, spa:65, spd:85, spe:40, type1:Type::Water, type2:Type::Ghost, weight:330 },
+    SpeciesData { hp:55, atk:40, def:50, spa:65, spd:85, spe:40, type1:Type::Water, type2:Type::Ghost, weight:330, nfe:true },
     // [593] Jellicent
-    SpeciesData { hp:100, atk:60, def:70, spa:85, spd:105, spe:60, type1:Type::Water, type2:Type::Ghost, weight:1350 },
+    SpeciesData { hp:100, atk:60, def:70, spa:85, spd:105, spe:60, type1:Type::Water, type2:Type::Ghost, weight:1350, nfe:false },
     // [594] Alomomola
-    SpeciesData { hp:165, atk:75, def:80, spa:40, spd:45, spe:65, type1:Type::Water, type2:Type::Water, weight:316 },
+    SpeciesData { hp:165, atk:75, def:80, spa:40, spd:45, spe:65, type1:Type::Water, type2:Type::Water, weight:316, nfe:false },
     // [595] Joltik
-    SpeciesData { hp:50, atk:47, def:50, spa:57, spd:50, spe:65, type1:Type::Bug, type2:Type::Electric, weight:6 },
+    SpeciesData { hp:50, atk:47, def:50, spa:57, spd:50, spe:65, type1:Type::Bug, type2:Type::Electric, weight:6, nfe:true },
     // [596] Galvantula
-    SpeciesData { hp:70, atk:77, def:60, spa:97, spd:60, spe:108, type1:Type::Bug, type2:Type::Electric, weight:143 },
+    SpeciesData { hp:70, atk:77, def:60, spa:97, spd:60, spe:108, type1:Type::Bug, type2:Type::Electric, weight:143, nfe:false },
     // [597] Ferroseed
-    SpeciesData { hp:44, atk:50, def:91, spa:24, spd:86, spe:10, type1:Type::Grass, type2:Type::Steel, weight:188 },
+    SpeciesData { hp:44, atk:50, def:91, spa:24, spd:86, spe:10, type1:Type::Grass, type2:Type::Steel, weight:188, nfe:true },
     // [598] Ferrothorn
-    SpeciesData { hp:74, atk:94, def:131, spa:54, spd:116, spe:20, type1:Type::Grass, type2:Type::Steel, weight:1100 },
+    SpeciesData { hp:74, atk:94, def:131, spa:54, spd:116, spe:20, type1:Type::Grass, type2:Type::Steel, weight:1100, nfe:false },
     // [599] Klink
-    SpeciesData { hp:40, atk:55, def:70, spa:45, spd:60, spe:30, type1:Type::Steel, type2:Type::Steel, weight:210 },
+    SpeciesData { hp:40, atk:55, def:70, spa:45, spd:60, spe:30, type1:Type::Steel, type2:Type::Steel, weight:210, nfe:true },
     // [600] Klang
-    SpeciesData { hp:60, atk:80, def:95, spa:70, spd:85, spe:50, type1:Type::Steel, type2:Type::Steel, weight:510 },
+    SpeciesData { hp:60, atk:80, def:95, spa:70, spd:85, spe:50, type1:Type::Steel, type2:Type::Steel, weight:510, nfe:true },
     // [601] Klinklang
-    SpeciesData { hp:60, atk:100, def:115, spa:70, spd:85, spe:90, type1:Type::Steel, type2:Type::Steel, weight:810 },
+    SpeciesData { hp:60, atk:100, def:115, spa:70, spd:85, spe:90, type1:Type::Steel, type2:Type::Steel, weight:810, nfe:false },
     // [602] Tynamo
-    SpeciesData { hp:35, atk:55, def:40, spa:45, spd:40, spe:60, type1:Type::Electric, type2:Type::Electric, weight:3 },
+    SpeciesData { hp:35, atk:55, def:40, spa:45, spd:40, spe:60, type1:Type::Electric, type2:Type::Electric, weight:3, nfe:true },
     // [603] Eelektrik
-    SpeciesData { hp:65, atk:85, def:70, spa:75, spd:70, spe:40, type1:Type::Electric, type2:Type::Electric, weight:220 },
+    SpeciesData { hp:65, atk:85, def:70, spa:75, spd:70, spe:40, type1:Type::Electric, type2:Type::Electric, weight:220, nfe:true },
     // [604] Eelektross
-    SpeciesData { hp:85, atk:115, def:80, spa:105, spd:80, spe:50, type1:Type::Electric, type2:Type::Electric, weight:805 },
+    SpeciesData { hp:85, atk:115, def:80, spa:105, spd:80, spe:50, type1:Type::Electric, type2:Type::Electric, weight:805, nfe:false },
     // [605] Elgyem
-    SpeciesData { hp:55, atk:55, def:55, spa:85, spd:55, spe:30, type1:Type::Psychic, type2:Type::Psychic, weight:90 },
+    SpeciesData { hp:55, atk:55, def:55, spa:85, spd:55, spe:30, type1:Type::Psychic, type2:Type::Psychic, weight:90, nfe:true },
     // [606] Beheeyem
-    SpeciesData { hp:75, atk:75, def:75, spa:125, spd:95, spe:40, type1:Type::Psychic, type2:Type::Psychic, weight:345 },
+    SpeciesData { hp:75, atk:75, def:75, spa:125, spd:95, spe:40, type1:Type::Psychic, type2:Type::Psychic, weight:345, nfe:false },
     // [607] Litwick
-    SpeciesData { hp:50, atk:30, def:55, spa:65, spd:55, spe:20, type1:Type::Ghost, type2:Type::Fire, weight:31 },
+    SpeciesData { hp:50, atk:30, def:55, spa:65, spd:55, spe:20, type1:Type::Ghost, type2:Type::Fire, weight:31, nfe:true },
     // [608] Lampent
-    SpeciesData { hp:60, atk:40, def:60, spa:95, spd:60, spe:55, type1:Type::Ghost, type2:Type::Fire, weight:130 },
+    SpeciesData { hp:60, atk:40, def:60, spa:95, spd:60, spe:55, type1:Type::Ghost, type2:Type::Fire, weight:130, nfe:true },
     // [609] Chandelure
-    SpeciesData { hp:60, atk:55, def:90, spa:145, spd:90, spe:80, type1:Type::Ghost, type2:Type::Fire, weight:343 },
+    SpeciesData { hp:60, atk:55, def:90, spa:145, spd:90, spe:80, type1:Type::Ghost, type2:Type::Fire, weight:343, nfe:false },
     // [610] Axew
-    SpeciesData { hp:46, atk:87, def:60, spa:30, spd:40, spe:57, type1:Type::Dragon, type2:Type::Dragon, weight:180 },
+    SpeciesData { hp:46, atk:87, def:60, spa:30, spd:40, spe:57, type1:Type::Dragon, type2:Type::Dragon, weight:180, nfe:true },
     // [611] Fraxure
-    SpeciesData { hp:66, atk:117, def:70, spa:40, spd:50, spe:67, type1:Type::Dragon, type2:Type::Dragon, weight:360 },
+    SpeciesData { hp:66, atk:117, def:70, spa:40, spd:50, spe:67, type1:Type::Dragon, type2:Type::Dragon, weight:360, nfe:true },
     // [612] Haxorus
-    SpeciesData { hp:76, atk:147, def:90, spa:60, spd:70, spe:97, type1:Type::Dragon, type2:Type::Dragon, weight:1055 },
+    SpeciesData { hp:76, atk:147, def:90, spa:60, spd:70, spe:97, type1:Type::Dragon, type2:Type::Dragon, weight:1055, nfe:false },
     // [613] Cubchoo
-    SpeciesData { hp:55, atk:70, def:40, spa:60, spd:40, spe:40, type1:Type::Ice, type2:Type::Ice, weight:85 },
+    SpeciesData { hp:55, atk:70, def:40, spa:60, spd:40, spe:40, type1:Type::Ice, type2:Type::Ice, weight:85, nfe:true },
     // [614] Beartic
-    SpeciesData { hp:95, atk:130, def:80, spa:70, spd:80, spe:50, type1:Type::Ice, type2:Type::Ice, weight:2600 },
+    SpeciesData { hp:95, atk:130, def:80, spa:70, spd:80, spe:50, type1:Type::Ice, type2:Type::Ice, weight:2600, nfe:false },
     // [615] Cryogonal
-    SpeciesData { hp:80, atk:50, def:50, spa:95, spd:135, spe:105, type1:Type::Ice, type2:Type::Ice, weight:1480 },
+    SpeciesData { hp:80, atk:50, def:50, spa:95, spd:135, spe:105, type1:Type::Ice, type2:Type::Ice, weight:1480, nfe:false },
     // [616] Shelmet
-    SpeciesData { hp:50, atk:40, def:85, spa:40, spd:65, spe:25, type1:Type::Bug, type2:Type::Bug, weight:77 },
+    SpeciesData { hp:50, atk:40, def:85, spa:40, spd:65, spe:25, type1:Type::Bug, type2:Type::Bug, weight:77, nfe:true },
     // [617] Accelgor
-    SpeciesData { hp:80, atk:70, def:40, spa:100, spd:60, spe:145, type1:Type::Bug, type2:Type::Bug, weight:253 },
+    SpeciesData { hp:80, atk:70, def:40, spa:100, spd:60, spe:145, type1:Type::Bug, type2:Type::Bug, weight:253, nfe:false },
     // [618] Stunfisk
-    SpeciesData { hp:109, atk:66, def:84, spa:81, spd:99, spe:32, type1:Type::Ground, type2:Type::Electric, weight:110 },
+    SpeciesData { hp:109, atk:66, def:84, spa:81, spd:99, spe:32, type1:Type::Ground, type2:Type::Electric, weight:110, nfe:false },
     // [619] Mienfoo
-    SpeciesData { hp:45, atk:85, def:50, spa:55, spd:50, spe:65, type1:Type::Fighting, type2:Type::Fighting, weight:200 },
+    SpeciesData { hp:45, atk:85, def:50, spa:55, spd:50, spe:65, type1:Type::Fighting, type2:Type::Fighting, weight:200, nfe:true },
     // [620] Mienshao
-    SpeciesData { hp:65, atk:125, def:60, spa:95, spd:60, spe:105, type1:Type::Fighting, type2:Type::Fighting, weight:355 },
+    SpeciesData { hp:65, atk:125, def:60, spa:95, spd:60, spe:105, type1:Type::Fighting, type2:Type::Fighting, weight:355, nfe:false },
     // [621] Druddigon
-    SpeciesData { hp:77, atk:120, def:90, spa:60, spd:90, spe:48, type1:Type::Dragon, type2:Type::Dragon, weight:1390 },
+    SpeciesData { hp:77, atk:120, def:90, spa:60, spd:90, spe:48, type1:Type::Dragon, type2:Type::Dragon, weight:1390, nfe:false },
     // [622] Golett
-    SpeciesData { hp:59, atk:74, def:50, spa:35, spd:50, spe:35, type1:Type::Ground, type2:Type::Ghost, weight:920 },
+    SpeciesData { hp:59, atk:74, def:50, spa:35, spd:50, spe:35, type1:Type::Ground, type2:Type::Ghost, weight:920, nfe:true },
     // [623] Golurk
-    SpeciesData { hp:89, atk:124, def:80, spa:55, spd:80, spe:55, type1:Type::Ground, type2:Type::Ghost, weight:3300 },
+    SpeciesData { hp:89, atk:124, def:80, spa:55, spd:80, spe:55, type1:Type::Ground, type2:Type::Ghost, weight:3300, nfe:false },
     // [624] Pawniard
-    SpeciesData { hp:45, atk:85, def:70, spa:40, spd:40, spe:60, type1:Type::Dark, type2:Type::Steel, weight:102 },
+    SpeciesData { hp:45, atk:85, def:70, spa:40, spd:40, spe:60, type1:Type::Dark, type2:Type::Steel, weight:102, nfe:true },
     // [625] Bisharp
-    SpeciesData { hp:65, atk:125, def:100, spa:60, spd:70, spe:70, type1:Type::Dark, type2:Type::Steel, weight:700 },
+    SpeciesData { hp:65, atk:125, def:100, spa:60, spd:70, spe:70, type1:Type::Dark, type2:Type::Steel, weight:700, nfe:true },
     // [626] Bouffalant
-    SpeciesData { hp:95, atk:110, def:95, spa:40, spd:95, spe:55, type1:Type::Normal, type2:Type::Normal, weight:946 },
+    SpeciesData { hp:95, atk:110, def:95, spa:40, spd:95, spe:55, type1:Type::Normal, type2:Type::Normal, weight:946, nfe:false },
     // [627] Rufflet
-    SpeciesData { hp:70, atk:83, def:50, spa:37, spd:50, spe:60, type1:Type::Normal, type2:Type::Flying, weight:105 },
+    SpeciesData { hp:70, atk:83, def:50, spa:37, spd:50, spe:60, type1:Type::Normal, type2:Type::Flying, weight:105, nfe:true },
     // [628] Braviary
-    SpeciesData { hp:100, atk:123, def:75, spa:57, spd:75, spe:80, type1:Type::Normal, type2:Type::Flying, weight:410 },
+    SpeciesData { hp:100, atk:123, def:75, spa:57, spd:75, spe:80, type1:Type::Normal, type2:Type::Flying, weight:410, nfe:false },
     // [629] Vullaby
-    SpeciesData { hp:70, atk:55, def:75, spa:45, spd:65, spe:60, type1:Type::Dark, type2:Type::Flying, weight:90 },
+    SpeciesData { hp:70, atk:55, def:75, spa:45, spd:65, spe:60, type1:Type::Dark, type2:Type::Flying, weight:90, nfe:true },
     // [630] Mandibuzz
-    SpeciesData { hp:110, atk:65, def:105, spa:55, spd:95, spe:80, type1:Type::Dark, type2:Type::Flying, weight:395 },
+    SpeciesData { hp:110, atk:65, def:105, spa:55, spd:95, spe:80, type1:Type::Dark, type2:Type::Flying, weight:395, nfe:false },
     // [631] Heatmor
-    SpeciesData { hp:85, atk:97, def:66, spa:105, spd:66, spe:65, type1:Type::Fire, type2:Type::Fire, weight:580 },
+    SpeciesData { hp:85, atk:97, def:66, spa:105, spd:66, spe:65, type1:Type::Fire, type2:Type::Fire, weight:580, nfe:false },
     // [632] Durant
-    SpeciesData { hp:58, atk:109, def:112, spa:48, spd:48, spe:109, type1:Type::Bug, type2:Type::Steel, weight:330 },
+    SpeciesData { hp:58, atk:109, def:112, spa:48, spd:48, spe:109, type1:Type::Bug, type2:Type::Steel, weight:330, nfe:false },
     // [633] Deino
-    SpeciesData { hp:52, atk:65, def:50, spa:45, spd:50, spe:38, type1:Type::Dark, type2:Type::Dragon, weight:173 },
+    SpeciesData { hp:52, atk:65, def:50, spa:45, spd:50, spe:38, type1:Type::Dark, type2:Type::Dragon, weight:173, nfe:true },
     // [634] Zweilous
-    SpeciesData { hp:72, atk:85, def:70, spa:65, spd:70, spe:58, type1:Type::Dark, type2:Type::Dragon, weight:500 },
+    SpeciesData { hp:72, atk:85, def:70, spa:65, spd:70, spe:58, type1:Type::Dark, type2:Type::Dragon, weight:500, nfe:true },
     // [635] Hydreigon
-    SpeciesData { hp:92, atk:105, def:90, spa:125, spd:90, spe:98, type1:Type::Dark, type2:Type::Dragon, weight:1600 },
+    SpeciesData { hp:92, atk:105, def:90, spa:125, spd:90, spe:98, type1:Type::Dark, type2:Type::Dragon, weight:1600, nfe:false },
     // [636] Larvesta
-    SpeciesData { hp:55, atk:85, def:55, spa:50, spd:55, spe:60, type1:Type::Bug, type2:Type::Fire, weight:288 },
+    SpeciesData { hp:55, atk:85, def:55, spa:50, spd:55, spe:60, type1:Type::Bug, type2:Type::Fire, weight:288, nfe:true },
     // [637] Volcarona
-    SpeciesData { hp:85, atk:60, def:65, spa:135, spd:105, spe:100, type1:Type::Bug, type2:Type::Fire, weight:460 },
+    SpeciesData { hp:85, atk:60, def:65, spa:135, spd:105, spe:100, type1:Type::Bug, type2:Type::Fire, weight:460, nfe:false },
     // [638] Cobalion
-    SpeciesData { hp:91, atk:90, def:129, spa:90, spd:72, spe:108, type1:Type::Steel, type2:Type::Fighting, weight:2500 },
+    SpeciesData { hp:91, atk:90, def:129, spa:90, spd:72, spe:108, type1:Type::Steel, type2:Type::Fighting, weight:2500, nfe:false },
     // [639] Terrakion
-    SpeciesData { hp:91, atk:129, def:90, spa:72, spd:90, spe:108, type1:Type::Rock, type2:Type::Fighting, weight:2600 },
+    SpeciesData { hp:91, atk:129, def:90, spa:72, spd:90, spe:108, type1:Type::Rock, type2:Type::Fighting, weight:2600, nfe:false },
     // [640] Virizion
-    SpeciesData { hp:91, atk:90, def:72, spa:90, spd:129, spe:108, type1:Type::Grass, type2:Type::Fighting, weight:2000 },
+    SpeciesData { hp:91, atk:90, def:72, spa:90, spd:129, spe:108, type1:Type::Grass, type2:Type::Fighting, weight:2000, nfe:false },
     // [641] Tornadus
-    SpeciesData { hp:79, atk:115, def:70, spa:125, spd:80, spe:111, type1:Type::Flying, type2:Type::Flying, weight:630 },
+    SpeciesData { hp:79, atk:115, def:70, spa:125, spd:80, spe:111, type1:Type::Flying, type2:Type::Flying, weight:630, nfe:false },
     // [642] Thundurus
-    SpeciesData { hp:79, atk:115, def:70, spa:125, spd:80, spe:111, type1:Type::Electric, type2:Type::Flying, weight:610 },
+    SpeciesData { hp:79, atk:115, def:70, spa:125, spd:80, spe:111, type1:Type::Electric, type2:Type::Flying, weight:610, nfe:false },
     // [643] Reshiram
-    SpeciesData { hp:100, atk:120, def:100, spa:150, spd:120, spe:90, type1:Type::Dragon, type2:Type::Fire, weight:3300 },
+    SpeciesData { hp:100, atk:120, def:100, spa:150, spd:120, spe:90, type1:Type::Dragon, type2:Type::Fire, weight:3300, nfe:false },
     // [644] Zekrom
-    SpeciesData { hp:100, atk:150, def:120, spa:120, spd:100, spe:90, type1:Type::Dragon, type2:Type::Electric, weight:3450 },
+    SpeciesData { hp:100, atk:150, def:120, spa:120, spd:100, spe:90, type1:Type::Dragon, type2:Type::Electric, weight:3450, nfe:false },
     // [645] Landorus
-    SpeciesData { hp:89, atk:125, def:90, spa:115, spd:80, spe:101, type1:Type::Ground, type2:Type::Flying, weight:680 },
+    SpeciesData { hp:89, atk:125, def:90, spa:115, spd:80, spe:101, type1:Type::Ground, type2:Type::Flying, weight:680, nfe:false },
     // [646] Kyurem
-    SpeciesData { hp:125, atk:130, def:90, spa:130, spd:90, spe:95, type1:Type::Dragon, type2:Type::Ice, weight:3250 },
+    SpeciesData { hp:125, atk:130, def:90, spa:130, spd:90, spe:95, type1:Type::Dragon, type2:Type::Ice, weight:3250, nfe:false },
     // [647] Keldeo
-    SpeciesData { hp:91, atk:72, def:90, spa:129, spd:90, spe:108, type1:Type::Water, type2:Type::Fighting, weight:485 },
+    SpeciesData { hp:91, atk:72, def:90, spa:129, spd:90, spe:108, type1:Type::Water, type2:Type::Fighting, weight:485, nfe:false },
     // [648] Meloetta
-    SpeciesData { hp:100, atk:77, def:77, spa:128, spd:128, spe:90, type1:Type::Normal, type2:Type::Psychic, weight:65 },
+    SpeciesData { hp:100, atk:77, def:77, spa:128, spd:128, spe:90, type1:Type::Normal, type2:Type::Psychic, weight:65, nfe:false },
     // [649] Genesect
-    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825 },
+    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825, nfe:false },
     // [650] Chespin
-    SpeciesData { hp:56, atk:61, def:65, spa:48, spd:45, spe:38, type1:Type::Grass, type2:Type::Grass, weight:90 },
+    SpeciesData { hp:56, atk:61, def:65, spa:48, spd:45, spe:38, type1:Type::Grass, type2:Type::Grass, weight:90, nfe:true },
     // [651] Quilladin
-    SpeciesData { hp:61, atk:78, def:95, spa:56, spd:58, spe:57, type1:Type::Grass, type2:Type::Grass, weight:290 },
+    SpeciesData { hp:61, atk:78, def:95, spa:56, spd:58, spe:57, type1:Type::Grass, type2:Type::Grass, weight:290, nfe:true },
     // [652] Chesnaught
-    SpeciesData { hp:88, atk:107, def:122, spa:74, spd:75, spe:64, type1:Type::Grass, type2:Type::Fighting, weight:900 },
+    SpeciesData { hp:88, atk:107, def:122, spa:74, spd:75, spe:64, type1:Type::Grass, type2:Type::Fighting, weight:900, nfe:false },
     // [653] Fennekin
-    SpeciesData { hp:40, atk:45, def:40, spa:62, spd:60, spe:60, type1:Type::Fire, type2:Type::Fire, weight:94 },
+    SpeciesData { hp:40, atk:45, def:40, spa:62, spd:60, spe:60, type1:Type::Fire, type2:Type::Fire, weight:94, nfe:true },
     // [654] Braixen
-    SpeciesData { hp:59, atk:59, def:58, spa:90, spd:70, spe:73, type1:Type::Fire, type2:Type::Fire, weight:145 },
+    SpeciesData { hp:59, atk:59, def:58, spa:90, spd:70, spe:73, type1:Type::Fire, type2:Type::Fire, weight:145, nfe:true },
     // [655] Delphox
-    SpeciesData { hp:75, atk:69, def:72, spa:114, spd:100, spe:104, type1:Type::Fire, type2:Type::Psychic, weight:390 },
+    SpeciesData { hp:75, atk:69, def:72, spa:114, spd:100, spe:104, type1:Type::Fire, type2:Type::Psychic, weight:390, nfe:false },
     // [656] Froakie
-    SpeciesData { hp:41, atk:56, def:40, spa:62, spd:44, spe:71, type1:Type::Water, type2:Type::Water, weight:70 },
+    SpeciesData { hp:41, atk:56, def:40, spa:62, spd:44, spe:71, type1:Type::Water, type2:Type::Water, weight:70, nfe:true },
     // [657] Frogadier
-    SpeciesData { hp:54, atk:63, def:52, spa:83, spd:56, spe:97, type1:Type::Water, type2:Type::Water, weight:109 },
+    SpeciesData { hp:54, atk:63, def:52, spa:83, spd:56, spe:97, type1:Type::Water, type2:Type::Water, weight:109, nfe:true },
     // [658] Greninja
-    SpeciesData { hp:72, atk:95, def:67, spa:103, spd:71, spe:122, type1:Type::Water, type2:Type::Dark, weight:400 },
+    SpeciesData { hp:72, atk:95, def:67, spa:103, spd:71, spe:122, type1:Type::Water, type2:Type::Dark, weight:400, nfe:false },
     // [659] Bunnelby
-    SpeciesData { hp:38, atk:36, def:38, spa:32, spd:36, spe:57, type1:Type::Normal, type2:Type::Normal, weight:50 },
+    SpeciesData { hp:38, atk:36, def:38, spa:32, spd:36, spe:57, type1:Type::Normal, type2:Type::Normal, weight:50, nfe:true },
     // [660] Diggersby
-    SpeciesData { hp:85, atk:56, def:77, spa:50, spd:77, spe:78, type1:Type::Normal, type2:Type::Ground, weight:424 },
+    SpeciesData { hp:85, atk:56, def:77, spa:50, spd:77, spe:78, type1:Type::Normal, type2:Type::Ground, weight:424, nfe:false },
     // [661] Fletchling
-    SpeciesData { hp:45, atk:50, def:43, spa:40, spd:38, spe:62, type1:Type::Normal, type2:Type::Flying, weight:17 },
+    SpeciesData { hp:45, atk:50, def:43, spa:40, spd:38, spe:62, type1:Type::Normal, type2:Type::Flying, weight:17, nfe:true },
     // [662] Fletchinder
-    SpeciesData { hp:62, atk:73, def:55, spa:56, spd:52, spe:84, type1:Type::Fire, type2:Type::Flying, weight:160 },
+    SpeciesData { hp:62, atk:73, def:55, spa:56, spd:52, spe:84, type1:Type::Fire, type2:Type::Flying, weight:160, nfe:true },
     // [663] Talonflame
-    SpeciesData { hp:78, atk:81, def:71, spa:74, spd:69, spe:126, type1:Type::Fire, type2:Type::Flying, weight:245 },
+    SpeciesData { hp:78, atk:81, def:71, spa:74, spd:69, spe:126, type1:Type::Fire, type2:Type::Flying, weight:245, nfe:false },
     // [664] Scatterbug
-    SpeciesData { hp:38, atk:35, def:40, spa:27, spd:25, spe:35, type1:Type::Bug, type2:Type::Bug, weight:25 },
+    SpeciesData { hp:38, atk:35, def:40, spa:27, spd:25, spe:35, type1:Type::Bug, type2:Type::Bug, weight:25, nfe:true },
     // [665] Spewpa
-    SpeciesData { hp:45, atk:22, def:60, spa:27, spd:30, spe:29, type1:Type::Bug, type2:Type::Bug, weight:84 },
+    SpeciesData { hp:45, atk:22, def:60, spa:27, spd:30, spe:29, type1:Type::Bug, type2:Type::Bug, weight:84, nfe:true },
     // [666] Vivillon
-    SpeciesData { hp:80, atk:52, def:50, spa:90, spd:50, spe:89, type1:Type::Bug, type2:Type::Flying, weight:170 },
+    SpeciesData { hp:80, atk:52, def:50, spa:90, spd:50, spe:89, type1:Type::Bug, type2:Type::Flying, weight:170, nfe:false },
     // [667] Litleo
-    SpeciesData { hp:62, atk:50, def:58, spa:73, spd:54, spe:72, type1:Type::Fire, type2:Type::Normal, weight:135 },
+    SpeciesData { hp:62, atk:50, def:58, spa:73, spd:54, spe:72, type1:Type::Fire, type2:Type::Normal, weight:135, nfe:true },
     // [668] Pyroar
-    SpeciesData { hp:86, atk:68, def:72, spa:109, spd:66, spe:106, type1:Type::Fire, type2:Type::Normal, weight:815 },
+    SpeciesData { hp:86, atk:68, def:72, spa:109, spd:66, spe:106, type1:Type::Fire, type2:Type::Normal, weight:815, nfe:false },
     // [669] Flabébé
-    SpeciesData { hp:44, atk:38, def:39, spa:61, spd:79, spe:42, type1:Type::Fairy, type2:Type::Fairy, weight:1 },
+    SpeciesData { hp:44, atk:38, def:39, spa:61, spd:79, spe:42, type1:Type::Fairy, type2:Type::Fairy, weight:1, nfe:true },
     // [670] Floette
-    SpeciesData { hp:54, atk:45, def:47, spa:75, spd:98, spe:52, type1:Type::Fairy, type2:Type::Fairy, weight:9 },
+    SpeciesData { hp:54, atk:45, def:47, spa:75, spd:98, spe:52, type1:Type::Fairy, type2:Type::Fairy, weight:9, nfe:true },
     // [671] Florges
-    SpeciesData { hp:78, atk:65, def:68, spa:112, spd:154, spe:75, type1:Type::Fairy, type2:Type::Fairy, weight:100 },
+    SpeciesData { hp:78, atk:65, def:68, spa:112, spd:154, spe:75, type1:Type::Fairy, type2:Type::Fairy, weight:100, nfe:false },
     // [672] Skiddo
-    SpeciesData { hp:66, atk:65, def:48, spa:62, spd:57, spe:52, type1:Type::Grass, type2:Type::Grass, weight:310 },
+    SpeciesData { hp:66, atk:65, def:48, spa:62, spd:57, spe:52, type1:Type::Grass, type2:Type::Grass, weight:310, nfe:true },
     // [673] Gogoat
-    SpeciesData { hp:123, atk:100, def:62, spa:97, spd:81, spe:68, type1:Type::Grass, type2:Type::Grass, weight:910 },
+    SpeciesData { hp:123, atk:100, def:62, spa:97, spd:81, spe:68, type1:Type::Grass, type2:Type::Grass, weight:910, nfe:false },
     // [674] Pancham
-    SpeciesData { hp:67, atk:82, def:62, spa:46, spd:48, spe:43, type1:Type::Fighting, type2:Type::Fighting, weight:80 },
+    SpeciesData { hp:67, atk:82, def:62, spa:46, spd:48, spe:43, type1:Type::Fighting, type2:Type::Fighting, weight:80, nfe:true },
     // [675] Pangoro
-    SpeciesData { hp:95, atk:124, def:78, spa:69, spd:71, spe:58, type1:Type::Fighting, type2:Type::Dark, weight:1360 },
+    SpeciesData { hp:95, atk:124, def:78, spa:69, spd:71, spe:58, type1:Type::Fighting, type2:Type::Dark, weight:1360, nfe:false },
     // [676] Furfrou
-    SpeciesData { hp:75, atk:80, def:60, spa:65, spd:90, spe:102, type1:Type::Normal, type2:Type::Normal, weight:280 },
+    SpeciesData { hp:75, atk:80, def:60, spa:65, spd:90, spe:102, type1:Type::Normal, type2:Type::Normal, weight:280, nfe:false },
     // [677] Espurr
-    SpeciesData { hp:62, atk:48, def:54, spa:63, spd:60, spe:68, type1:Type::Psychic, type2:Type::Psychic, weight:35 },
+    SpeciesData { hp:62, atk:48, def:54, spa:63, spd:60, spe:68, type1:Type::Psychic, type2:Type::Psychic, weight:35, nfe:true },
     // [678] Meowstic
-    SpeciesData { hp:74, atk:48, def:76, spa:83, spd:81, spe:104, type1:Type::Psychic, type2:Type::Psychic, weight:85 },
+    SpeciesData { hp:74, atk:48, def:76, spa:83, spd:81, spe:104, type1:Type::Psychic, type2:Type::Psychic, weight:85, nfe:false },
     // [679] Honedge
-    SpeciesData { hp:45, atk:80, def:100, spa:35, spd:37, spe:28, type1:Type::Steel, type2:Type::Ghost, weight:20 },
+    SpeciesData { hp:45, atk:80, def:100, spa:35, spd:37, spe:28, type1:Type::Steel, type2:Type::Ghost, weight:20, nfe:true },
     // [680] Doublade
-    SpeciesData { hp:59, atk:110, def:150, spa:45, spd:49, spe:35, type1:Type::Steel, type2:Type::Ghost, weight:45 },
+    SpeciesData { hp:59, atk:110, def:150, spa:45, spd:49, spe:35, type1:Type::Steel, type2:Type::Ghost, weight:45, nfe:true },
     // [681] Aegislash
-    SpeciesData { hp:60, atk:50, def:140, spa:50, spd:140, spe:60, type1:Type::Steel, type2:Type::Ghost, weight:530 },
+    SpeciesData { hp:60, atk:50, def:140, spa:50, spd:140, spe:60, type1:Type::Steel, type2:Type::Ghost, weight:530, nfe:false },
     // [682] Spritzee
-    SpeciesData { hp:78, atk:52, def:60, spa:63, spd:65, spe:23, type1:Type::Fairy, type2:Type::Fairy, weight:5 },
+    SpeciesData { hp:78, atk:52, def:60, spa:63, spd:65, spe:23, type1:Type::Fairy, type2:Type::Fairy, weight:5, nfe:true },
     // [683] Aromatisse
-    SpeciesData { hp:101, atk:72, def:72, spa:99, spd:89, spe:29, type1:Type::Fairy, type2:Type::Fairy, weight:155 },
+    SpeciesData { hp:101, atk:72, def:72, spa:99, spd:89, spe:29, type1:Type::Fairy, type2:Type::Fairy, weight:155, nfe:false },
     // [684] Swirlix
-    SpeciesData { hp:62, atk:48, def:66, spa:59, spd:57, spe:49, type1:Type::Fairy, type2:Type::Fairy, weight:35 },
+    SpeciesData { hp:62, atk:48, def:66, spa:59, spd:57, spe:49, type1:Type::Fairy, type2:Type::Fairy, weight:35, nfe:true },
     // [685] Slurpuff
-    SpeciesData { hp:82, atk:80, def:86, spa:85, spd:75, spe:72, type1:Type::Fairy, type2:Type::Fairy, weight:50 },
+    SpeciesData { hp:82, atk:80, def:86, spa:85, spd:75, spe:72, type1:Type::Fairy, type2:Type::Fairy, weight:50, nfe:false },
     // [686] Inkay
-    SpeciesData { hp:53, atk:54, def:53, spa:37, spd:46, spe:45, type1:Type::Dark, type2:Type::Psychic, weight:35 },
+    SpeciesData { hp:53, atk:54, def:53, spa:37, spd:46, spe:45, type1:Type::Dark, type2:Type::Psychic, weight:35, nfe:true },
     // [687] Malamar
-    SpeciesData { hp:86, atk:92, def:88, spa:68, spd:75, spe:73, type1:Type::Dark, type2:Type::Psychic, weight:470 },
+    SpeciesData { hp:86, atk:92, def:88, spa:68, spd:75, spe:73, type1:Type::Dark, type2:Type::Psychic, weight:470, nfe:false },
     // [688] Binacle
-    SpeciesData { hp:42, atk:52, def:67, spa:39, spd:56, spe:50, type1:Type::Rock, type2:Type::Water, weight:310 },
+    SpeciesData { hp:42, atk:52, def:67, spa:39, spd:56, spe:50, type1:Type::Rock, type2:Type::Water, weight:310, nfe:true },
     // [689] Barbaracle
-    SpeciesData { hp:72, atk:105, def:115, spa:54, spd:86, spe:68, type1:Type::Rock, type2:Type::Water, weight:960 },
+    SpeciesData { hp:72, atk:105, def:115, spa:54, spd:86, spe:68, type1:Type::Rock, type2:Type::Water, weight:960, nfe:false },
     // [690] Skrelp
-    SpeciesData { hp:50, atk:60, def:60, spa:60, spd:60, spe:30, type1:Type::Poison, type2:Type::Water, weight:73 },
+    SpeciesData { hp:50, atk:60, def:60, spa:60, spd:60, spe:30, type1:Type::Poison, type2:Type::Water, weight:73, nfe:true },
     // [691] Dragalge
-    SpeciesData { hp:65, atk:75, def:90, spa:97, spd:123, spe:44, type1:Type::Poison, type2:Type::Dragon, weight:815 },
+    SpeciesData { hp:65, atk:75, def:90, spa:97, spd:123, spe:44, type1:Type::Poison, type2:Type::Dragon, weight:815, nfe:false },
     // [692] Clauncher
-    SpeciesData { hp:50, atk:53, def:62, spa:58, spd:63, spe:44, type1:Type::Water, type2:Type::Water, weight:83 },
+    SpeciesData { hp:50, atk:53, def:62, spa:58, spd:63, spe:44, type1:Type::Water, type2:Type::Water, weight:83, nfe:true },
     // [693] Clawitzer
-    SpeciesData { hp:71, atk:73, def:88, spa:120, spd:89, spe:59, type1:Type::Water, type2:Type::Water, weight:353 },
+    SpeciesData { hp:71, atk:73, def:88, spa:120, spd:89, spe:59, type1:Type::Water, type2:Type::Water, weight:353, nfe:false },
     // [694] Helioptile
-    SpeciesData { hp:44, atk:38, def:33, spa:61, spd:43, spe:70, type1:Type::Electric, type2:Type::Normal, weight:60 },
+    SpeciesData { hp:44, atk:38, def:33, spa:61, spd:43, spe:70, type1:Type::Electric, type2:Type::Normal, weight:60, nfe:true },
     // [695] Heliolisk
-    SpeciesData { hp:62, atk:55, def:52, spa:109, spd:94, spe:109, type1:Type::Electric, type2:Type::Normal, weight:210 },
+    SpeciesData { hp:62, atk:55, def:52, spa:109, spd:94, spe:109, type1:Type::Electric, type2:Type::Normal, weight:210, nfe:false },
     // [696] Tyrunt
-    SpeciesData { hp:58, atk:89, def:77, spa:45, spd:45, spe:48, type1:Type::Rock, type2:Type::Dragon, weight:260 },
+    SpeciesData { hp:58, atk:89, def:77, spa:45, spd:45, spe:48, type1:Type::Rock, type2:Type::Dragon, weight:260, nfe:true },
     // [697] Tyrantrum
-    SpeciesData { hp:82, atk:121, def:119, spa:69, spd:59, spe:71, type1:Type::Rock, type2:Type::Dragon, weight:2700 },
+    SpeciesData { hp:82, atk:121, def:119, spa:69, spd:59, spe:71, type1:Type::Rock, type2:Type::Dragon, weight:2700, nfe:false },
     // [698] Amaura
-    SpeciesData { hp:77, atk:59, def:50, spa:67, spd:63, spe:46, type1:Type::Rock, type2:Type::Ice, weight:252 },
+    SpeciesData { hp:77, atk:59, def:50, spa:67, spd:63, spe:46, type1:Type::Rock, type2:Type::Ice, weight:252, nfe:true },
     // [699] Aurorus
-    SpeciesData { hp:123, atk:77, def:72, spa:99, spd:92, spe:58, type1:Type::Rock, type2:Type::Ice, weight:2250 },
+    SpeciesData { hp:123, atk:77, def:72, spa:99, spd:92, spe:58, type1:Type::Rock, type2:Type::Ice, weight:2250, nfe:false },
     // [700] Sylveon
-    SpeciesData { hp:95, atk:65, def:65, spa:110, spd:130, spe:60, type1:Type::Fairy, type2:Type::Fairy, weight:235 },
+    SpeciesData { hp:95, atk:65, def:65, spa:110, spd:130, spe:60, type1:Type::Fairy, type2:Type::Fairy, weight:235, nfe:false },
     // [701] Hawlucha
-    SpeciesData { hp:78, atk:92, def:75, spa:74, spd:63, spe:118, type1:Type::Fighting, type2:Type::Flying, weight:215 },
+    SpeciesData { hp:78, atk:92, def:75, spa:74, spd:63, spe:118, type1:Type::Fighting, type2:Type::Flying, weight:215, nfe:false },
     // [702] Dedenne
-    SpeciesData { hp:67, atk:58, def:57, spa:81, spd:67, spe:101, type1:Type::Electric, type2:Type::Fairy, weight:22 },
+    SpeciesData { hp:67, atk:58, def:57, spa:81, spd:67, spe:101, type1:Type::Electric, type2:Type::Fairy, weight:22, nfe:false },
     // [703] Carbink
-    SpeciesData { hp:50, atk:50, def:150, spa:50, spd:150, spe:50, type1:Type::Rock, type2:Type::Fairy, weight:57 },
+    SpeciesData { hp:50, atk:50, def:150, spa:50, spd:150, spe:50, type1:Type::Rock, type2:Type::Fairy, weight:57, nfe:false },
     // [704] Goomy
-    SpeciesData { hp:45, atk:50, def:35, spa:55, spd:75, spe:40, type1:Type::Dragon, type2:Type::Dragon, weight:28 },
+    SpeciesData { hp:45, atk:50, def:35, spa:55, spd:75, spe:40, type1:Type::Dragon, type2:Type::Dragon, weight:28, nfe:true },
     // [705] Sliggoo
-    SpeciesData { hp:68, atk:75, def:53, spa:83, spd:113, spe:60, type1:Type::Dragon, type2:Type::Dragon, weight:175 },
+    SpeciesData { hp:68, atk:75, def:53, spa:83, spd:113, spe:60, type1:Type::Dragon, type2:Type::Dragon, weight:175, nfe:true },
     // [706] Goodra
-    SpeciesData { hp:90, atk:100, def:70, spa:110, spd:150, spe:80, type1:Type::Dragon, type2:Type::Dragon, weight:1505 },
+    SpeciesData { hp:90, atk:100, def:70, spa:110, spd:150, spe:80, type1:Type::Dragon, type2:Type::Dragon, weight:1505, nfe:false },
     // [707] Klefki
-    SpeciesData { hp:57, atk:80, def:91, spa:80, spd:87, spe:75, type1:Type::Steel, type2:Type::Fairy, weight:30 },
+    SpeciesData { hp:57, atk:80, def:91, spa:80, spd:87, spe:75, type1:Type::Steel, type2:Type::Fairy, weight:30, nfe:false },
     // [708] Phantump
-    SpeciesData { hp:43, atk:70, def:48, spa:50, spd:60, spe:38, type1:Type::Ghost, type2:Type::Grass, weight:70 },
+    SpeciesData { hp:43, atk:70, def:48, spa:50, spd:60, spe:38, type1:Type::Ghost, type2:Type::Grass, weight:70, nfe:true },
     // [709] Trevenant
-    SpeciesData { hp:85, atk:110, def:76, spa:65, spd:82, spe:56, type1:Type::Ghost, type2:Type::Grass, weight:710 },
+    SpeciesData { hp:85, atk:110, def:76, spa:65, spd:82, spe:56, type1:Type::Ghost, type2:Type::Grass, weight:710, nfe:false },
     // [710] Pumpkaboo
-    SpeciesData { hp:49, atk:66, def:70, spa:44, spd:55, spe:51, type1:Type::Ghost, type2:Type::Grass, weight:50 },
+    SpeciesData { hp:49, atk:66, def:70, spa:44, spd:55, spe:51, type1:Type::Ghost, type2:Type::Grass, weight:50, nfe:true },
     // [711] Gourgeist
-    SpeciesData { hp:65, atk:90, def:122, spa:58, spd:75, spe:84, type1:Type::Ghost, type2:Type::Grass, weight:125 },
+    SpeciesData { hp:65, atk:90, def:122, spa:58, spd:75, spe:84, type1:Type::Ghost, type2:Type::Grass, weight:125, nfe:false },
     // [712] Bergmite
-    SpeciesData { hp:55, atk:69, def:85, spa:32, spd:35, spe:28, type1:Type::Ice, type2:Type::Ice, weight:995 },
+    SpeciesData { hp:55, atk:69, def:85, spa:32, spd:35, spe:28, type1:Type::Ice, type2:Type::Ice, weight:995, nfe:true },
     // [713] Avalugg
-    SpeciesData { hp:95, atk:117, def:184, spa:44, spd:46, spe:28, type1:Type::Ice, type2:Type::Ice, weight:5050 },
+    SpeciesData { hp:95, atk:117, def:184, spa:44, spd:46, spe:28, type1:Type::Ice, type2:Type::Ice, weight:5050, nfe:false },
     // [714] Noibat
-    SpeciesData { hp:40, atk:30, def:35, spa:45, spd:40, spe:55, type1:Type::Flying, type2:Type::Dragon, weight:80 },
+    SpeciesData { hp:40, atk:30, def:35, spa:45, spd:40, spe:55, type1:Type::Flying, type2:Type::Dragon, weight:80, nfe:true },
     // [715] Noivern
-    SpeciesData { hp:85, atk:70, def:80, spa:97, spd:80, spe:123, type1:Type::Flying, type2:Type::Dragon, weight:850 },
+    SpeciesData { hp:85, atk:70, def:80, spa:97, spd:80, spe:123, type1:Type::Flying, type2:Type::Dragon, weight:850, nfe:false },
     // [716] Xerneas
-    SpeciesData { hp:126, atk:131, def:95, spa:131, spd:98, spe:99, type1:Type::Fairy, type2:Type::Fairy, weight:2150 },
+    SpeciesData { hp:126, atk:131, def:95, spa:131, spd:98, spe:99, type1:Type::Fairy, type2:Type::Fairy, weight:2150, nfe:false },
     // [717] Yveltal
-    SpeciesData { hp:126, atk:131, def:95, spa:131, spd:98, spe:99, type1:Type::Dark, type2:Type::Flying, weight:2030 },
+    SpeciesData { hp:126, atk:131, def:95, spa:131, spd:98, spe:99, type1:Type::Dark, type2:Type::Flying, weight:2030, nfe:false },
     // [718] Zygarde
-    SpeciesData { hp:108, atk:100, def:121, spa:81, spd:95, spe:95, type1:Type::Dragon, type2:Type::Ground, weight:3050 },
+    SpeciesData { hp:108, atk:100, def:121, spa:81, spd:95, spe:95, type1:Type::Dragon, type2:Type::Ground, weight:3050, nfe:false },
     // [719] Diancie
-    SpeciesData { hp:50, atk:100, def:150, spa:100, spd:150, spe:50, type1:Type::Rock, type2:Type::Fairy, weight:88 },
+    SpeciesData { hp:50, atk:100, def:150, spa:100, spd:150, spe:50, type1:Type::Rock, type2:Type::Fairy, weight:88, nfe:false },
     // [720] Hoopa
-    SpeciesData { hp:80, atk:110, def:60, spa:150, spd:130, spe:70, type1:Type::Psychic, type2:Type::Ghost, weight:90 },
+    SpeciesData { hp:80, atk:110, def:60, spa:150, spd:130, spe:70, type1:Type::Psychic, type2:Type::Ghost, weight:90, nfe:false },
     // [721] Volcanion
-    SpeciesData { hp:80, atk:110, def:120, spa:130, spd:90, spe:70, type1:Type::Fire, type2:Type::Water, weight:1950 },
+    SpeciesData { hp:80, atk:110, def:120, spa:130, spd:90, spe:70, type1:Type::Fire, type2:Type::Water, weight:1950, nfe:false },
     // [722] Rowlet
-    SpeciesData { hp:68, atk:55, def:55, spa:50, spd:50, spe:42, type1:Type::Grass, type2:Type::Flying, weight:15 },
+    SpeciesData { hp:68, atk:55, def:55, spa:50, spd:50, spe:42, type1:Type::Grass, type2:Type::Flying, weight:15, nfe:true },
     // [723] Dartrix
-    SpeciesData { hp:78, atk:75, def:75, spa:70, spd:70, spe:52, type1:Type::Grass, type2:Type::Flying, weight:160 },
+    SpeciesData { hp:78, atk:75, def:75, spa:70, spd:70, spe:52, type1:Type::Grass, type2:Type::Flying, weight:160, nfe:true },
     // [724] Decidueye
-    SpeciesData { hp:78, atk:107, def:75, spa:100, spd:100, spe:70, type1:Type::Grass, type2:Type::Ghost, weight:366 },
+    SpeciesData { hp:78, atk:107, def:75, spa:100, spd:100, spe:70, type1:Type::Grass, type2:Type::Ghost, weight:366, nfe:false },
     // [725] Litten
-    SpeciesData { hp:45, atk:65, def:40, spa:60, spd:40, spe:70, type1:Type::Fire, type2:Type::Fire, weight:43 },
+    SpeciesData { hp:45, atk:65, def:40, spa:60, spd:40, spe:70, type1:Type::Fire, type2:Type::Fire, weight:43, nfe:true },
     // [726] Torracat
-    SpeciesData { hp:65, atk:85, def:50, spa:80, spd:50, spe:90, type1:Type::Fire, type2:Type::Fire, weight:250 },
+    SpeciesData { hp:65, atk:85, def:50, spa:80, spd:50, spe:90, type1:Type::Fire, type2:Type::Fire, weight:250, nfe:true },
     // [727] Incineroar
-    SpeciesData { hp:95, atk:115, def:90, spa:80, spd:90, spe:60, type1:Type::Fire, type2:Type::Dark, weight:830 },
+    SpeciesData { hp:95, atk:115, def:90, spa:80, spd:90, spe:60, type1:Type::Fire, type2:Type::Dark, weight:830, nfe:false },
     // [728] Popplio
-    SpeciesData { hp:50, atk:54, def:54, spa:66, spd:56, spe:40, type1:Type::Water, type2:Type::Water, weight:75 },
+    SpeciesData { hp:50, atk:54, def:54, spa:66, spd:56, spe:40, type1:Type::Water, type2:Type::Water, weight:75, nfe:true },
     // [729] Brionne
-    SpeciesData { hp:60, atk:69, def:69, spa:91, spd:81, spe:50, type1:Type::Water, type2:Type::Water, weight:175 },
+    SpeciesData { hp:60, atk:69, def:69, spa:91, spd:81, spe:50, type1:Type::Water, type2:Type::Water, weight:175, nfe:true },
     // [730] Primarina
-    SpeciesData { hp:80, atk:74, def:74, spa:126, spd:116, spe:60, type1:Type::Water, type2:Type::Fairy, weight:440 },
+    SpeciesData { hp:80, atk:74, def:74, spa:126, spd:116, spe:60, type1:Type::Water, type2:Type::Fairy, weight:440, nfe:false },
     // [731] Pikipek
-    SpeciesData { hp:35, atk:75, def:30, spa:30, spd:30, spe:65, type1:Type::Normal, type2:Type::Flying, weight:12 },
+    SpeciesData { hp:35, atk:75, def:30, spa:30, spd:30, spe:65, type1:Type::Normal, type2:Type::Flying, weight:12, nfe:true },
     // [732] Trumbeak
-    SpeciesData { hp:55, atk:85, def:50, spa:40, spd:50, spe:75, type1:Type::Normal, type2:Type::Flying, weight:148 },
+    SpeciesData { hp:55, atk:85, def:50, spa:40, spd:50, spe:75, type1:Type::Normal, type2:Type::Flying, weight:148, nfe:true },
     // [733] Toucannon
-    SpeciesData { hp:80, atk:120, def:75, spa:75, spd:75, spe:60, type1:Type::Normal, type2:Type::Flying, weight:260 },
+    SpeciesData { hp:80, atk:120, def:75, spa:75, spd:75, spe:60, type1:Type::Normal, type2:Type::Flying, weight:260, nfe:false },
     // [734] Yungoos
-    SpeciesData { hp:48, atk:70, def:30, spa:30, spd:30, spe:45, type1:Type::Normal, type2:Type::Normal, weight:60 },
+    SpeciesData { hp:48, atk:70, def:30, spa:30, spd:30, spe:45, type1:Type::Normal, type2:Type::Normal, weight:60, nfe:true },
     // [735] Gumshoos
-    SpeciesData { hp:88, atk:110, def:60, spa:55, spd:60, spe:45, type1:Type::Normal, type2:Type::Normal, weight:142 },
+    SpeciesData { hp:88, atk:110, def:60, spa:55, spd:60, spe:45, type1:Type::Normal, type2:Type::Normal, weight:142, nfe:false },
     // [736] Grubbin
-    SpeciesData { hp:47, atk:62, def:45, spa:55, spd:45, spe:46, type1:Type::Bug, type2:Type::Bug, weight:44 },
+    SpeciesData { hp:47, atk:62, def:45, spa:55, spd:45, spe:46, type1:Type::Bug, type2:Type::Bug, weight:44, nfe:true },
     // [737] Charjabug
-    SpeciesData { hp:57, atk:82, def:95, spa:55, spd:75, spe:36, type1:Type::Bug, type2:Type::Electric, weight:105 },
+    SpeciesData { hp:57, atk:82, def:95, spa:55, spd:75, spe:36, type1:Type::Bug, type2:Type::Electric, weight:105, nfe:true },
     // [738] Vikavolt
-    SpeciesData { hp:77, atk:70, def:90, spa:145, spd:75, spe:43, type1:Type::Bug, type2:Type::Electric, weight:450 },
+    SpeciesData { hp:77, atk:70, def:90, spa:145, spd:75, spe:43, type1:Type::Bug, type2:Type::Electric, weight:450, nfe:false },
     // [739] Crabrawler
-    SpeciesData { hp:47, atk:82, def:57, spa:42, spd:47, spe:63, type1:Type::Fighting, type2:Type::Fighting, weight:70 },
+    SpeciesData { hp:47, atk:82, def:57, spa:42, spd:47, spe:63, type1:Type::Fighting, type2:Type::Fighting, weight:70, nfe:true },
     // [740] Crabominable
-    SpeciesData { hp:97, atk:132, def:77, spa:62, spd:67, spe:43, type1:Type::Fighting, type2:Type::Ice, weight:1800 },
+    SpeciesData { hp:97, atk:132, def:77, spa:62, spd:67, spe:43, type1:Type::Fighting, type2:Type::Ice, weight:1800, nfe:false },
     // [741] Oricorio (Baile Style)
-    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Fire, type2:Type::Flying, weight:34 },
+    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Fire, type2:Type::Flying, weight:34, nfe:false },
     // [742] Cutiefly
-    SpeciesData { hp:40, atk:45, def:40, spa:55, spd:40, spe:84, type1:Type::Bug, type2:Type::Fairy, weight:2 },
+    SpeciesData { hp:40, atk:45, def:40, spa:55, spd:40, spe:84, type1:Type::Bug, type2:Type::Fairy, weight:2, nfe:true },
     // [743] Ribombee
-    SpeciesData { hp:60, atk:55, def:60, spa:95, spd:70, spe:124, type1:Type::Bug, type2:Type::Fairy, weight:5 },
+    SpeciesData { hp:60, atk:55, def:60, spa:95, spd:70, spe:124, type1:Type::Bug, type2:Type::Fairy, weight:5, nfe:false },
     // [744] Rockruff
-    SpeciesData { hp:45, atk:65, def:40, spa:30, spd:40, spe:60, type1:Type::Rock, type2:Type::Rock, weight:92 },
+    SpeciesData { hp:45, atk:65, def:40, spa:30, spd:40, spe:60, type1:Type::Rock, type2:Type::Rock, weight:92, nfe:true },
     // [745] Lycanroc
-    SpeciesData { hp:75, atk:115, def:65, spa:55, spd:65, spe:112, type1:Type::Rock, type2:Type::Rock, weight:250 },
+    SpeciesData { hp:75, atk:115, def:65, spa:55, spd:65, spe:112, type1:Type::Rock, type2:Type::Rock, weight:250, nfe:false },
     // [746] Wishiwashi
-    SpeciesData { hp:45, atk:20, def:20, spa:25, spd:25, spe:40, type1:Type::Water, type2:Type::Water, weight:3 },
+    SpeciesData { hp:45, atk:20, def:20, spa:25, spd:25, spe:40, type1:Type::Water, type2:Type::Water, weight:3, nfe:false },
     // [747] Mareanie
-    SpeciesData { hp:50, atk:53, def:62, spa:43, spd:52, spe:45, type1:Type::Poison, type2:Type::Water, weight:80 },
+    SpeciesData { hp:50, atk:53, def:62, spa:43, spd:52, spe:45, type1:Type::Poison, type2:Type::Water, weight:80, nfe:true },
     // [748] Toxapex
-    SpeciesData { hp:50, atk:63, def:152, spa:53, spd:142, spe:35, type1:Type::Poison, type2:Type::Water, weight:145 },
+    SpeciesData { hp:50, atk:63, def:152, spa:53, spd:142, spe:35, type1:Type::Poison, type2:Type::Water, weight:145, nfe:false },
     // [749] Mudbray
-    SpeciesData { hp:70, atk:100, def:70, spa:45, spd:55, spe:45, type1:Type::Ground, type2:Type::Ground, weight:1100 },
+    SpeciesData { hp:70, atk:100, def:70, spa:45, spd:55, spe:45, type1:Type::Ground, type2:Type::Ground, weight:1100, nfe:true },
     // [750] Mudsdale
-    SpeciesData { hp:100, atk:125, def:100, spa:55, spd:85, spe:35, type1:Type::Ground, type2:Type::Ground, weight:9200 },
+    SpeciesData { hp:100, atk:125, def:100, spa:55, spd:85, spe:35, type1:Type::Ground, type2:Type::Ground, weight:9200, nfe:false },
     // [751] Dewpider
-    SpeciesData { hp:38, atk:40, def:52, spa:40, spd:72, spe:27, type1:Type::Water, type2:Type::Bug, weight:40 },
+    SpeciesData { hp:38, atk:40, def:52, spa:40, spd:72, spe:27, type1:Type::Water, type2:Type::Bug, weight:40, nfe:true },
     // [752] Araquanid
-    SpeciesData { hp:68, atk:70, def:92, spa:50, spd:132, spe:42, type1:Type::Water, type2:Type::Bug, weight:820 },
+    SpeciesData { hp:68, atk:70, def:92, spa:50, spd:132, spe:42, type1:Type::Water, type2:Type::Bug, weight:820, nfe:false },
     // [753] Fomantis
-    SpeciesData { hp:40, atk:55, def:35, spa:50, spd:35, spe:35, type1:Type::Grass, type2:Type::Grass, weight:15 },
+    SpeciesData { hp:40, atk:55, def:35, spa:50, spd:35, spe:35, type1:Type::Grass, type2:Type::Grass, weight:15, nfe:true },
     // [754] Lurantis
-    SpeciesData { hp:70, atk:105, def:90, spa:80, spd:90, spe:45, type1:Type::Grass, type2:Type::Grass, weight:185 },
+    SpeciesData { hp:70, atk:105, def:90, spa:80, spd:90, spe:45, type1:Type::Grass, type2:Type::Grass, weight:185, nfe:false },
     // [755] Morelull
-    SpeciesData { hp:40, atk:35, def:55, spa:65, spd:75, spe:15, type1:Type::Grass, type2:Type::Fairy, weight:15 },
+    SpeciesData { hp:40, atk:35, def:55, spa:65, spd:75, spe:15, type1:Type::Grass, type2:Type::Fairy, weight:15, nfe:true },
     // [756] Shiinotic
-    SpeciesData { hp:60, atk:45, def:80, spa:90, spd:100, spe:30, type1:Type::Grass, type2:Type::Fairy, weight:115 },
+    SpeciesData { hp:60, atk:45, def:80, spa:90, spd:100, spe:30, type1:Type::Grass, type2:Type::Fairy, weight:115, nfe:false },
     // [757] Salandit
-    SpeciesData { hp:48, atk:44, def:40, spa:71, spd:40, spe:77, type1:Type::Poison, type2:Type::Fire, weight:48 },
+    SpeciesData { hp:48, atk:44, def:40, spa:71, spd:40, spe:77, type1:Type::Poison, type2:Type::Fire, weight:48, nfe:true },
     // [758] Salazzle
-    SpeciesData { hp:68, atk:64, def:60, spa:111, spd:60, spe:117, type1:Type::Poison, type2:Type::Fire, weight:222 },
+    SpeciesData { hp:68, atk:64, def:60, spa:111, spd:60, spe:117, type1:Type::Poison, type2:Type::Fire, weight:222, nfe:false },
     // [759] Stufful
-    SpeciesData { hp:70, atk:75, def:50, spa:45, spd:50, spe:50, type1:Type::Normal, type2:Type::Fighting, weight:68 },
+    SpeciesData { hp:70, atk:75, def:50, spa:45, spd:50, spe:50, type1:Type::Normal, type2:Type::Fighting, weight:68, nfe:true },
     // [760] Bewear
-    SpeciesData { hp:120, atk:125, def:80, spa:55, spd:60, spe:60, type1:Type::Normal, type2:Type::Fighting, weight:1350 },
+    SpeciesData { hp:120, atk:125, def:80, spa:55, spd:60, spe:60, type1:Type::Normal, type2:Type::Fighting, weight:1350, nfe:false },
     // [761] Bounsweet
-    SpeciesData { hp:42, atk:30, def:38, spa:30, spd:38, spe:32, type1:Type::Grass, type2:Type::Grass, weight:32 },
+    SpeciesData { hp:42, atk:30, def:38, spa:30, spd:38, spe:32, type1:Type::Grass, type2:Type::Grass, weight:32, nfe:true },
     // [762] Steenee
-    SpeciesData { hp:52, atk:40, def:48, spa:40, spd:48, spe:62, type1:Type::Grass, type2:Type::Grass, weight:82 },
+    SpeciesData { hp:52, atk:40, def:48, spa:40, spd:48, spe:62, type1:Type::Grass, type2:Type::Grass, weight:82, nfe:true },
     // [763] Tsareena
-    SpeciesData { hp:72, atk:120, def:98, spa:50, spd:98, spe:72, type1:Type::Grass, type2:Type::Grass, weight:214 },
+    SpeciesData { hp:72, atk:120, def:98, spa:50, spd:98, spe:72, type1:Type::Grass, type2:Type::Grass, weight:214, nfe:false },
     // [764] Comfey
-    SpeciesData { hp:51, atk:52, def:90, spa:82, spd:110, spe:100, type1:Type::Fairy, type2:Type::Fairy, weight:3 },
+    SpeciesData { hp:51, atk:52, def:90, spa:82, spd:110, spe:100, type1:Type::Fairy, type2:Type::Fairy, weight:3, nfe:false },
     // [765] Oranguru
-    SpeciesData { hp:90, atk:60, def:80, spa:90, spd:110, spe:60, type1:Type::Normal, type2:Type::Psychic, weight:760 },
+    SpeciesData { hp:90, atk:60, def:80, spa:90, spd:110, spe:60, type1:Type::Normal, type2:Type::Psychic, weight:760, nfe:false },
     // [766] Passimian
-    SpeciesData { hp:100, atk:120, def:90, spa:40, spd:60, spe:80, type1:Type::Fighting, type2:Type::Fighting, weight:828 },
+    SpeciesData { hp:100, atk:120, def:90, spa:40, spd:60, spe:80, type1:Type::Fighting, type2:Type::Fighting, weight:828, nfe:false },
     // [767] Wimpod
-    SpeciesData { hp:25, atk:35, def:40, spa:20, spd:30, spe:80, type1:Type::Bug, type2:Type::Water, weight:120 },
+    SpeciesData { hp:25, atk:35, def:40, spa:20, spd:30, spe:80, type1:Type::Bug, type2:Type::Water, weight:120, nfe:true },
     // [768] Golisopod
-    SpeciesData { hp:75, atk:125, def:140, spa:60, spd:90, spe:40, type1:Type::Bug, type2:Type::Water, weight:1080 },
+    SpeciesData { hp:75, atk:125, def:140, spa:60, spd:90, spe:40, type1:Type::Bug, type2:Type::Water, weight:1080, nfe:false },
     // [769] Sandygast
-    SpeciesData { hp:55, atk:55, def:80, spa:70, spd:45, spe:15, type1:Type::Ghost, type2:Type::Ground, weight:700 },
+    SpeciesData { hp:55, atk:55, def:80, spa:70, spd:45, spe:15, type1:Type::Ghost, type2:Type::Ground, weight:700, nfe:true },
     // [770] Palossand
-    SpeciesData { hp:85, atk:75, def:110, spa:100, spd:75, spe:35, type1:Type::Ghost, type2:Type::Ground, weight:2500 },
+    SpeciesData { hp:85, atk:75, def:110, spa:100, spd:75, spe:35, type1:Type::Ghost, type2:Type::Ground, weight:2500, nfe:false },
     // [771] Pyukumuku
-    SpeciesData { hp:55, atk:60, def:130, spa:30, spd:130, spe:5, type1:Type::Water, type2:Type::Water, weight:12 },
+    SpeciesData { hp:55, atk:60, def:130, spa:30, spd:130, spe:5, type1:Type::Water, type2:Type::Water, weight:12, nfe:false },
     // [772] Type: Null
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:59, type1:Type::Normal, type2:Type::Normal, weight:1205 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:59, type1:Type::Normal, type2:Type::Normal, weight:1205, nfe:true },
     // [773] Silvally
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Normal, type2:Type::Normal, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Normal, type2:Type::Normal, weight:1005, nfe:false },
     // [774] Minior
-    SpeciesData { hp:60, atk:100, def:60, spa:100, spd:60, spe:120, type1:Type::Rock, type2:Type::Flying, weight:3 },
+    SpeciesData { hp:60, atk:100, def:60, spa:100, spd:60, spe:120, type1:Type::Rock, type2:Type::Flying, weight:3, nfe:false },
     // [775] Komala
-    SpeciesData { hp:65, atk:115, def:65, spa:75, spd:95, spe:65, type1:Type::Normal, type2:Type::Normal, weight:199 },
+    SpeciesData { hp:65, atk:115, def:65, spa:75, spd:95, spe:65, type1:Type::Normal, type2:Type::Normal, weight:199, nfe:false },
     // [776] Turtonator
-    SpeciesData { hp:60, atk:78, def:135, spa:91, spd:85, spe:36, type1:Type::Fire, type2:Type::Dragon, weight:2120 },
+    SpeciesData { hp:60, atk:78, def:135, spa:91, spd:85, spe:36, type1:Type::Fire, type2:Type::Dragon, weight:2120, nfe:false },
     // [777] Togedemaru
-    SpeciesData { hp:65, atk:98, def:63, spa:40, spd:73, spe:96, type1:Type::Electric, type2:Type::Steel, weight:33 },
+    SpeciesData { hp:65, atk:98, def:63, spa:40, spd:73, spe:96, type1:Type::Electric, type2:Type::Steel, weight:33, nfe:false },
     // [778] Mimikyu
-    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:7 },
+    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:7, nfe:false },
     // [779] Bruxish
-    SpeciesData { hp:68, atk:105, def:70, spa:70, spd:70, spe:92, type1:Type::Water, type2:Type::Psychic, weight:190 },
+    SpeciesData { hp:68, atk:105, def:70, spa:70, spd:70, spe:92, type1:Type::Water, type2:Type::Psychic, weight:190, nfe:false },
     // [780] Drampa
-    SpeciesData { hp:78, atk:60, def:85, spa:135, spd:91, spe:36, type1:Type::Normal, type2:Type::Dragon, weight:1850 },
+    SpeciesData { hp:78, atk:60, def:85, spa:135, spd:91, spe:36, type1:Type::Normal, type2:Type::Dragon, weight:1850, nfe:false },
     // [781] Dhelmise
-    SpeciesData { hp:70, atk:131, def:100, spa:86, spd:90, spe:40, type1:Type::Ghost, type2:Type::Grass, weight:2100 },
+    SpeciesData { hp:70, atk:131, def:100, spa:86, spd:90, spe:40, type1:Type::Ghost, type2:Type::Grass, weight:2100, nfe:false },
     // [782] Jangmo-o
-    SpeciesData { hp:45, atk:55, def:65, spa:45, spd:45, spe:45, type1:Type::Dragon, type2:Type::Dragon, weight:297 },
+    SpeciesData { hp:45, atk:55, def:65, spa:45, spd:45, spe:45, type1:Type::Dragon, type2:Type::Dragon, weight:297, nfe:true },
     // [783] Hakamo-o
-    SpeciesData { hp:55, atk:75, def:90, spa:65, spd:70, spe:65, type1:Type::Dragon, type2:Type::Fighting, weight:470 },
+    SpeciesData { hp:55, atk:75, def:90, spa:65, spd:70, spe:65, type1:Type::Dragon, type2:Type::Fighting, weight:470, nfe:true },
     // [784] Kommo-o
-    SpeciesData { hp:75, atk:110, def:125, spa:100, spd:105, spe:85, type1:Type::Dragon, type2:Type::Fighting, weight:782 },
+    SpeciesData { hp:75, atk:110, def:125, spa:100, spd:105, spe:85, type1:Type::Dragon, type2:Type::Fighting, weight:782, nfe:false },
     // [785] Tapu Koko
-    SpeciesData { hp:70, atk:115, def:85, spa:95, spd:75, spe:130, type1:Type::Electric, type2:Type::Fairy, weight:205 },
+    SpeciesData { hp:70, atk:115, def:85, spa:95, spd:75, spe:130, type1:Type::Electric, type2:Type::Fairy, weight:205, nfe:false },
     // [786] Tapu Lele
-    SpeciesData { hp:70, atk:85, def:75, spa:130, spd:115, spe:95, type1:Type::Psychic, type2:Type::Fairy, weight:186 },
+    SpeciesData { hp:70, atk:85, def:75, spa:130, spd:115, spe:95, type1:Type::Psychic, type2:Type::Fairy, weight:186, nfe:false },
     // [787] Tapu Bulu
-    SpeciesData { hp:70, atk:130, def:115, spa:85, spd:95, spe:75, type1:Type::Grass, type2:Type::Fairy, weight:455 },
+    SpeciesData { hp:70, atk:130, def:115, spa:85, spd:95, spe:75, type1:Type::Grass, type2:Type::Fairy, weight:455, nfe:false },
     // [788] Tapu Fini
-    SpeciesData { hp:70, atk:75, def:115, spa:95, spd:130, spe:85, type1:Type::Water, type2:Type::Fairy, weight:212 },
+    SpeciesData { hp:70, atk:75, def:115, spa:95, spd:130, spe:85, type1:Type::Water, type2:Type::Fairy, weight:212, nfe:false },
     // [789] Cosmog
-    SpeciesData { hp:43, atk:29, def:31, spa:29, spd:31, spe:37, type1:Type::Psychic, type2:Type::Psychic, weight:1 },
+    SpeciesData { hp:43, atk:29, def:31, spa:29, spd:31, spe:37, type1:Type::Psychic, type2:Type::Psychic, weight:1, nfe:true },
     // [790] Cosmoem
-    SpeciesData { hp:43, atk:29, def:131, spa:29, spd:131, spe:37, type1:Type::Psychic, type2:Type::Psychic, weight:9999 },
+    SpeciesData { hp:43, atk:29, def:131, spa:29, spd:131, spe:37, type1:Type::Psychic, type2:Type::Psychic, weight:9999, nfe:true },
     // [791] Solgaleo
-    SpeciesData { hp:137, atk:137, def:107, spa:113, spd:89, spe:97, type1:Type::Psychic, type2:Type::Steel, weight:2300 },
+    SpeciesData { hp:137, atk:137, def:107, spa:113, spd:89, spe:97, type1:Type::Psychic, type2:Type::Steel, weight:2300, nfe:false },
     // [792] Lunala
-    SpeciesData { hp:137, atk:113, def:89, spa:137, spd:107, spe:97, type1:Type::Psychic, type2:Type::Ghost, weight:1200 },
+    SpeciesData { hp:137, atk:113, def:89, spa:137, spd:107, spe:97, type1:Type::Psychic, type2:Type::Ghost, weight:1200, nfe:false },
     // [793] Nihilego
-    SpeciesData { hp:109, atk:53, def:47, spa:127, spd:131, spe:103, type1:Type::Rock, type2:Type::Poison, weight:555 },
+    SpeciesData { hp:109, atk:53, def:47, spa:127, spd:131, spe:103, type1:Type::Rock, type2:Type::Poison, weight:555, nfe:false },
     // [794] Buzzwole
-    SpeciesData { hp:107, atk:139, def:139, spa:53, spd:53, spe:79, type1:Type::Bug, type2:Type::Fighting, weight:3336 },
+    SpeciesData { hp:107, atk:139, def:139, spa:53, spd:53, spe:79, type1:Type::Bug, type2:Type::Fighting, weight:3336, nfe:false },
     // [795] Pheromosa
-    SpeciesData { hp:71, atk:137, def:37, spa:137, spd:37, spe:151, type1:Type::Bug, type2:Type::Fighting, weight:250 },
+    SpeciesData { hp:71, atk:137, def:37, spa:137, spd:37, spe:151, type1:Type::Bug, type2:Type::Fighting, weight:250, nfe:false },
     // [796] Xurkitree
-    SpeciesData { hp:83, atk:89, def:71, spa:173, spd:71, spe:83, type1:Type::Electric, type2:Type::Electric, weight:1000 },
+    SpeciesData { hp:83, atk:89, def:71, spa:173, spd:71, spe:83, type1:Type::Electric, type2:Type::Electric, weight:1000, nfe:false },
     // [797] Celesteela
-    SpeciesData { hp:97, atk:101, def:103, spa:107, spd:101, spe:61, type1:Type::Steel, type2:Type::Flying, weight:9999 },
+    SpeciesData { hp:97, atk:101, def:103, spa:107, spd:101, spe:61, type1:Type::Steel, type2:Type::Flying, weight:9999, nfe:false },
     // [798] Kartana
-    SpeciesData { hp:59, atk:181, def:131, spa:59, spd:31, spe:109, type1:Type::Grass, type2:Type::Steel, weight:1 },
+    SpeciesData { hp:59, atk:181, def:131, spa:59, spd:31, spe:109, type1:Type::Grass, type2:Type::Steel, weight:1, nfe:false },
     // [799] Guzzlord
-    SpeciesData { hp:223, atk:101, def:53, spa:97, spd:53, spe:43, type1:Type::Dark, type2:Type::Dragon, weight:8880 },
+    SpeciesData { hp:223, atk:101, def:53, spa:97, spd:53, spe:43, type1:Type::Dark, type2:Type::Dragon, weight:8880, nfe:false },
     // [800] Necrozma
-    SpeciesData { hp:97, atk:107, def:101, spa:127, spd:89, spe:79, type1:Type::Psychic, type2:Type::Psychic, weight:2300 },
+    SpeciesData { hp:97, atk:107, def:101, spa:127, spd:89, spe:79, type1:Type::Psychic, type2:Type::Psychic, weight:2300, nfe:false },
     // [801] Magearna
-    SpeciesData { hp:80, atk:95, def:115, spa:130, spd:115, spe:65, type1:Type::Steel, type2:Type::Fairy, weight:805 },
+    SpeciesData { hp:80, atk:95, def:115, spa:130, spd:115, spe:65, type1:Type::Steel, type2:Type::Fairy, weight:805, nfe:false },
     // [802] Marshadow
-    SpeciesData { hp:90, atk:125, def:80, spa:90, spd:90, spe:125, type1:Type::Fighting, type2:Type::Ghost, weight:222 },
+    SpeciesData { hp:90, atk:125, def:80, spa:90, spd:90, spe:125, type1:Type::Fighting, type2:Type::Ghost, weight:222, nfe:false },
     // [803] Poipole
-    SpeciesData { hp:67, atk:73, def:67, spa:73, spd:67, spe:73, type1:Type::Poison, type2:Type::Poison, weight:18 },
+    SpeciesData { hp:67, atk:73, def:67, spa:73, spd:67, spe:73, type1:Type::Poison, type2:Type::Poison, weight:18, nfe:true },
     // [804] Naganadel
-    SpeciesData { hp:73, atk:73, def:73, spa:127, spd:73, spe:121, type1:Type::Poison, type2:Type::Dragon, weight:1500 },
+    SpeciesData { hp:73, atk:73, def:73, spa:127, spd:73, spe:121, type1:Type::Poison, type2:Type::Dragon, weight:1500, nfe:false },
     // [805] Stakataka
-    SpeciesData { hp:61, atk:131, def:211, spa:53, spd:101, spe:13, type1:Type::Rock, type2:Type::Steel, weight:8200 },
+    SpeciesData { hp:61, atk:131, def:211, spa:53, spd:101, spe:13, type1:Type::Rock, type2:Type::Steel, weight:8200, nfe:false },
     // [806] Blacephalon
-    SpeciesData { hp:53, atk:127, def:53, spa:151, spd:79, spe:107, type1:Type::Fire, type2:Type::Ghost, weight:130 },
+    SpeciesData { hp:53, atk:127, def:53, spa:151, spd:79, spe:107, type1:Type::Fire, type2:Type::Ghost, weight:130, nfe:false },
     // [807] Zeraora
-    SpeciesData { hp:88, atk:112, def:75, spa:102, spd:80, spe:143, type1:Type::Electric, type2:Type::Electric, weight:445 },
+    SpeciesData { hp:88, atk:112, def:75, spa:102, spd:80, spe:143, type1:Type::Electric, type2:Type::Electric, weight:445, nfe:false },
     // [808] Meltan
-    SpeciesData { hp:46, atk:65, def:65, spa:55, spd:35, spe:34, type1:Type::Steel, type2:Type::Steel, weight:80 },
+    SpeciesData { hp:46, atk:65, def:65, spa:55, spd:35, spe:34, type1:Type::Steel, type2:Type::Steel, weight:80, nfe:false },
     // [809] Melmetal
-    SpeciesData { hp:135, atk:143, def:143, spa:80, spd:65, spe:34, type1:Type::Steel, type2:Type::Steel, weight:8000 },
+    SpeciesData { hp:135, atk:143, def:143, spa:80, spd:65, spe:34, type1:Type::Steel, type2:Type::Steel, weight:8000, nfe:false },
     // [810] Grookey
-    SpeciesData { hp:50, atk:65, def:50, spa:40, spd:40, spe:65, type1:Type::Grass, type2:Type::Grass, weight:50 },
+    SpeciesData { hp:50, atk:65, def:50, spa:40, spd:40, spe:65, type1:Type::Grass, type2:Type::Grass, weight:50, nfe:true },
     // [811] Thwackey
-    SpeciesData { hp:70, atk:85, def:70, spa:55, spd:60, spe:80, type1:Type::Grass, type2:Type::Grass, weight:140 },
+    SpeciesData { hp:70, atk:85, def:70, spa:55, spd:60, spe:80, type1:Type::Grass, type2:Type::Grass, weight:140, nfe:true },
     // [812] Rillaboom
-    SpeciesData { hp:100, atk:125, def:90, spa:60, spd:70, spe:85, type1:Type::Grass, type2:Type::Grass, weight:900 },
+    SpeciesData { hp:100, atk:125, def:90, spa:60, spd:70, spe:85, type1:Type::Grass, type2:Type::Grass, weight:900, nfe:false },
     // [813] Scorbunny
-    SpeciesData { hp:50, atk:71, def:40, spa:40, spd:40, spe:69, type1:Type::Fire, type2:Type::Fire, weight:45 },
+    SpeciesData { hp:50, atk:71, def:40, spa:40, spd:40, spe:69, type1:Type::Fire, type2:Type::Fire, weight:45, nfe:true },
     // [814] Raboot
-    SpeciesData { hp:65, atk:86, def:60, spa:55, spd:60, spe:94, type1:Type::Fire, type2:Type::Fire, weight:90 },
+    SpeciesData { hp:65, atk:86, def:60, spa:55, spd:60, spe:94, type1:Type::Fire, type2:Type::Fire, weight:90, nfe:true },
     // [815] Cinderace
-    SpeciesData { hp:80, atk:116, def:75, spa:65, spd:75, spe:119, type1:Type::Fire, type2:Type::Fire, weight:330 },
+    SpeciesData { hp:80, atk:116, def:75, spa:65, spd:75, spe:119, type1:Type::Fire, type2:Type::Fire, weight:330, nfe:false },
     // [816] Sobble
-    SpeciesData { hp:50, atk:40, def:40, spa:70, spd:40, spe:70, type1:Type::Water, type2:Type::Water, weight:40 },
+    SpeciesData { hp:50, atk:40, def:40, spa:70, spd:40, spe:70, type1:Type::Water, type2:Type::Water, weight:40, nfe:true },
     // [817] Drizzile
-    SpeciesData { hp:65, atk:60, def:55, spa:95, spd:55, spe:90, type1:Type::Water, type2:Type::Water, weight:115 },
+    SpeciesData { hp:65, atk:60, def:55, spa:95, spd:55, spe:90, type1:Type::Water, type2:Type::Water, weight:115, nfe:true },
     // [818] Inteleon
-    SpeciesData { hp:70, atk:85, def:65, spa:125, spd:65, spe:120, type1:Type::Water, type2:Type::Water, weight:452 },
+    SpeciesData { hp:70, atk:85, def:65, spa:125, spd:65, spe:120, type1:Type::Water, type2:Type::Water, weight:452, nfe:false },
     // [819] Skwovet
-    SpeciesData { hp:70, atk:55, def:55, spa:35, spd:35, spe:25, type1:Type::Normal, type2:Type::Normal, weight:25 },
+    SpeciesData { hp:70, atk:55, def:55, spa:35, spd:35, spe:25, type1:Type::Normal, type2:Type::Normal, weight:25, nfe:true },
     // [820] Greedent
-    SpeciesData { hp:120, atk:95, def:95, spa:55, spd:75, spe:20, type1:Type::Normal, type2:Type::Normal, weight:60 },
+    SpeciesData { hp:120, atk:95, def:95, spa:55, spd:75, spe:20, type1:Type::Normal, type2:Type::Normal, weight:60, nfe:false },
     // [821] Rookidee
-    SpeciesData { hp:38, atk:47, def:35, spa:33, spd:35, spe:57, type1:Type::Flying, type2:Type::Flying, weight:18 },
+    SpeciesData { hp:38, atk:47, def:35, spa:33, spd:35, spe:57, type1:Type::Flying, type2:Type::Flying, weight:18, nfe:true },
     // [822] Corvisquire
-    SpeciesData { hp:68, atk:67, def:55, spa:43, spd:55, spe:77, type1:Type::Flying, type2:Type::Flying, weight:160 },
+    SpeciesData { hp:68, atk:67, def:55, spa:43, spd:55, spe:77, type1:Type::Flying, type2:Type::Flying, weight:160, nfe:true },
     // [823] Corviknight
-    SpeciesData { hp:98, atk:87, def:105, spa:53, spd:85, spe:67, type1:Type::Flying, type2:Type::Steel, weight:750 },
+    SpeciesData { hp:98, atk:87, def:105, spa:53, spd:85, spe:67, type1:Type::Flying, type2:Type::Steel, weight:750, nfe:false },
     // [824] Blipbug
-    SpeciesData { hp:25, atk:20, def:20, spa:25, spd:45, spe:45, type1:Type::Bug, type2:Type::Bug, weight:80 },
+    SpeciesData { hp:25, atk:20, def:20, spa:25, spd:45, spe:45, type1:Type::Bug, type2:Type::Bug, weight:80, nfe:true },
     // [825] Dottler
-    SpeciesData { hp:50, atk:35, def:80, spa:50, spd:90, spe:30, type1:Type::Bug, type2:Type::Psychic, weight:195 },
+    SpeciesData { hp:50, atk:35, def:80, spa:50, spd:90, spe:30, type1:Type::Bug, type2:Type::Psychic, weight:195, nfe:true },
     // [826] Orbeetle
-    SpeciesData { hp:60, atk:45, def:110, spa:80, spd:120, spe:90, type1:Type::Bug, type2:Type::Psychic, weight:408 },
+    SpeciesData { hp:60, atk:45, def:110, spa:80, spd:120, spe:90, type1:Type::Bug, type2:Type::Psychic, weight:408, nfe:false },
     // [827] Nickit
-    SpeciesData { hp:40, atk:28, def:28, spa:47, spd:52, spe:50, type1:Type::Dark, type2:Type::Dark, weight:89 },
+    SpeciesData { hp:40, atk:28, def:28, spa:47, spd:52, spe:50, type1:Type::Dark, type2:Type::Dark, weight:89, nfe:true },
     // [828] Thievul
-    SpeciesData { hp:70, atk:58, def:58, spa:87, spd:92, spe:90, type1:Type::Dark, type2:Type::Dark, weight:199 },
+    SpeciesData { hp:70, atk:58, def:58, spa:87, spd:92, spe:90, type1:Type::Dark, type2:Type::Dark, weight:199, nfe:false },
     // [829] Gossifleur
-    SpeciesData { hp:40, atk:40, def:60, spa:40, spd:60, spe:10, type1:Type::Grass, type2:Type::Grass, weight:22 },
+    SpeciesData { hp:40, atk:40, def:60, spa:40, spd:60, spe:10, type1:Type::Grass, type2:Type::Grass, weight:22, nfe:true },
     // [830] Eldegoss
-    SpeciesData { hp:60, atk:50, def:90, spa:80, spd:120, spe:60, type1:Type::Grass, type2:Type::Grass, weight:25 },
+    SpeciesData { hp:60, atk:50, def:90, spa:80, spd:120, spe:60, type1:Type::Grass, type2:Type::Grass, weight:25, nfe:false },
     // [831] Wooloo
-    SpeciesData { hp:42, atk:40, def:55, spa:40, spd:45, spe:48, type1:Type::Normal, type2:Type::Normal, weight:60 },
+    SpeciesData { hp:42, atk:40, def:55, spa:40, spd:45, spe:48, type1:Type::Normal, type2:Type::Normal, weight:60, nfe:true },
     // [832] Dubwool
-    SpeciesData { hp:72, atk:80, def:100, spa:60, spd:90, spe:88, type1:Type::Normal, type2:Type::Normal, weight:430 },
+    SpeciesData { hp:72, atk:80, def:100, spa:60, spd:90, spe:88, type1:Type::Normal, type2:Type::Normal, weight:430, nfe:false },
     // [833] Chewtle
-    SpeciesData { hp:50, atk:64, def:50, spa:38, spd:38, spe:44, type1:Type::Water, type2:Type::Water, weight:85 },
+    SpeciesData { hp:50, atk:64, def:50, spa:38, spd:38, spe:44, type1:Type::Water, type2:Type::Water, weight:85, nfe:true },
     // [834] Drednaw
-    SpeciesData { hp:90, atk:115, def:90, spa:48, spd:68, spe:74, type1:Type::Water, type2:Type::Rock, weight:1155 },
+    SpeciesData { hp:90, atk:115, def:90, spa:48, spd:68, spe:74, type1:Type::Water, type2:Type::Rock, weight:1155, nfe:false },
     // [835] Yamper
-    SpeciesData { hp:59, atk:45, def:50, spa:40, spd:50, spe:26, type1:Type::Electric, type2:Type::Electric, weight:135 },
+    SpeciesData { hp:59, atk:45, def:50, spa:40, spd:50, spe:26, type1:Type::Electric, type2:Type::Electric, weight:135, nfe:true },
     // [836] Boltund
-    SpeciesData { hp:69, atk:90, def:60, spa:90, spd:60, spe:121, type1:Type::Electric, type2:Type::Electric, weight:340 },
+    SpeciesData { hp:69, atk:90, def:60, spa:90, spd:60, spe:121, type1:Type::Electric, type2:Type::Electric, weight:340, nfe:false },
     // [837] Rolycoly
-    SpeciesData { hp:30, atk:40, def:50, spa:40, spd:50, spe:30, type1:Type::Rock, type2:Type::Rock, weight:120 },
+    SpeciesData { hp:30, atk:40, def:50, spa:40, spd:50, spe:30, type1:Type::Rock, type2:Type::Rock, weight:120, nfe:true },
     // [838] Carkol
-    SpeciesData { hp:80, atk:60, def:90, spa:60, spd:70, spe:50, type1:Type::Rock, type2:Type::Fire, weight:780 },
+    SpeciesData { hp:80, atk:60, def:90, spa:60, spd:70, spe:50, type1:Type::Rock, type2:Type::Fire, weight:780, nfe:true },
     // [839] Coalossal
-    SpeciesData { hp:110, atk:80, def:120, spa:80, spd:90, spe:30, type1:Type::Rock, type2:Type::Fire, weight:3105 },
+    SpeciesData { hp:110, atk:80, def:120, spa:80, spd:90, spe:30, type1:Type::Rock, type2:Type::Fire, weight:3105, nfe:false },
     // [840] Applin
-    SpeciesData { hp:40, atk:40, def:80, spa:40, spd:40, spe:20, type1:Type::Grass, type2:Type::Dragon, weight:5 },
+    SpeciesData { hp:40, atk:40, def:80, spa:40, spd:40, spe:20, type1:Type::Grass, type2:Type::Dragon, weight:5, nfe:true },
     // [841] Flapple
-    SpeciesData { hp:70, atk:110, def:80, spa:95, spd:60, spe:70, type1:Type::Grass, type2:Type::Dragon, weight:10 },
+    SpeciesData { hp:70, atk:110, def:80, spa:95, spd:60, spe:70, type1:Type::Grass, type2:Type::Dragon, weight:10, nfe:false },
     // [842] Appletun
-    SpeciesData { hp:110, atk:85, def:80, spa:100, spd:80, spe:30, type1:Type::Grass, type2:Type::Dragon, weight:130 },
+    SpeciesData { hp:110, atk:85, def:80, spa:100, spd:80, spe:30, type1:Type::Grass, type2:Type::Dragon, weight:130, nfe:false },
     // [843] Silicobra
-    SpeciesData { hp:52, atk:57, def:75, spa:35, spd:50, spe:46, type1:Type::Ground, type2:Type::Ground, weight:76 },
+    SpeciesData { hp:52, atk:57, def:75, spa:35, spd:50, spe:46, type1:Type::Ground, type2:Type::Ground, weight:76, nfe:true },
     // [844] Sandaconda
-    SpeciesData { hp:72, atk:107, def:125, spa:65, spd:70, spe:71, type1:Type::Ground, type2:Type::Ground, weight:655 },
+    SpeciesData { hp:72, atk:107, def:125, spa:65, spd:70, spe:71, type1:Type::Ground, type2:Type::Ground, weight:655, nfe:false },
     // [845] Cramorant
-    SpeciesData { hp:70, atk:85, def:55, spa:85, spd:95, spe:85, type1:Type::Flying, type2:Type::Water, weight:180 },
+    SpeciesData { hp:70, atk:85, def:55, spa:85, spd:95, spe:85, type1:Type::Flying, type2:Type::Water, weight:180, nfe:false },
     // [846] Arrokuda
-    SpeciesData { hp:41, atk:63, def:40, spa:40, spd:30, spe:66, type1:Type::Water, type2:Type::Water, weight:10 },
+    SpeciesData { hp:41, atk:63, def:40, spa:40, spd:30, spe:66, type1:Type::Water, type2:Type::Water, weight:10, nfe:true },
     // [847] Barraskewda
-    SpeciesData { hp:61, atk:123, def:60, spa:60, spd:50, spe:136, type1:Type::Water, type2:Type::Water, weight:300 },
+    SpeciesData { hp:61, atk:123, def:60, spa:60, spd:50, spe:136, type1:Type::Water, type2:Type::Water, weight:300, nfe:false },
     // [848] Toxel
-    SpeciesData { hp:40, atk:38, def:35, spa:54, spd:35, spe:40, type1:Type::Electric, type2:Type::Poison, weight:110 },
+    SpeciesData { hp:40, atk:38, def:35, spa:54, spd:35, spe:40, type1:Type::Electric, type2:Type::Poison, weight:110, nfe:true },
     // [849] Toxtricity
-    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:400 },
+    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:400, nfe:false },
     // [850] Sizzlipede
-    SpeciesData { hp:50, atk:65, def:45, spa:50, spd:50, spe:45, type1:Type::Fire, type2:Type::Bug, weight:10 },
+    SpeciesData { hp:50, atk:65, def:45, spa:50, spd:50, spe:45, type1:Type::Fire, type2:Type::Bug, weight:10, nfe:true },
     // [851] Centiskorch
-    SpeciesData { hp:100, atk:115, def:65, spa:90, spd:90, spe:65, type1:Type::Fire, type2:Type::Bug, weight:1200 },
+    SpeciesData { hp:100, atk:115, def:65, spa:90, spd:90, spe:65, type1:Type::Fire, type2:Type::Bug, weight:1200, nfe:false },
     // [852] Clobbopus
-    SpeciesData { hp:50, atk:68, def:60, spa:50, spd:50, spe:32, type1:Type::Fighting, type2:Type::Fighting, weight:40 },
+    SpeciesData { hp:50, atk:68, def:60, spa:50, spd:50, spe:32, type1:Type::Fighting, type2:Type::Fighting, weight:40, nfe:true },
     // [853] Grapploct
-    SpeciesData { hp:80, atk:118, def:90, spa:70, spd:80, spe:42, type1:Type::Fighting, type2:Type::Fighting, weight:390 },
+    SpeciesData { hp:80, atk:118, def:90, spa:70, spd:80, spe:42, type1:Type::Fighting, type2:Type::Fighting, weight:390, nfe:false },
     // [854] Sinistea
-    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Ghost, type2:Type::Ghost, weight:2 },
+    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Ghost, type2:Type::Ghost, weight:2, nfe:true },
     // [855] Polteageist
-    SpeciesData { hp:60, atk:65, def:65, spa:134, spd:114, spe:70, type1:Type::Ghost, type2:Type::Ghost, weight:4 },
+    SpeciesData { hp:60, atk:65, def:65, spa:134, spd:114, spe:70, type1:Type::Ghost, type2:Type::Ghost, weight:4, nfe:false },
     // [856] Hatenna
-    SpeciesData { hp:42, atk:30, def:45, spa:56, spd:53, spe:39, type1:Type::Psychic, type2:Type::Psychic, weight:34 },
+    SpeciesData { hp:42, atk:30, def:45, spa:56, spd:53, spe:39, type1:Type::Psychic, type2:Type::Psychic, weight:34, nfe:true },
     // [857] Hattrem
-    SpeciesData { hp:57, atk:40, def:65, spa:86, spd:73, spe:49, type1:Type::Psychic, type2:Type::Psychic, weight:48 },
+    SpeciesData { hp:57, atk:40, def:65, spa:86, spd:73, spe:49, type1:Type::Psychic, type2:Type::Psychic, weight:48, nfe:true },
     // [858] Hatterene
-    SpeciesData { hp:57, atk:90, def:95, spa:136, spd:103, spe:29, type1:Type::Psychic, type2:Type::Fairy, weight:51 },
+    SpeciesData { hp:57, atk:90, def:95, spa:136, spd:103, spe:29, type1:Type::Psychic, type2:Type::Fairy, weight:51, nfe:false },
     // [859] Impidimp
-    SpeciesData { hp:45, atk:45, def:30, spa:55, spd:40, spe:50, type1:Type::Dark, type2:Type::Fairy, weight:55 },
+    SpeciesData { hp:45, atk:45, def:30, spa:55, spd:40, spe:50, type1:Type::Dark, type2:Type::Fairy, weight:55, nfe:true },
     // [860] Morgrem
-    SpeciesData { hp:65, atk:60, def:45, spa:75, spd:55, spe:70, type1:Type::Dark, type2:Type::Fairy, weight:125 },
+    SpeciesData { hp:65, atk:60, def:45, spa:75, spd:55, spe:70, type1:Type::Dark, type2:Type::Fairy, weight:125, nfe:true },
     // [861] Grimmsnarl
-    SpeciesData { hp:95, atk:120, def:65, spa:95, spd:75, spe:60, type1:Type::Dark, type2:Type::Fairy, weight:610 },
+    SpeciesData { hp:95, atk:120, def:65, spa:95, spd:75, spe:60, type1:Type::Dark, type2:Type::Fairy, weight:610, nfe:false },
     // [862] Obstagoon
-    SpeciesData { hp:93, atk:90, def:101, spa:60, spd:81, spe:95, type1:Type::Dark, type2:Type::Normal, weight:460 },
+    SpeciesData { hp:93, atk:90, def:101, spa:60, spd:81, spe:95, type1:Type::Dark, type2:Type::Normal, weight:460, nfe:false },
     // [863] Perrserker
-    SpeciesData { hp:70, atk:110, def:100, spa:50, spd:60, spe:50, type1:Type::Steel, type2:Type::Steel, weight:280 },
+    SpeciesData { hp:70, atk:110, def:100, spa:50, spd:60, spe:50, type1:Type::Steel, type2:Type::Steel, weight:280, nfe:false },
     // [864] Cursola
-    SpeciesData { hp:60, atk:95, def:50, spa:145, spd:130, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:4 },
+    SpeciesData { hp:60, atk:95, def:50, spa:145, spd:130, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:4, nfe:false },
     // [865] Sirfetch’d
-    SpeciesData { hp:62, atk:135, def:95, spa:68, spd:82, spe:65, type1:Type::Fighting, type2:Type::Fighting, weight:1170 },
+    SpeciesData { hp:62, atk:135, def:95, spa:68, spd:82, spe:65, type1:Type::Fighting, type2:Type::Fighting, weight:1170, nfe:false },
     // [866] Mr. Rime
-    SpeciesData { hp:80, atk:85, def:75, spa:110, spd:100, spe:70, type1:Type::Ice, type2:Type::Psychic, weight:582 },
+    SpeciesData { hp:80, atk:85, def:75, spa:110, spd:100, spe:70, type1:Type::Ice, type2:Type::Psychic, weight:582, nfe:false },
     // [867] Runerigus
-    SpeciesData { hp:58, atk:95, def:145, spa:50, spd:105, spe:30, type1:Type::Ground, type2:Type::Ghost, weight:666 },
+    SpeciesData { hp:58, atk:95, def:145, spa:50, spd:105, spe:30, type1:Type::Ground, type2:Type::Ghost, weight:666, nfe:false },
     // [868] Milcery
-    SpeciesData { hp:45, atk:40, def:40, spa:50, spd:61, spe:34, type1:Type::Fairy, type2:Type::Fairy, weight:3 },
+    SpeciesData { hp:45, atk:40, def:40, spa:50, spd:61, spe:34, type1:Type::Fairy, type2:Type::Fairy, weight:3, nfe:true },
     // [869] Alcremie
-    SpeciesData { hp:65, atk:60, def:75, spa:110, spd:121, spe:64, type1:Type::Fairy, type2:Type::Fairy, weight:5 },
+    SpeciesData { hp:65, atk:60, def:75, spa:110, spd:121, spe:64, type1:Type::Fairy, type2:Type::Fairy, weight:5, nfe:false },
     // [870] Falinks
-    SpeciesData { hp:65, atk:100, def:100, spa:70, spd:60, spe:75, type1:Type::Fighting, type2:Type::Fighting, weight:620 },
+    SpeciesData { hp:65, atk:100, def:100, spa:70, spd:60, spe:75, type1:Type::Fighting, type2:Type::Fighting, weight:620, nfe:false },
     // [871] Pincurchin
-    SpeciesData { hp:48, atk:101, def:95, spa:91, spd:85, spe:15, type1:Type::Electric, type2:Type::Electric, weight:10 },
+    SpeciesData { hp:48, atk:101, def:95, spa:91, spd:85, spe:15, type1:Type::Electric, type2:Type::Electric, weight:10, nfe:false },
     // [872] Snom
-    SpeciesData { hp:30, atk:25, def:35, spa:45, spd:30, spe:20, type1:Type::Ice, type2:Type::Bug, weight:38 },
+    SpeciesData { hp:30, atk:25, def:35, spa:45, spd:30, spe:20, type1:Type::Ice, type2:Type::Bug, weight:38, nfe:true },
     // [873] Frosmoth
-    SpeciesData { hp:70, atk:65, def:60, spa:125, spd:90, spe:65, type1:Type::Ice, type2:Type::Bug, weight:420 },
+    SpeciesData { hp:70, atk:65, def:60, spa:125, spd:90, spe:65, type1:Type::Ice, type2:Type::Bug, weight:420, nfe:false },
     // [874] Stonjourner
-    SpeciesData { hp:100, atk:125, def:135, spa:20, spd:20, spe:70, type1:Type::Rock, type2:Type::Rock, weight:5200 },
+    SpeciesData { hp:100, atk:125, def:135, spa:20, spd:20, spe:70, type1:Type::Rock, type2:Type::Rock, weight:5200, nfe:false },
     // [875] Eiscue
-    SpeciesData { hp:75, atk:80, def:110, spa:65, spd:90, spe:50, type1:Type::Ice, type2:Type::Ice, weight:890 },
+    SpeciesData { hp:75, atk:80, def:110, spa:65, spd:90, spe:50, type1:Type::Ice, type2:Type::Ice, weight:890, nfe:false },
     // [876] Indeedee
-    SpeciesData { hp:60, atk:65, def:55, spa:105, spd:95, spe:95, type1:Type::Psychic, type2:Type::Normal, weight:280 },
+    SpeciesData { hp:60, atk:65, def:55, spa:105, spd:95, spe:95, type1:Type::Psychic, type2:Type::Normal, weight:280, nfe:false },
     // [877] Morpeko
-    SpeciesData { hp:58, atk:95, def:58, spa:70, spd:58, spe:97, type1:Type::Electric, type2:Type::Dark, weight:30 },
+    SpeciesData { hp:58, atk:95, def:58, spa:70, spd:58, spe:97, type1:Type::Electric, type2:Type::Dark, weight:30, nfe:false },
     // [878] Cufant
-    SpeciesData { hp:72, atk:80, def:49, spa:40, spd:49, spe:40, type1:Type::Steel, type2:Type::Steel, weight:1000 },
+    SpeciesData { hp:72, atk:80, def:49, spa:40, spd:49, spe:40, type1:Type::Steel, type2:Type::Steel, weight:1000, nfe:true },
     // [879] Copperajah
-    SpeciesData { hp:122, atk:130, def:69, spa:80, spd:69, spe:30, type1:Type::Steel, type2:Type::Steel, weight:6500 },
+    SpeciesData { hp:122, atk:130, def:69, spa:80, spd:69, spe:30, type1:Type::Steel, type2:Type::Steel, weight:6500, nfe:false },
     // [880] Dracozolt
-    SpeciesData { hp:90, atk:100, def:90, spa:80, spd:70, spe:75, type1:Type::Electric, type2:Type::Dragon, weight:1900 },
+    SpeciesData { hp:90, atk:100, def:90, spa:80, spd:70, spe:75, type1:Type::Electric, type2:Type::Dragon, weight:1900, nfe:false },
     // [881] Arctozolt
-    SpeciesData { hp:90, atk:100, def:90, spa:90, spd:80, spe:55, type1:Type::Electric, type2:Type::Ice, weight:1500 },
+    SpeciesData { hp:90, atk:100, def:90, spa:90, spd:80, spe:55, type1:Type::Electric, type2:Type::Ice, weight:1500, nfe:false },
     // [882] Dracovish
-    SpeciesData { hp:90, atk:90, def:100, spa:70, spd:80, spe:75, type1:Type::Water, type2:Type::Dragon, weight:2150 },
+    SpeciesData { hp:90, atk:90, def:100, spa:70, spd:80, spe:75, type1:Type::Water, type2:Type::Dragon, weight:2150, nfe:false },
     // [883] Arctovish
-    SpeciesData { hp:90, atk:90, def:100, spa:80, spd:90, spe:55, type1:Type::Water, type2:Type::Ice, weight:1750 },
+    SpeciesData { hp:90, atk:90, def:100, spa:80, spd:90, spe:55, type1:Type::Water, type2:Type::Ice, weight:1750, nfe:false },
     // [884] Duraludon
-    SpeciesData { hp:70, atk:95, def:115, spa:120, spd:50, spe:85, type1:Type::Steel, type2:Type::Dragon, weight:400 },
+    SpeciesData { hp:70, atk:95, def:115, spa:120, spd:50, spe:85, type1:Type::Steel, type2:Type::Dragon, weight:400, nfe:true },
     // [885] Dreepy
-    SpeciesData { hp:28, atk:60, def:30, spa:40, spd:30, spe:82, type1:Type::Dragon, type2:Type::Ghost, weight:20 },
+    SpeciesData { hp:28, atk:60, def:30, spa:40, spd:30, spe:82, type1:Type::Dragon, type2:Type::Ghost, weight:20, nfe:true },
     // [886] Drakloak
-    SpeciesData { hp:68, atk:80, def:50, spa:60, spd:50, spe:102, type1:Type::Dragon, type2:Type::Ghost, weight:110 },
+    SpeciesData { hp:68, atk:80, def:50, spa:60, spd:50, spe:102, type1:Type::Dragon, type2:Type::Ghost, weight:110, nfe:true },
     // [887] Dragapult
-    SpeciesData { hp:88, atk:120, def:75, spa:100, spd:75, spe:142, type1:Type::Dragon, type2:Type::Ghost, weight:500 },
+    SpeciesData { hp:88, atk:120, def:75, spa:100, spd:75, spe:142, type1:Type::Dragon, type2:Type::Ghost, weight:500, nfe:false },
     // [888] Zacian
-    SpeciesData { hp:92, atk:120, def:115, spa:80, spd:115, spe:138, type1:Type::Fairy, type2:Type::Fairy, weight:1100 },
+    SpeciesData { hp:92, atk:120, def:115, spa:80, spd:115, spe:138, type1:Type::Fairy, type2:Type::Fairy, weight:1100, nfe:false },
     // [889] Zamazenta
-    SpeciesData { hp:92, atk:120, def:115, spa:80, spd:115, spe:138, type1:Type::Fighting, type2:Type::Fighting, weight:2100 },
+    SpeciesData { hp:92, atk:120, def:115, spa:80, spd:115, spe:138, type1:Type::Fighting, type2:Type::Fighting, weight:2100, nfe:false },
     // [890] Eternatus
-    SpeciesData { hp:140, atk:85, def:95, spa:145, spd:95, spe:130, type1:Type::Poison, type2:Type::Dragon, weight:9500 },
+    SpeciesData { hp:140, atk:85, def:95, spa:145, spd:95, spe:130, type1:Type::Poison, type2:Type::Dragon, weight:9500, nfe:false },
     // [891] Kubfu
-    SpeciesData { hp:60, atk:90, def:60, spa:53, spd:50, spe:72, type1:Type::Fighting, type2:Type::Fighting, weight:120 },
+    SpeciesData { hp:60, atk:90, def:60, spa:53, spd:50, spe:72, type1:Type::Fighting, type2:Type::Fighting, weight:120, nfe:true },
     // [892] Urshifu
-    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Dark, weight:1050 },
+    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Dark, weight:1050, nfe:false },
     // [893] Zarude
-    SpeciesData { hp:105, atk:120, def:105, spa:70, spd:95, spe:105, type1:Type::Dark, type2:Type::Grass, weight:700 },
+    SpeciesData { hp:105, atk:120, def:105, spa:70, spd:95, spe:105, type1:Type::Dark, type2:Type::Grass, weight:700, nfe:false },
     // [894] Regieleki
-    SpeciesData { hp:80, atk:100, def:50, spa:100, spd:50, spe:200, type1:Type::Electric, type2:Type::Electric, weight:1450 },
+    SpeciesData { hp:80, atk:100, def:50, spa:100, spd:50, spe:200, type1:Type::Electric, type2:Type::Electric, weight:1450, nfe:false },
     // [895] Regidrago
-    SpeciesData { hp:200, atk:100, def:50, spa:100, spd:50, spe:80, type1:Type::Dragon, type2:Type::Dragon, weight:2000 },
+    SpeciesData { hp:200, atk:100, def:50, spa:100, spd:50, spe:80, type1:Type::Dragon, type2:Type::Dragon, weight:2000, nfe:false },
     // [896] Glastrier
-    SpeciesData { hp:100, atk:145, def:130, spa:65, spd:110, spe:30, type1:Type::Ice, type2:Type::Ice, weight:8000 },
+    SpeciesData { hp:100, atk:145, def:130, spa:65, spd:110, spe:30, type1:Type::Ice, type2:Type::Ice, weight:8000, nfe:false },
     // [897] Spectrier
-    SpeciesData { hp:100, atk:65, def:60, spa:145, spd:80, spe:130, type1:Type::Ghost, type2:Type::Ghost, weight:445 },
+    SpeciesData { hp:100, atk:65, def:60, spa:145, spd:80, spe:130, type1:Type::Ghost, type2:Type::Ghost, weight:445, nfe:false },
     // [898] Calyrex
-    SpeciesData { hp:100, atk:80, def:80, spa:80, spd:80, spe:80, type1:Type::Psychic, type2:Type::Grass, weight:77 },
+    SpeciesData { hp:100, atk:80, def:80, spa:80, spd:80, spe:80, type1:Type::Psychic, type2:Type::Grass, weight:77, nfe:false },
     // [899] Wyrdeer
-    SpeciesData { hp:103, atk:105, def:72, spa:105, spd:75, spe:65, type1:Type::Normal, type2:Type::Psychic, weight:951 },
+    SpeciesData { hp:103, atk:105, def:72, spa:105, spd:75, spe:65, type1:Type::Normal, type2:Type::Psychic, weight:951, nfe:false },
     // [900] Kleavor
-    SpeciesData { hp:70, atk:135, def:95, spa:45, spd:70, spe:85, type1:Type::Bug, type2:Type::Rock, weight:890 },
+    SpeciesData { hp:70, atk:135, def:95, spa:45, spd:70, spe:85, type1:Type::Bug, type2:Type::Rock, weight:890, nfe:false },
     // [901] Ursaluna
-    SpeciesData { hp:130, atk:140, def:105, spa:45, spd:80, spe:50, type1:Type::Ground, type2:Type::Normal, weight:2900 },
+    SpeciesData { hp:130, atk:140, def:105, spa:45, spd:80, spe:50, type1:Type::Ground, type2:Type::Normal, weight:2900, nfe:false },
     // [902] Basculegion
-    SpeciesData { hp:120, atk:112, def:65, spa:80, spd:75, spe:78, type1:Type::Water, type2:Type::Ghost, weight:1100 },
+    SpeciesData { hp:120, atk:112, def:65, spa:80, spd:75, spe:78, type1:Type::Water, type2:Type::Ghost, weight:1100, nfe:false },
     // [903] Sneasler
-    SpeciesData { hp:80, atk:130, def:60, spa:40, spd:80, spe:120, type1:Type::Fighting, type2:Type::Poison, weight:430 },
+    SpeciesData { hp:80, atk:130, def:60, spa:40, spd:80, spe:120, type1:Type::Fighting, type2:Type::Poison, weight:430, nfe:false },
     // [904] Overqwil
-    SpeciesData { hp:85, atk:115, def:95, spa:65, spd:65, spe:85, type1:Type::Dark, type2:Type::Poison, weight:605 },
+    SpeciesData { hp:85, atk:115, def:95, spa:65, spd:65, spe:85, type1:Type::Dark, type2:Type::Poison, weight:605, nfe:false },
     // [905] Enamorus
-    SpeciesData { hp:74, atk:115, def:70, spa:135, spd:80, spe:106, type1:Type::Fairy, type2:Type::Flying, weight:480 },
+    SpeciesData { hp:74, atk:115, def:70, spa:135, spd:80, spe:106, type1:Type::Fairy, type2:Type::Flying, weight:480, nfe:false },
     // [906] Sprigatito
-    SpeciesData { hp:40, atk:61, def:54, spa:45, spd:45, spe:65, type1:Type::Grass, type2:Type::Grass, weight:41 },
+    SpeciesData { hp:40, atk:61, def:54, spa:45, spd:45, spe:65, type1:Type::Grass, type2:Type::Grass, weight:41, nfe:true },
     // [907] Floragato
-    SpeciesData { hp:61, atk:80, def:63, spa:60, spd:63, spe:83, type1:Type::Grass, type2:Type::Grass, weight:122 },
+    SpeciesData { hp:61, atk:80, def:63, spa:60, spd:63, spe:83, type1:Type::Grass, type2:Type::Grass, weight:122, nfe:true },
     // [908] Meowscarada
-    SpeciesData { hp:76, atk:110, def:70, spa:81, spd:70, spe:123, type1:Type::Grass, type2:Type::Dark, weight:312 },
+    SpeciesData { hp:76, atk:110, def:70, spa:81, spd:70, spe:123, type1:Type::Grass, type2:Type::Dark, weight:312, nfe:false },
     // [909] Fuecoco
-    SpeciesData { hp:67, atk:45, def:59, spa:63, spd:40, spe:36, type1:Type::Fire, type2:Type::Fire, weight:98 },
+    SpeciesData { hp:67, atk:45, def:59, spa:63, spd:40, spe:36, type1:Type::Fire, type2:Type::Fire, weight:98, nfe:true },
     // [910] Crocalor
-    SpeciesData { hp:81, atk:55, def:78, spa:90, spd:58, spe:49, type1:Type::Fire, type2:Type::Fire, weight:307 },
+    SpeciesData { hp:81, atk:55, def:78, spa:90, spd:58, spe:49, type1:Type::Fire, type2:Type::Fire, weight:307, nfe:true },
     // [911] Skeledirge
-    SpeciesData { hp:104, atk:75, def:100, spa:110, spd:75, spe:66, type1:Type::Fire, type2:Type::Ghost, weight:3265 },
+    SpeciesData { hp:104, atk:75, def:100, spa:110, spd:75, spe:66, type1:Type::Fire, type2:Type::Ghost, weight:3265, nfe:false },
     // [912] Quaxly
-    SpeciesData { hp:55, atk:65, def:45, spa:50, spd:45, spe:50, type1:Type::Water, type2:Type::Water, weight:61 },
+    SpeciesData { hp:55, atk:65, def:45, spa:50, spd:45, spe:50, type1:Type::Water, type2:Type::Water, weight:61, nfe:true },
     // [913] Quaxwell
-    SpeciesData { hp:70, atk:85, def:65, spa:65, spd:60, spe:65, type1:Type::Water, type2:Type::Water, weight:215 },
+    SpeciesData { hp:70, atk:85, def:65, spa:65, spd:60, spe:65, type1:Type::Water, type2:Type::Water, weight:215, nfe:true },
     // [914] Quaquaval
-    SpeciesData { hp:85, atk:120, def:80, spa:85, spd:75, spe:85, type1:Type::Water, type2:Type::Fighting, weight:619 },
+    SpeciesData { hp:85, atk:120, def:80, spa:85, spd:75, spe:85, type1:Type::Water, type2:Type::Fighting, weight:619, nfe:false },
     // [915] Lechonk
-    SpeciesData { hp:54, atk:45, def:40, spa:35, spd:45, spe:35, type1:Type::Normal, type2:Type::Normal, weight:102 },
+    SpeciesData { hp:54, atk:45, def:40, spa:35, spd:45, spe:35, type1:Type::Normal, type2:Type::Normal, weight:102, nfe:true },
     // [916] Oinkologne
-    SpeciesData { hp:110, atk:100, def:75, spa:59, spd:80, spe:65, type1:Type::Normal, type2:Type::Normal, weight:1200 },
+    SpeciesData { hp:110, atk:100, def:75, spa:59, spd:80, spe:65, type1:Type::Normal, type2:Type::Normal, weight:1200, nfe:false },
     // [917] Tarountula
-    SpeciesData { hp:35, atk:41, def:45, spa:29, spd:40, spe:20, type1:Type::Bug, type2:Type::Bug, weight:40 },
+    SpeciesData { hp:35, atk:41, def:45, spa:29, spd:40, spe:20, type1:Type::Bug, type2:Type::Bug, weight:40, nfe:true },
     // [918] Spidops
-    SpeciesData { hp:60, atk:79, def:92, spa:52, spd:86, spe:35, type1:Type::Bug, type2:Type::Bug, weight:165 },
+    SpeciesData { hp:60, atk:79, def:92, spa:52, spd:86, spe:35, type1:Type::Bug, type2:Type::Bug, weight:165, nfe:false },
     // [919] Nymble
-    SpeciesData { hp:33, atk:46, def:40, spa:21, spd:25, spe:45, type1:Type::Bug, type2:Type::Bug, weight:10 },
+    SpeciesData { hp:33, atk:46, def:40, spa:21, spd:25, spe:45, type1:Type::Bug, type2:Type::Bug, weight:10, nfe:true },
     // [920] Lokix
-    SpeciesData { hp:71, atk:102, def:78, spa:52, spd:55, spe:92, type1:Type::Bug, type2:Type::Dark, weight:175 },
+    SpeciesData { hp:71, atk:102, def:78, spa:52, spd:55, spe:92, type1:Type::Bug, type2:Type::Dark, weight:175, nfe:false },
     // [921] Pawmi
-    SpeciesData { hp:45, atk:50, def:20, spa:40, spd:25, spe:60, type1:Type::Electric, type2:Type::Electric, weight:25 },
+    SpeciesData { hp:45, atk:50, def:20, spa:40, spd:25, spe:60, type1:Type::Electric, type2:Type::Electric, weight:25, nfe:true },
     // [922] Pawmo
-    SpeciesData { hp:60, atk:75, def:40, spa:50, spd:40, spe:85, type1:Type::Electric, type2:Type::Fighting, weight:65 },
+    SpeciesData { hp:60, atk:75, def:40, spa:50, spd:40, spe:85, type1:Type::Electric, type2:Type::Fighting, weight:65, nfe:true },
     // [923] Pawmot
-    SpeciesData { hp:70, atk:115, def:70, spa:70, spd:60, spe:105, type1:Type::Electric, type2:Type::Fighting, weight:410 },
+    SpeciesData { hp:70, atk:115, def:70, spa:70, spd:60, spe:105, type1:Type::Electric, type2:Type::Fighting, weight:410, nfe:false },
     // [924] Tandemaus
-    SpeciesData { hp:50, atk:50, def:45, spa:40, spd:45, spe:75, type1:Type::Normal, type2:Type::Normal, weight:18 },
+    SpeciesData { hp:50, atk:50, def:45, spa:40, spd:45, spe:75, type1:Type::Normal, type2:Type::Normal, weight:18, nfe:true },
     // [925] Maushold
-    SpeciesData { hp:74, atk:75, def:70, spa:65, spd:75, spe:111, type1:Type::Normal, type2:Type::Normal, weight:23 },
+    SpeciesData { hp:74, atk:75, def:70, spa:65, spd:75, spe:111, type1:Type::Normal, type2:Type::Normal, weight:23, nfe:false },
     // [926] Fidough
-    SpeciesData { hp:37, atk:55, def:70, spa:30, spd:55, spe:65, type1:Type::Fairy, type2:Type::Fairy, weight:109 },
+    SpeciesData { hp:37, atk:55, def:70, spa:30, spd:55, spe:65, type1:Type::Fairy, type2:Type::Fairy, weight:109, nfe:true },
     // [927] Dachsbun
-    SpeciesData { hp:57, atk:80, def:115, spa:50, spd:80, spe:95, type1:Type::Fairy, type2:Type::Fairy, weight:149 },
+    SpeciesData { hp:57, atk:80, def:115, spa:50, spd:80, spe:95, type1:Type::Fairy, type2:Type::Fairy, weight:149, nfe:false },
     // [928] Smoliv
-    SpeciesData { hp:41, atk:35, def:45, spa:58, spd:51, spe:30, type1:Type::Grass, type2:Type::Normal, weight:65 },
+    SpeciesData { hp:41, atk:35, def:45, spa:58, spd:51, spe:30, type1:Type::Grass, type2:Type::Normal, weight:65, nfe:true },
     // [929] Dolliv
-    SpeciesData { hp:52, atk:53, def:60, spa:78, spd:78, spe:33, type1:Type::Grass, type2:Type::Normal, weight:119 },
+    SpeciesData { hp:52, atk:53, def:60, spa:78, spd:78, spe:33, type1:Type::Grass, type2:Type::Normal, weight:119, nfe:true },
     // [930] Arboliva
-    SpeciesData { hp:78, atk:69, def:90, spa:125, spd:109, spe:39, type1:Type::Grass, type2:Type::Normal, weight:482 },
+    SpeciesData { hp:78, atk:69, def:90, spa:125, spd:109, spe:39, type1:Type::Grass, type2:Type::Normal, weight:482, nfe:false },
     // [931] Squawkabilly
-    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24 },
+    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24, nfe:false },
     // [932] Nacli
-    SpeciesData { hp:55, atk:55, def:75, spa:35, spd:35, spe:25, type1:Type::Rock, type2:Type::Rock, weight:160 },
+    SpeciesData { hp:55, atk:55, def:75, spa:35, spd:35, spe:25, type1:Type::Rock, type2:Type::Rock, weight:160, nfe:true },
     // [933] Naclstack
-    SpeciesData { hp:60, atk:60, def:100, spa:35, spd:65, spe:35, type1:Type::Rock, type2:Type::Rock, weight:1050 },
+    SpeciesData { hp:60, atk:60, def:100, spa:35, spd:65, spe:35, type1:Type::Rock, type2:Type::Rock, weight:1050, nfe:true },
     // [934] Garganacl
-    SpeciesData { hp:100, atk:100, def:130, spa:45, spd:90, spe:35, type1:Type::Rock, type2:Type::Rock, weight:2400 },
+    SpeciesData { hp:100, atk:100, def:130, spa:45, spd:90, spe:35, type1:Type::Rock, type2:Type::Rock, weight:2400, nfe:false },
     // [935] Charcadet
-    SpeciesData { hp:40, atk:50, def:40, spa:50, spd:40, spe:35, type1:Type::Fire, type2:Type::Fire, weight:105 },
+    SpeciesData { hp:40, atk:50, def:40, spa:50, spd:40, spe:35, type1:Type::Fire, type2:Type::Fire, weight:105, nfe:true },
     // [936] Armarouge
-    SpeciesData { hp:85, atk:60, def:100, spa:125, spd:80, spe:75, type1:Type::Fire, type2:Type::Psychic, weight:850 },
+    SpeciesData { hp:85, atk:60, def:100, spa:125, spd:80, spe:75, type1:Type::Fire, type2:Type::Psychic, weight:850, nfe:false },
     // [937] Ceruledge
-    SpeciesData { hp:75, atk:125, def:80, spa:60, spd:100, spe:85, type1:Type::Fire, type2:Type::Ghost, weight:620 },
+    SpeciesData { hp:75, atk:125, def:80, spa:60, spd:100, spe:85, type1:Type::Fire, type2:Type::Ghost, weight:620, nfe:false },
     // [938] Tadbulb
-    SpeciesData { hp:61, atk:31, def:41, spa:59, spd:35, spe:45, type1:Type::Electric, type2:Type::Electric, weight:4 },
+    SpeciesData { hp:61, atk:31, def:41, spa:59, spd:35, spe:45, type1:Type::Electric, type2:Type::Electric, weight:4, nfe:true },
     // [939] Bellibolt
-    SpeciesData { hp:109, atk:64, def:91, spa:103, spd:83, spe:45, type1:Type::Electric, type2:Type::Electric, weight:1130 },
+    SpeciesData { hp:109, atk:64, def:91, spa:103, spd:83, spe:45, type1:Type::Electric, type2:Type::Electric, weight:1130, nfe:false },
     // [940] Wattrel
-    SpeciesData { hp:40, atk:40, def:35, spa:55, spd:40, spe:70, type1:Type::Electric, type2:Type::Flying, weight:36 },
+    SpeciesData { hp:40, atk:40, def:35, spa:55, spd:40, spe:70, type1:Type::Electric, type2:Type::Flying, weight:36, nfe:true },
     // [941] Kilowattrel
-    SpeciesData { hp:70, atk:70, def:60, spa:105, spd:60, spe:125, type1:Type::Electric, type2:Type::Flying, weight:386 },
+    SpeciesData { hp:70, atk:70, def:60, spa:105, spd:60, spe:125, type1:Type::Electric, type2:Type::Flying, weight:386, nfe:false },
     // [942] Maschiff
-    SpeciesData { hp:60, atk:78, def:60, spa:40, spd:51, spe:51, type1:Type::Dark, type2:Type::Dark, weight:160 },
+    SpeciesData { hp:60, atk:78, def:60, spa:40, spd:51, spe:51, type1:Type::Dark, type2:Type::Dark, weight:160, nfe:true },
     // [943] Mabosstiff
-    SpeciesData { hp:80, atk:120, def:90, spa:60, spd:70, spe:85, type1:Type::Dark, type2:Type::Dark, weight:610 },
+    SpeciesData { hp:80, atk:120, def:90, spa:60, spd:70, spe:85, type1:Type::Dark, type2:Type::Dark, weight:610, nfe:false },
     // [944] Shroodle
-    SpeciesData { hp:40, atk:65, def:35, spa:40, spd:35, spe:75, type1:Type::Poison, type2:Type::Normal, weight:7 },
+    SpeciesData { hp:40, atk:65, def:35, spa:40, spd:35, spe:75, type1:Type::Poison, type2:Type::Normal, weight:7, nfe:true },
     // [945] Grafaiai
-    SpeciesData { hp:63, atk:95, def:65, spa:80, spd:72, spe:110, type1:Type::Poison, type2:Type::Normal, weight:272 },
+    SpeciesData { hp:63, atk:95, def:65, spa:80, spd:72, spe:110, type1:Type::Poison, type2:Type::Normal, weight:272, nfe:false },
     // [946] Bramblin
-    SpeciesData { hp:40, atk:65, def:30, spa:45, spd:35, spe:60, type1:Type::Grass, type2:Type::Ghost, weight:6 },
+    SpeciesData { hp:40, atk:65, def:30, spa:45, spd:35, spe:60, type1:Type::Grass, type2:Type::Ghost, weight:6, nfe:true },
     // [947] Brambleghast
-    SpeciesData { hp:55, atk:115, def:70, spa:80, spd:70, spe:90, type1:Type::Grass, type2:Type::Ghost, weight:60 },
+    SpeciesData { hp:55, atk:115, def:70, spa:80, spd:70, spe:90, type1:Type::Grass, type2:Type::Ghost, weight:60, nfe:false },
     // [948] Toedscool
-    SpeciesData { hp:40, atk:40, def:35, spa:50, spd:100, spe:70, type1:Type::Ground, type2:Type::Grass, weight:330 },
+    SpeciesData { hp:40, atk:40, def:35, spa:50, spd:100, spe:70, type1:Type::Ground, type2:Type::Grass, weight:330, nfe:true },
     // [949] Toedscruel
-    SpeciesData { hp:80, atk:70, def:65, spa:80, spd:120, spe:100, type1:Type::Ground, type2:Type::Grass, weight:580 },
+    SpeciesData { hp:80, atk:70, def:65, spa:80, spd:120, spe:100, type1:Type::Ground, type2:Type::Grass, weight:580, nfe:false },
     // [950] Klawf
-    SpeciesData { hp:70, atk:100, def:115, spa:35, spd:55, spe:75, type1:Type::Rock, type2:Type::Rock, weight:790 },
+    SpeciesData { hp:70, atk:100, def:115, spa:35, spd:55, spe:75, type1:Type::Rock, type2:Type::Rock, weight:790, nfe:false },
     // [951] Capsakid
-    SpeciesData { hp:50, atk:62, def:40, spa:62, spd:40, spe:50, type1:Type::Grass, type2:Type::Grass, weight:30 },
+    SpeciesData { hp:50, atk:62, def:40, spa:62, spd:40, spe:50, type1:Type::Grass, type2:Type::Grass, weight:30, nfe:true },
     // [952] Scovillain
-    SpeciesData { hp:65, atk:108, def:65, spa:108, spd:65, spe:75, type1:Type::Grass, type2:Type::Fire, weight:150 },
+    SpeciesData { hp:65, atk:108, def:65, spa:108, spd:65, spe:75, type1:Type::Grass, type2:Type::Fire, weight:150, nfe:false },
     // [953] Rellor
-    SpeciesData { hp:41, atk:50, def:60, spa:31, spd:58, spe:30, type1:Type::Bug, type2:Type::Bug, weight:10 },
+    SpeciesData { hp:41, atk:50, def:60, spa:31, spd:58, spe:30, type1:Type::Bug, type2:Type::Bug, weight:10, nfe:true },
     // [954] Rabsca
-    SpeciesData { hp:75, atk:50, def:85, spa:115, spd:100, spe:45, type1:Type::Bug, type2:Type::Psychic, weight:35 },
+    SpeciesData { hp:75, atk:50, def:85, spa:115, spd:100, spe:45, type1:Type::Bug, type2:Type::Psychic, weight:35, nfe:false },
     // [955] Flittle
-    SpeciesData { hp:30, atk:35, def:30, spa:55, spd:30, spe:75, type1:Type::Psychic, type2:Type::Psychic, weight:15 },
+    SpeciesData { hp:30, atk:35, def:30, spa:55, spd:30, spe:75, type1:Type::Psychic, type2:Type::Psychic, weight:15, nfe:true },
     // [956] Espathra
-    SpeciesData { hp:95, atk:60, def:60, spa:101, spd:60, spe:105, type1:Type::Psychic, type2:Type::Psychic, weight:900 },
+    SpeciesData { hp:95, atk:60, def:60, spa:101, spd:60, spe:105, type1:Type::Psychic, type2:Type::Psychic, weight:900, nfe:false },
     // [957] Tinkatink
-    SpeciesData { hp:50, atk:45, def:45, spa:35, spd:64, spe:58, type1:Type::Fairy, type2:Type::Steel, weight:89 },
+    SpeciesData { hp:50, atk:45, def:45, spa:35, spd:64, spe:58, type1:Type::Fairy, type2:Type::Steel, weight:89, nfe:true },
     // [958] Tinkatuff
-    SpeciesData { hp:65, atk:55, def:55, spa:45, spd:82, spe:78, type1:Type::Fairy, type2:Type::Steel, weight:591 },
+    SpeciesData { hp:65, atk:55, def:55, spa:45, spd:82, spe:78, type1:Type::Fairy, type2:Type::Steel, weight:591, nfe:true },
     // [959] Tinkaton
-    SpeciesData { hp:85, atk:75, def:77, spa:70, spd:105, spe:94, type1:Type::Fairy, type2:Type::Steel, weight:1128 },
+    SpeciesData { hp:85, atk:75, def:77, spa:70, spd:105, spe:94, type1:Type::Fairy, type2:Type::Steel, weight:1128, nfe:false },
     // [960] Wiglett
-    SpeciesData { hp:10, atk:55, def:25, spa:35, spd:25, spe:95, type1:Type::Water, type2:Type::Water, weight:18 },
+    SpeciesData { hp:10, atk:55, def:25, spa:35, spd:25, spe:95, type1:Type::Water, type2:Type::Water, weight:18, nfe:true },
     // [961] Wugtrio
-    SpeciesData { hp:35, atk:100, def:50, spa:50, spd:70, spe:120, type1:Type::Water, type2:Type::Water, weight:54 },
+    SpeciesData { hp:35, atk:100, def:50, spa:50, spd:70, spe:120, type1:Type::Water, type2:Type::Water, weight:54, nfe:false },
     // [962] Bombirdier
-    SpeciesData { hp:70, atk:103, def:85, spa:60, spd:85, spe:82, type1:Type::Flying, type2:Type::Dark, weight:429 },
+    SpeciesData { hp:70, atk:103, def:85, spa:60, spd:85, spe:82, type1:Type::Flying, type2:Type::Dark, weight:429, nfe:false },
     // [963] Finizen
-    SpeciesData { hp:70, atk:45, def:40, spa:45, spd:40, spe:75, type1:Type::Water, type2:Type::Water, weight:602 },
+    SpeciesData { hp:70, atk:45, def:40, spa:45, spd:40, spe:75, type1:Type::Water, type2:Type::Water, weight:602, nfe:true },
     // [964] Palafin
-    SpeciesData { hp:100, atk:70, def:72, spa:53, spd:62, spe:100, type1:Type::Water, type2:Type::Water, weight:602 },
+    SpeciesData { hp:100, atk:70, def:72, spa:53, spd:62, spe:100, type1:Type::Water, type2:Type::Water, weight:602, nfe:false },
     // [965] Varoom
-    SpeciesData { hp:45, atk:70, def:63, spa:30, spd:45, spe:47, type1:Type::Steel, type2:Type::Poison, weight:350 },
+    SpeciesData { hp:45, atk:70, def:63, spa:30, spd:45, spe:47, type1:Type::Steel, type2:Type::Poison, weight:350, nfe:true },
     // [966] Revavroom
-    SpeciesData { hp:80, atk:119, def:90, spa:54, spd:67, spe:90, type1:Type::Steel, type2:Type::Poison, weight:1200 },
+    SpeciesData { hp:80, atk:119, def:90, spa:54, spd:67, spe:90, type1:Type::Steel, type2:Type::Poison, weight:1200, nfe:false },
     // [967] Cyclizar
-    SpeciesData { hp:70, atk:95, def:65, spa:85, spd:65, spe:121, type1:Type::Dragon, type2:Type::Normal, weight:630 },
+    SpeciesData { hp:70, atk:95, def:65, spa:85, spd:65, spe:121, type1:Type::Dragon, type2:Type::Normal, weight:630, nfe:false },
     // [968] Orthworm
-    SpeciesData { hp:70, atk:85, def:145, spa:60, spd:55, spe:65, type1:Type::Steel, type2:Type::Steel, weight:3100 },
+    SpeciesData { hp:70, atk:85, def:145, spa:60, spd:55, spe:65, type1:Type::Steel, type2:Type::Steel, weight:3100, nfe:false },
     // [969] Glimmet
-    SpeciesData { hp:48, atk:35, def:42, spa:105, spd:60, spe:60, type1:Type::Rock, type2:Type::Poison, weight:80 },
+    SpeciesData { hp:48, atk:35, def:42, spa:105, spd:60, spe:60, type1:Type::Rock, type2:Type::Poison, weight:80, nfe:true },
     // [970] Glimmora
-    SpeciesData { hp:83, atk:55, def:90, spa:130, spd:81, spe:86, type1:Type::Rock, type2:Type::Poison, weight:450 },
+    SpeciesData { hp:83, atk:55, def:90, spa:130, spd:81, spe:86, type1:Type::Rock, type2:Type::Poison, weight:450, nfe:false },
     // [971] Greavard
-    SpeciesData { hp:50, atk:61, def:60, spa:30, spd:55, spe:34, type1:Type::Ghost, type2:Type::Ghost, weight:350 },
+    SpeciesData { hp:50, atk:61, def:60, spa:30, spd:55, spe:34, type1:Type::Ghost, type2:Type::Ghost, weight:350, nfe:true },
     // [972] Houndstone
-    SpeciesData { hp:72, atk:101, def:100, spa:50, spd:97, spe:68, type1:Type::Ghost, type2:Type::Ghost, weight:150 },
+    SpeciesData { hp:72, atk:101, def:100, spa:50, spd:97, spe:68, type1:Type::Ghost, type2:Type::Ghost, weight:150, nfe:false },
     // [973] Flamigo
-    SpeciesData { hp:82, atk:115, def:74, spa:75, spd:64, spe:90, type1:Type::Flying, type2:Type::Fighting, weight:370 },
+    SpeciesData { hp:82, atk:115, def:74, spa:75, spd:64, spe:90, type1:Type::Flying, type2:Type::Fighting, weight:370, nfe:false },
     // [974] Cetoddle
-    SpeciesData { hp:108, atk:68, def:45, spa:30, spd:40, spe:43, type1:Type::Ice, type2:Type::Ice, weight:450 },
+    SpeciesData { hp:108, atk:68, def:45, spa:30, spd:40, spe:43, type1:Type::Ice, type2:Type::Ice, weight:450, nfe:true },
     // [975] Cetitan
-    SpeciesData { hp:170, atk:113, def:65, spa:45, spd:55, spe:73, type1:Type::Ice, type2:Type::Ice, weight:7000 },
+    SpeciesData { hp:170, atk:113, def:65, spa:45, spd:55, spe:73, type1:Type::Ice, type2:Type::Ice, weight:7000, nfe:false },
     // [976] Veluza
-    SpeciesData { hp:90, atk:102, def:73, spa:78, spd:65, spe:70, type1:Type::Water, type2:Type::Psychic, weight:900 },
+    SpeciesData { hp:90, atk:102, def:73, spa:78, spd:65, spe:70, type1:Type::Water, type2:Type::Psychic, weight:900, nfe:false },
     // [977] Dondozo
-    SpeciesData { hp:150, atk:100, def:115, spa:65, spd:65, spe:35, type1:Type::Water, type2:Type::Water, weight:2200 },
+    SpeciesData { hp:150, atk:100, def:115, spa:65, spd:65, spe:35, type1:Type::Water, type2:Type::Water, weight:2200, nfe:false },
     // [978] Tatsugiri
-    SpeciesData { hp:68, atk:50, def:60, spa:120, spd:95, spe:82, type1:Type::Dragon, type2:Type::Water, weight:80 },
+    SpeciesData { hp:68, atk:50, def:60, spa:120, spd:95, spe:82, type1:Type::Dragon, type2:Type::Water, weight:80, nfe:false },
     // [979] Annihilape
-    SpeciesData { hp:110, atk:115, def:80, spa:50, spd:90, spe:90, type1:Type::Fighting, type2:Type::Ghost, weight:560 },
+    SpeciesData { hp:110, atk:115, def:80, spa:50, spd:90, spe:90, type1:Type::Fighting, type2:Type::Ghost, weight:560, nfe:false },
     // [980] Clodsire
-    SpeciesData { hp:130, atk:75, def:60, spa:45, spd:100, spe:20, type1:Type::Poison, type2:Type::Ground, weight:2230 },
+    SpeciesData { hp:130, atk:75, def:60, spa:45, spd:100, spe:20, type1:Type::Poison, type2:Type::Ground, weight:2230, nfe:false },
     // [981] Farigiraf
-    SpeciesData { hp:120, atk:90, def:70, spa:110, spd:70, spe:60, type1:Type::Normal, type2:Type::Psychic, weight:1600 },
+    SpeciesData { hp:120, atk:90, def:70, spa:110, spd:70, spe:60, type1:Type::Normal, type2:Type::Psychic, weight:1600, nfe:false },
     // [982] Dudunsparce
-    SpeciesData { hp:125, atk:100, def:80, spa:85, spd:75, spe:55, type1:Type::Normal, type2:Type::Normal, weight:392 },
+    SpeciesData { hp:125, atk:100, def:80, spa:85, spd:75, spe:55, type1:Type::Normal, type2:Type::Normal, weight:392, nfe:false },
     // [983] Kingambit
-    SpeciesData { hp:100, atk:135, def:120, spa:60, spd:85, spe:50, type1:Type::Dark, type2:Type::Steel, weight:1200 },
+    SpeciesData { hp:100, atk:135, def:120, spa:60, spd:85, spe:50, type1:Type::Dark, type2:Type::Steel, weight:1200, nfe:false },
     // [984] Great Tusk
-    SpeciesData { hp:115, atk:131, def:131, spa:53, spd:53, spe:87, type1:Type::Ground, type2:Type::Fighting, weight:3200 },
+    SpeciesData { hp:115, atk:131, def:131, spa:53, spd:53, spe:87, type1:Type::Ground, type2:Type::Fighting, weight:3200, nfe:false },
     // [985] Scream Tail
-    SpeciesData { hp:115, atk:65, def:99, spa:65, spd:115, spe:111, type1:Type::Fairy, type2:Type::Psychic, weight:80 },
+    SpeciesData { hp:115, atk:65, def:99, spa:65, spd:115, spe:111, type1:Type::Fairy, type2:Type::Psychic, weight:80, nfe:false },
     // [986] Brute Bonnet
-    SpeciesData { hp:111, atk:127, def:99, spa:79, spd:99, spe:55, type1:Type::Grass, type2:Type::Dark, weight:210 },
+    SpeciesData { hp:111, atk:127, def:99, spa:79, spd:99, spe:55, type1:Type::Grass, type2:Type::Dark, weight:210, nfe:false },
     // [987] Flutter Mane
-    SpeciesData { hp:55, atk:55, def:55, spa:135, spd:135, spe:135, type1:Type::Ghost, type2:Type::Fairy, weight:40 },
+    SpeciesData { hp:55, atk:55, def:55, spa:135, spd:135, spe:135, type1:Type::Ghost, type2:Type::Fairy, weight:40, nfe:false },
     // [988] Slither Wing
-    SpeciesData { hp:85, atk:135, def:79, spa:85, spd:105, spe:81, type1:Type::Bug, type2:Type::Fighting, weight:920 },
+    SpeciesData { hp:85, atk:135, def:79, spa:85, spd:105, spe:81, type1:Type::Bug, type2:Type::Fighting, weight:920, nfe:false },
     // [989] Sandy Shocks
-    SpeciesData { hp:85, atk:81, def:97, spa:121, spd:85, spe:101, type1:Type::Electric, type2:Type::Ground, weight:600 },
+    SpeciesData { hp:85, atk:81, def:97, spa:121, spd:85, spe:101, type1:Type::Electric, type2:Type::Ground, weight:600, nfe:false },
     // [990] Iron Treads
-    SpeciesData { hp:90, atk:112, def:120, spa:72, spd:70, spe:106, type1:Type::Ground, type2:Type::Steel, weight:2400 },
+    SpeciesData { hp:90, atk:112, def:120, spa:72, spd:70, spe:106, type1:Type::Ground, type2:Type::Steel, weight:2400, nfe:false },
     // [991] Iron Bundle
-    SpeciesData { hp:56, atk:80, def:114, spa:124, spd:60, spe:136, type1:Type::Ice, type2:Type::Water, weight:110 },
+    SpeciesData { hp:56, atk:80, def:114, spa:124, spd:60, spe:136, type1:Type::Ice, type2:Type::Water, weight:110, nfe:false },
     // [992] Iron Hands
-    SpeciesData { hp:154, atk:140, def:108, spa:50, spd:68, spe:50, type1:Type::Fighting, type2:Type::Electric, weight:3807 },
+    SpeciesData { hp:154, atk:140, def:108, spa:50, spd:68, spe:50, type1:Type::Fighting, type2:Type::Electric, weight:3807, nfe:false },
     // [993] Iron Jugulis
-    SpeciesData { hp:94, atk:80, def:86, spa:122, spd:80, spe:108, type1:Type::Dark, type2:Type::Flying, weight:1110 },
+    SpeciesData { hp:94, atk:80, def:86, spa:122, spd:80, spe:108, type1:Type::Dark, type2:Type::Flying, weight:1110, nfe:false },
     // [994] Iron Moth
-    SpeciesData { hp:80, atk:70, def:60, spa:140, spd:110, spe:110, type1:Type::Fire, type2:Type::Poison, weight:360 },
+    SpeciesData { hp:80, atk:70, def:60, spa:140, spd:110, spe:110, type1:Type::Fire, type2:Type::Poison, weight:360, nfe:false },
     // [995] Iron Thorns
-    SpeciesData { hp:100, atk:134, def:110, spa:70, spd:84, spe:72, type1:Type::Rock, type2:Type::Electric, weight:3030 },
+    SpeciesData { hp:100, atk:134, def:110, spa:70, spd:84, spe:72, type1:Type::Rock, type2:Type::Electric, weight:3030, nfe:false },
     // [996] Frigibax
-    SpeciesData { hp:65, atk:75, def:45, spa:35, spd:45, spe:55, type1:Type::Dragon, type2:Type::Ice, weight:170 },
+    SpeciesData { hp:65, atk:75, def:45, spa:35, spd:45, spe:55, type1:Type::Dragon, type2:Type::Ice, weight:170, nfe:true },
     // [997] Arctibax
-    SpeciesData { hp:90, atk:95, def:66, spa:45, spd:65, spe:62, type1:Type::Dragon, type2:Type::Ice, weight:300 },
+    SpeciesData { hp:90, atk:95, def:66, spa:45, spd:65, spe:62, type1:Type::Dragon, type2:Type::Ice, weight:300, nfe:true },
     // [998] Baxcalibur
-    SpeciesData { hp:115, atk:145, def:92, spa:75, spd:86, spe:87, type1:Type::Dragon, type2:Type::Ice, weight:2100 },
+    SpeciesData { hp:115, atk:145, def:92, spa:75, spd:86, spe:87, type1:Type::Dragon, type2:Type::Ice, weight:2100, nfe:false },
     // [999] Gimmighoul
-    SpeciesData { hp:45, atk:30, def:70, spa:75, spd:70, spe:10, type1:Type::Ghost, type2:Type::Ghost, weight:50 },
+    SpeciesData { hp:45, atk:30, def:70, spa:75, spd:70, spe:10, type1:Type::Ghost, type2:Type::Ghost, weight:50, nfe:true },
     // [1000] Gholdengo
-    SpeciesData { hp:87, atk:60, def:95, spa:133, spd:91, spe:84, type1:Type::Steel, type2:Type::Ghost, weight:300 },
+    SpeciesData { hp:87, atk:60, def:95, spa:133, spd:91, spe:84, type1:Type::Steel, type2:Type::Ghost, weight:300, nfe:false },
     // [1001] Wo-Chien
-    SpeciesData { hp:85, atk:85, def:100, spa:95, spd:135, spe:70, type1:Type::Dark, type2:Type::Grass, weight:742 },
+    SpeciesData { hp:85, atk:85, def:100, spa:95, spd:135, spe:70, type1:Type::Dark, type2:Type::Grass, weight:742, nfe:false },
     // [1002] Chien-Pao
-    SpeciesData { hp:80, atk:120, def:80, spa:90, spd:65, spe:135, type1:Type::Dark, type2:Type::Ice, weight:1522 },
+    SpeciesData { hp:80, atk:120, def:80, spa:90, spd:65, spe:135, type1:Type::Dark, type2:Type::Ice, weight:1522, nfe:false },
     // [1003] Ting-Lu
-    SpeciesData { hp:155, atk:110, def:125, spa:55, spd:80, spe:45, type1:Type::Dark, type2:Type::Ground, weight:6997 },
+    SpeciesData { hp:155, atk:110, def:125, spa:55, spd:80, spe:45, type1:Type::Dark, type2:Type::Ground, weight:6997, nfe:false },
     // [1004] Chi-Yu
-    SpeciesData { hp:55, atk:80, def:80, spa:135, spd:120, spe:100, type1:Type::Dark, type2:Type::Fire, weight:49 },
+    SpeciesData { hp:55, atk:80, def:80, spa:135, spd:120, spe:100, type1:Type::Dark, type2:Type::Fire, weight:49, nfe:false },
     // [1005] Roaring Moon
-    SpeciesData { hp:105, atk:139, def:71, spa:55, spd:101, spe:119, type1:Type::Dragon, type2:Type::Dark, weight:3800 },
+    SpeciesData { hp:105, atk:139, def:71, spa:55, spd:101, spe:119, type1:Type::Dragon, type2:Type::Dark, weight:3800, nfe:false },
     // [1006] Iron Valiant
-    SpeciesData { hp:74, atk:130, def:90, spa:120, spd:60, spe:116, type1:Type::Fairy, type2:Type::Fighting, weight:350 },
+    SpeciesData { hp:74, atk:130, def:90, spa:120, spd:60, spe:116, type1:Type::Fairy, type2:Type::Fighting, weight:350, nfe:false },
     // [1007] Koraidon
-    SpeciesData { hp:100, atk:135, def:115, spa:85, spd:100, spe:135, type1:Type::Fighting, type2:Type::Dragon, weight:3030 },
+    SpeciesData { hp:100, atk:135, def:115, spa:85, spd:100, spe:135, type1:Type::Fighting, type2:Type::Dragon, weight:3030, nfe:false },
     // [1008] Miraidon
-    SpeciesData { hp:100, atk:85, def:100, spa:135, spd:115, spe:135, type1:Type::Electric, type2:Type::Dragon, weight:2400 },
+    SpeciesData { hp:100, atk:85, def:100, spa:135, spd:115, spe:135, type1:Type::Electric, type2:Type::Dragon, weight:2400, nfe:false },
     // [1009] Walking Wake
-    SpeciesData { hp:99, atk:83, def:91, spa:125, spd:83, spe:109, type1:Type::Water, type2:Type::Dragon, weight:2800 },
+    SpeciesData { hp:99, atk:83, def:91, spa:125, spd:83, spe:109, type1:Type::Water, type2:Type::Dragon, weight:2800, nfe:false },
     // [1010] Iron Leaves
-    SpeciesData { hp:90, atk:130, def:88, spa:70, spd:108, spe:104, type1:Type::Grass, type2:Type::Psychic, weight:1250 },
+    SpeciesData { hp:90, atk:130, def:88, spa:70, spd:108, spe:104, type1:Type::Grass, type2:Type::Psychic, weight:1250, nfe:false },
     // [1011] Dipplin
-    SpeciesData { hp:80, atk:80, def:110, spa:95, spd:80, spe:40, type1:Type::Grass, type2:Type::Dragon, weight:44 },
+    SpeciesData { hp:80, atk:80, def:110, spa:95, spd:80, spe:40, type1:Type::Grass, type2:Type::Dragon, weight:44, nfe:true },
     // [1012] Poltchageist
-    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Grass, type2:Type::Ghost, weight:11 },
+    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Grass, type2:Type::Ghost, weight:11, nfe:true },
     // [1013] Sinistcha
-    SpeciesData { hp:71, atk:60, def:106, spa:121, spd:80, spe:70, type1:Type::Grass, type2:Type::Ghost, weight:22 },
+    SpeciesData { hp:71, atk:60, def:106, spa:121, spd:80, spe:70, type1:Type::Grass, type2:Type::Ghost, weight:22, nfe:false },
     // [1014] Okidogi
-    SpeciesData { hp:88, atk:128, def:115, spa:58, spd:86, spe:80, type1:Type::Poison, type2:Type::Fighting, weight:920 },
+    SpeciesData { hp:88, atk:128, def:115, spa:58, spd:86, spe:80, type1:Type::Poison, type2:Type::Fighting, weight:920, nfe:false },
     // [1015] Munkidori
-    SpeciesData { hp:88, atk:75, def:66, spa:130, spd:90, spe:106, type1:Type::Poison, type2:Type::Psychic, weight:122 },
+    SpeciesData { hp:88, atk:75, def:66, spa:130, spd:90, spe:106, type1:Type::Poison, type2:Type::Psychic, weight:122, nfe:false },
     // [1016] Fezandipiti
-    SpeciesData { hp:88, atk:91, def:82, spa:70, spd:125, spe:99, type1:Type::Poison, type2:Type::Fairy, weight:301 },
+    SpeciesData { hp:88, atk:91, def:82, spa:70, spd:125, spe:99, type1:Type::Poison, type2:Type::Fairy, weight:301, nfe:false },
     // [1017] Ogerpon
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Grass, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Grass, weight:398, nfe:false },
     // [1018] Archaludon
-    SpeciesData { hp:90, atk:105, def:130, spa:125, spd:65, spe:85, type1:Type::Steel, type2:Type::Dragon, weight:600 },
+    SpeciesData { hp:90, atk:105, def:130, spa:125, spd:65, spe:85, type1:Type::Steel, type2:Type::Dragon, weight:600, nfe:false },
     // [1019] Hydrapple
-    SpeciesData { hp:106, atk:80, def:110, spa:120, spd:80, spe:44, type1:Type::Grass, type2:Type::Dragon, weight:930 },
+    SpeciesData { hp:106, atk:80, def:110, spa:120, spd:80, spe:44, type1:Type::Grass, type2:Type::Dragon, weight:930, nfe:false },
     // [1020] Gouging Fire
-    SpeciesData { hp:105, atk:115, def:121, spa:65, spd:93, spe:91, type1:Type::Fire, type2:Type::Dragon, weight:5900 },
+    SpeciesData { hp:105, atk:115, def:121, spa:65, spd:93, spe:91, type1:Type::Fire, type2:Type::Dragon, weight:5900, nfe:false },
     // [1021] Raging Bolt
-    SpeciesData { hp:125, atk:73, def:91, spa:137, spd:89, spe:75, type1:Type::Electric, type2:Type::Dragon, weight:4800 },
+    SpeciesData { hp:125, atk:73, def:91, spa:137, spd:89, spe:75, type1:Type::Electric, type2:Type::Dragon, weight:4800, nfe:false },
     // [1022] Iron Boulder
-    SpeciesData { hp:90, atk:120, def:80, spa:68, spd:108, spe:124, type1:Type::Rock, type2:Type::Psychic, weight:1625 },
+    SpeciesData { hp:90, atk:120, def:80, spa:68, spd:108, spe:124, type1:Type::Rock, type2:Type::Psychic, weight:1625, nfe:false },
     // [1023] Iron Crown
-    SpeciesData { hp:90, atk:72, def:100, spa:122, spd:108, spe:98, type1:Type::Steel, type2:Type::Psychic, weight:1560 },
+    SpeciesData { hp:90, atk:72, def:100, spa:122, spd:108, spe:98, type1:Type::Steel, type2:Type::Psychic, weight:1560, nfe:false },
     // [1024] Terapagos
-    SpeciesData { hp:90, atk:65, def:85, spa:65, spd:85, spe:60, type1:Type::Normal, type2:Type::Normal, weight:65 },
+    SpeciesData { hp:90, atk:65, def:85, spa:65, spd:85, spe:60, type1:Type::Normal, type2:Type::Normal, weight:65, nfe:false },
     // [1025] Pecharunt
-    SpeciesData { hp:88, atk:88, def:160, spa:88, spd:88, spe:88, type1:Type::Poison, type2:Type::Ghost, weight:3 },
+    SpeciesData { hp:88, atk:88, def:160, spa:88, spd:88, spe:88, type1:Type::Poison, type2:Type::Ghost, weight:3, nfe:false },
     // [1026]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1027]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1028]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1029]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1030]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1031]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1032]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1033]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1034]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1035]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1036]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1037]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1038]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1039]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1040]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1041]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1042]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1043]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1044]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1045]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1046]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1047]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1048]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1049]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1050]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1051]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1052]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1053]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1054]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1055]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1056]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1057]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1058]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1059]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1060]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1061]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1062]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1063]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1064]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1065]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1066]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1067]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1068]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1069]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1070]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1071]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1072]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1073]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1074]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1075]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1076]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1077]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1078]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1079]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1080]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1081]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1082]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1083]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1084]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1085]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1086]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1087]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1088]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1089]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1090]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1091]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1092]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1093]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1094]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1095]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1096]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1097]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1098]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1099]
     // —
-    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:0, atk:0, def:0, spa:0, spd:0, spe:0, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1100] Abomasnow-Mega
-    SpeciesData { hp:90, atk:132, def:105, spa:132, spd:105, spe:30, type1:Type::Grass, type2:Type::Ice, weight:1850 },
+    SpeciesData { hp:90, atk:132, def:105, spa:132, spd:105, spe:30, type1:Type::Grass, type2:Type::Ice, weight:1850, nfe:false },
     // [1101] Absol-Mega
-    SpeciesData { hp:65, atk:150, def:60, spa:115, spd:60, spe:115, type1:Type::Dark, type2:Type::Dark, weight:490 },
+    SpeciesData { hp:65, atk:150, def:60, spa:115, spd:60, spe:115, type1:Type::Dark, type2:Type::Dark, weight:490, nfe:false },
     // [1102] Absol-Mega-Z
-    SpeciesData { hp:65, atk:154, def:60, spa:75, spd:60, spe:151, type1:Type::Dark, type2:Type::Ghost, weight:490 },
+    SpeciesData { hp:65, atk:154, def:60, spa:75, spd:60, spe:151, type1:Type::Dark, type2:Type::Ghost, weight:490, nfe:false },
     // [1103] Aegislash-Blade
-    SpeciesData { hp:60, atk:140, def:50, spa:140, spd:50, spe:60, type1:Type::Steel, type2:Type::Ghost, weight:530 },
+    SpeciesData { hp:60, atk:140, def:50, spa:140, spd:50, spe:60, type1:Type::Steel, type2:Type::Ghost, weight:530, nfe:false },
     // [1104] Aerodactyl-Mega
-    SpeciesData { hp:80, atk:135, def:85, spa:70, spd:95, spe:150, type1:Type::Rock, type2:Type::Flying, weight:790 },
+    SpeciesData { hp:80, atk:135, def:85, spa:70, spd:95, spe:150, type1:Type::Rock, type2:Type::Flying, weight:790, nfe:false },
     // [1105] Aggron-Mega
-    SpeciesData { hp:70, atk:140, def:230, spa:60, spd:80, spe:50, type1:Type::Steel, type2:Type::Steel, weight:3950 },
+    SpeciesData { hp:70, atk:140, def:230, spa:60, spd:80, spe:50, type1:Type::Steel, type2:Type::Steel, weight:3950, nfe:false },
     // [1106] Alakazam-Mega
-    SpeciesData { hp:55, atk:50, def:65, spa:175, spd:105, spe:150, type1:Type::Psychic, type2:Type::Psychic, weight:480 },
+    SpeciesData { hp:55, atk:50, def:65, spa:175, spd:105, spe:150, type1:Type::Psychic, type2:Type::Psychic, weight:480, nfe:false },
     // [1107] Alcremie-Gmax
-    SpeciesData { hp:65, atk:60, def:75, spa:110, spd:121, spe:64, type1:Type::Fairy, type2:Type::Fairy, weight:0 },
+    SpeciesData { hp:65, atk:60, def:75, spa:110, spd:121, spe:64, type1:Type::Fairy, type2:Type::Fairy, weight:0, nfe:false },
     // [1108] Altaria-Mega
-    SpeciesData { hp:75, atk:110, def:110, spa:110, spd:105, spe:80, type1:Type::Dragon, type2:Type::Fairy, weight:206 },
+    SpeciesData { hp:75, atk:110, def:110, spa:110, spd:105, spe:80, type1:Type::Dragon, type2:Type::Fairy, weight:206, nfe:false },
     // [1109] Ampharos-Mega
-    SpeciesData { hp:90, atk:95, def:105, spa:165, spd:110, spe:45, type1:Type::Electric, type2:Type::Dragon, weight:615 },
+    SpeciesData { hp:90, atk:95, def:105, spa:165, spd:110, spe:45, type1:Type::Electric, type2:Type::Dragon, weight:615, nfe:false },
     // [1110] Appletun-Gmax
-    SpeciesData { hp:110, atk:85, def:80, spa:100, spd:80, spe:30, type1:Type::Grass, type2:Type::Dragon, weight:0 },
+    SpeciesData { hp:110, atk:85, def:80, spa:100, spd:80, spe:30, type1:Type::Grass, type2:Type::Dragon, weight:0, nfe:false },
     // [1111] Araquanid-Totem
-    SpeciesData { hp:68, atk:70, def:92, spa:50, spd:132, spe:42, type1:Type::Water, type2:Type::Bug, weight:2175 },
+    SpeciesData { hp:68, atk:70, def:92, spa:50, spd:132, spe:42, type1:Type::Water, type2:Type::Bug, weight:2175, nfe:false },
     // [1112] Arcanine-Hisui
-    SpeciesData { hp:95, atk:115, def:80, spa:95, spd:80, spe:90, type1:Type::Fire, type2:Type::Rock, weight:1680 },
+    SpeciesData { hp:95, atk:115, def:80, spa:95, spd:80, spe:90, type1:Type::Fire, type2:Type::Rock, weight:1680, nfe:false },
     // [1113] Arceus-Bug
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Bug, type2:Type::Bug, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Bug, type2:Type::Bug, weight:3200, nfe:false },
     // [1114] Arceus-Dark
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Dark, type2:Type::Dark, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Dark, type2:Type::Dark, weight:3200, nfe:false },
     // [1115] Arceus-Dragon
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Dragon, type2:Type::Dragon, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Dragon, type2:Type::Dragon, weight:3200, nfe:false },
     // [1116] Arceus-Electric
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Electric, type2:Type::Electric, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Electric, type2:Type::Electric, weight:3200, nfe:false },
     // [1117] Arceus-Fairy
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Fairy, type2:Type::Fairy, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Fairy, type2:Type::Fairy, weight:3200, nfe:false },
     // [1118] Arceus-Fighting
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Fighting, type2:Type::Fighting, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Fighting, type2:Type::Fighting, weight:3200, nfe:false },
     // [1119] Arceus-Fire
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Fire, type2:Type::Fire, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Fire, type2:Type::Fire, weight:3200, nfe:false },
     // [1120] Arceus-Flying
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Flying, type2:Type::Flying, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Flying, type2:Type::Flying, weight:3200, nfe:false },
     // [1121] Arceus-Ghost
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Ghost, type2:Type::Ghost, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Ghost, type2:Type::Ghost, weight:3200, nfe:false },
     // [1122] Arceus-Grass
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Grass, type2:Type::Grass, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Grass, type2:Type::Grass, weight:3200, nfe:false },
     // [1123] Arceus-Ground
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Ground, type2:Type::Ground, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Ground, type2:Type::Ground, weight:3200, nfe:false },
     // [1124] Arceus-Ice
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Ice, type2:Type::Ice, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Ice, type2:Type::Ice, weight:3200, nfe:false },
     // [1125] Arceus-Poison
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Poison, type2:Type::Poison, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Poison, type2:Type::Poison, weight:3200, nfe:false },
     // [1126] Arceus-Psychic
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Psychic, type2:Type::Psychic, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Psychic, type2:Type::Psychic, weight:3200, nfe:false },
     // [1127] Arceus-Rock
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Rock, type2:Type::Rock, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Rock, type2:Type::Rock, weight:3200, nfe:false },
     // [1128] Arceus-Steel
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Steel, type2:Type::Steel, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Steel, type2:Type::Steel, weight:3200, nfe:false },
     // [1129] Arceus-Water
-    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Water, type2:Type::Water, weight:3200 },
+    SpeciesData { hp:120, atk:120, def:120, spa:120, spd:120, spe:120, type1:Type::Water, type2:Type::Water, weight:3200, nfe:false },
     // [1130] Articuno-Galar
-    SpeciesData { hp:90, atk:85, def:85, spa:125, spd:100, spe:95, type1:Type::Psychic, type2:Type::Flying, weight:509 },
+    SpeciesData { hp:90, atk:85, def:85, spa:125, spd:100, spe:95, type1:Type::Psychic, type2:Type::Flying, weight:509, nfe:false },
     // [1131] Audino-Mega
-    SpeciesData { hp:103, atk:60, def:126, spa:80, spd:126, spe:50, type1:Type::Normal, type2:Type::Fairy, weight:320 },
+    SpeciesData { hp:103, atk:60, def:126, spa:80, spd:126, spe:50, type1:Type::Normal, type2:Type::Fairy, weight:320, nfe:false },
     // [1132] Avalugg-Hisui
-    SpeciesData { hp:95, atk:127, def:184, spa:34, spd:36, spe:38, type1:Type::Ice, type2:Type::Rock, weight:2624 },
+    SpeciesData { hp:95, atk:127, def:184, spa:34, spd:36, spe:38, type1:Type::Ice, type2:Type::Rock, weight:2624, nfe:false },
     // [1133] Banette-Mega
-    SpeciesData { hp:64, atk:165, def:75, spa:93, spd:83, spe:75, type1:Type::Ghost, type2:Type::Ghost, weight:130 },
+    SpeciesData { hp:64, atk:165, def:75, spa:93, spd:83, spe:75, type1:Type::Ghost, type2:Type::Ghost, weight:130, nfe:false },
     // [1134] Barbaracle-Mega
-    SpeciesData { hp:72, atk:140, def:130, spa:64, spd:106, spe:88, type1:Type::Rock, type2:Type::Fighting, weight:1000 },
+    SpeciesData { hp:72, atk:140, def:130, spa:64, spd:106, spe:88, type1:Type::Rock, type2:Type::Fighting, weight:1000, nfe:false },
     // [1135] Basculegion-F
-    SpeciesData { hp:120, atk:92, def:65, spa:100, spd:75, spe:78, type1:Type::Water, type2:Type::Ghost, weight:1100 },
+    SpeciesData { hp:120, atk:92, def:65, spa:100, spd:75, spe:78, type1:Type::Water, type2:Type::Ghost, weight:1100, nfe:false },
     // [1136] Basculin-Blue-Striped
-    SpeciesData { hp:70, atk:92, def:65, spa:80, spd:55, spe:98, type1:Type::Water, type2:Type::Water, weight:180 },
+    SpeciesData { hp:70, atk:92, def:65, spa:80, spd:55, spe:98, type1:Type::Water, type2:Type::Water, weight:180, nfe:false },
     // [1137] Basculin-White-Striped
-    SpeciesData { hp:70, atk:92, def:65, spa:80, spd:55, spe:98, type1:Type::Water, type2:Type::Water, weight:180 },
+    SpeciesData { hp:70, atk:92, def:65, spa:80, spd:55, spe:98, type1:Type::Water, type2:Type::Water, weight:180, nfe:false },
     // [1138] Baxcalibur-Mega
-    SpeciesData { hp:115, atk:175, def:117, spa:105, spd:101, spe:87, type1:Type::Dragon, type2:Type::Ice, weight:3150 },
+    SpeciesData { hp:115, atk:175, def:117, spa:105, spd:101, spe:87, type1:Type::Dragon, type2:Type::Ice, weight:3150, nfe:false },
     // [1139] Beedrill-Mega
-    SpeciesData { hp:65, atk:150, def:40, spa:15, spd:80, spe:145, type1:Type::Bug, type2:Type::Poison, weight:405 },
+    SpeciesData { hp:65, atk:150, def:40, spa:15, spd:80, spe:145, type1:Type::Bug, type2:Type::Poison, weight:405, nfe:false },
     // [1140] Blastoise-Gmax
-    SpeciesData { hp:79, atk:83, def:100, spa:85, spd:105, spe:78, type1:Type::Water, type2:Type::Water, weight:0 },
+    SpeciesData { hp:79, atk:83, def:100, spa:85, spd:105, spe:78, type1:Type::Water, type2:Type::Water, weight:0, nfe:false },
     // [1141] Blastoise-Mega
-    SpeciesData { hp:79, atk:103, def:120, spa:135, spd:115, spe:78, type1:Type::Water, type2:Type::Water, weight:1011 },
+    SpeciesData { hp:79, atk:103, def:120, spa:135, spd:115, spe:78, type1:Type::Water, type2:Type::Water, weight:1011, nfe:false },
     // [1142] Blaziken-Mega
-    SpeciesData { hp:80, atk:160, def:80, spa:130, spd:80, spe:100, type1:Type::Fire, type2:Type::Fighting, weight:520 },
+    SpeciesData { hp:80, atk:160, def:80, spa:130, spd:80, spe:100, type1:Type::Fire, type2:Type::Fighting, weight:520, nfe:false },
     // [1143] Braviary-Hisui
-    SpeciesData { hp:110, atk:83, def:70, spa:112, spd:70, spe:65, type1:Type::Psychic, type2:Type::Flying, weight:434 },
+    SpeciesData { hp:110, atk:83, def:70, spa:112, spd:70, spe:65, type1:Type::Psychic, type2:Type::Flying, weight:434, nfe:false },
     // [1144] Butterfree-Gmax
-    SpeciesData { hp:60, atk:45, def:50, spa:90, spd:80, spe:70, type1:Type::Bug, type2:Type::Flying, weight:0 },
+    SpeciesData { hp:60, atk:45, def:50, spa:90, spd:80, spe:70, type1:Type::Bug, type2:Type::Flying, weight:0, nfe:false },
     // [1145] Calyrex-Ice
-    SpeciesData { hp:100, atk:165, def:150, spa:85, spd:130, spe:50, type1:Type::Psychic, type2:Type::Ice, weight:8091 },
+    SpeciesData { hp:100, atk:165, def:150, spa:85, spd:130, spe:50, type1:Type::Psychic, type2:Type::Ice, weight:8091, nfe:false },
     // [1146] Calyrex-Shadow
-    SpeciesData { hp:100, atk:85, def:80, spa:165, spd:100, spe:150, type1:Type::Psychic, type2:Type::Ghost, weight:536 },
+    SpeciesData { hp:100, atk:85, def:80, spa:165, spd:100, spe:150, type1:Type::Psychic, type2:Type::Ghost, weight:536, nfe:false },
     // [1147] Camerupt-Mega
-    SpeciesData { hp:70, atk:120, def:100, spa:145, spd:105, spe:20, type1:Type::Fire, type2:Type::Ground, weight:3205 },
+    SpeciesData { hp:70, atk:120, def:100, spa:145, spd:105, spe:20, type1:Type::Fire, type2:Type::Ground, weight:3205, nfe:false },
     // [1148] Castform-Rainy
-    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Water, type2:Type::Water, weight:8 },
+    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Water, type2:Type::Water, weight:8, nfe:false },
     // [1149] Castform-Snowy
-    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Ice, type2:Type::Ice, weight:8 },
+    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Ice, type2:Type::Ice, weight:8, nfe:false },
     // [1150] Castform-Sunny
-    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Fire, type2:Type::Fire, weight:8 },
+    SpeciesData { hp:70, atk:70, def:70, spa:70, spd:70, spe:70, type1:Type::Fire, type2:Type::Fire, weight:8, nfe:false },
     // [1151] Centiskorch-Gmax
-    SpeciesData { hp:100, atk:115, def:65, spa:90, spd:90, spe:65, type1:Type::Fire, type2:Type::Bug, weight:0 },
+    SpeciesData { hp:100, atk:115, def:65, spa:90, spd:90, spe:65, type1:Type::Fire, type2:Type::Bug, weight:0, nfe:false },
     // [1152] Chandelure-Mega
-    SpeciesData { hp:60, atk:75, def:110, spa:175, spd:110, spe:90, type1:Type::Ghost, type2:Type::Fire, weight:696 },
+    SpeciesData { hp:60, atk:75, def:110, spa:175, spd:110, spe:90, type1:Type::Ghost, type2:Type::Fire, weight:696, nfe:false },
     // [1153] Charizard-Gmax
-    SpeciesData { hp:78, atk:84, def:78, spa:109, spd:85, spe:100, type1:Type::Fire, type2:Type::Flying, weight:0 },
+    SpeciesData { hp:78, atk:84, def:78, spa:109, spd:85, spe:100, type1:Type::Fire, type2:Type::Flying, weight:0, nfe:false },
     // [1154] Charizard-Mega-X
-    SpeciesData { hp:78, atk:130, def:111, spa:130, spd:85, spe:100, type1:Type::Fire, type2:Type::Dragon, weight:1105 },
+    SpeciesData { hp:78, atk:130, def:111, spa:130, spd:85, spe:100, type1:Type::Fire, type2:Type::Dragon, weight:1105, nfe:false },
     // [1155] Charizard-Mega-Y
-    SpeciesData { hp:78, atk:104, def:78, spa:159, spd:115, spe:100, type1:Type::Fire, type2:Type::Flying, weight:1005 },
+    SpeciesData { hp:78, atk:104, def:78, spa:159, spd:115, spe:100, type1:Type::Fire, type2:Type::Flying, weight:1005, nfe:false },
     // [1156] Cherrim-Sunshine
-    SpeciesData { hp:70, atk:60, def:70, spa:87, spd:78, spe:85, type1:Type::Grass, type2:Type::Grass, weight:93 },
+    SpeciesData { hp:70, atk:60, def:70, spa:87, spd:78, spe:85, type1:Type::Grass, type2:Type::Grass, weight:93, nfe:false },
     // [1157] Chesnaught-Mega
-    SpeciesData { hp:88, atk:137, def:172, spa:74, spd:115, spe:44, type1:Type::Grass, type2:Type::Fighting, weight:900 },
+    SpeciesData { hp:88, atk:137, def:172, spa:74, spd:115, spe:44, type1:Type::Grass, type2:Type::Fighting, weight:900, nfe:false },
     // [1158] Chimecho-Mega
-    SpeciesData { hp:75, atk:50, def:110, spa:135, spd:120, spe:65, type1:Type::Psychic, type2:Type::Steel, weight:80 },
+    SpeciesData { hp:75, atk:50, def:110, spa:135, spd:120, spe:65, type1:Type::Psychic, type2:Type::Steel, weight:80, nfe:false },
     // [1159] Cinderace-Gmax
-    SpeciesData { hp:80, atk:116, def:75, spa:65, spd:75, spe:119, type1:Type::Fire, type2:Type::Fire, weight:0 },
+    SpeciesData { hp:80, atk:116, def:75, spa:65, spd:75, spe:119, type1:Type::Fire, type2:Type::Fire, weight:0, nfe:false },
     // [1160] Clefable-Mega
-    SpeciesData { hp:95, atk:80, def:93, spa:135, spd:110, spe:70, type1:Type::Fairy, type2:Type::Flying, weight:423 },
+    SpeciesData { hp:95, atk:80, def:93, spa:135, spd:110, spe:70, type1:Type::Fairy, type2:Type::Flying, weight:423, nfe:false },
     // [1161] Coalossal-Gmax
-    SpeciesData { hp:110, atk:80, def:120, spa:80, spd:90, spe:30, type1:Type::Rock, type2:Type::Fire, weight:0 },
+    SpeciesData { hp:110, atk:80, def:120, spa:80, spd:90, spe:30, type1:Type::Rock, type2:Type::Fire, weight:0, nfe:false },
     // [1162] Copperajah-Gmax
-    SpeciesData { hp:122, atk:130, def:69, spa:80, spd:69, spe:30, type1:Type::Steel, type2:Type::Steel, weight:0 },
+    SpeciesData { hp:122, atk:130, def:69, spa:80, spd:69, spe:30, type1:Type::Steel, type2:Type::Steel, weight:0, nfe:false },
     // [1163] Corsola-Galar
-    SpeciesData { hp:60, atk:55, def:100, spa:65, spd:100, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:5 },
+    SpeciesData { hp:60, atk:55, def:100, spa:65, spd:100, spe:30, type1:Type::Ghost, type2:Type::Ghost, weight:5, nfe:false },
     // [1164] Corviknight-Gmax
-    SpeciesData { hp:98, atk:87, def:105, spa:53, spd:85, spe:67, type1:Type::Flying, type2:Type::Steel, weight:0 },
+    SpeciesData { hp:98, atk:87, def:105, spa:53, spd:85, spe:67, type1:Type::Flying, type2:Type::Steel, weight:0, nfe:false },
     // [1165] Crabominable-Mega
-    SpeciesData { hp:97, atk:157, def:122, spa:62, spd:107, spe:33, type1:Type::Fighting, type2:Type::Ice, weight:2528 },
+    SpeciesData { hp:97, atk:157, def:122, spa:62, spd:107, spe:33, type1:Type::Fighting, type2:Type::Ice, weight:2528, nfe:false },
     // [1166] Cramorant-Gorging
-    SpeciesData { hp:70, atk:85, def:55, spa:85, spd:95, spe:85, type1:Type::Flying, type2:Type::Water, weight:180 },
+    SpeciesData { hp:70, atk:85, def:55, spa:85, spd:95, spe:85, type1:Type::Flying, type2:Type::Water, weight:180, nfe:false },
     // [1167] Cramorant-Gulping
-    SpeciesData { hp:70, atk:85, def:55, spa:85, spd:95, spe:85, type1:Type::Flying, type2:Type::Water, weight:180 },
+    SpeciesData { hp:70, atk:85, def:55, spa:85, spd:95, spe:85, type1:Type::Flying, type2:Type::Water, weight:180, nfe:false },
     // [1168] Darkrai-Mega
-    SpeciesData { hp:70, atk:120, def:130, spa:165, spd:130, spe:85, type1:Type::Dark, type2:Type::Dark, weight:2400 },
+    SpeciesData { hp:70, atk:120, def:130, spa:165, spd:130, spe:85, type1:Type::Dark, type2:Type::Dark, weight:2400, nfe:false },
     // [1169] Darmanitan-Galar
-    SpeciesData { hp:105, atk:140, def:55, spa:30, spd:55, spe:95, type1:Type::Ice, type2:Type::Ice, weight:1200 },
+    SpeciesData { hp:105, atk:140, def:55, spa:30, spd:55, spe:95, type1:Type::Ice, type2:Type::Ice, weight:1200, nfe:false },
     // [1170] Darmanitan-Galar-Zen
-    SpeciesData { hp:105, atk:160, def:55, spa:30, spd:55, spe:135, type1:Type::Ice, type2:Type::Fire, weight:1200 },
+    SpeciesData { hp:105, atk:160, def:55, spa:30, spd:55, spe:135, type1:Type::Ice, type2:Type::Fire, weight:1200, nfe:false },
     // [1171] Darmanitan-Zen
-    SpeciesData { hp:105, atk:30, def:105, spa:140, spd:105, spe:55, type1:Type::Fire, type2:Type::Psychic, weight:929 },
+    SpeciesData { hp:105, atk:30, def:105, spa:140, spd:105, spe:55, type1:Type::Fire, type2:Type::Psychic, weight:929, nfe:false },
     // [1172] Darumaka-Galar
-    SpeciesData { hp:70, atk:90, def:45, spa:15, spd:45, spe:50, type1:Type::Ice, type2:Type::Ice, weight:400 },
+    SpeciesData { hp:70, atk:90, def:45, spa:15, spd:45, spe:50, type1:Type::Ice, type2:Type::Ice, weight:400, nfe:true },
     // [1173] Decidueye-Hisui
-    SpeciesData { hp:88, atk:112, def:80, spa:95, spd:95, spe:60, type1:Type::Grass, type2:Type::Fighting, weight:370 },
+    SpeciesData { hp:88, atk:112, def:80, spa:95, spd:95, spe:60, type1:Type::Grass, type2:Type::Fighting, weight:370, nfe:false },
     // [1174] Delphox-Mega
-    SpeciesData { hp:75, atk:69, def:72, spa:159, spd:125, spe:134, type1:Type::Fire, type2:Type::Psychic, weight:390 },
+    SpeciesData { hp:75, atk:69, def:72, spa:159, spd:125, spe:134, type1:Type::Fire, type2:Type::Psychic, weight:390, nfe:false },
     // [1175] Deoxys-Attack
-    SpeciesData { hp:50, atk:180, def:20, spa:180, spd:20, spe:150, type1:Type::Psychic, type2:Type::Psychic, weight:608 },
+    SpeciesData { hp:50, atk:180, def:20, spa:180, spd:20, spe:150, type1:Type::Psychic, type2:Type::Psychic, weight:608, nfe:false },
     // [1176] Deoxys-Defense
-    SpeciesData { hp:50, atk:70, def:160, spa:70, spd:160, spe:90, type1:Type::Psychic, type2:Type::Psychic, weight:608 },
+    SpeciesData { hp:50, atk:70, def:160, spa:70, spd:160, spe:90, type1:Type::Psychic, type2:Type::Psychic, weight:608, nfe:false },
     // [1177] Deoxys-Speed
-    SpeciesData { hp:50, atk:95, def:90, spa:95, spd:90, spe:180, type1:Type::Psychic, type2:Type::Psychic, weight:608 },
+    SpeciesData { hp:50, atk:95, def:90, spa:95, spd:90, spe:180, type1:Type::Psychic, type2:Type::Psychic, weight:608, nfe:false },
     // [1178] Dialga-Origin
-    SpeciesData { hp:100, atk:100, def:120, spa:150, spd:120, spe:90, type1:Type::Steel, type2:Type::Dragon, weight:8500 },
+    SpeciesData { hp:100, atk:100, def:120, spa:150, spd:120, spe:90, type1:Type::Steel, type2:Type::Dragon, weight:8500, nfe:false },
     // [1179] Diancie-Mega
-    SpeciesData { hp:50, atk:160, def:110, spa:160, spd:110, spe:110, type1:Type::Rock, type2:Type::Fairy, weight:278 },
+    SpeciesData { hp:50, atk:160, def:110, spa:160, spd:110, spe:110, type1:Type::Rock, type2:Type::Fairy, weight:278, nfe:false },
     // [1180] Diglett-Alola
-    SpeciesData { hp:10, atk:55, def:30, spa:35, spd:45, spe:90, type1:Type::Ground, type2:Type::Steel, weight:10 },
+    SpeciesData { hp:10, atk:55, def:30, spa:35, spd:45, spe:90, type1:Type::Ground, type2:Type::Steel, weight:10, nfe:true },
     // [1181] Dragalge-Mega
-    SpeciesData { hp:65, atk:85, def:105, spa:132, spd:163, spe:44, type1:Type::Poison, type2:Type::Dragon, weight:1003 },
+    SpeciesData { hp:65, atk:85, def:105, spa:132, spd:163, spe:44, type1:Type::Poison, type2:Type::Dragon, weight:1003, nfe:false },
     // [1182] Dragonite-Mega
-    SpeciesData { hp:91, atk:124, def:115, spa:145, spd:125, spe:100, type1:Type::Dragon, type2:Type::Flying, weight:2900 },
+    SpeciesData { hp:91, atk:124, def:115, spa:145, spd:125, spe:100, type1:Type::Dragon, type2:Type::Flying, weight:2900, nfe:false },
     // [1183] Drampa-Mega
-    SpeciesData { hp:78, atk:85, def:110, spa:160, spd:116, spe:36, type1:Type::Normal, type2:Type::Dragon, weight:1850 },
+    SpeciesData { hp:78, atk:85, def:110, spa:160, spd:116, spe:36, type1:Type::Normal, type2:Type::Dragon, weight:1850, nfe:false },
     // [1184] Drednaw-Gmax
-    SpeciesData { hp:90, atk:115, def:90, spa:48, spd:68, spe:74, type1:Type::Water, type2:Type::Rock, weight:0 },
+    SpeciesData { hp:90, atk:115, def:90, spa:48, spd:68, spe:74, type1:Type::Water, type2:Type::Rock, weight:0, nfe:false },
     // [1185] Dudunsparce-Three-Segment
-    SpeciesData { hp:125, atk:100, def:80, spa:85, spd:75, spe:55, type1:Type::Normal, type2:Type::Normal, weight:474 },
+    SpeciesData { hp:125, atk:100, def:80, spa:85, spd:75, spe:55, type1:Type::Normal, type2:Type::Normal, weight:474, nfe:false },
     // [1186] Dugtrio-Alola
-    SpeciesData { hp:35, atk:100, def:60, spa:50, spd:70, spe:110, type1:Type::Ground, type2:Type::Steel, weight:666 },
+    SpeciesData { hp:35, atk:100, def:60, spa:50, spd:70, spe:110, type1:Type::Ground, type2:Type::Steel, weight:666, nfe:false },
     // [1187] Duraludon-Gmax
-    SpeciesData { hp:70, atk:95, def:115, spa:120, spd:50, spe:85, type1:Type::Steel, type2:Type::Dragon, weight:0 },
+    SpeciesData { hp:70, atk:95, def:115, spa:120, spd:50, spe:85, type1:Type::Steel, type2:Type::Dragon, weight:0, nfe:true },
     // [1188] Eelektross-Mega
-    SpeciesData { hp:85, atk:145, def:80, spa:135, spd:90, spe:80, type1:Type::Electric, type2:Type::Electric, weight:1600 },
+    SpeciesData { hp:85, atk:145, def:80, spa:135, spd:90, spe:80, type1:Type::Electric, type2:Type::Electric, weight:1600, nfe:false },
     // [1189] Eevee-Gmax
-    SpeciesData { hp:55, atk:55, def:50, spa:45, spd:65, spe:55, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:55, atk:55, def:50, spa:45, spd:65, spe:55, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:true },
     // [1190] Eevee-Starter
-    SpeciesData { hp:65, atk:75, def:70, spa:65, spd:85, spe:75, type1:Type::Normal, type2:Type::Normal, weight:65 },
+    SpeciesData { hp:65, atk:75, def:70, spa:65, spd:85, spe:75, type1:Type::Normal, type2:Type::Normal, weight:65, nfe:true },
     // [1191] Eiscue-Noice
-    SpeciesData { hp:75, atk:80, def:70, spa:65, spd:50, spe:130, type1:Type::Ice, type2:Type::Ice, weight:890 },
+    SpeciesData { hp:75, atk:80, def:70, spa:65, spd:50, spe:130, type1:Type::Ice, type2:Type::Ice, weight:890, nfe:false },
     // [1192] Electrode-Hisui
-    SpeciesData { hp:60, atk:50, def:70, spa:80, spd:80, spe:150, type1:Type::Electric, type2:Type::Grass, weight:710 },
+    SpeciesData { hp:60, atk:50, def:70, spa:80, spd:80, spe:150, type1:Type::Electric, type2:Type::Grass, weight:710, nfe:false },
     // [1193] Emboar-Mega
-    SpeciesData { hp:110, atk:148, def:75, spa:110, spd:110, spe:75, type1:Type::Fire, type2:Type::Fighting, weight:1803 },
+    SpeciesData { hp:110, atk:148, def:75, spa:110, spd:110, spe:75, type1:Type::Fire, type2:Type::Fighting, weight:1803, nfe:false },
     // [1194] Enamorus-Therian
-    SpeciesData { hp:74, atk:115, def:110, spa:135, spd:100, spe:46, type1:Type::Fairy, type2:Type::Flying, weight:480 },
+    SpeciesData { hp:74, atk:115, def:110, spa:135, spd:100, spe:46, type1:Type::Fairy, type2:Type::Flying, weight:480, nfe:false },
     // [1195] Eternatus-Eternamax
-    SpeciesData { hp:255, atk:115, def:250, spa:125, spd:250, spe:130, type1:Type::Poison, type2:Type::Dragon, weight:0 },
+    SpeciesData { hp:255, atk:115, def:250, spa:125, spd:250, spe:130, type1:Type::Poison, type2:Type::Dragon, weight:0, nfe:false },
     // [1196] Excadrill-Mega
-    SpeciesData { hp:110, atk:165, def:100, spa:65, spd:65, spe:103, type1:Type::Ground, type2:Type::Steel, weight:600 },
+    SpeciesData { hp:110, atk:165, def:100, spa:65, spd:65, spe:103, type1:Type::Ground, type2:Type::Steel, weight:600, nfe:false },
     // [1197] Exeggutor-Alola
-    SpeciesData { hp:95, atk:105, def:85, spa:125, spd:75, spe:45, type1:Type::Grass, type2:Type::Dragon, weight:4156 },
+    SpeciesData { hp:95, atk:105, def:85, spa:125, spd:75, spe:45, type1:Type::Grass, type2:Type::Dragon, weight:4156, nfe:false },
     // [1198] Falinks-Mega
-    SpeciesData { hp:65, atk:135, def:135, spa:70, spd:65, spe:100, type1:Type::Fighting, type2:Type::Fighting, weight:990 },
+    SpeciesData { hp:65, atk:135, def:135, spa:70, spd:65, spe:100, type1:Type::Fighting, type2:Type::Fighting, weight:990, nfe:false },
     // [1199] Farfetch’d-Galar
-    SpeciesData { hp:52, atk:95, def:55, spa:58, spd:62, spe:55, type1:Type::Fighting, type2:Type::Fighting, weight:420 },
+    SpeciesData { hp:52, atk:95, def:55, spa:58, spd:62, spe:55, type1:Type::Fighting, type2:Type::Fighting, weight:420, nfe:false },
     // [1200] Feraligatr-Mega
-    SpeciesData { hp:85, atk:160, def:125, spa:89, spd:93, spe:78, type1:Type::Water, type2:Type::Dragon, weight:1088 },
+    SpeciesData { hp:85, atk:160, def:125, spa:89, spd:93, spe:78, type1:Type::Water, type2:Type::Dragon, weight:1088, nfe:false },
     // [1201] Flapple-Gmax
-    SpeciesData { hp:70, atk:110, def:80, spa:95, spd:60, spe:70, type1:Type::Grass, type2:Type::Dragon, weight:0 },
+    SpeciesData { hp:70, atk:110, def:80, spa:95, spd:60, spe:70, type1:Type::Grass, type2:Type::Dragon, weight:0, nfe:false },
     // [1202] Floette-Eternal
-    SpeciesData { hp:74, atk:65, def:67, spa:125, spd:128, spe:92, type1:Type::Fairy, type2:Type::Fairy, weight:9 },
+    SpeciesData { hp:74, atk:65, def:67, spa:125, spd:128, spe:92, type1:Type::Fairy, type2:Type::Fairy, weight:9, nfe:true },
     // [1203] Floette-Mega
-    SpeciesData { hp:74, atk:85, def:87, spa:155, spd:148, spe:102, type1:Type::Fairy, type2:Type::Fairy, weight:1008 },
+    SpeciesData { hp:74, atk:85, def:87, spa:155, spd:148, spe:102, type1:Type::Fairy, type2:Type::Fairy, weight:1008, nfe:true },
     // [1204] Froslass-Mega
-    SpeciesData { hp:70, atk:80, def:70, spa:140, spd:100, spe:120, type1:Type::Ice, type2:Type::Ghost, weight:296 },
+    SpeciesData { hp:70, atk:80, def:70, spa:140, spd:100, spe:120, type1:Type::Ice, type2:Type::Ghost, weight:296, nfe:false },
     // [1205] Gallade-Mega
-    SpeciesData { hp:68, atk:165, def:95, spa:65, spd:115, spe:110, type1:Type::Psychic, type2:Type::Fighting, weight:564 },
+    SpeciesData { hp:68, atk:165, def:95, spa:65, spd:115, spe:110, type1:Type::Psychic, type2:Type::Fighting, weight:564, nfe:false },
     // [1206] Garbodor-Gmax
-    SpeciesData { hp:80, atk:95, def:82, spa:60, spd:82, spe:75, type1:Type::Poison, type2:Type::Poison, weight:0 },
+    SpeciesData { hp:80, atk:95, def:82, spa:60, spd:82, spe:75, type1:Type::Poison, type2:Type::Poison, weight:0, nfe:false },
     // [1207] Garchomp-Mega
-    SpeciesData { hp:108, atk:170, def:115, spa:120, spd:95, spe:92, type1:Type::Dragon, type2:Type::Ground, weight:950 },
+    SpeciesData { hp:108, atk:170, def:115, spa:120, spd:95, spe:92, type1:Type::Dragon, type2:Type::Ground, weight:950, nfe:false },
     // [1208] Garchomp-Mega-Z
-    SpeciesData { hp:108, atk:130, def:85, spa:141, spd:85, spe:151, type1:Type::Dragon, type2:Type::Dragon, weight:990 },
+    SpeciesData { hp:108, atk:130, def:85, spa:141, spd:85, spe:151, type1:Type::Dragon, type2:Type::Dragon, weight:990, nfe:false },
     // [1209] Gardevoir-Mega
-    SpeciesData { hp:68, atk:85, def:65, spa:165, spd:135, spe:100, type1:Type::Psychic, type2:Type::Fairy, weight:484 },
+    SpeciesData { hp:68, atk:85, def:65, spa:165, spd:135, spe:100, type1:Type::Psychic, type2:Type::Fairy, weight:484, nfe:false },
     // [1210] Genesect-Burn
-    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825 },
+    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825, nfe:false },
     // [1211] Genesect-Chill
-    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825 },
+    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825, nfe:false },
     // [1212] Genesect-Douse
-    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825 },
+    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825, nfe:false },
     // [1213] Genesect-Shock
-    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825 },
+    SpeciesData { hp:71, atk:120, def:95, spa:120, spd:95, spe:99, type1:Type::Bug, type2:Type::Steel, weight:825, nfe:false },
     // [1214] Gengar-Gmax
-    SpeciesData { hp:60, atk:65, def:60, spa:130, spd:75, spe:110, type1:Type::Ghost, type2:Type::Poison, weight:0 },
+    SpeciesData { hp:60, atk:65, def:60, spa:130, spd:75, spe:110, type1:Type::Ghost, type2:Type::Poison, weight:0, nfe:false },
     // [1215] Gengar-Mega
-    SpeciesData { hp:60, atk:65, def:80, spa:170, spd:95, spe:130, type1:Type::Ghost, type2:Type::Poison, weight:405 },
+    SpeciesData { hp:60, atk:65, def:80, spa:170, spd:95, spe:130, type1:Type::Ghost, type2:Type::Poison, weight:405, nfe:false },
     // [1216] Geodude-Alola
-    SpeciesData { hp:40, atk:80, def:100, spa:30, spd:30, spe:20, type1:Type::Rock, type2:Type::Electric, weight:203 },
+    SpeciesData { hp:40, atk:80, def:100, spa:30, spd:30, spe:20, type1:Type::Rock, type2:Type::Electric, weight:203, nfe:true },
     // [1217] Gimmighoul-Roaming
-    SpeciesData { hp:45, atk:30, def:25, spa:75, spd:45, spe:80, type1:Type::Ghost, type2:Type::Ghost, weight:1 },
+    SpeciesData { hp:45, atk:30, def:25, spa:75, spd:45, spe:80, type1:Type::Ghost, type2:Type::Ghost, weight:1, nfe:true },
     // [1218] Giratina-Origin
-    SpeciesData { hp:150, atk:120, def:100, spa:120, spd:100, spe:90, type1:Type::Ghost, type2:Type::Dragon, weight:6500 },
+    SpeciesData { hp:150, atk:120, def:100, spa:120, spd:100, spe:90, type1:Type::Ghost, type2:Type::Dragon, weight:6500, nfe:false },
     // [1219] Glalie-Mega
-    SpeciesData { hp:80, atk:120, def:80, spa:120, spd:80, spe:100, type1:Type::Ice, type2:Type::Ice, weight:3502 },
+    SpeciesData { hp:80, atk:120, def:80, spa:120, spd:80, spe:100, type1:Type::Ice, type2:Type::Ice, weight:3502, nfe:false },
     // [1220] Glimmora-Mega
-    SpeciesData { hp:83, atk:90, def:105, spa:150, spd:96, spe:101, type1:Type::Rock, type2:Type::Poison, weight:770 },
+    SpeciesData { hp:83, atk:90, def:105, spa:150, spd:96, spe:101, type1:Type::Rock, type2:Type::Poison, weight:770, nfe:false },
     // [1221] Golem-Alola
-    SpeciesData { hp:80, atk:120, def:130, spa:55, spd:65, spe:45, type1:Type::Rock, type2:Type::Electric, weight:3160 },
+    SpeciesData { hp:80, atk:120, def:130, spa:55, spd:65, spe:45, type1:Type::Rock, type2:Type::Electric, weight:3160, nfe:false },
     // [1222] Golisopod-Mega
-    SpeciesData { hp:75, atk:150, def:175, spa:70, spd:120, spe:40, type1:Type::Bug, type2:Type::Steel, weight:1480 },
+    SpeciesData { hp:75, atk:150, def:175, spa:70, spd:120, spe:40, type1:Type::Bug, type2:Type::Steel, weight:1480, nfe:false },
     // [1223] Golurk-Mega
-    SpeciesData { hp:89, atk:159, def:105, spa:70, spd:105, spe:55, type1:Type::Ground, type2:Type::Ghost, weight:3300 },
+    SpeciesData { hp:89, atk:159, def:105, spa:70, spd:105, spe:55, type1:Type::Ground, type2:Type::Ghost, weight:3300, nfe:false },
     // [1224] Goodra-Hisui
-    SpeciesData { hp:80, atk:100, def:100, spa:110, spd:150, spe:60, type1:Type::Steel, type2:Type::Dragon, weight:3341 },
+    SpeciesData { hp:80, atk:100, def:100, spa:110, spd:150, spe:60, type1:Type::Steel, type2:Type::Dragon, weight:3341, nfe:false },
     // [1225] Gourgeist-Large
-    SpeciesData { hp:75, atk:95, def:122, spa:58, spd:75, spe:69, type1:Type::Ghost, type2:Type::Grass, weight:140 },
+    SpeciesData { hp:75, atk:95, def:122, spa:58, spd:75, spe:69, type1:Type::Ghost, type2:Type::Grass, weight:140, nfe:false },
     // [1226] Gourgeist-Small
-    SpeciesData { hp:55, atk:85, def:122, spa:58, spd:75, spe:99, type1:Type::Ghost, type2:Type::Grass, weight:95 },
+    SpeciesData { hp:55, atk:85, def:122, spa:58, spd:75, spe:99, type1:Type::Ghost, type2:Type::Grass, weight:95, nfe:false },
     // [1227] Gourgeist-Super
-    SpeciesData { hp:85, atk:100, def:122, spa:58, spd:75, spe:54, type1:Type::Ghost, type2:Type::Grass, weight:390 },
+    SpeciesData { hp:85, atk:100, def:122, spa:58, spd:75, spe:54, type1:Type::Ghost, type2:Type::Grass, weight:390, nfe:false },
     // [1228] Graveler-Alola
-    SpeciesData { hp:55, atk:95, def:115, spa:45, spd:45, spe:35, type1:Type::Rock, type2:Type::Electric, weight:1100 },
+    SpeciesData { hp:55, atk:95, def:115, spa:45, spd:45, spe:35, type1:Type::Rock, type2:Type::Electric, weight:1100, nfe:true },
     // [1229] Greninja-Ash
-    SpeciesData { hp:72, atk:145, def:67, spa:153, spd:71, spe:132, type1:Type::Water, type2:Type::Dark, weight:400 },
+    SpeciesData { hp:72, atk:145, def:67, spa:153, spd:71, spe:132, type1:Type::Water, type2:Type::Dark, weight:400, nfe:false },
     // [1230] Greninja-Bond
-    SpeciesData { hp:72, atk:95, def:67, spa:103, spd:71, spe:122, type1:Type::Water, type2:Type::Dark, weight:400 },
+    SpeciesData { hp:72, atk:95, def:67, spa:103, spd:71, spe:122, type1:Type::Water, type2:Type::Dark, weight:400, nfe:false },
     // [1231] Greninja-Mega
-    SpeciesData { hp:72, atk:125, def:77, spa:133, spd:81, spe:142, type1:Type::Water, type2:Type::Dark, weight:400 },
+    SpeciesData { hp:72, atk:125, def:77, spa:133, spd:81, spe:142, type1:Type::Water, type2:Type::Dark, weight:400, nfe:false },
     // [1232] Grimer-Alola
-    SpeciesData { hp:80, atk:80, def:50, spa:40, spd:50, spe:25, type1:Type::Poison, type2:Type::Dark, weight:420 },
+    SpeciesData { hp:80, atk:80, def:50, spa:40, spd:50, spe:25, type1:Type::Poison, type2:Type::Dark, weight:420, nfe:true },
     // [1233] Grimmsnarl-Gmax
-    SpeciesData { hp:95, atk:120, def:65, spa:95, spd:75, spe:60, type1:Type::Dark, type2:Type::Fairy, weight:0 },
+    SpeciesData { hp:95, atk:120, def:65, spa:95, spd:75, spe:60, type1:Type::Dark, type2:Type::Fairy, weight:0, nfe:false },
     // [1234] Groudon-Primal
-    SpeciesData { hp:100, atk:180, def:160, spa:150, spd:90, spe:90, type1:Type::Ground, type2:Type::Fire, weight:9997 },
+    SpeciesData { hp:100, atk:180, def:160, spa:150, spd:90, spe:90, type1:Type::Ground, type2:Type::Fire, weight:9997, nfe:false },
     // [1235] Growlithe-Hisui
-    SpeciesData { hp:60, atk:75, def:45, spa:65, spd:50, spe:55, type1:Type::Fire, type2:Type::Rock, weight:227 },
+    SpeciesData { hp:60, atk:75, def:45, spa:65, spd:50, spe:55, type1:Type::Fire, type2:Type::Rock, weight:227, nfe:true },
     // [1236] Gumshoos-Totem
-    SpeciesData { hp:88, atk:110, def:60, spa:55, spd:60, spe:45, type1:Type::Normal, type2:Type::Normal, weight:600 },
+    SpeciesData { hp:88, atk:110, def:60, spa:55, spd:60, spe:45, type1:Type::Normal, type2:Type::Normal, weight:600, nfe:false },
     // [1237] Gyarados-Mega
-    SpeciesData { hp:95, atk:155, def:109, spa:70, spd:130, spe:81, type1:Type::Water, type2:Type::Dark, weight:3050 },
+    SpeciesData { hp:95, atk:155, def:109, spa:70, spd:130, spe:81, type1:Type::Water, type2:Type::Dark, weight:3050, nfe:false },
     // [1238] Hatterene-Gmax
-    SpeciesData { hp:57, atk:90, def:95, spa:136, spd:103, spe:29, type1:Type::Psychic, type2:Type::Fairy, weight:0 },
+    SpeciesData { hp:57, atk:90, def:95, spa:136, spd:103, spe:29, type1:Type::Psychic, type2:Type::Fairy, weight:0, nfe:false },
     // [1239] Hawlucha-Mega
-    SpeciesData { hp:78, atk:137, def:100, spa:74, spd:93, spe:118, type1:Type::Fighting, type2:Type::Flying, weight:250 },
+    SpeciesData { hp:78, atk:137, def:100, spa:74, spd:93, spe:118, type1:Type::Fighting, type2:Type::Flying, weight:250, nfe:false },
     // [1240] Heatran-Mega
-    SpeciesData { hp:91, atk:120, def:106, spa:175, spd:141, spe:67, type1:Type::Fire, type2:Type::Steel, weight:5700 },
+    SpeciesData { hp:91, atk:120, def:106, spa:175, spd:141, spe:67, type1:Type::Fire, type2:Type::Steel, weight:5700, nfe:false },
     // [1241] Heracross-Mega
-    SpeciesData { hp:80, atk:185, def:115, spa:40, spd:105, spe:75, type1:Type::Bug, type2:Type::Fighting, weight:625 },
+    SpeciesData { hp:80, atk:185, def:115, spa:40, spd:105, spe:75, type1:Type::Bug, type2:Type::Fighting, weight:625, nfe:false },
     // [1242] Hoopa-Unbound
-    SpeciesData { hp:80, atk:160, def:60, spa:170, spd:130, spe:80, type1:Type::Psychic, type2:Type::Dark, weight:4900 },
+    SpeciesData { hp:80, atk:160, def:60, spa:170, spd:130, spe:80, type1:Type::Psychic, type2:Type::Dark, weight:4900, nfe:false },
     // [1243] Houndoom-Mega
-    SpeciesData { hp:75, atk:90, def:90, spa:140, spd:90, spe:115, type1:Type::Dark, type2:Type::Fire, weight:495 },
+    SpeciesData { hp:75, atk:90, def:90, spa:140, spd:90, spe:115, type1:Type::Dark, type2:Type::Fire, weight:495, nfe:false },
     // [1244] Indeedee-F
-    SpeciesData { hp:70, atk:55, def:65, spa:95, spd:105, spe:85, type1:Type::Psychic, type2:Type::Normal, weight:280 },
+    SpeciesData { hp:70, atk:55, def:65, spa:95, spd:105, spe:85, type1:Type::Psychic, type2:Type::Normal, weight:280, nfe:false },
     // [1245] Inteleon-Gmax
-    SpeciesData { hp:70, atk:85, def:65, spa:125, spd:65, spe:120, type1:Type::Water, type2:Type::Water, weight:0 },
+    SpeciesData { hp:70, atk:85, def:65, spa:125, spd:65, spe:120, type1:Type::Water, type2:Type::Water, weight:0, nfe:false },
     // [1246] Kangaskhan-Mega
-    SpeciesData { hp:105, atk:125, def:100, spa:60, spd:100, spe:100, type1:Type::Normal, type2:Type::Normal, weight:1000 },
+    SpeciesData { hp:105, atk:125, def:100, spa:60, spd:100, spe:100, type1:Type::Normal, type2:Type::Normal, weight:1000, nfe:false },
     // [1247] Keldeo-Resolute
-    SpeciesData { hp:91, atk:72, def:90, spa:129, spd:90, spe:108, type1:Type::Water, type2:Type::Fighting, weight:485 },
+    SpeciesData { hp:91, atk:72, def:90, spa:129, spd:90, spe:108, type1:Type::Water, type2:Type::Fighting, weight:485, nfe:false },
     // [1248] Kingler-Gmax
-    SpeciesData { hp:55, atk:130, def:115, spa:50, spd:50, spe:75, type1:Type::Water, type2:Type::Water, weight:0 },
+    SpeciesData { hp:55, atk:130, def:115, spa:50, spd:50, spe:75, type1:Type::Water, type2:Type::Water, weight:0, nfe:false },
     // [1249] Kommo-o-Totem
-    SpeciesData { hp:75, atk:110, def:125, spa:100, spd:105, spe:85, type1:Type::Dragon, type2:Type::Fighting, weight:2075 },
+    SpeciesData { hp:75, atk:110, def:125, spa:100, spd:105, spe:85, type1:Type::Dragon, type2:Type::Fighting, weight:2075, nfe:false },
     // [1250] Kyogre-Primal
-    SpeciesData { hp:100, atk:150, def:90, spa:180, spd:160, spe:90, type1:Type::Water, type2:Type::Water, weight:4300 },
+    SpeciesData { hp:100, atk:150, def:90, spa:180, spd:160, spe:90, type1:Type::Water, type2:Type::Water, weight:4300, nfe:false },
     // [1251] Kyurem-Black
-    SpeciesData { hp:125, atk:170, def:100, spa:120, spd:90, spe:95, type1:Type::Dragon, type2:Type::Ice, weight:3250 },
+    SpeciesData { hp:125, atk:170, def:100, spa:120, spd:90, spe:95, type1:Type::Dragon, type2:Type::Ice, weight:3250, nfe:false },
     // [1252] Kyurem-White
-    SpeciesData { hp:125, atk:120, def:90, spa:170, spd:100, spe:95, type1:Type::Dragon, type2:Type::Ice, weight:3250 },
+    SpeciesData { hp:125, atk:120, def:90, spa:170, spd:100, spe:95, type1:Type::Dragon, type2:Type::Ice, weight:3250, nfe:false },
     // [1253] Landorus-Therian
-    SpeciesData { hp:89, atk:145, def:90, spa:105, spd:80, spe:91, type1:Type::Ground, type2:Type::Flying, weight:680 },
+    SpeciesData { hp:89, atk:145, def:90, spa:105, spd:80, spe:91, type1:Type::Ground, type2:Type::Flying, weight:680, nfe:false },
     // [1254] Lapras-Gmax
-    SpeciesData { hp:130, atk:85, def:80, spa:85, spd:95, spe:60, type1:Type::Water, type2:Type::Ice, weight:0 },
+    SpeciesData { hp:130, atk:85, def:80, spa:85, spd:95, spe:60, type1:Type::Water, type2:Type::Ice, weight:0, nfe:false },
     // [1255] Latias-Mega
-    SpeciesData { hp:80, atk:100, def:120, spa:140, spd:150, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:520 },
+    SpeciesData { hp:80, atk:100, def:120, spa:140, spd:150, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:520, nfe:false },
     // [1256] Latios-Mega
-    SpeciesData { hp:80, atk:130, def:100, spa:160, spd:120, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:700 },
+    SpeciesData { hp:80, atk:130, def:100, spa:160, spd:120, spe:110, type1:Type::Dragon, type2:Type::Psychic, weight:700, nfe:false },
     // [1257] Lilligant-Hisui
-    SpeciesData { hp:70, atk:105, def:75, spa:50, spd:75, spe:105, type1:Type::Grass, type2:Type::Fighting, weight:192 },
+    SpeciesData { hp:70, atk:105, def:75, spa:50, spd:75, spe:105, type1:Type::Grass, type2:Type::Fighting, weight:192, nfe:false },
     // [1258] Linoone-Galar
-    SpeciesData { hp:78, atk:70, def:61, spa:50, spd:61, spe:100, type1:Type::Dark, type2:Type::Normal, weight:325 },
+    SpeciesData { hp:78, atk:70, def:61, spa:50, spd:61, spe:100, type1:Type::Dark, type2:Type::Normal, weight:325, nfe:false },
     // [1259] Lopunny-Mega
-    SpeciesData { hp:65, atk:136, def:94, spa:54, spd:96, spe:135, type1:Type::Normal, type2:Type::Fighting, weight:283 },
+    SpeciesData { hp:65, atk:136, def:94, spa:54, spd:96, spe:135, type1:Type::Normal, type2:Type::Fighting, weight:283, nfe:false },
     // [1260] Lucario-Mega
-    SpeciesData { hp:70, atk:145, def:88, spa:140, spd:70, spe:112, type1:Type::Fighting, type2:Type::Steel, weight:575 },
+    SpeciesData { hp:70, atk:145, def:88, spa:140, spd:70, spe:112, type1:Type::Fighting, type2:Type::Steel, weight:575, nfe:false },
     // [1261] Lucario-Mega-Z
-    SpeciesData { hp:70, atk:100, def:70, spa:164, spd:70, spe:151, type1:Type::Fighting, type2:Type::Steel, weight:494 },
+    SpeciesData { hp:70, atk:100, def:70, spa:164, spd:70, spe:151, type1:Type::Fighting, type2:Type::Steel, weight:494, nfe:false },
     // [1262] Lurantis-Totem
-    SpeciesData { hp:70, atk:105, def:90, spa:80, spd:90, spe:45, type1:Type::Grass, type2:Type::Grass, weight:580 },
+    SpeciesData { hp:70, atk:105, def:90, spa:80, spd:90, spe:45, type1:Type::Grass, type2:Type::Grass, weight:580, nfe:false },
     // [1263] Lycanroc-Dusk
-    SpeciesData { hp:75, atk:117, def:65, spa:55, spd:65, spe:110, type1:Type::Rock, type2:Type::Rock, weight:250 },
+    SpeciesData { hp:75, atk:117, def:65, spa:55, spd:65, spe:110, type1:Type::Rock, type2:Type::Rock, weight:250, nfe:false },
     // [1264] Lycanroc-Midnight
-    SpeciesData { hp:85, atk:115, def:75, spa:55, spd:75, spe:82, type1:Type::Rock, type2:Type::Rock, weight:250 },
+    SpeciesData { hp:85, atk:115, def:75, spa:55, spd:75, spe:82, type1:Type::Rock, type2:Type::Rock, weight:250, nfe:false },
     // [1265] Machamp-Gmax
-    SpeciesData { hp:90, atk:130, def:80, spa:65, spd:85, spe:55, type1:Type::Fighting, type2:Type::Fighting, weight:0 },
+    SpeciesData { hp:90, atk:130, def:80, spa:65, spd:85, spe:55, type1:Type::Fighting, type2:Type::Fighting, weight:0, nfe:false },
     // [1266] Magearna-Mega
-    SpeciesData { hp:80, atk:125, def:115, spa:170, spd:115, spe:95, type1:Type::Steel, type2:Type::Fairy, weight:2481 },
+    SpeciesData { hp:80, atk:125, def:115, spa:170, spd:115, spe:95, type1:Type::Steel, type2:Type::Fairy, weight:2481, nfe:false },
     // [1267] Magearna-Original
-    SpeciesData { hp:80, atk:95, def:115, spa:130, spd:115, spe:65, type1:Type::Steel, type2:Type::Fairy, weight:805 },
+    SpeciesData { hp:80, atk:95, def:115, spa:130, spd:115, spe:65, type1:Type::Steel, type2:Type::Fairy, weight:805, nfe:false },
     // [1268] Magearna-Original-Mega
-    SpeciesData { hp:80, atk:125, def:115, spa:170, spd:115, spe:95, type1:Type::Steel, type2:Type::Fairy, weight:2481 },
+    SpeciesData { hp:80, atk:125, def:115, spa:170, spd:115, spe:95, type1:Type::Steel, type2:Type::Fairy, weight:2481, nfe:false },
     // [1269] Malamar-Mega
-    SpeciesData { hp:86, atk:102, def:88, spa:98, spd:120, spe:88, type1:Type::Dark, type2:Type::Psychic, weight:698 },
+    SpeciesData { hp:86, atk:102, def:88, spa:98, spd:120, spe:88, type1:Type::Dark, type2:Type::Psychic, weight:698, nfe:false },
     // [1270] Manectric-Mega
-    SpeciesData { hp:70, atk:75, def:80, spa:135, spd:80, spe:135, type1:Type::Electric, type2:Type::Electric, weight:440 },
+    SpeciesData { hp:70, atk:75, def:80, spa:135, spd:80, spe:135, type1:Type::Electric, type2:Type::Electric, weight:440, nfe:false },
     // [1271] Marowak-Alola
-    SpeciesData { hp:60, atk:80, def:110, spa:50, spd:80, spe:45, type1:Type::Fire, type2:Type::Ghost, weight:340 },
+    SpeciesData { hp:60, atk:80, def:110, spa:50, spd:80, spe:45, type1:Type::Fire, type2:Type::Ghost, weight:340, nfe:false },
     // [1272] Marowak-Alola-Totem
-    SpeciesData { hp:60, atk:80, def:110, spa:50, spd:80, spe:45, type1:Type::Fire, type2:Type::Ghost, weight:980 },
+    SpeciesData { hp:60, atk:80, def:110, spa:50, spd:80, spe:45, type1:Type::Fire, type2:Type::Ghost, weight:980, nfe:false },
     // [1273] Maushold-Four
-    SpeciesData { hp:74, atk:75, def:70, spa:65, spd:75, spe:111, type1:Type::Normal, type2:Type::Normal, weight:28 },
+    SpeciesData { hp:74, atk:75, def:70, spa:65, spd:75, spe:111, type1:Type::Normal, type2:Type::Normal, weight:28, nfe:false },
     // [1274] Mawile-Mega
-    SpeciesData { hp:50, atk:105, def:125, spa:55, spd:95, spe:50, type1:Type::Steel, type2:Type::Fairy, weight:235 },
+    SpeciesData { hp:50, atk:105, def:125, spa:55, spd:95, spe:50, type1:Type::Steel, type2:Type::Fairy, weight:235, nfe:false },
     // [1275] Medicham-Mega
-    SpeciesData { hp:60, atk:100, def:85, spa:80, spd:85, spe:100, type1:Type::Fighting, type2:Type::Psychic, weight:315 },
+    SpeciesData { hp:60, atk:100, def:85, spa:80, spd:85, spe:100, type1:Type::Fighting, type2:Type::Psychic, weight:315, nfe:false },
     // [1276] Meganium-Mega
-    SpeciesData { hp:80, atk:92, def:115, spa:143, spd:115, spe:80, type1:Type::Grass, type2:Type::Fairy, weight:2010 },
+    SpeciesData { hp:80, atk:92, def:115, spa:143, spd:115, spe:80, type1:Type::Grass, type2:Type::Fairy, weight:2010, nfe:false },
     // [1277] Melmetal-Gmax
-    SpeciesData { hp:135, atk:143, def:143, spa:80, spd:65, spe:34, type1:Type::Steel, type2:Type::Steel, weight:0 },
+    SpeciesData { hp:135, atk:143, def:143, spa:80, spd:65, spe:34, type1:Type::Steel, type2:Type::Steel, weight:0, nfe:false },
     // [1278] Meloetta-Pirouette
-    SpeciesData { hp:100, atk:128, def:90, spa:77, spd:77, spe:128, type1:Type::Normal, type2:Type::Fighting, weight:65 },
+    SpeciesData { hp:100, atk:128, def:90, spa:77, spd:77, spe:128, type1:Type::Normal, type2:Type::Fighting, weight:65, nfe:false },
     // [1279] Meowstic-F
-    SpeciesData { hp:74, atk:48, def:76, spa:83, spd:81, spe:104, type1:Type::Psychic, type2:Type::Psychic, weight:85 },
+    SpeciesData { hp:74, atk:48, def:76, spa:83, spd:81, spe:104, type1:Type::Psychic, type2:Type::Psychic, weight:85, nfe:false },
     // [1280] Meowstic-F-Mega
-    SpeciesData { hp:74, atk:48, def:76, spa:143, spd:101, spe:124, type1:Type::Psychic, type2:Type::Psychic, weight:101 },
+    SpeciesData { hp:74, atk:48, def:76, spa:143, spd:101, spe:124, type1:Type::Psychic, type2:Type::Psychic, weight:101, nfe:false },
     // [1281] Meowstic-M-Mega
-    SpeciesData { hp:74, atk:48, def:76, spa:143, spd:101, spe:124, type1:Type::Psychic, type2:Type::Psychic, weight:101 },
+    SpeciesData { hp:74, atk:48, def:76, spa:143, spd:101, spe:124, type1:Type::Psychic, type2:Type::Psychic, weight:101, nfe:false },
     // [1282] Meowth-Alola
-    SpeciesData { hp:40, atk:35, def:35, spa:50, spd:40, spe:90, type1:Type::Dark, type2:Type::Dark, weight:42 },
+    SpeciesData { hp:40, atk:35, def:35, spa:50, spd:40, spe:90, type1:Type::Dark, type2:Type::Dark, weight:42, nfe:true },
     // [1283] Meowth-Galar
-    SpeciesData { hp:50, atk:65, def:55, spa:40, spd:40, spe:40, type1:Type::Steel, type2:Type::Steel, weight:75 },
+    SpeciesData { hp:50, atk:65, def:55, spa:40, spd:40, spe:40, type1:Type::Steel, type2:Type::Steel, weight:75, nfe:true },
     // [1284] Meowth-Gmax
-    SpeciesData { hp:40, atk:45, def:35, spa:40, spd:40, spe:90, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:40, atk:45, def:35, spa:40, spd:40, spe:90, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:true },
     // [1285] Metagross-Mega
-    SpeciesData { hp:80, atk:145, def:150, spa:105, spd:110, spe:110, type1:Type::Steel, type2:Type::Psychic, weight:9429 },
+    SpeciesData { hp:80, atk:145, def:150, spa:105, spd:110, spe:110, type1:Type::Steel, type2:Type::Psychic, weight:9429, nfe:false },
     // [1286] Mewtwo-Mega-X
-    SpeciesData { hp:106, atk:190, def:100, spa:154, spd:100, spe:130, type1:Type::Psychic, type2:Type::Fighting, weight:1270 },
+    SpeciesData { hp:106, atk:190, def:100, spa:154, spd:100, spe:130, type1:Type::Psychic, type2:Type::Fighting, weight:1270, nfe:false },
     // [1287] Mewtwo-Mega-Y
-    SpeciesData { hp:106, atk:150, def:70, spa:194, spd:120, spe:140, type1:Type::Psychic, type2:Type::Psychic, weight:330 },
+    SpeciesData { hp:106, atk:150, def:70, spa:194, spd:120, spe:140, type1:Type::Psychic, type2:Type::Psychic, weight:330, nfe:false },
     // [1288] Mimikyu-Busted
-    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:7 },
+    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:7, nfe:false },
     // [1289] Mimikyu-Busted-Totem
-    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:28 },
+    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:28, nfe:false },
     // [1290] Mimikyu-Totem
-    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:28 },
+    SpeciesData { hp:55, atk:90, def:80, spa:50, spd:105, spe:96, type1:Type::Ghost, type2:Type::Fairy, weight:28, nfe:false },
     // [1291] Minior-Meteor
-    SpeciesData { hp:60, atk:60, def:100, spa:60, spd:100, spe:60, type1:Type::Rock, type2:Type::Flying, weight:400 },
+    SpeciesData { hp:60, atk:60, def:100, spa:60, spd:100, spe:60, type1:Type::Rock, type2:Type::Flying, weight:400, nfe:false },
     // [1292] Moltres-Galar
-    SpeciesData { hp:90, atk:85, def:90, spa:100, spd:125, spe:90, type1:Type::Dark, type2:Type::Flying, weight:660 },
+    SpeciesData { hp:90, atk:85, def:90, spa:100, spd:125, spe:90, type1:Type::Dark, type2:Type::Flying, weight:660, nfe:false },
     // [1293] Morpeko-Hangry
-    SpeciesData { hp:58, atk:95, def:58, spa:70, spd:58, spe:97, type1:Type::Electric, type2:Type::Dark, weight:30 },
+    SpeciesData { hp:58, atk:95, def:58, spa:70, spd:58, spe:97, type1:Type::Electric, type2:Type::Dark, weight:30, nfe:false },
     // [1294] Mr. Mime-Galar
-    SpeciesData { hp:50, atk:65, def:65, spa:90, spd:90, spe:100, type1:Type::Ice, type2:Type::Psychic, weight:568 },
+    SpeciesData { hp:50, atk:65, def:65, spa:90, spd:90, spe:100, type1:Type::Ice, type2:Type::Psychic, weight:568, nfe:false },
     // [1295] Muk-Alola
-    SpeciesData { hp:105, atk:105, def:75, spa:65, spd:100, spe:50, type1:Type::Poison, type2:Type::Dark, weight:520 },
+    SpeciesData { hp:105, atk:105, def:75, spa:65, spd:100, spe:50, type1:Type::Poison, type2:Type::Dark, weight:520, nfe:false },
     // [1296] Necrozma-Dawn-Wings
-    SpeciesData { hp:97, atk:113, def:109, spa:157, spd:127, spe:77, type1:Type::Psychic, type2:Type::Ghost, weight:3500 },
+    SpeciesData { hp:97, atk:113, def:109, spa:157, spd:127, spe:77, type1:Type::Psychic, type2:Type::Ghost, weight:3500, nfe:false },
     // [1297] Necrozma-Dusk-Mane
-    SpeciesData { hp:97, atk:157, def:127, spa:113, spd:109, spe:77, type1:Type::Psychic, type2:Type::Steel, weight:4600 },
+    SpeciesData { hp:97, atk:157, def:127, spa:113, spd:109, spe:77, type1:Type::Psychic, type2:Type::Steel, weight:4600, nfe:false },
     // [1298] Necrozma-Ultra
-    SpeciesData { hp:97, atk:167, def:97, spa:167, spd:97, spe:129, type1:Type::Psychic, type2:Type::Dragon, weight:2300 },
+    SpeciesData { hp:97, atk:167, def:97, spa:167, spd:97, spe:129, type1:Type::Psychic, type2:Type::Dragon, weight:2300, nfe:false },
     // [1299] Ninetales-Alola
-    SpeciesData { hp:73, atk:67, def:75, spa:81, spd:100, spe:109, type1:Type::Ice, type2:Type::Fairy, weight:199 },
+    SpeciesData { hp:73, atk:67, def:75, spa:81, spd:100, spe:109, type1:Type::Ice, type2:Type::Fairy, weight:199, nfe:false },
     // [1300] Ogerpon-Cornerstone
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Rock, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Rock, weight:398, nfe:false },
     // [1301] Ogerpon-Cornerstone-Tera
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Rock, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Rock, weight:398, nfe:false },
     // [1302] Ogerpon-Hearthflame
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Fire, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Fire, weight:398, nfe:false },
     // [1303] Ogerpon-Hearthflame-Tera
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Fire, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Fire, weight:398, nfe:false },
     // [1304] Ogerpon-Teal-Tera
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Grass, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Grass, weight:398, nfe:false },
     // [1305] Ogerpon-Wellspring
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Water, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Water, weight:398, nfe:false },
     // [1306] Ogerpon-Wellspring-Tera
-    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Water, weight:398 },
+    SpeciesData { hp:80, atk:120, def:84, spa:60, spd:96, spe:110, type1:Type::Grass, type2:Type::Water, weight:398, nfe:false },
     // [1307] Oinkologne-F
-    SpeciesData { hp:115, atk:90, def:70, spa:59, spd:90, spe:65, type1:Type::Normal, type2:Type::Normal, weight:1200 },
+    SpeciesData { hp:115, atk:90, def:70, spa:59, spd:90, spe:65, type1:Type::Normal, type2:Type::Normal, weight:1200, nfe:false },
     // [1308] Orbeetle-Gmax
-    SpeciesData { hp:60, atk:45, def:110, spa:80, spd:120, spe:90, type1:Type::Bug, type2:Type::Psychic, weight:0 },
+    SpeciesData { hp:60, atk:45, def:110, spa:80, spd:120, spe:90, type1:Type::Bug, type2:Type::Psychic, weight:0, nfe:false },
     // [1309] Oricorio-Pom-Pom
-    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Electric, type2:Type::Flying, weight:34 },
+    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Electric, type2:Type::Flying, weight:34, nfe:false },
     // [1310] Oricorio-Sensu
-    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Ghost, type2:Type::Flying, weight:34 },
+    SpeciesData { hp:75, atk:70, def:70, spa:98, spd:70, spe:93, type1:Type::Ghost, type2:Type::Flying, weight:34, nfe:false },
     // [1311] Palafin-Hero
-    SpeciesData { hp:100, atk:160, def:97, spa:106, spd:87, spe:100, type1:Type::Water, type2:Type::Water, weight:974 },
+    SpeciesData { hp:100, atk:160, def:97, spa:106, spd:87, spe:100, type1:Type::Water, type2:Type::Water, weight:974, nfe:false },
     // [1312] Palkia-Origin
-    SpeciesData { hp:90, atk:100, def:100, spa:150, spd:120, spe:120, type1:Type::Water, type2:Type::Dragon, weight:6600 },
+    SpeciesData { hp:90, atk:100, def:100, spa:150, spd:120, spe:120, type1:Type::Water, type2:Type::Dragon, weight:6600, nfe:false },
     // [1313] Persian-Alola
-    SpeciesData { hp:65, atk:60, def:60, spa:75, spd:65, spe:115, type1:Type::Dark, type2:Type::Dark, weight:330 },
+    SpeciesData { hp:65, atk:60, def:60, spa:75, spd:65, spe:115, type1:Type::Dark, type2:Type::Dark, weight:330, nfe:false },
     // [1314] Pichu-Spiky-eared
-    SpeciesData { hp:20, atk:40, def:15, spa:35, spd:35, spe:60, type1:Type::Electric, type2:Type::Electric, weight:20 },
+    SpeciesData { hp:20, atk:40, def:15, spa:35, spd:35, spe:60, type1:Type::Electric, type2:Type::Electric, weight:20, nfe:true },
     // [1315] Pidgeot-Mega
-    SpeciesData { hp:83, atk:80, def:80, spa:135, spd:80, spe:121, type1:Type::Normal, type2:Type::Flying, weight:505 },
+    SpeciesData { hp:83, atk:80, def:80, spa:135, spd:80, spe:121, type1:Type::Normal, type2:Type::Flying, weight:505, nfe:false },
     // [1316] Pikachu-Alola
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1317] Pikachu-Belle
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1318] Pikachu-Cosplay
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1319] Pikachu-Gmax
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:0 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:0, nfe:true },
     // [1320] Pikachu-Hoenn
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1321] Pikachu-Kalos
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1322] Pikachu-Libre
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1323] Pikachu-Original
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1324] Pikachu-Partner
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1325] Pikachu-PhD
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1326] Pikachu-Pop-Star
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1327] Pikachu-Rock-Star
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1328] Pikachu-Sinnoh
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1329] Pikachu-Starter
-    SpeciesData { hp:45, atk:80, def:50, spa:75, spd:60, spe:120, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:45, atk:80, def:50, spa:75, spd:60, spe:120, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1330] Pikachu-Unova
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1331] Pikachu-World
-    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60 },
+    SpeciesData { hp:35, atk:55, def:40, spa:50, spd:50, spe:90, type1:Type::Electric, type2:Type::Electric, weight:60, nfe:true },
     // [1332] Pinsir-Mega
-    SpeciesData { hp:65, atk:155, def:120, spa:65, spd:90, spe:105, type1:Type::Bug, type2:Type::Flying, weight:590 },
+    SpeciesData { hp:65, atk:155, def:120, spa:65, spd:90, spe:105, type1:Type::Bug, type2:Type::Flying, weight:590, nfe:false },
     // [1333] Poltchageist-Artisan
-    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Grass, type2:Type::Ghost, weight:11 },
+    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Grass, type2:Type::Ghost, weight:11, nfe:true },
     // [1334] Polteageist-Antique
-    SpeciesData { hp:60, atk:65, def:65, spa:134, spd:114, spe:70, type1:Type::Ghost, type2:Type::Ghost, weight:4 },
+    SpeciesData { hp:60, atk:65, def:65, spa:134, spd:114, spe:70, type1:Type::Ghost, type2:Type::Ghost, weight:4, nfe:false },
     // [1335] Ponyta-Galar
-    SpeciesData { hp:50, atk:85, def:55, spa:65, spd:65, spe:90, type1:Type::Psychic, type2:Type::Psychic, weight:240 },
+    SpeciesData { hp:50, atk:85, def:55, spa:65, spd:65, spe:90, type1:Type::Psychic, type2:Type::Psychic, weight:240, nfe:true },
     // [1336] Pumpkaboo-Large
-    SpeciesData { hp:54, atk:66, def:70, spa:44, spd:55, spe:46, type1:Type::Ghost, type2:Type::Grass, weight:75 },
+    SpeciesData { hp:54, atk:66, def:70, spa:44, spd:55, spe:46, type1:Type::Ghost, type2:Type::Grass, weight:75, nfe:true },
     // [1337] Pumpkaboo-Small
-    SpeciesData { hp:44, atk:66, def:70, spa:44, spd:55, spe:56, type1:Type::Ghost, type2:Type::Grass, weight:35 },
+    SpeciesData { hp:44, atk:66, def:70, spa:44, spd:55, spe:56, type1:Type::Ghost, type2:Type::Grass, weight:35, nfe:true },
     // [1338] Pumpkaboo-Super
-    SpeciesData { hp:59, atk:66, def:70, spa:44, spd:55, spe:41, type1:Type::Ghost, type2:Type::Grass, weight:150 },
+    SpeciesData { hp:59, atk:66, def:70, spa:44, spd:55, spe:41, type1:Type::Ghost, type2:Type::Grass, weight:150, nfe:true },
     // [1339] Pyroar-Mega
-    SpeciesData { hp:86, atk:88, def:92, spa:129, spd:86, spe:126, type1:Type::Fire, type2:Type::Normal, weight:933 },
+    SpeciesData { hp:86, atk:88, def:92, spa:129, spd:86, spe:126, type1:Type::Fire, type2:Type::Normal, weight:933, nfe:false },
     // [1340] Qwilfish-Hisui
-    SpeciesData { hp:65, atk:95, def:85, spa:55, spd:55, spe:85, type1:Type::Dark, type2:Type::Poison, weight:39 },
+    SpeciesData { hp:65, atk:95, def:85, spa:55, spd:55, spe:85, type1:Type::Dark, type2:Type::Poison, weight:39, nfe:false },
     // [1341] Raichu-Alola
-    SpeciesData { hp:60, atk:85, def:50, spa:95, spd:85, spe:110, type1:Type::Electric, type2:Type::Psychic, weight:210 },
+    SpeciesData { hp:60, atk:85, def:50, spa:95, spd:85, spe:110, type1:Type::Electric, type2:Type::Psychic, weight:210, nfe:false },
     // [1342] Raichu-Mega-X
-    SpeciesData { hp:60, atk:135, def:95, spa:90, spd:95, spe:110, type1:Type::Electric, type2:Type::Electric, weight:380 },
+    SpeciesData { hp:60, atk:135, def:95, spa:90, spd:95, spe:110, type1:Type::Electric, type2:Type::Electric, weight:380, nfe:false },
     // [1343] Raichu-Mega-Y
-    SpeciesData { hp:60, atk:100, def:55, spa:160, spd:80, spe:130, type1:Type::Electric, type2:Type::Electric, weight:260 },
+    SpeciesData { hp:60, atk:100, def:55, spa:160, spd:80, spe:130, type1:Type::Electric, type2:Type::Electric, weight:260, nfe:false },
     // [1344] Rapidash-Galar
-    SpeciesData { hp:65, atk:100, def:70, spa:80, spd:80, spe:105, type1:Type::Psychic, type2:Type::Fairy, weight:800 },
+    SpeciesData { hp:65, atk:100, def:70, spa:80, spd:80, spe:105, type1:Type::Psychic, type2:Type::Fairy, weight:800, nfe:false },
     // [1345] Raticate-Alola
-    SpeciesData { hp:75, atk:71, def:70, spa:40, spd:80, spe:77, type1:Type::Dark, type2:Type::Normal, weight:255 },
+    SpeciesData { hp:75, atk:71, def:70, spa:40, spd:80, spe:77, type1:Type::Dark, type2:Type::Normal, weight:255, nfe:false },
     // [1346] Raticate-Alola-Totem
-    SpeciesData { hp:75, atk:71, def:70, spa:40, spd:80, spe:77, type1:Type::Dark, type2:Type::Normal, weight:1050 },
+    SpeciesData { hp:75, atk:71, def:70, spa:40, spd:80, spe:77, type1:Type::Dark, type2:Type::Normal, weight:1050, nfe:false },
     // [1347] Rattata-Alola
-    SpeciesData { hp:30, atk:56, def:35, spa:25, spd:35, spe:72, type1:Type::Dark, type2:Type::Normal, weight:38 },
+    SpeciesData { hp:30, atk:56, def:35, spa:25, spd:35, spe:72, type1:Type::Dark, type2:Type::Normal, weight:38, nfe:true },
     // [1348] Rayquaza-Mega
-    SpeciesData { hp:105, atk:180, def:100, spa:180, spd:100, spe:115, type1:Type::Dragon, type2:Type::Flying, weight:3920 },
+    SpeciesData { hp:105, atk:180, def:100, spa:180, spd:100, spe:115, type1:Type::Dragon, type2:Type::Flying, weight:3920, nfe:false },
     // [1349] Ribombee-Totem
-    SpeciesData { hp:60, atk:55, def:60, spa:95, spd:70, spe:124, type1:Type::Bug, type2:Type::Fairy, weight:20 },
+    SpeciesData { hp:60, atk:55, def:60, spa:95, spd:70, spe:124, type1:Type::Bug, type2:Type::Fairy, weight:20, nfe:false },
     // [1350] Rillaboom-Gmax
-    SpeciesData { hp:100, atk:125, def:90, spa:60, spd:70, spe:85, type1:Type::Grass, type2:Type::Grass, weight:0 },
+    SpeciesData { hp:100, atk:125, def:90, spa:60, spd:70, spe:85, type1:Type::Grass, type2:Type::Grass, weight:0, nfe:false },
     // [1351] Rockruff-Dusk
-    SpeciesData { hp:45, atk:65, def:40, spa:30, spd:40, spe:60, type1:Type::Rock, type2:Type::Rock, weight:92 },
+    SpeciesData { hp:45, atk:65, def:40, spa:30, spd:40, spe:60, type1:Type::Rock, type2:Type::Rock, weight:92, nfe:true },
     // [1352] Rotom-Fan
-    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Flying, weight:3 },
+    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Flying, weight:3, nfe:false },
     // [1353] Rotom-Frost
-    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Ice, weight:3 },
+    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Ice, weight:3, nfe:false },
     // [1354] Rotom-Heat
-    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Fire, weight:3 },
+    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Fire, weight:3, nfe:false },
     // [1355] Rotom-Mow
-    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Grass, weight:3 },
+    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Grass, weight:3, nfe:false },
     // [1356] Rotom-Wash
-    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Water, weight:3 },
+    SpeciesData { hp:50, atk:65, def:107, spa:105, spd:107, spe:86, type1:Type::Electric, type2:Type::Water, weight:3, nfe:false },
     // [1357] Sableye-Mega
-    SpeciesData { hp:50, atk:85, def:125, spa:85, spd:115, spe:20, type1:Type::Dark, type2:Type::Ghost, weight:1610 },
+    SpeciesData { hp:50, atk:85, def:125, spa:85, spd:115, spe:20, type1:Type::Dark, type2:Type::Ghost, weight:1610, nfe:false },
     // [1358] Salamence-Mega
-    SpeciesData { hp:95, atk:145, def:130, spa:120, spd:90, spe:120, type1:Type::Dragon, type2:Type::Flying, weight:1126 },
+    SpeciesData { hp:95, atk:145, def:130, spa:120, spd:90, spe:120, type1:Type::Dragon, type2:Type::Flying, weight:1126, nfe:false },
     // [1359] Salazzle-Totem
-    SpeciesData { hp:68, atk:64, def:60, spa:111, spd:60, spe:117, type1:Type::Poison, type2:Type::Fire, weight:810 },
+    SpeciesData { hp:68, atk:64, def:60, spa:111, spd:60, spe:117, type1:Type::Poison, type2:Type::Fire, weight:810, nfe:false },
     // [1360] Samurott-Hisui
-    SpeciesData { hp:90, atk:108, def:80, spa:100, spd:65, spe:85, type1:Type::Water, type2:Type::Dark, weight:582 },
+    SpeciesData { hp:90, atk:108, def:80, spa:100, spd:65, spe:85, type1:Type::Water, type2:Type::Dark, weight:582, nfe:false },
     // [1361] Sandaconda-Gmax
-    SpeciesData { hp:72, atk:107, def:125, spa:65, spd:70, spe:71, type1:Type::Ground, type2:Type::Ground, weight:0 },
+    SpeciesData { hp:72, atk:107, def:125, spa:65, spd:70, spe:71, type1:Type::Ground, type2:Type::Ground, weight:0, nfe:false },
     // [1362] Sandshrew-Alola
-    SpeciesData { hp:50, atk:75, def:90, spa:10, spd:35, spe:40, type1:Type::Ice, type2:Type::Steel, weight:400 },
+    SpeciesData { hp:50, atk:75, def:90, spa:10, spd:35, spe:40, type1:Type::Ice, type2:Type::Steel, weight:400, nfe:true },
     // [1363] Sandslash-Alola
-    SpeciesData { hp:75, atk:100, def:120, spa:25, spd:65, spe:65, type1:Type::Ice, type2:Type::Steel, weight:550 },
+    SpeciesData { hp:75, atk:100, def:120, spa:25, spd:65, spe:65, type1:Type::Ice, type2:Type::Steel, weight:550, nfe:false },
     // [1364] Sceptile-Mega
-    SpeciesData { hp:70, atk:110, def:75, spa:145, spd:85, spe:145, type1:Type::Grass, type2:Type::Dragon, weight:552 },
+    SpeciesData { hp:70, atk:110, def:75, spa:145, spd:85, spe:145, type1:Type::Grass, type2:Type::Dragon, weight:552, nfe:false },
     // [1365] Scizor-Mega
-    SpeciesData { hp:70, atk:150, def:140, spa:65, spd:100, spe:75, type1:Type::Bug, type2:Type::Steel, weight:1250 },
+    SpeciesData { hp:70, atk:150, def:140, spa:65, spd:100, spe:75, type1:Type::Bug, type2:Type::Steel, weight:1250, nfe:false },
     // [1366] Scolipede-Mega
-    SpeciesData { hp:60, atk:140, def:149, spa:75, spd:99, spe:62, type1:Type::Bug, type2:Type::Poison, weight:2305 },
+    SpeciesData { hp:60, atk:140, def:149, spa:75, spd:99, spe:62, type1:Type::Bug, type2:Type::Poison, weight:2305, nfe:false },
     // [1367] Scovillain-Mega
-    SpeciesData { hp:65, atk:138, def:85, spa:138, spd:85, spe:75, type1:Type::Grass, type2:Type::Fire, weight:220 },
+    SpeciesData { hp:65, atk:138, def:85, spa:138, spd:85, spe:75, type1:Type::Grass, type2:Type::Fire, weight:220, nfe:false },
     // [1368] Scrafty-Mega
-    SpeciesData { hp:65, atk:130, def:135, spa:55, spd:135, spe:68, type1:Type::Dark, type2:Type::Fighting, weight:310 },
+    SpeciesData { hp:65, atk:130, def:135, spa:55, spd:135, spe:68, type1:Type::Dark, type2:Type::Fighting, weight:310, nfe:false },
     // [1369] Sharpedo-Mega
-    SpeciesData { hp:70, atk:140, def:70, spa:110, spd:65, spe:105, type1:Type::Water, type2:Type::Dark, weight:1303 },
+    SpeciesData { hp:70, atk:140, def:70, spa:110, spd:65, spe:105, type1:Type::Water, type2:Type::Dark, weight:1303, nfe:false },
     // [1370] Shaymin-Sky
-    SpeciesData { hp:100, atk:103, def:75, spa:120, spd:75, spe:127, type1:Type::Grass, type2:Type::Flying, weight:52 },
+    SpeciesData { hp:100, atk:103, def:75, spa:120, spd:75, spe:127, type1:Type::Grass, type2:Type::Flying, weight:52, nfe:false },
     // [1371] Silvally-Bug
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Bug, type2:Type::Bug, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Bug, type2:Type::Bug, weight:1005, nfe:false },
     // [1372] Silvally-Dark
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Dark, type2:Type::Dark, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Dark, type2:Type::Dark, weight:1005, nfe:false },
     // [1373] Silvally-Dragon
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Dragon, type2:Type::Dragon, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Dragon, type2:Type::Dragon, weight:1005, nfe:false },
     // [1374] Silvally-Electric
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Electric, type2:Type::Electric, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Electric, type2:Type::Electric, weight:1005, nfe:false },
     // [1375] Silvally-Fairy
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Fairy, type2:Type::Fairy, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Fairy, type2:Type::Fairy, weight:1005, nfe:false },
     // [1376] Silvally-Fighting
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Fighting, type2:Type::Fighting, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Fighting, type2:Type::Fighting, weight:1005, nfe:false },
     // [1377] Silvally-Fire
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Fire, type2:Type::Fire, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Fire, type2:Type::Fire, weight:1005, nfe:false },
     // [1378] Silvally-Flying
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Flying, type2:Type::Flying, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Flying, type2:Type::Flying, weight:1005, nfe:false },
     // [1379] Silvally-Ghost
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Ghost, type2:Type::Ghost, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Ghost, type2:Type::Ghost, weight:1005, nfe:false },
     // [1380] Silvally-Grass
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Grass, type2:Type::Grass, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Grass, type2:Type::Grass, weight:1005, nfe:false },
     // [1381] Silvally-Ground
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Ground, type2:Type::Ground, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Ground, type2:Type::Ground, weight:1005, nfe:false },
     // [1382] Silvally-Ice
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Ice, type2:Type::Ice, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Ice, type2:Type::Ice, weight:1005, nfe:false },
     // [1383] Silvally-Poison
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Poison, type2:Type::Poison, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Poison, type2:Type::Poison, weight:1005, nfe:false },
     // [1384] Silvally-Psychic
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Psychic, type2:Type::Psychic, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Psychic, type2:Type::Psychic, weight:1005, nfe:false },
     // [1385] Silvally-Rock
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Rock, type2:Type::Rock, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Rock, type2:Type::Rock, weight:1005, nfe:false },
     // [1386] Silvally-Steel
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Steel, type2:Type::Steel, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Steel, type2:Type::Steel, weight:1005, nfe:false },
     // [1387] Silvally-Water
-    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Water, type2:Type::Water, weight:1005 },
+    SpeciesData { hp:95, atk:95, def:95, spa:95, spd:95, spe:95, type1:Type::Water, type2:Type::Water, weight:1005, nfe:false },
     // [1388] Sinistcha-Masterpiece
-    SpeciesData { hp:71, atk:60, def:106, spa:121, spd:80, spe:70, type1:Type::Grass, type2:Type::Ghost, weight:22 },
+    SpeciesData { hp:71, atk:60, def:106, spa:121, spd:80, spe:70, type1:Type::Grass, type2:Type::Ghost, weight:22, nfe:false },
     // [1389] Sinistea-Antique
-    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Ghost, type2:Type::Ghost, weight:2 },
+    SpeciesData { hp:40, atk:45, def:45, spa:74, spd:54, spe:50, type1:Type::Ghost, type2:Type::Ghost, weight:2, nfe:true },
     // [1390] Skarmory-Mega
-    SpeciesData { hp:65, atk:140, def:110, spa:40, spd:100, spe:110, type1:Type::Steel, type2:Type::Flying, weight:404 },
+    SpeciesData { hp:65, atk:140, def:110, spa:40, spd:100, spe:110, type1:Type::Steel, type2:Type::Flying, weight:404, nfe:false },
     // [1391] Sliggoo-Hisui
-    SpeciesData { hp:58, atk:75, def:83, spa:83, spd:113, spe:40, type1:Type::Steel, type2:Type::Dragon, weight:685 },
+    SpeciesData { hp:58, atk:75, def:83, spa:83, spd:113, spe:40, type1:Type::Steel, type2:Type::Dragon, weight:685, nfe:true },
     // [1392] Slowbro-Galar
-    SpeciesData { hp:95, atk:100, def:95, spa:100, spd:70, spe:30, type1:Type::Poison, type2:Type::Psychic, weight:705 },
+    SpeciesData { hp:95, atk:100, def:95, spa:100, spd:70, spe:30, type1:Type::Poison, type2:Type::Psychic, weight:705, nfe:false },
     // [1393] Slowbro-Mega
-    SpeciesData { hp:95, atk:75, def:180, spa:130, spd:80, spe:30, type1:Type::Water, type2:Type::Psychic, weight:1200 },
+    SpeciesData { hp:95, atk:75, def:180, spa:130, spd:80, spe:30, type1:Type::Water, type2:Type::Psychic, weight:1200, nfe:false },
     // [1394] Slowking-Galar
-    SpeciesData { hp:95, atk:65, def:80, spa:110, spd:110, spe:30, type1:Type::Poison, type2:Type::Psychic, weight:795 },
+    SpeciesData { hp:95, atk:65, def:80, spa:110, spd:110, spe:30, type1:Type::Poison, type2:Type::Psychic, weight:795, nfe:false },
     // [1395] Slowpoke-Galar
-    SpeciesData { hp:90, atk:65, def:65, spa:40, spd:40, spe:15, type1:Type::Psychic, type2:Type::Psychic, weight:360 },
+    SpeciesData { hp:90, atk:65, def:65, spa:40, spd:40, spe:15, type1:Type::Psychic, type2:Type::Psychic, weight:360, nfe:true },
     // [1396] Sneasel-Hisui
-    SpeciesData { hp:55, atk:95, def:55, spa:35, spd:75, spe:115, type1:Type::Fighting, type2:Type::Poison, weight:270 },
+    SpeciesData { hp:55, atk:95, def:55, spa:35, spd:75, spe:115, type1:Type::Fighting, type2:Type::Poison, weight:270, nfe:true },
     // [1397] Snorlax-Gmax
-    SpeciesData { hp:160, atk:110, def:65, spa:65, spd:110, spe:30, type1:Type::Normal, type2:Type::Normal, weight:0 },
+    SpeciesData { hp:160, atk:110, def:65, spa:65, spd:110, spe:30, type1:Type::Normal, type2:Type::Normal, weight:0, nfe:false },
     // [1398] Squawkabilly-Blue
-    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24 },
+    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24, nfe:false },
     // [1399] Squawkabilly-White
-    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24 },
+    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24, nfe:false },
     // [1400] Squawkabilly-Yellow
-    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24 },
+    SpeciesData { hp:82, atk:96, def:51, spa:45, spd:51, spe:92, type1:Type::Normal, type2:Type::Flying, weight:24, nfe:false },
     // [1401] Staraptor-Mega
-    SpeciesData { hp:85, atk:140, def:100, spa:60, spd:90, spe:110, type1:Type::Fighting, type2:Type::Flying, weight:500 },
+    SpeciesData { hp:85, atk:140, def:100, spa:60, spd:90, spe:110, type1:Type::Fighting, type2:Type::Flying, weight:500, nfe:false },
     // [1402] Starmie-Mega
-    SpeciesData { hp:60, atk:140, def:105, spa:130, spd:105, spe:120, type1:Type::Water, type2:Type::Psychic, weight:800 },
+    SpeciesData { hp:60, atk:140, def:105, spa:130, spd:105, spe:120, type1:Type::Water, type2:Type::Psychic, weight:800, nfe:false },
     // [1403] Steelix-Mega
-    SpeciesData { hp:75, atk:125, def:230, spa:55, spd:95, spe:30, type1:Type::Steel, type2:Type::Ground, weight:7400 },
+    SpeciesData { hp:75, atk:125, def:230, spa:55, spd:95, spe:30, type1:Type::Steel, type2:Type::Ground, weight:7400, nfe:false },
     // [1404] Stunfisk-Galar
-    SpeciesData { hp:109, atk:81, def:99, spa:66, spd:84, spe:32, type1:Type::Ground, type2:Type::Steel, weight:205 },
+    SpeciesData { hp:109, atk:81, def:99, spa:66, spd:84, spe:32, type1:Type::Ground, type2:Type::Steel, weight:205, nfe:false },
     // [1405] Swampert-Mega
-    SpeciesData { hp:100, atk:150, def:110, spa:95, spd:110, spe:70, type1:Type::Water, type2:Type::Ground, weight:1020 },
+    SpeciesData { hp:100, atk:150, def:110, spa:95, spd:110, spe:70, type1:Type::Water, type2:Type::Ground, weight:1020, nfe:false },
     // [1406] Tatsugiri-Curly-Mega
-    SpeciesData { hp:68, atk:65, def:90, spa:135, spd:125, spe:92, type1:Type::Dragon, type2:Type::Water, weight:80 },
+    SpeciesData { hp:68, atk:65, def:90, spa:135, spd:125, spe:92, type1:Type::Dragon, type2:Type::Water, weight:80, nfe:false },
     // [1407] Tatsugiri-Droopy
-    SpeciesData { hp:68, atk:50, def:60, spa:120, spd:95, spe:82, type1:Type::Dragon, type2:Type::Water, weight:80 },
+    SpeciesData { hp:68, atk:50, def:60, spa:120, spd:95, spe:82, type1:Type::Dragon, type2:Type::Water, weight:80, nfe:false },
     // [1408] Tatsugiri-Droopy-Mega
-    SpeciesData { hp:68, atk:65, def:90, spa:135, spd:125, spe:92, type1:Type::Dragon, type2:Type::Water, weight:80 },
+    SpeciesData { hp:68, atk:65, def:90, spa:135, spd:125, spe:92, type1:Type::Dragon, type2:Type::Water, weight:80, nfe:false },
     // [1409] Tatsugiri-Stretchy
-    SpeciesData { hp:68, atk:50, def:60, spa:120, spd:95, spe:82, type1:Type::Dragon, type2:Type::Water, weight:80 },
+    SpeciesData { hp:68, atk:50, def:60, spa:120, spd:95, spe:82, type1:Type::Dragon, type2:Type::Water, weight:80, nfe:false },
     // [1410] Tatsugiri-Stretchy-Mega
-    SpeciesData { hp:68, atk:65, def:90, spa:135, spd:125, spe:92, type1:Type::Dragon, type2:Type::Water, weight:80 },
+    SpeciesData { hp:68, atk:65, def:90, spa:135, spd:125, spe:92, type1:Type::Dragon, type2:Type::Water, weight:80, nfe:false },
     // [1411] Tauros-Paldea-Aqua
-    SpeciesData { hp:75, atk:110, def:105, spa:30, spd:70, spe:100, type1:Type::Fighting, type2:Type::Water, weight:1100 },
+    SpeciesData { hp:75, atk:110, def:105, spa:30, spd:70, spe:100, type1:Type::Fighting, type2:Type::Water, weight:1100, nfe:false },
     // [1412] Tauros-Paldea-Blaze
-    SpeciesData { hp:75, atk:110, def:105, spa:30, spd:70, spe:100, type1:Type::Fighting, type2:Type::Fire, weight:850 },
+    SpeciesData { hp:75, atk:110, def:105, spa:30, spd:70, spe:100, type1:Type::Fighting, type2:Type::Fire, weight:850, nfe:false },
     // [1413] Tauros-Paldea-Combat
-    SpeciesData { hp:75, atk:110, def:105, spa:30, spd:70, spe:100, type1:Type::Fighting, type2:Type::Fighting, weight:1150 },
+    SpeciesData { hp:75, atk:110, def:105, spa:30, spd:70, spe:100, type1:Type::Fighting, type2:Type::Fighting, weight:1150, nfe:false },
     // [1414] Terapagos-Stellar
-    SpeciesData { hp:160, atk:105, def:110, spa:130, spd:110, spe:85, type1:Type::Normal, type2:Type::Normal, weight:770 },
+    SpeciesData { hp:160, atk:105, def:110, spa:130, spd:110, spe:85, type1:Type::Normal, type2:Type::Normal, weight:770, nfe:false },
     // [1415] Terapagos-Terastal
-    SpeciesData { hp:95, atk:95, def:110, spa:105, spd:110, spe:85, type1:Type::Normal, type2:Type::Normal, weight:160 },
+    SpeciesData { hp:95, atk:95, def:110, spa:105, spd:110, spe:85, type1:Type::Normal, type2:Type::Normal, weight:160, nfe:false },
     // [1416] Thundurus-Therian
-    SpeciesData { hp:79, atk:105, def:70, spa:145, spd:80, spe:101, type1:Type::Electric, type2:Type::Flying, weight:610 },
+    SpeciesData { hp:79, atk:105, def:70, spa:145, spd:80, spe:101, type1:Type::Electric, type2:Type::Flying, weight:610, nfe:false },
     // [1417] Togedemaru-Totem
-    SpeciesData { hp:65, atk:98, def:63, spa:40, spd:73, spe:96, type1:Type::Electric, type2:Type::Steel, weight:130 },
+    SpeciesData { hp:65, atk:98, def:63, spa:40, spd:73, spe:96, type1:Type::Electric, type2:Type::Steel, weight:130, nfe:false },
     // [1418] Tornadus-Therian
-    SpeciesData { hp:79, atk:100, def:80, spa:110, spd:90, spe:121, type1:Type::Flying, type2:Type::Flying, weight:630 },
+    SpeciesData { hp:79, atk:100, def:80, spa:110, spd:90, spe:121, type1:Type::Flying, type2:Type::Flying, weight:630, nfe:false },
     // [1419] Toxtricity-Gmax
-    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:0 },
+    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:0, nfe:false },
     // [1420] Toxtricity-Low-Key
-    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:400 },
+    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:400, nfe:false },
     // [1421] Toxtricity-Low-Key-Gmax
-    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:0 },
+    SpeciesData { hp:75, atk:98, def:70, spa:114, spd:70, spe:75, type1:Type::Electric, type2:Type::Poison, weight:0, nfe:false },
     // [1422] Typhlosion-Hisui
-    SpeciesData { hp:73, atk:84, def:78, spa:119, spd:85, spe:95, type1:Type::Fire, type2:Type::Ghost, weight:698 },
+    SpeciesData { hp:73, atk:84, def:78, spa:119, spd:85, spe:95, type1:Type::Fire, type2:Type::Ghost, weight:698, nfe:false },
     // [1423] Tyranitar-Mega
-    SpeciesData { hp:100, atk:164, def:150, spa:95, spd:120, spe:71, type1:Type::Rock, type2:Type::Dark, weight:2550 },
+    SpeciesData { hp:100, atk:164, def:150, spa:95, spd:120, spe:71, type1:Type::Rock, type2:Type::Dark, weight:2550, nfe:false },
     // [1424] Ursaluna-Bloodmoon
-    SpeciesData { hp:113, atk:70, def:120, spa:135, spd:65, spe:52, type1:Type::Ground, type2:Type::Normal, weight:3330 },
+    SpeciesData { hp:113, atk:70, def:120, spa:135, spd:65, spe:52, type1:Type::Ground, type2:Type::Normal, weight:3330, nfe:false },
     // [1425] Urshifu-Gmax
-    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Dark, weight:0 },
+    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Dark, weight:0, nfe:false },
     // [1426] Urshifu-Rapid-Strike
-    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Water, weight:1050 },
+    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Water, weight:1050, nfe:false },
     // [1427] Urshifu-Rapid-Strike-Gmax
-    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Water, weight:0 },
+    SpeciesData { hp:100, atk:130, def:100, spa:63, spd:60, spe:97, type1:Type::Fighting, type2:Type::Water, weight:0, nfe:false },
     // [1428] Venusaur-Gmax
-    SpeciesData { hp:80, atk:82, def:83, spa:100, spd:100, spe:80, type1:Type::Grass, type2:Type::Poison, weight:0 },
+    SpeciesData { hp:80, atk:82, def:83, spa:100, spd:100, spe:80, type1:Type::Grass, type2:Type::Poison, weight:0, nfe:false },
     // [1429] Venusaur-Mega
-    SpeciesData { hp:80, atk:100, def:123, spa:122, spd:120, spe:80, type1:Type::Grass, type2:Type::Poison, weight:1555 },
+    SpeciesData { hp:80, atk:100, def:123, spa:122, spd:120, spe:80, type1:Type::Grass, type2:Type::Poison, weight:1555, nfe:false },
     // [1430] Victreebel-Mega
-    SpeciesData { hp:80, atk:125, def:85, spa:135, spd:95, spe:70, type1:Type::Grass, type2:Type::Poison, weight:1255 },
+    SpeciesData { hp:80, atk:125, def:85, spa:135, spd:95, spe:70, type1:Type::Grass, type2:Type::Poison, weight:1255, nfe:false },
     // [1431] Vikavolt-Totem
-    SpeciesData { hp:77, atk:70, def:90, spa:145, spd:75, spe:43, type1:Type::Bug, type2:Type::Electric, weight:1475 },
+    SpeciesData { hp:77, atk:70, def:90, spa:145, spd:75, spe:43, type1:Type::Bug, type2:Type::Electric, weight:1475, nfe:false },
     // [1432] Vivillon-Fancy
-    SpeciesData { hp:80, atk:52, def:50, spa:90, spd:50, spe:89, type1:Type::Bug, type2:Type::Flying, weight:170 },
+    SpeciesData { hp:80, atk:52, def:50, spa:90, spd:50, spe:89, type1:Type::Bug, type2:Type::Flying, weight:170, nfe:false },
     // [1433] Vivillon-Pokeball
-    SpeciesData { hp:80, atk:52, def:50, spa:90, spd:50, spe:89, type1:Type::Bug, type2:Type::Flying, weight:170 },
+    SpeciesData { hp:80, atk:52, def:50, spa:90, spd:50, spe:89, type1:Type::Bug, type2:Type::Flying, weight:170, nfe:false },
     // [1434] Voltorb-Hisui
-    SpeciesData { hp:40, atk:30, def:50, spa:55, spd:55, spe:100, type1:Type::Electric, type2:Type::Grass, weight:130 },
+    SpeciesData { hp:40, atk:30, def:50, spa:55, spd:55, spe:100, type1:Type::Electric, type2:Type::Grass, weight:130, nfe:true },
     // [1435] Vulpix-Alola
-    SpeciesData { hp:38, atk:41, def:40, spa:50, spd:65, spe:65, type1:Type::Ice, type2:Type::Ice, weight:99 },
+    SpeciesData { hp:38, atk:41, def:40, spa:50, spd:65, spe:65, type1:Type::Ice, type2:Type::Ice, weight:99, nfe:true },
     // [1436] Weezing-Galar
-    SpeciesData { hp:65, atk:90, def:120, spa:85, spd:70, spe:60, type1:Type::Poison, type2:Type::Fairy, weight:160 },
+    SpeciesData { hp:65, atk:90, def:120, spa:85, spd:70, spe:60, type1:Type::Poison, type2:Type::Fairy, weight:160, nfe:false },
     // [1437] Wishiwashi-School
-    SpeciesData { hp:45, atk:140, def:130, spa:140, spd:135, spe:30, type1:Type::Water, type2:Type::Water, weight:786 },
+    SpeciesData { hp:45, atk:140, def:130, spa:140, spd:135, spe:30, type1:Type::Water, type2:Type::Water, weight:786, nfe:false },
     // [1438] Wooper-Paldea
-    SpeciesData { hp:55, atk:45, def:45, spa:25, spd:25, spe:15, type1:Type::Poison, type2:Type::Ground, weight:110 },
+    SpeciesData { hp:55, atk:45, def:45, spa:25, spd:25, spe:15, type1:Type::Poison, type2:Type::Ground, weight:110, nfe:true },
     // [1439] Wormadam-Sandy
-    SpeciesData { hp:60, atk:79, def:105, spa:59, spd:85, spe:36, type1:Type::Bug, type2:Type::Ground, weight:65 },
+    SpeciesData { hp:60, atk:79, def:105, spa:59, spd:85, spe:36, type1:Type::Bug, type2:Type::Ground, weight:65, nfe:false },
     // [1440] Wormadam-Trash
-    SpeciesData { hp:60, atk:69, def:95, spa:69, spd:95, spe:36, type1:Type::Bug, type2:Type::Steel, weight:65 },
+    SpeciesData { hp:60, atk:69, def:95, spa:69, spd:95, spe:36, type1:Type::Bug, type2:Type::Steel, weight:65, nfe:false },
     // [1441] Xerneas-Neutral
-    SpeciesData { hp:126, atk:131, def:95, spa:131, spd:98, spe:99, type1:Type::Fairy, type2:Type::Fairy, weight:2150 },
+    SpeciesData { hp:126, atk:131, def:95, spa:131, spd:98, spe:99, type1:Type::Fairy, type2:Type::Fairy, weight:2150, nfe:false },
     // [1442] Yamask-Galar
-    SpeciesData { hp:38, atk:55, def:85, spa:30, spd:65, spe:30, type1:Type::Ground, type2:Type::Ghost, weight:15 },
+    SpeciesData { hp:38, atk:55, def:85, spa:30, spd:65, spe:30, type1:Type::Ground, type2:Type::Ghost, weight:15, nfe:true },
     // [1443] Zacian-Crowned
-    SpeciesData { hp:92, atk:150, def:115, spa:80, spd:115, spe:148, type1:Type::Fairy, type2:Type::Steel, weight:3550 },
+    SpeciesData { hp:92, atk:150, def:115, spa:80, spd:115, spe:148, type1:Type::Fairy, type2:Type::Steel, weight:3550, nfe:false },
     // [1444] Zamazenta-Crowned
-    SpeciesData { hp:92, atk:120, def:140, spa:80, spd:140, spe:128, type1:Type::Fighting, type2:Type::Steel, weight:7850 },
+    SpeciesData { hp:92, atk:120, def:140, spa:80, spd:140, spe:128, type1:Type::Fighting, type2:Type::Steel, weight:7850, nfe:false },
     // [1445] Zapdos-Galar
-    SpeciesData { hp:90, atk:125, def:90, spa:85, spd:90, spe:100, type1:Type::Fighting, type2:Type::Flying, weight:582 },
+    SpeciesData { hp:90, atk:125, def:90, spa:85, spd:90, spe:100, type1:Type::Fighting, type2:Type::Flying, weight:582, nfe:false },
     // [1446] Zarude-Dada
-    SpeciesData { hp:105, atk:120, def:105, spa:70, spd:95, spe:105, type1:Type::Dark, type2:Type::Grass, weight:700 },
+    SpeciesData { hp:105, atk:120, def:105, spa:70, spd:95, spe:105, type1:Type::Dark, type2:Type::Grass, weight:700, nfe:false },
     // [1447] Zeraora-Mega
-    SpeciesData { hp:88, atk:157, def:75, spa:147, spd:80, spe:153, type1:Type::Electric, type2:Type::Electric, weight:445 },
+    SpeciesData { hp:88, atk:157, def:75, spa:147, spd:80, spe:153, type1:Type::Electric, type2:Type::Electric, weight:445, nfe:false },
     // [1448] Zigzagoon-Galar
-    SpeciesData { hp:38, atk:30, def:41, spa:30, spd:41, spe:60, type1:Type::Dark, type2:Type::Normal, weight:175 },
+    SpeciesData { hp:38, atk:30, def:41, spa:30, spd:41, spe:60, type1:Type::Dark, type2:Type::Normal, weight:175, nfe:true },
     // [1449] Zoroark-Hisui
-    SpeciesData { hp:55, atk:100, def:60, spa:125, spd:60, spe:110, type1:Type::Normal, type2:Type::Ghost, weight:730 },
+    SpeciesData { hp:55, atk:100, def:60, spa:125, spd:60, spe:110, type1:Type::Normal, type2:Type::Ghost, weight:730, nfe:false },
     // [1450] Zorua-Hisui
-    SpeciesData { hp:35, atk:60, def:40, spa:85, spd:40, spe:70, type1:Type::Normal, type2:Type::Ghost, weight:125 },
+    SpeciesData { hp:35, atk:60, def:40, spa:85, spd:40, spe:70, type1:Type::Normal, type2:Type::Ghost, weight:125, nfe:true },
     // [1451] Zygarde-10%
-    SpeciesData { hp:54, atk:100, def:71, spa:61, spd:85, spe:115, type1:Type::Dragon, type2:Type::Ground, weight:335 },
+    SpeciesData { hp:54, atk:100, def:71, spa:61, spd:85, spe:115, type1:Type::Dragon, type2:Type::Ground, weight:335, nfe:false },
     // [1452] Zygarde-Complete
-    SpeciesData { hp:216, atk:100, def:121, spa:91, spd:95, spe:85, type1:Type::Dragon, type2:Type::Ground, weight:6100 },
+    SpeciesData { hp:216, atk:100, def:121, spa:91, spd:95, spe:85, type1:Type::Dragon, type2:Type::Ground, weight:6100, nfe:false },
     // [1453] Zygarde-Mega
-    SpeciesData { hp:216, atk:70, def:91, spa:216, spd:85, spe:100, type1:Type::Dragon, type2:Type::Ground, weight:6100 },
+    SpeciesData { hp:216, atk:70, def:91, spa:216, spd:85, spe:100, type1:Type::Dragon, type2:Type::Ground, weight:6100, nfe:false },
 ];
 
 // ── Forme index constants ──

@@ -1,6 +1,6 @@
 use crate::data::types::Type;
 
-/// Compact species data: 10 bytes, no padding with #[repr(C)].
+/// Compact species data: 12 bytes with #[repr(C)] (11 fields + 1 tail pad).
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct SpeciesData {
@@ -13,9 +13,11 @@ pub struct SpeciesData {
     pub type1:  Type,
     pub type2:  Type,
     pub weight: u16,
+    /// baseSpecies.nfe — Eviolite's not-fully-evolved gate.
+    pub nfe:    bool,
 }
 
-const _: () = assert!(core::mem::size_of::<SpeciesData>() == 10);
+const _: () = assert!(core::mem::size_of::<SpeciesData>() == 12);
 
 // ─── Accessor ─────────────────────────────────────────────────────────────
 

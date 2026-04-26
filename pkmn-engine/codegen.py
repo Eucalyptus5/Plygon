@@ -1290,6 +1290,87 @@ def gen_items():
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Species nfe bit (Eviolite gate)
+# ═══════════════════════════════════════════════════════════════════
+
+REPO = ROOT.parent
+SHOWDOWN = REPO / "pokemon-showdown"
+
+
+def _nfe_by_name(names):
+    """Map engine species-comment names → baseSpecies.nfe via Showdown's gen9 Dex.
+
+    Mirrors items.ts onModifyDef/onModifySpD reading pokemon.baseSpecies.nfe.
+    Returns {name: bool}. Names that don't resolve default to False.
+    """
+    import subprocess
+    payload = json.dumps(names)
+    script = r"""
+const {Dex} = require(process.argv[1] + "/dist/sim");
+const dex = Dex.mod("gen9");
+let data = ""; process.stdin.on("data", c => data += c);
+process.stdin.on("end", () => {
+  const names = JSON.parse(data);
+  const out = {};
+  for (const nm of names) {
+    let sp = dex.species.get(nm);
+    if (!sp || !sp.exists) sp = dex.species.get(nm.replace(/ \(.*\)$/, ""));
+    out[nm] = (sp && sp.exists) ? !!dex.species.get(sp.baseSpecies).nfe : false;
+  }
+  process.stdout.write(JSON.stringify(out));
+});
+"""
+    res = subprocess.run(
+        ["node", "-e", script, str(SHOWDOWN)],
+        input=payload, capture_output=True, text=True, check=True,
+    )
+    return json.loads(res.stdout)
+
+
+def gen_species_nfe():
+    """Inject a per-species `nfe` bool into gen_species.rs.
+
+    The species table itself is produced upstream; here we annotate each
+    SpeciesData literal with baseSpecies.nfe (Eviolite's NFE gate). Idempotent.
+    """
+    path = OUT / "gen_species.rs"
+    text = path.read_text(encoding="utf-8")
+    lines = text.split("\n")
+
+    # Pair each SpeciesData literal with the `// [N] Name` comment above it.
+    name_re = re.compile(r"^\s*//\s*\[(\d+)\]\s*(.+?)\s*$")
+    pending_name = None
+    targets = []  # (line_index, name)
+    for i, line in enumerate(lines):
+        m = name_re.match(line)
+        if m:
+            nm = m.group(2).strip()
+            pending_name = "" if nm == "—" else nm
+            continue
+        if "SpeciesData {" in line:
+            targets.append((i, pending_name or ""))
+            pending_name = None
+
+    unique = sorted({nm for _, nm in targets if nm})
+    nfe_map = _nfe_by_name(unique)
+
+    n_true = 0
+    for i, nm in targets:
+        line = lines[i]
+        line = re.sub(r",\s*nfe\s*:\s*(?:true|false)", "", line)
+        is_nfe = bool(nfe_map.get(nm, False))
+        if is_nfe:
+            n_true += 1
+        line = re.sub(r"(weight\s*:\s*\d+)(\s*\})",
+                      lambda mm: f"{mm.group(1)}, nfe:{'true' if is_nfe else 'false'}{mm.group(2)}",
+                      line)
+        lines[i] = line
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Annotated {path}: {len(targets)} species, {n_true} nfe=true")
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1299,12 +1380,15 @@ if __name__ == "__main__":
     p.add_argument("--moves", action="store_true", help="regenerate gen_moves.rs only")
     p.add_argument("--items", action="store_true", help="regenerate gen_items.rs only")
     p.add_argument("--call-family", action="store_true", help="regenerate gen_call_family.rs only")
+    p.add_argument("--species-nfe", action="store_true", help="annotate gen_species.rs nfe bits only")
     args = p.parse_args()
-    both = not args.moves and not args.items and not args.call_family
+    both = not args.moves and not args.items and not args.call_family and not args.species_nfe
     if both or args.moves:
         gen_moves()
     if both or args.call_family:
         gen_call_family()
     if both or args.items:
         gen_items()
+    if both or args.species_nfe:
+        gen_species_nfe()
     print("Done.")
