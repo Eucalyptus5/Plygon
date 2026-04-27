@@ -283,6 +283,8 @@ pub enum MoveEffect {
     GastroAcid       = 122, // Suppress target's ability (VOL_ABILITY_SUPPRESSED); blocked by Ability Shield / cantsuppress
 
     Uproar           = 123, // 3-turn self-lock + tera-drop like Thrash, but no self-confusion on lock-end
+
+    Thief            = 124, // Thief/Covet: itemless user steals target's removable item post-hit
 }
 
 // Flags (16 bits)

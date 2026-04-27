@@ -2993,6 +2993,31 @@ pub(crate) fn use_move_called(
                     set_volatile(state, def_side, VOL_UNBURDEN);
                 }
             }
+            // onDamagingHit boost items: +1 stat on a matching-type hit, consume.
+            let boost = match def_item_id {
+                data_bridge::ITEM_ABSORB_BULB if md.move_type == Type::Water => Some(SPA),
+                data_bridge::ITEM_CELL_BATTERY if md.move_type == Type::Electric => Some(ATK),
+                data_bridge::ITEM_SNOWBALL if md.move_type == Type::Ice => Some(ATK),
+                data_bridge::ITEM_LUMINOUS_MOSS if md.move_type == Type::Water => Some(SPD),
+                _ => None,
+            };
+            if let Some(stat) = boost {
+                apply_boost(state, def_side, stat, 1);
+                consume_item(state, def_side, def_slot);
+                if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
+                    set_volatile(state, def_side, VOL_UNBURDEN);
+                }
+            }
+            // Kee/Maranga Berry: +1 Def/SpD after a physical/special hit, eaten.
+            let berry_boost = match def_item_id {
+                data_bridge::ITEM_KEE_BERRY if md.category == MoveCategory::Physical => Some(DEF),
+                data_bridge::ITEM_MARANGA_BERRY if md.category == MoveCategory::Special => Some(SPD),
+                _ => None,
+            };
+            if let Some(stat) = berry_boost {
+                apply_boost(state, def_side, stat, 1);
+                consume_berry(state, def_side, def_slot);
+            }
         }
     }
 
@@ -3112,6 +3137,31 @@ pub(crate) fn use_move_called(
                 if def_ability == data_bridge::ABILITY_UNBURDEN {
                     set_volatile(state, def_side, VOL_UNBURDEN);
                 }
+            }
+        }
+    }
+
+    // Thief/Covet: an itemless attacker steals the target's removable item.
+    // Mirrors Knock Off's removable gating (Sticky Hold / forme-locked);
+    // not gated by Magic Room — Showdown suppresses item effects, not item theft.
+    if md.effect == MoveEffect::Thief
+        && !result.hits_substitute
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+        && state.active_mon(atk_side).item_id == 0
+    {
+        let def_mon = &state.sides[def_side].team[def_slot];
+        if def_mon.item_id != 0 {
+            let def_ability = effective_ability(state, def_side);
+            let sticky = def_ability == data_bridge::ABILITY_STICKY_HOLD;
+            let def_itm = data_bridge::item(def_mon.item_id);
+            let base = data_bridge::base_species(def_mon.species_id);
+            if !sticky && !def_itm.is_forme_locked(base) {
+                let stolen = def_mon.item_id;
+                consume_item(state, def_side, def_slot);
+                if def_ability == data_bridge::ABILITY_UNBURDEN {
+                    set_volatile(state, def_side, VOL_UNBURDEN);
+                }
+                set_item(state, atk_side, atk_slot, stolen);
             }
         }
     }

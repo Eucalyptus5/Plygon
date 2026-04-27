@@ -77,6 +77,9 @@ MOVE_EFFECT = {
     "flipturn": "ForceSwitch", "chillydrop": "ForceSwitch",
     "rapidspin": "RapidSpin",
 
+    # -- Item steal --
+    "thief": "Thief", "covet": "Thief",
+
     # -- Damage modifiers --
     "knockoff": "KnockOff", "freezedry": "FreezeDry",
     "expandingforce": "ExpandingForce", "psyblade": "Psyblade",
