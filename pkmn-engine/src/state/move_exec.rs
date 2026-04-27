@@ -2634,9 +2634,13 @@ pub(crate) fn use_move_called(
     }
 
     // mindBlownRecoil onAfterMove: round-half-up half-max-HP on USE; can self-faint.
-    // Not exempted by Rock Head / Magic Guard (Showdown deals it as a Condition, not
-    // a Move/recoil effect). round(maxhp/2) = (max_hp+1)>>1, NOT the truncating /2.
-    if md.self_effect == SelfEffect::HalfMaxHpRecoil {
+    // Rock Head does NOT exempt (it only suppresses move.recoil; this is a separate
+    // mechanism). Magic Guard DOES exempt: Showdown deals it as a Condition, so the
+    // effectType==='Move' gate in magicguard.onDamage fails and the damage is blocked.
+    // round(maxhp/2) = (max_hp+1)>>1, NOT the truncating /2.
+    if md.self_effect == SelfEffect::HalfMaxHpRecoil
+        && effective_ability(state, atk_side) != data_bridge::ABILITY_MAGIC_GUARD
+    {
         let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
         deal_damage(state, atk_side, atk_slot, (max_hp + 1) >> 1);
     }
@@ -8008,5 +8012,30 @@ mod tests {
         execute_move(&mut state, &TeamData::default(), 0, 114, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].active.boosts, [0i8; 7]);
         assert_eq!(state.sides[1].active.boosts, [0i8; 7]);
+    }
+
+    #[test]
+    fn test_mind_blown_recoil_magic_guard_blocks() {
+        // Mind Blown (720) self-damage is round(maxhp/2) = (max_hp+1)>>1. Magic Guard
+        // exempts (Showdown deals it as a Condition, failing magicguard's effectType
+        // ==='Move' gate); Rock Head does not. max_hp 300 -> 150 self-damage.
+        let mut without = setup();
+        without.sides[0].team[0].current_hp = without.sides[0].team[0].max_hp;
+        execute_move(&mut without, &TeamData::default(), 0, 720, 0, &mut fixed_rng(0));
+        let max_hp = 300u16;
+        assert_eq!(
+            without.sides[0].team[0].current_hp,
+            max_hp - ((max_hp + 1) >> 1),
+            "non-Magic-Guard user must take round(maxhp/2) self-damage"
+        );
+
+        let mut with_mg = setup();
+        with_mg.sides[0].team[0].current_hp = with_mg.sides[0].team[0].max_hp;
+        with_mg.sides[0].team[0].ability_id = data_bridge::ABILITY_MAGIC_GUARD;
+        execute_move(&mut with_mg, &TeamData::default(), 0, 720, 0, &mut fixed_rng(0));
+        assert_eq!(
+            with_mg.sides[0].team[0].current_hp, max_hp,
+            "Magic Guard user must take 0 mindBlownRecoil self-damage"
+        );
     }
 }
