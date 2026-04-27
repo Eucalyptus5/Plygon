@@ -375,6 +375,18 @@ fn apply_tera(state: &mut BattleState, teams: &TeamData, side: usize) {
     crate::state::forme::check_tera_shift(state, teams, side);
 }
 
+fn either_side_wiped(state: &BattleState) -> bool {
+    let p1_alive = (0..6).any(|i| {
+        let m = &state.sides[0].team[i];
+        m.species_id != 0 && m.current_hp > 0
+    });
+    let p2_alive = (0..6).any(|i| {
+        let m = &state.sides[1].team[i];
+        m.species_id != 0 && m.current_hp > 0
+    });
+    !p1_alive || !p2_alive
+}
+
 fn faint_sweep(state: &mut BattleState) {
     let p1_fainted = state.active_mon(0).is_fainted();
     let p2_fainted = state.active_mon(1).is_fainted();
@@ -511,6 +523,14 @@ pub fn execute_turn(
         // Sucker Punch sees "defender already moved".
         state.pending_actions[first.side] = 0xFF;
 
+        // Showdown runs checkWin after every action; if move 1 wiped a side the
+        // battle ends before move 2 (and before residuals). Mirror that — a
+        // self-KO that wipes the mover's own side must not let the opponent move.
+        if either_side_wiped(state) {
+            faint_sweep(state);
+            return;
+        }
+
         // Showdown runs the second mover's action and EOT residuals before any
         // forced-replacement prompt: a mid-turn faint after move 1 does NOT block
         // the survivor from moving or from receiving end-of-turn ticks (burn /
@@ -529,6 +549,15 @@ pub fn execute_turn(
     let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
     let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
     if p1_pivot || p2_pivot {
+        faint_sweep(state);
+        return;
+    }
+
+    // Showdown's turnLoop returns on `this.ended` before the queued residual
+    // action runs, so EOT never fires once a side is wiped by the move phase.
+    // Without this the engine's unconditional EOT would poison/burn/Sticky-Barb
+    // the move-phase survivor into a spurious tie.
+    if either_side_wiped(state) {
         faint_sweep(state);
         return;
     }
