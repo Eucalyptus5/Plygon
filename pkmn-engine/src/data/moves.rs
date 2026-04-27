@@ -114,6 +114,9 @@ pub enum SelfEffect {
     AllyAtkUp1      = 40,  // Howl
     AllySpDUp1      = 41,  // Aromatic Mist
     AllyAtkDefUp1   = 42,  // Coaching
+
+    // mindBlownRecoil: round-half-up half-max-HP on USE, can self-faint (Steel Beam, Mind Blown)
+    HalfMaxHpRecoil = 43,
 }
 
 // Replaces hardcoded move IDs in the executor.  Populated by the data

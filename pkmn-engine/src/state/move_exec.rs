@@ -2633,6 +2633,14 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // mindBlownRecoil onAfterMove: round-half-up half-max-HP on USE; can self-faint.
+    // Not exempted by Rock Head / Magic Guard (Showdown deals it as a Condition, not
+    // a Move/recoil effect). round(maxhp/2) = (max_hp+1)>>1, NOT the truncating /2.
+    if md.self_effect == SelfEffect::HalfMaxHpRecoil {
+        let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+        deal_damage(state, atk_side, atk_slot, (max_hp + 1) >> 1);
+    }
+
     if md.move_type == Type::Electric {
         state.sides[atk_side].active._padding[4] &= !4;
     }

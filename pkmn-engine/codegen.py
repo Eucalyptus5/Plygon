@@ -259,6 +259,10 @@ SELF_EFFECT = {
     "axekick": "CrashDamage",
     "supercellslam": "CrashDamage",
 
+    # -- mindBlownRecoil: round-half-up half-max-HP on USE (Showdown onAfterMove) --
+    "steelbeam": "HalfMaxHpRecoil",
+    "mindblown": "HalfMaxHpRecoil",
+
     # -- Thaw self (non-Fire moves that thaw user) --
     # Fire-type moves thaw by default in the engine, so only non-Fire thaw
     # moves need this. Scald/Steam Eruption are Water but thaw user.

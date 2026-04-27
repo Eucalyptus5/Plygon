@@ -5776,7 +5776,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         multihit:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0,
-        self_effect:SelfEffect::None },
+        self_effect:SelfEffect::HalfMaxHpRecoil },
     // [721] Plasma Fists
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Electric,
@@ -6384,7 +6384,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         multihit:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0,
-        self_effect:SelfEffect::None },
+        self_effect:SelfEffect::HalfMaxHpRecoil },
     // [797] Expanding Force
     MoveData { flags:MoveFlags::PROTECT, base_power:80, accuracy:100,
         category:MoveCategory::Special, move_type:Type::Psychic,
