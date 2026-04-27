@@ -1741,7 +1741,7 @@ pub fn check_berry_activation(
 
 /// Consume a berry and trigger Unburden / Cheek Pouch if applicable.
 #[inline]
-fn consume_berry(state: &mut BattleState, side: usize, slot: usize) {
+pub(crate) fn consume_berry(state: &mut BattleState, side: usize, slot: usize) {
     let item_id = state.sides[side].team[slot].item_id;
     state.sides[side].set_last_consumed_berry(item_id);
     consume_item(state, side, slot);

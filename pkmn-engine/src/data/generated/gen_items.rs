@@ -89,7 +89,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [ 85] Cover Fossil
     t[85] = ItemData { flags: 0, type_param: 0xFF, power_param: 100, forme_species: 0 };
     // [ 86] Custap Berry
-    t[86] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 10, forme_species: 0 };
+    t[86] = ItemData { flags: F::CONSUMABLE | F::CUSTAP | F::IS_BERRY, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [ 88] Damp Rock
     t[88] = ItemData { flags: 0, type_param: 0xFF, power_param: 60, forme_species: 0 };
     // [ 89] Dark Gem

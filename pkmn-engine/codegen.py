@@ -975,6 +975,7 @@ SPECIFIC_ITEMS = {
     "kingsrock": ("KINGS_ROCK",),
     "razorfang": ("KINGS_ROCK",),
     "quickclaw": ("QUICK_CLAW",),
+    "custapberry": ("CUSTAP", "IS_BERRY", "CONSUMABLE"),
 }
 
 # Terrain seed type_param encoding — matches switch.rs terrain activation logic.

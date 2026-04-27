@@ -93,6 +93,9 @@ pub mod ItemFlag {
     // Quick Claw: 20% chance to bump priority on same/lower-priority moves
     pub const QUICK_CLAW: u64        = 1 << 57;
 
+    // Custap Berry: bump priority once within bracket on a pri<=0 move at <=25% HP
+    pub const CUSTAP: u64            = 1 << 58;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }

@@ -177,21 +177,30 @@ fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 
     }
 }
 
+/// Result of `resolve_order`: the move ordering plus the side (if any) whose
+/// Custap Berry fired this turn — the caller consumes it before move execution.
+struct OrderResult {
+    first: OrderedAction,
+    second: OrderedAction,
+    custap_side: Option<usize>,
+}
+
 #[inline]
 fn resolve_order(
     state: &BattleState,
     side_a: usize, act_a: ActionKind,
     side_b: usize, act_b: ActionKind,
     rng: &mut impl FnMut(u32) -> u32,
-) -> (OrderedAction, OrderedAction) {
+) -> OrderResult {
     let a = OrderedAction { side: side_a, action: act_a };
     let b = OrderedAction { side: side_b, action: act_b };
+    let no_custap = |first, second| OrderResult { first, second, custap_side: None };
 
     let pri_a = action_priority(state, side_a, &act_a);
     let pri_b = action_priority(state, side_b, &act_b);
 
     if pri_a != pri_b {
-        return if pri_a > pri_b { (a, b) } else { (b, a) };
+        return if pri_a > pri_b { no_custap(a, b) } else { no_custap(b, a) };
     }
 
     // Same-turn double switch: Showdown sorts the two `switch` actions by the
@@ -210,24 +219,43 @@ fn resolve_order(
         } else {
             rng(2) == 0
         };
-        return if a_faster { (a, b) } else { (b, a) };
+        return if a_faster { no_custap(a, b) } else { no_custap(b, a) };
     }
 
-    // Quick Claw item: 20% chance to bump priority when both sides are at the
-    // same integer priority and it's <= 0 (mirrors Showdown's
-    // `onFractionalPriority` in items.ts:quickclaw — `if (priority <= 0 && randomChance(1,5))`).
-    // Magic Room suppresses item effects.
-    let qc_eligible = pri_a <= 0 && state.field.magic_room_turns() == 0;
-    let a_qc = qc_eligible
+    // Fractional-priority items bump a same/lower-priority move first within its
+    // integer bracket when both sides are at the same priority and it's <= 0.
+    // Magic Room suppresses item effects. A holder carries only one item, so the
+    // Quick-Claw and Custap tests are mutually exclusive per side.
+    let frac_eligible = pri_a <= 0 && state.field.magic_room_turns() == 0;
+
+    // Quick Claw: 20% chance (mirrors items.ts:quickclaw — `priority <= 0 && randomChance(1,5)`).
+    let a_qc = frac_eligible
         && matches!(act_a, ActionKind::Move { .. } | ActionKind::Tera { .. })
         && data_bridge::item(state.active_mon(side_a).item_id).has(data_bridge::ItemFlag::QUICK_CLAW)
         && rng(5) == 0;
-    let b_qc = qc_eligible
+    let b_qc = frac_eligible
         && matches!(act_b, ActionKind::Move { .. } | ActionKind::Tera { .. })
         && data_bridge::item(state.active_mon(side_b).item_id).has(data_bridge::ItemFlag::QUICK_CLAW)
         && rng(5) == 0;
-    if a_qc && !b_qc { return (a, b); }
-    if b_qc && !a_qc { return (b, a); }
+    if a_qc && !b_qc { return no_custap(a, b); }
+    if b_qc && !a_qc { return no_custap(b, a); }
+
+    // Custap Berry: deterministic bump when the holder is at <= 25% HP (mirrors
+    // items.ts:custapberry — `priority <= 0 && hp <= maxhp/4`; ½-with-Gluttony
+    // not implemented). hp*4 <= max_hp avoids a divide. Consumed at the call site
+    // via consume_berry so Harvest/Unburden see it.
+    let a_custap = frac_eligible
+        && matches!(act_a, ActionKind::Move { .. } | ActionKind::Tera { .. })
+        && custap_ready(state.active_mon(side_a));
+    let b_custap = frac_eligible
+        && matches!(act_b, ActionKind::Move { .. } | ActionKind::Tera { .. })
+        && custap_ready(state.active_mon(side_b));
+    if a_custap && !b_custap {
+        return OrderResult { first: a, second: b, custap_side: Some(side_a) };
+    }
+    if b_custap && !a_custap {
+        return OrderResult { first: b, second: a, custap_side: Some(side_b) };
+    }
 
     let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
         let md = data_bridge::move_hot(move_id);
@@ -240,8 +268,8 @@ fn resolve_order(
     }) && effective_ability(state, side_b) == data_bridge::ABILITY_QUICK_DRAW
         && rng(10) < 3;
 
-    if a_quick && !b_quick { return (a, b); }
-    if b_quick && !a_quick { return (b, a); }
+    if a_quick && !b_quick { return no_custap(a, b); }
+    if b_quick && !a_quick { return no_custap(b, a); }
 
     let spd_a = resolve_speed(state, side_a);
     let spd_b = resolve_speed(state, side_b);
@@ -253,7 +281,14 @@ fn resolve_order(
         rng(2) == 0
     };
 
-    if a_faster { (a, b) } else { (b, a) }
+    if a_faster { no_custap(a, b) } else { no_custap(b, a) }
+}
+
+#[inline]
+fn custap_ready(mon: &MonSlot) -> bool {
+    !mon.is_fainted()
+        && data_bridge::item(mon.item_id).has(data_bridge::ItemFlag::CUSTAP)
+        && (mon.current_hp as u32) * 4 <= mon.max_hp as u32
 }
 
 #[inline]
@@ -438,7 +473,14 @@ pub fn execute_turn(
     if matches!(act0, ActionKind::Tera { .. }) { apply_tera(state, teams, 0); }
     if matches!(act1, ActionKind::Tera { .. }) { apply_tera(state, teams, 1); }
 
-    let (first, second) = resolve_order(state, 0, act0, 1, act1, rng);
+    let OrderResult { first, second, custap_side } = resolve_order(state, 0, act0, 1, act1, rng);
+
+    // Custap Berry was eaten to win the bracket — consume it (routes through
+    // set_last_consumed_berry for correct Harvest / Unburden) before moves run.
+    if let Some(side) = custap_side {
+        let slot = state.sides[side].active_index as usize;
+        crate::state::move_exec::consume_berry(state, side, slot);
+    }
 
     let second_raw = if second.side == 0 { action_p1 } else { action_p2 };
 
