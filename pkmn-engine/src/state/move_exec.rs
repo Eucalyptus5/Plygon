@@ -188,6 +188,17 @@ fn secondary_self_boost_stat_override(move_id: u16) -> Option<usize> {
 }
 
 #[inline]
+/// Moves whose secondary self-boost raises ALL of ATK/DEF/SPA/SPD/SPE.
+/// codegen stores a single scalar magnitude, so the multi-stat target set is opted
+/// into here. Silver/Ominous Wind are Gen-9 Past; same shape, not exercisable.
+fn move_secondary_omniboosts(move_id: u16) -> bool {
+    use crate::data::*;
+    matches!(move_id as usize,
+        MOVE_ANCIENT_POWER | MOVE_SILVER_WIND | MOVE_OMINOUS_WIND
+    )
+}
+
+#[inline]
 /// Damaging moves whose secondary applies `volatileStatus: 'confusion'` to the target.
 /// codegen.py only extracts status/stat secondaries; the volatile-confusion path
 /// is opted into here.
@@ -235,6 +246,15 @@ fn apply_secondary(
     let def_slot = state.sides[def_side].active_index as usize;
 
     if md.secondary_stat > 0 {
+        if move_secondary_omniboosts(move_id) {
+            let stages = md.secondary_stat as i8;
+            let boosts = [(ATK, stages), (DEF, stages), (SPA, stages), (SPD, stages), (SPE, stages)];
+            for &(stat, s) in &boosts {
+                apply_boost(state, atk_side, stat, s);
+            }
+            try_mirror_herb(state, atk_side, &boosts);
+            return;
+        }
         let stat = secondary_self_boost_stat_override(move_id).unwrap_or_else(|| {
             if md.category == MoveCategory::Physical { ATK } else { SPA }
         });
@@ -1390,10 +1410,17 @@ fn execute_status_move(
         // -- Fallback for MoveEffect::None and damaging effects --
         _ => {
             if md.secondary_stat > 0 {
-                let stat = secondary_self_boost_stat_override(move_id).unwrap_or_else(|| {
-                    if md.category == MoveCategory::Physical { ATK } else { SPA }
-                });
-                apply_boost(state, atk_side, stat, md.secondary_stat as i8);
+                if move_secondary_omniboosts(move_id) {
+                    let stages = md.secondary_stat as i8;
+                    for stat in [ATK, DEF, SPA, SPD, SPE] {
+                        apply_boost(state, atk_side, stat, stages);
+                    }
+                } else {
+                    let stat = secondary_self_boost_stat_override(move_id).unwrap_or_else(|| {
+                        if md.category == MoveCategory::Physical { ATK } else { SPA }
+                    });
+                    apply_boost(state, atk_side, stat, md.secondary_stat as i8);
+                }
             } else if md.secondary_stat < 0 {
                 if state.sides[def_side].side_conditions.mist_turns() == 0 {
                     let stat = secondary_drop_stat_override(move_id).unwrap_or_else(|| {
@@ -3636,6 +3663,19 @@ mod tests {
         let md = MoveData { accuracy: 100, ..unsafe { core::mem::zeroed() } };
         assert!(accuracy_check(&state, 0, &md, &mut fixed_rng(59)));
         assert!(!accuracy_check(&state, 0, &md, &mut fixed_rng(60)));
+    }
+
+    #[test]
+    fn test_ancient_power_omniboost() {
+        let mut state = setup();
+        let md = MoveData {
+            secondary_chance: 100, secondary_stat: 1,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_ANCIENT_POWER as u16, &mut fixed_rng(0));
+        let b = state.sides[0].active.boosts;
+        assert_eq!([b[ATK], b[DEF], b[SPA], b[SPD], b[SPE]], [1, 1, 1, 1, 1]);
     }
 
     #[test]
