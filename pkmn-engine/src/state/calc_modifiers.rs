@@ -680,15 +680,12 @@ pub fn resolve_hits(md: &MoveData, ability: u16, item_flags: u64, rng: &mut impl
     if item_flags & ItemFlag::LOADED_DICE != 0 {
         return if rng(2) == 0 { 4 } else { 5 };
     }
-    // Showdown: 35/35/15/15 distribution for 2/3/4/5 hits.
-    // Map low RNG values to 3 so that calc_damage mode (rng(100)->0)
-    // produces 3 hits, matching Showdown's seeded PRNG behavior.
-    match rng(100) {
-        0..=34 => 3,
-        35..=69 => 2,
-        70..=84 => 4,
-        _ => 5,
-    }
+    // Showdown gen>=5 picks via sample([2×7, 3×7, 4×3, 5×3]) (35/35/15/15) — a
+    // single random(20) indexing that 20-element array. Mirror it exactly so the
+    // forced-RNG harness (rng(20)->0) lands on index 0 = 2 hits, matching
+    // Showdown's force_all sample()->items[0].
+    const HIT_TABLE: [u8; 20] = [2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 5, 5, 5];
+    HIT_TABLE[rng(20) as usize]
 }
 
 /// Describes the side-effect of an ability-based immunity.
