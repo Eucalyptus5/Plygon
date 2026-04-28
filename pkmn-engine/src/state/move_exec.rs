@@ -2143,6 +2143,30 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Upper Hand onTry: fails unless the target is queued to use a damaging
+    // move with priority > 0.1 this turn. Mirrors moves.ts:upperhand.onTry —
+    // priority <= 0.1 fails it, so a priority-0 move (Grass Knot) or any status
+    // move is rejected. The engine stores priority as integer steps, so the
+    // 0.1 threshold collapses to priority > 0.
+    if move_id == 918 {
+        let def_active = &state.sides[def_side].active;
+        let def_already_moved = def_active.has_volatile(VOL_MOVED_THIS_TURN)
+            || def_active.has_volatile(VOL_RECHARGING);
+        let raw = state.pending_actions[def_side];
+        let queued_move_id: u16 = match raw {
+            0..=3 => effective_moves(state, def_side)[raw as usize],
+            ACTION_TERA => effective_moves(state, def_side)[0],
+            _ => 0,
+        };
+        let queued_qualifies = queued_move_id != 0 && {
+            let qm = data_bridge::move_hot(queued_move_id);
+            qm.category != MoveCategory::Status && qm.priority > 0
+        };
+        if def_already_moved || !queued_qualifies {
+            return;
+        }
+    }
+
     // Protean / Libero: change type to match move before attacking.
     // Showdown skips on `move.callsMove` (data/abilities.ts:3444) so outer
     // Call*-family dispatches do not burn the once-per-switch flag.
@@ -7370,6 +7394,57 @@ mod tests {
         let def_hp_before = state.sides[1].team[0].current_hp;
         execute_move(&mut state, &TeamData::default(),0, 214, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before, "defender-already-moved gate must hold");
+    }
+
+    #[test]
+    fn test_upper_hand_fails_vs_priority_zero_move() {
+        // Defender queues Grass Knot (447, priority 0) → Upper Hand onTry fails
+        // (Showdown move.priority <= 0.1). Defender takes no damage.
+        let mut state = setup();
+        state.sides[1].team[0].moves = [447, 0, 0, 0];
+        state.pending_actions[1] = 0;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
+            "Upper Hand must fail vs a priority-0 damaging move");
+    }
+
+    #[test]
+    fn test_upper_hand_fails_vs_status_move() {
+        // Defender queues a status move → Upper Hand onTry fails.
+        let mut state = setup();
+        state.sides[1].team[0].moves = [86, 0, 0, 0]; // Thunder Wave (status)
+        state.pending_actions[1] = 0;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
+            "Upper Hand must fail vs a queued status move");
+    }
+
+    #[test]
+    fn test_upper_hand_succeeds_vs_priority_damaging_move() {
+        // Defender queues Quick Attack (98, priority +1, damaging) → Upper Hand
+        // onTry passes and the move connects.
+        let mut state = setup();
+        state.sides[1].team[0].moves = [98, 0, 0, 0];
+        state.pending_actions[1] = 0;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before,
+            "Upper Hand must connect vs a queued priority damaging move");
+    }
+
+    #[test]
+    fn test_upper_hand_fails_if_defender_moved() {
+        // Defender already moved → no queued action to intercept → Upper Hand fails.
+        let mut state = setup();
+        state.sides[1].team[0].moves = [98, 0, 0, 0];
+        set_volatile(&mut state, 1, VOL_MOVED_THIS_TURN);
+        state.pending_actions[1] = 0;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
+            "Upper Hand must fail when the defender has already moved");
     }
 
     // ─────────────────────────────────────────────────────────────────
