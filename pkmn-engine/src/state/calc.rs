@@ -289,7 +289,6 @@ pub fn calc_damage(
 
     let (ip_n, _) = item_power_mod(
         atk_item, atk_mon.item_id, move_type, category, md.flags,
-        state.sides[atk_side].active.consec_move_count,
     );
     power = chain_mod(power, ip_n);
     if atk_item.has(ItemFlag::GEM) && atk_item.type_param == move_type as u8 {
@@ -510,7 +509,10 @@ pub fn calc_damage(
     let (scn, _) = screen_modifier(state, def_side, category, is_crit);
     let (dan, _) = defender_ability_final_mod(state, md, def_side, eff, atk_ability);
     let (aan, _) = attacker_ability_final_mod(atk_ability, eff);
-    let (ifn, _, berry_consumed) = item_final_mod(atk_item, def_item, move_type, eff);
+    let (ifn, _, berry_consumed) = item_final_mod(
+        atk_item, def_item, move_type, eff,
+        state.sides[atk_side].active.consec_move_count,
+    );
     if berry_consumed { result.item_consumed = true; }
     let sniper_n = sniper_final_mod(atk_ability, is_crit);
     // Semi-invulnerable 2× damage modifier: Earthquake/Magnitude hit underground
@@ -776,6 +778,7 @@ mod tests {
             },
             Type::Fire,
             8, // super effective
+            1, // consec_move_count (no Metronome)
         );
         assert!(consumed);
         assert_eq!(chain_mod(200, n), 100); // halved

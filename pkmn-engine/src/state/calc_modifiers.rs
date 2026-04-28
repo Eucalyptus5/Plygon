@@ -609,7 +609,7 @@ pub fn attacker_ability_final_mod(
 #[inline]
 pub fn item_power_mod(
     item: &ItemData, item_id: u16, move_type: Type,
-    category: MoveCategory, flags: u16, consec_move_count: u8,
+    category: MoveCategory, flags: u16,
 ) -> (u32, u32) {
     if item.has(ItemFlag::TYPE_BOOST) && item.type_param == move_type as u8 {
         return (4915, 4096); // 1.2×
@@ -617,12 +617,7 @@ pub fn item_power_mod(
     if item.has(ItemFlag::GEM) && item.type_param == move_type as u8 {
         return (5325, 4096); // 1.3×
     }
-    // Life Orb: moved to item_final_mod (onModifyDamage, not onBasePower)
-    if item.has(ItemFlag::METRONOME) && consec_move_count > 1 {
-        // 1.0x + 0.2x per consecutive use after the first, cap at 2.0x
-        let count = (consec_move_count - 1).min(5) as u32;
-        return (4096 + count * 819, 4096); // 819 ≈ 0.2 * 4096
-    }
+    // Life Orb and Metronome: moved to item_final_mod (onModifyDamage, not onBasePower)
 
     match item_id {
         data_bridge::ITEM_MUSCLE_BAND if category == MoveCategory::Physical => (4505, 4096), // 1.1×
@@ -637,7 +632,7 @@ pub fn item_power_mod(
 #[inline]
 pub fn item_final_mod(
     atk_item: &ItemData, def_item: &ItemData,
-    move_type: Type, effectiveness: u8,
+    move_type: Type, effectiveness: u8, consec_move_count: u8,
 ) -> (u32, u32, bool) {
     let mut num: u32 = 4096;
     let den: u32 = 4096;
@@ -651,8 +646,12 @@ pub fn item_final_mod(
         num = chain_mod(num, 4915); // 1.2×
     }
 
-    // Metronome item — caller should pass consec_move_count for proper scaling
-    // Simplified: not applied here, caller can handle via consec_move_count
+    // Metronome is onModifyDamage in Showdown, not onBasePower — base-power placement truncates the remainder twice and under-damages by 1-2.
+    if atk_item.has(ItemFlag::METRONOME) && consec_move_count > 1 {
+        const METRONOME_DMG: [u32; 6] = [4096, 4915, 5734, 6553, 7372, 8192];
+        let idx = (consec_move_count as usize - 1).min(5);
+        num = chain_mod(num, METRONOME_DMG[idx]);
+    }
 
     if def_item.has(ItemFlag::RESIST_BERRY)
         && def_item.type_param == move_type as u8
