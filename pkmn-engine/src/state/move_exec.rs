@@ -2167,6 +2167,15 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Focus Punch beforeMoveCallback: the move fails (|cant|, 0 damage) if the
+    // user was hit by a damaging move earlier this turn (Showdown's lostFocus,
+    // set on any non-Status hit). At -3 priority the faster opponent's damaging
+    // move has already landed, so times_hit (reset each EOT) is the per-turn
+    // "took a damaging hit" signal.
+    if md.effect == MoveEffect::FocusPunch && state.sides[atk_side].active.times_hit > 0 {
+        return;
+    }
+
     // Protean / Libero: change type to match move before attacking.
     // Showdown skips on `move.callsMove` (data/abilities.ts:3444) so outer
     // Call*-family dispatches do not burn the once-per-switch flag.

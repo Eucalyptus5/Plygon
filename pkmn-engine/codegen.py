@@ -80,6 +80,9 @@ MOVE_EFFECT = {
     # -- Item steal --
     "thief": "Thief", "covet": "Thief",
 
+    # -- Focus Punch interrupt --
+    "focuspunch": "FocusPunch",
+
     # -- Damage modifiers --
     "knockoff": "KnockOff", "freezedry": "FreezeDry",
     "expandingforce": "ExpandingForce", "psyblade": "Psyblade",

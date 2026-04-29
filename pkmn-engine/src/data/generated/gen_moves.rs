@@ -2127,7 +2127,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:-3,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::FocusPunch, secondary_status:0,
         self_effect:SelfEffect::None },
     // [265] Smelling Salts
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:70, accuracy:100,

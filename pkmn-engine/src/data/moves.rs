@@ -285,6 +285,8 @@ pub enum MoveEffect {
     Uproar           = 123, // 3-turn self-lock + tera-drop like Thrash, but no self-confusion on lock-end
 
     Thief            = 124, // Thief/Covet: itemless user steals target's removable item post-hit
+
+    FocusPunch       = 125, // Fails (0 damage) if the user took a damaging move-hit earlier this turn
 }
 
 // Flags (16 bits)
