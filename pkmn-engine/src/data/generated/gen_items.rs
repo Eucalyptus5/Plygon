@@ -235,7 +235,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [265] Lustrous Orb
     t[265] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 60, forme_species: 0 };
     // [269] Macho Brace
-    t[269] = ItemData { flags: 0, type_param: 0xFF, power_param: 60, forme_species: 0 };
+    t[269] = ItemData { flags: F::HALF_SPEED, type_param: 0xFF, power_param: 60, forme_species: 0 };
     // [272] Magmarizer
     t[272] = ItemData { flags: 0, type_param: 0xFF, power_param: 80, forme_species: 0 };
     // [273] Magnet

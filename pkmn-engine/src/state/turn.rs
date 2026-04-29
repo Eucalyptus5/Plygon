@@ -73,10 +73,14 @@ pub(crate) fn resolve_speed(state: &BattleState, side: usize) -> u32 {
         speed /= 2;
     }
 
-    if state.field.magic_room_turns() == 0
-        && data_bridge::item(mon.item_id).has(ItemFlag::CHOICE_SPE)
-    {
-        speed = speed * 3 / 2;
+    if state.field.magic_room_turns() == 0 {
+        let item = data_bridge::item(mon.item_id);
+        if item.has(ItemFlag::CHOICE_SPE) {
+            speed = speed * 3 / 2;
+        }
+        if item.has(ItemFlag::HALF_SPEED) {
+            speed /= 2;
+        }
     }
 
     if state.sides[side].active.has_volatile(VOL_UNBURDEN) {

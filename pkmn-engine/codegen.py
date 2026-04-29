@@ -957,6 +957,7 @@ SPECIFIC_ITEMS = {
 
     # Speed-halving items
     "ironball": ("HALF_SPEED",),
+    "machobrace": ("HALF_SPEED",),
     "poweranklet": ("HALF_SPEED",),
     "powerband": ("HALF_SPEED",),
     "powerbelt": ("HALF_SPEED",),
