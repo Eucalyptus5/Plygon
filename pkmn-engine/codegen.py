@@ -53,6 +53,7 @@ MOVE_EFFECT = {
     "defog": "Defog",
     "willowisp": "WillOWisp", "thunderwave": "ThunderWave", "toxic": "Toxic",
     "stunspore": "ThunderWave", "poisonpowder": "PoisonPowder",
+    "poisongas": "PoisonPowder",
     "skillswap": "SkillSwap",
     "transform": "Transform",
     "gastroacid": "GastroAcid",
