@@ -684,12 +684,11 @@ fn execute_status_move(
         MoveEffect::BellyDrum => {
             let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
             let current_hp = state.sides[atk_side].team[atk_slot].current_hp;
-            if current_hp > max_hp / 2 {
+            let current_atk = state.sides[atk_side].active.boosts[ATK];
+            // Showdown fails (no HP cost) at +6 Atk or maxhp==1 (Shedinja clause).
+            if current_hp > max_hp / 2 && current_atk < 6 && max_hp > 1 {
                 deal_damage(state, atk_side, atk_slot, max_hp / 2);
-                let current_atk = state.sides[atk_side].active.boosts[ATK];
-                if current_atk < 6 {
-                    apply_boost(state, atk_side, ATK, 6 - current_atk);
-                }
+                apply_boost(state, atk_side, ATK, 6 - current_atk);
             }
         }
 
@@ -6857,6 +6856,22 @@ mod tests {
         execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
         assert_eq!(state.sides[0].team[0].current_hp, 150);
+    }
+
+    #[test]
+    fn test_belly_drum_fails_atk_maxed() {
+        let mut state = setup();
+        // Already at +6 Atk → Showdown fails the move: no HP cost paid.
+        state.sides[0].active.boosts[ATK] = 6;
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::BellyDrum,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+        assert_eq!(state.sides[0].active.boosts[ATK], 6);
+        assert_eq!(state.sides[0].team[0].current_hp, 300);
     }
 
     #[test]
