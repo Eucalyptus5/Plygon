@@ -3502,6 +3502,20 @@ pub fn execute_move(
         break 'exec;
     }
 
+    // Truant: loaf every other turn. Showdown toggles a per-mon volatile in
+    // onBeforeMove (pri 9); the volatile clears on switch, so a Pokémon acts the
+    // turn it comes in. turns_active is 0 on that first turn (incremented at EOT)
+    // and zeroed on switch — even = act, odd = loaf — which reproduces the toggle
+    // for native Truant mons without a (now-exhausted) volatile bit. Checked
+    // before any rng() so a loaf consumes no forced-RNG in lockstep mode. Raw
+    // ability_id pre-filter keeps non-Truant mons to a single compare.
+    if state.sides[atk_side].active.turns_active & 1 == 1
+        && state.sides[atk_side].team[atk_slot].ability_id == data_bridge::ABILITY_TRUANT
+        && effective_ability(state, atk_side) == data_bridge::ABILITY_TRUANT
+    {
+        break 'exec;
+    }
+
     if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
 
     if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
@@ -3763,6 +3777,41 @@ mod tests {
         execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
         assert!(!state.sides[0].active.has_volatile(VOL_RECHARGING));
         assert_eq!(state.sides[0].team[0].pp[0], pp);
+    }
+
+    #[test]
+    fn test_truant_loafs_every_other_turn() {
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
+
+        // turns_active even (0) → acts: PP spent.
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "even turn: Truant acts");
+
+        // turns_active odd (1) → loafs: no PP spent.
+        state.sides[0].active.turns_active = 1;
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp, "odd turn: Truant loafs");
+
+        // turns_active even again (2) → acts.
+        state.sides[0].active.turns_active = 2;
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "even turn: Truant acts again");
+    }
+
+    #[test]
+    fn test_truant_suppressed_does_not_loaf() {
+        // Gastro Acid / Neutralizing Gas suppresses Truant → no loaf even on odd turn.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
+        state.sides[0].active.turns_active = 1;
+        set_volatile(&mut state, 0, VOL_ABILITY_SUPPRESSED);
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "suppressed Truant acts");
     }
 
     #[test]

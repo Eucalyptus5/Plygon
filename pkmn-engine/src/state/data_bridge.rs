@@ -135,6 +135,7 @@ pub const ABILITY_SOLAR_POWER: u16   = 94;
 pub const ABILITY_GORILLA_TACTICS: u16 = 255;
 pub const ABILITY_STAKEOUT: u16      = 198;
 pub const ABILITY_SLOW_START: u16    = 112;
+pub const ABILITY_TRUANT: u16        = 54;
 pub const ABILITY_DEFEATIST: u16     = 129;
 pub const ABILITY_FLOWER_GIFT: u16   = 122;
 pub const ABILITY_WATER_BUBBLE: u16  = 199;
