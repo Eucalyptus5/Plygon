@@ -1170,7 +1170,20 @@ def gen_items():
             if type_check:
                 t = TYPE_MAP.get(type_check.group(1))
                 if t is not None:
-                    flags.add("TYPE_BOOST")
+                    # Species-gated orbs (Lustrous/Adamant/Griseous Orb +forme,
+                    # Soul Dew) check user.baseSpecies.num INSIDE onBasePower —
+                    # they only boost their signature legendary, on TWO move types
+                    # (the regex grabs only the first). A universal TYPE_BOOST here
+                    # would 1.2× the move for any holder; calc.rs resolves species
+                    # + both types per item_id off the SIGNATURE_ORB flag. Scope
+                    # the check to the onBasePower body so Arceus plates (whose
+                    # baseSpecies ref is in onTakeItem, not the boost) stay
+                    # universal TYPE_BOOST.
+                    obp = re.search(r"onBasePower\([^)]*\)\s*\{(.*?)\n\t\t\}", block, re.DOTALL)
+                    if obp and "baseSpecies" in obp.group(1):
+                        flags.add("SIGNATURE_ORB")
+                    else:
+                        flags.add("TYPE_BOOST")
                     type_param = t
 
         # Plates / type boost items

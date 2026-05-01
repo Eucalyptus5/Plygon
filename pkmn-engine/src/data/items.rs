@@ -96,6 +96,11 @@ pub mod ItemFlag {
     // Custap Berry: bump priority once within bracket on a pri<=0 move at <=25% HP
     pub const CUSTAP: u64            = 1 << 58;
 
+    // Lustrous/Adamant/Griseous Orb (+forme item) and Soul Dew: 1.2× on the
+    // signature legendary's two move types. Species-gated (calc.rs), unlike the
+    // universal TYPE_BOOST held items (Charcoal, Mystic Water, …).
+    pub const SIGNATURE_ORB: u64    = 1 << 59;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }

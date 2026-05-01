@@ -19,7 +19,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [  2] Absorb Bulb
     t[2] = ItemData { flags: F::ABSORB_BULB | F::CONSUMABLE, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [  4] Adamant Orb
-    t[4] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 60, forme_species: 0 };
+    t[4] = ItemData { flags: F::SIGNATURE_ORB, type_param: 16, power_param: 60, forme_species: 0 };
     // [  5] Aguav Berry
     t[5] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [  6] Air Balloon
@@ -171,7 +171,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [179] Grip Claw
     t[179] = ItemData { flags: 0, type_param: 0xFF, power_param: 90, forme_species: 0 };
     // [180] Griseous Orb
-    t[180] = ItemData { flags: F::TYPE_BOOST, type_param: 13, power_param: 60, forme_species: 487 };
+    t[180] = ItemData { flags: F::SIGNATURE_ORB, type_param: 13, power_param: 60, forme_species: 487 };
     // [182] Ground Gem
     t[182] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 8, power_param: 0, forme_species: 0 };
     // [185] Haban Berry
@@ -233,7 +233,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [262] Lum Berry
     t[262] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [265] Lustrous Orb
-    t[265] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 60, forme_species: 0 };
+    t[265] = ItemData { flags: F::SIGNATURE_ORB, type_param: 2, power_param: 60, forme_species: 0 };
     // [269] Macho Brace
     t[269] = ItemData { flags: F::HALF_SPEED, type_param: 0xFF, power_param: 60, forme_species: 0 };
     // [272] Magmarizer
@@ -397,7 +397,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [456] Soft Sand
     t[456] = ItemData { flags: F::TYPE_BOOST, type_param: 8, power_param: 10, forme_species: 0 };
     // [459] Soul Dew
-    t[459] = ItemData { flags: F::TYPE_BOOST, type_param: 10, power_param: 30, forme_species: 0 };
+    t[459] = ItemData { flags: F::SIGNATURE_ORB, type_param: 10, power_param: 30, forme_species: 0 };
     // [461] Spell Tag
     t[461] = ItemData { flags: F::TYPE_BOOST, type_param: 13, power_param: 30, forme_species: 0 };
     // [462] Spelon Berry
@@ -843,11 +843,11 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [740] Galarica Wreath
     t[740] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [741] Adamant Crystal
-    t[741] = ItemData { flags: F::TYPE_BOOST, type_param: 16, power_param: 0, forme_species: 483 };
+    t[741] = ItemData { flags: F::SIGNATURE_ORB, type_param: 16, power_param: 0, forme_species: 483 };
     // [742] Lustrous Globe
-    t[742] = ItemData { flags: F::TYPE_BOOST, type_param: 2, power_param: 0, forme_species: 484 };
+    t[742] = ItemData { flags: F::SIGNATURE_ORB, type_param: 2, power_param: 0, forme_species: 484 };
     // [743] Griseous Core
-    t[743] = ItemData { flags: F::TYPE_BOOST, type_param: 13, power_param: 0, forme_species: 487 };
+    t[743] = ItemData { flags: F::SIGNATURE_ORB, type_param: 13, power_param: 0, forme_species: 487 };
     // [744] Malicious Armor
     t[744] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [745] Booster Energy

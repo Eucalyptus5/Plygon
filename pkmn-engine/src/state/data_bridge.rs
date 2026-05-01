@@ -450,6 +450,15 @@ pub const ITEM_COVERT_CLOAK: u16 = 750;
 pub const ITEM_LOADED_DICE: u16 = 751;
 pub const ITEM_BOOSTER_ENERGY: u16 = 745;
 
+// Signature orbs (species-gated 1.2× on the legendary's two move types)
+pub const ITEM_ADAMANT_ORB: u16 = 4;
+pub const ITEM_GRISEOUS_ORB: u16 = 180;
+pub const ITEM_LUSTROUS_ORB: u16 = 265;
+pub const ITEM_SOUL_DEW: u16 = 459;
+pub const ITEM_ADAMANT_CRYSTAL: u16 = 741;
+pub const ITEM_LUSTROUS_GLOBE: u16 = 742;
+pub const ITEM_GRISEOUS_CORE: u16 = 743;
+
 // Status-cure berries
 pub const ITEM_CHERI_BERRY: u16 = 63;   // cures Paralysis
 pub const ITEM_CHESTO_BERRY: u16 = 65;  // cures Sleep
@@ -462,6 +471,8 @@ pub const SPECIES_PIKACHU: u16 = 25;
 pub const SPECIES_CUBONE: u16 = 104;
 pub const SPECIES_MAROWAK: u16 = 105;
 pub const SPECIES_CLAMPERL: u16 = 366;
+pub const SPECIES_LATIAS: u16 = 380;
+pub const SPECIES_LATIOS: u16 = 381;
 pub const SPECIES_DIALGA: u16 = 483;
 pub const SPECIES_PALKIA: u16 = 484;
 pub const SPECIES_GIRATINA: u16 = 487;

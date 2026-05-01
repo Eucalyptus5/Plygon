@@ -295,6 +295,26 @@ pub fn calc_damage(
         result.item_consumed = true;
     }
 
+    // Signature orbs: 1.2× on the legendary's two signature move types (Showdown
+    // onBasePower gates on user.baseSpecies.num). Gated on atk_item, so Magic Room
+    // (which NONEs atk_item) suppresses it like any other item base-power boost.
+    if atk_item.has(ItemFlag::SIGNATURE_ORB) {
+        let bsp = data_bridge::base_species(effective_species(state, atk_side));
+        let boosted = match atk_mon.item_id {
+            data_bridge::ITEM_LUSTROUS_ORB | data_bridge::ITEM_LUSTROUS_GLOBE =>
+                bsp == data_bridge::SPECIES_PALKIA && (move_type == Type::Water || move_type == Type::Dragon),
+            data_bridge::ITEM_ADAMANT_ORB | data_bridge::ITEM_ADAMANT_CRYSTAL =>
+                bsp == data_bridge::SPECIES_DIALGA && (move_type == Type::Steel || move_type == Type::Dragon),
+            data_bridge::ITEM_GRISEOUS_ORB | data_bridge::ITEM_GRISEOUS_CORE =>
+                bsp == data_bridge::SPECIES_GIRATINA && (move_type == Type::Ghost || move_type == Type::Dragon),
+            data_bridge::ITEM_SOUL_DEW =>
+                (bsp == data_bridge::SPECIES_LATIAS || bsp == data_bridge::SPECIES_LATIOS)
+                    && (move_type == Type::Psychic || move_type == Type::Dragon),
+            _ => false,
+        };
+        if boosted { power = chain_mod(power, 4915); } // 1.2×
+    }
+
     let (mp_n, _) = move_effect_power_mod(state, md, atk_side, def_side);
     power = chain_mod(power, mp_n);
 
