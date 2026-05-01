@@ -1547,10 +1547,14 @@ fn execute_protect(
     rng: &mut impl FnMut(u32) -> u32,
 ) {
     let consecutive = state.sides[side].active.protect_consecutive;
+    // Showdown's `stall` volatile ladder: success 1/3^n on the nth consecutive
+    // use (counter 3→9→27, counterMax beyond is out of force_all's deterministic
+    // band). The 4th use rolls 1/27, not an automatic fail.
     let succeeds = match consecutive {
         0 => true,
         1 => rng(3) == 0,
         2 => rng(9) == 0,
+        3 => rng(27) == 0,
         _ => false,
     };
     if succeeds {
@@ -1581,6 +1585,7 @@ fn execute_endure(
         0 => true,
         1 => rng(3) == 0,
         2 => rng(9) == 0,
+        3 => rng(27) == 0,
         _ => false,
     };
     if succeeds {
@@ -3853,6 +3858,22 @@ mod tests {
         // rng(3) returns 1 (not 0), so Protect fails
         execute_protect(&mut state, 0, 0, &mut fixed_rng(1));
         assert!(!state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
+    }
+
+    #[test]
+    fn test_protect_fourth_use_rolls_not_autofail() {
+        // 4th consecutive use (consecutive==3) rolls 1/27 — succeeds when rng(27)==0,
+        // matching Showdown's stall counter=27. The 5th (consecutive>=4) hard-fails.
+        let mut state = setup();
+        state.sides[0].active.protect_consecutive = 3;
+        execute_protect(&mut state, 0, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
+        assert_eq!(state.sides[0].active.protect_consecutive, 4);
+
+        let mut state2 = setup();
+        state2.sides[0].active.protect_consecutive = 4;
+        execute_protect(&mut state2, 0, 0, &mut fixed_rng(0));
+        assert!(!state2.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
     }
 
     #[test]
