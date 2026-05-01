@@ -3096,16 +3096,18 @@ pub(crate) fn use_move_called(
         apply_contact_recoil(state, atk_side, atk_slot, def_side, md);
     }
 
+    // Contact status abilities fire even when the holder fainted from this hit
+    // (Showdown reads target.ability in onDamagingHit), mirroring the contact
+    // recoil above. Cute Charm / Sticky Barb still require a live holder.
     if is_contact
         && !state.sides[atk_side].team[atk_slot].is_fainted()
-        && !state.sides[def_side].team[def_slot].is_fainted()
         && !result.hits_substitute
     {
-        let def_ability = effective_ability(state, def_side);
+        let def_ability = effective_ability_ignoring_faint(state, def_side);
+        let def_alive = !state.sides[def_side].team[def_slot].is_fainted();
 
         // Contact status abilities (attacker alive + no status + no Safeguard + not Minior-Meteor)
-        if !state.sides[atk_side].team[atk_slot].is_fainted()
-            && state.sides[atk_side].team[atk_slot].status == STATUS_NONE
+        if state.sides[atk_side].team[atk_slot].status == STATUS_NONE
             && state.sides[atk_side].side_conditions.safeguard_turns() == 0
             && !crate::state::forme::is_minior_meteor_forme(state, atk_side)
         {
@@ -3158,9 +3160,9 @@ pub(crate) fn use_move_called(
             }
         }
 
-        // Cute Charm: 30% attract on contact
-        if def_ability == data_bridge::ABILITY_CUTE_CHARM
-            && !state.sides[atk_side].team[atk_slot].is_fainted()
+        // Cute Charm: 30% attract on contact (holder must be alive)
+        if def_alive
+            && def_ability == data_bridge::ABILITY_CUTE_CHARM
             && !state.sides[atk_side].active.is_attracted()
         {
             if rng(100) < 30 {
@@ -3171,9 +3173,9 @@ pub(crate) fn use_move_called(
         // Sticky Barb: transfer to attacker on contact if attacker has no item.
         // Magic Room suppresses held-item effects. Hot-path guard: most
         // defenders don't hold Sticky Barb; check item_id first.
-        if state.active_mon(def_side).item_id == data_bridge::ITEM_STICKY_BARB
+        if def_alive
+            && state.active_mon(def_side).item_id == data_bridge::ITEM_STICKY_BARB
             && state.active_mon(atk_side).item_id == 0
-            && !state.sides[atk_side].team[atk_slot].is_fainted()
             && state.field.magic_room_turns() == 0
         {
             set_item(state, atk_side, atk_slot, data_bridge::ITEM_STICKY_BARB);
@@ -5195,6 +5197,35 @@ mod tests {
         execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
 
         assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
+    }
+
+    #[test]
+    fn test_static_paralyzes_when_holder_faints() {
+        let mut state = setup();
+        state.sides[0].team[0].species_id = 1; // Bulbasaur (not paralysis-immune)
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STATIC;
+        state.sides[1].team[0].current_hp = 1; // the contact hit KOs the Static holder
+
+        execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
+
+        // onDamagingHit fires post-faint: the KO'd holder still paralyzes the attacker.
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
+    }
+
+    #[test]
+    fn test_static_immune_attacker_unaffected_when_holder_faints() {
+        let mut state = setup();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_LIMBER; // paralysis-immune
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STATIC;
+        state.sides[1].team[0].current_hp = 1;
+
+        execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
+
+        // Attacker immunity still gates the post-faint trigger.
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     }
 
     #[test]
