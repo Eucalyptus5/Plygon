@@ -262,23 +262,22 @@ pub fn resolve_power(
     let atk_species = data_bridge::species(atk_mon.species_id);
     let def_species = data_bridge::species(def_mon.species_id);
 
-    // For speed-based moves, apply boost to raw stat
-    let atk_spe = boosted_stat(
-        effective_stat(state, atk_side, SPE),
-        state.sides[atk_side].active.boosts[SPE],
-    );
-    let def_spe = boosted_stat(
-        effective_stat(state, def_side, SPE),
-        state.sides[def_side].active.boosts[SPE],
-    );
-
     match md.var_power {
         VarPower::Weight => crate::data::moves::weight_based_bp(def_species.weight) as u16,
         VarPower::HeavySlam => crate::data::moves::heavy_slam_bp(atk_species.weight, def_species.weight) as u16,
-        VarPower::GyroBall => crate::data::moves::gyro_ball_bp(atk_spe, def_spe) as u16,
+        // Showdown's Gyro Ball BP reads getStat('spe'): the *effective* speed with
+        // paralysis/items/Tailwind/abilities applied, not the raw boosted stat.
+        VarPower::GyroBall => crate::data::moves::gyro_ball_bp(
+            crate::state::turn::resolve_speed(state, atk_side),
+            crate::state::turn::resolve_speed(state, def_side),
+        ) as u16,
         VarPower::Eruption => crate::data::moves::eruption_bp(atk_mon.current_hp, atk_mon.max_hp) as u16,
         VarPower::Flail => crate::data::moves::flail_bp(atk_mon.current_hp, atk_mon.max_hp) as u16,
-        VarPower::ElectroBall => crate::data::moves::electro_ball_bp(atk_spe, def_spe) as u16,
+        VarPower::ElectroBall => {
+            let atk_spe = boosted_stat(effective_stat(state, atk_side, SPE), state.sides[atk_side].active.boosts[SPE]);
+            let def_spe = boosted_stat(effective_stat(state, def_side, SPE), state.sides[def_side].active.boosts[SPE]);
+            crate::data::moves::electro_ball_bp(atk_spe, def_spe) as u16
+        }
         VarPower::StoredPower => {
             let pos: u8 = state.sides[atk_side].active.boosts.iter()
                 .filter(|&&b| b > 0).map(|&b| b as u8).sum();

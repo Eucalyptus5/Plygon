@@ -411,9 +411,9 @@ pub fn heavy_slam_bp(atk_weight: u16, def_weight: u16) -> u8 {
 }
 
 #[inline]
-pub fn gyro_ball_bp(user_speed: u16, target_speed: u16) -> u8 {
-    if user_speed == 0 { return 150; }
-    let bp = (25u32 * target_speed as u32) / user_speed as u32 + 1;
+pub fn gyro_ball_bp(user_speed: u32, target_speed: u32) -> u8 {
+    if user_speed == 0 { return 1; } // Showdown: 25*spe/0 -> !isFinite -> power = 1
+    let bp = (25u32 * target_speed) / user_speed + 1;
     bp.min(150) as u8
 }
 
