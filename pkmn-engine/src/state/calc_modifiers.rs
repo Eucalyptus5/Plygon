@@ -111,12 +111,12 @@ pub fn terrain_modifier(
 }
 
 /// Returns (num, den) for Reflect / Light Screen / Aurora Veil.
-/// Crits ignore screens.
+/// Crits ignore screens; Infiltrator ignores the target's screens.
 #[inline]
 pub fn screen_modifier(
-    state: &BattleState, def_side: usize, category: MoveCategory, is_crit: bool,
+    state: &BattleState, def_side: usize, category: MoveCategory, is_crit: bool, atk_ability: u16,
 ) -> (u32, u32) {
-    if is_crit { return (4096, 4096); }
+    if is_crit || atk_ability == data_bridge::ABILITY_INFILTRATOR { return (4096, 4096); }
     let sc = &state.sides[def_side].side_conditions;
     if sc.aurora_veil_turns > 0 { return (2048, 4096); }
     match category {

@@ -526,7 +526,7 @@ pub fn calc_damage(
     if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
     let (sn, _) = stab_modifier(state, atk_side, move_type);
     let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability, md.var_power == VarPower::Facade);
-    let (scn, _) = screen_modifier(state, def_side, category, is_crit);
+    let (scn, _) = screen_modifier(state, def_side, category, is_crit, atk_ability);
     let (dan, _) = defender_ability_final_mod(state, md, def_side, eff, atk_ability);
     let (aan, _) = attacker_ability_final_mod(atk_ability, eff);
     let (ifn, _, berry_consumed) = item_final_mod(
@@ -763,13 +763,24 @@ mod tests {
     fn test_screen_halves() {
         let mut state = BattleState::default();
         state.sides[1].side_conditions.reflect_turns = 5;
+        state.sides[1].side_conditions.light_screen_turns = 5;
 
-        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, false);
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, false, 0);
         assert_eq!(chain_mod(100, n), 50);
 
         // Crit ignores screen
-        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, true);
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, true, 0);
         assert_eq!(chain_mod(100, n), 100);
+
+        // Infiltrator ignores the target's screens (Reflect + Light Screen)
+        let inf = data_bridge::ABILITY_INFILTRATOR;
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Physical, false, inf);
+        assert_eq!(chain_mod(100, n), 100);
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Special, false, inf);
+        assert_eq!(chain_mod(100, n), 100);
+        // Non-Infiltrator special attacker still halved by Light Screen
+        let (n, _) = screen_modifier(&state, 1, MoveCategory::Special, false, 0);
+        assert_eq!(chain_mod(100, n), 50);
     }
 
     #[test]
