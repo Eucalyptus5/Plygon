@@ -213,15 +213,31 @@ fn move_secondary_confuses(move_id: u16) -> bool {
 
 #[inline]
 /// Damaging moves whose real onHit handler the 16-byte MoveData can't encode
-/// (sound-disable, trap, PP-drop, conditional-confuse, 3-way status select), so
+/// (sound-disable, trap, PP-drop, conditional-confuse), so
 /// `apply_primary_secondary`'s type-heuristic/flinch fallthrough would invent a
 /// flinch Showdown never applies. Suppress that phantom flinch for these.
+/// (Tri Attack's 3-way status select is modeled in `move_secondary_status_select`.)
 fn move_secondary_no_flinch(move_id: u16) -> bool {
     use crate::data::*;
     matches!(move_id as usize,
         MOVE_THROAT_CHOP | MOVE_SPIRIT_SHACKLE | MOVE_EERIE_SPELL
-        | MOVE_ALLURING_VOICE | MOVE_TRI_ATTACK
+        | MOVE_ALLURING_VOICE
     )
+}
+
+#[inline]
+/// Damaging moves whose onHit rolls `this.random(3)` to select 1-of-3 statuses
+/// (codegen extracts no status → secondary_status=0). Returns the candidates in
+/// Showdown's index order (moves.ts). The selection index is rolled separately
+/// after the trigger; force_all clamps rng(3)→0 → index 0, matching the harness
+/// single-arg random(3)→0 intercept.
+fn move_secondary_status_select(move_id: u16) -> Option<[u8; 3]> {
+    use crate::data::*;
+    match move_id as usize {
+        MOVE_TRI_ATTACK => Some([STATUS_BURN, STATUS_PARALYSIS, STATUS_FREEZE]),
+        MOVE_DIRE_CLAW  => Some([STATUS_POISON, STATUS_PARALYSIS, STATUS_SLEEP]),
+        _ => None,
+    }
 }
 
 #[inline]
@@ -329,6 +345,25 @@ fn apply_primary_secondary(
     let has_covert_cloak = state.field.magic_room_turns() == 0
         && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
     if has_covert_cloak { return; }
+
+    // 3-way status SELECTION (Tri Attack, Dire Claw): Showdown's onHit rolls
+    // this.random(3) AFTER the trigger to pick one status, then trySetStatus
+    // (a silent no-op on immunity). Roll the index, apply with the standard
+    // guards, and always return — a blocked pick applies NOTHING (no flinch
+    // fallthrough). force_all → rng(3)=0 → index 0.
+    if let Some(statuses) = move_secondary_status_select(move_id) {
+        let status = statuses[rng(3) as usize];
+        if !type_immune_to_status(state, def_side, status)
+            && state.sides[def_side].side_conditions.safeguard_turns() == 0
+            && !terrain_blocks_status(state, def_side, status)
+            && !ability_status_immune(state, def_side, atk_ability, status)
+            && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+            && set_status(state, def_side, def_slot, status, 0)
+        {
+            try_synchronize_back(state, def_side, atk_side, status);
+        }
+        return;
+    }
 
     if md.secondary_stat < 0 {
         if state.sides[def_side].side_conditions.mist_turns() == 0 {
@@ -3813,7 +3848,6 @@ mod tests {
             (crate::data::MOVE_SPIRIT_SHACKLE, Type::Ghost,   MoveCategory::Physical),
             (crate::data::MOVE_EERIE_SPELL,    Type::Psychic, MoveCategory::Special),
             (crate::data::MOVE_ALLURING_VOICE, Type::Fairy,   MoveCategory::Special),
-            (crate::data::MOVE_TRI_ATTACK,     Type::Normal,  MoveCategory::Special),
         ];
         for (id, mt, cat) in cases {
             let mut state = setup();
@@ -3821,6 +3855,45 @@ mod tests {
             apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
             assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} phantom-flinched");
             assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "move {id} applied a phantom status");
+        }
+    }
+
+    #[test]
+    fn test_status_select_index0() {
+        // Tri Attack / Dire Claw: force_all rolls rng(3)→0 → index-0 status (brn / psn),
+        // never a flinch. Side-1 active (Diglett, Ground) accepts all five statuses.
+        let cases = [
+            (crate::data::MOVE_TRI_ATTACK, Type::Normal, MoveCategory::Special,  STATUS_BURN),
+            (crate::data::MOVE_DIRE_CLAW,  Type::Poison, MoveCategory::Physical, STATUS_POISON),
+        ];
+        for (id, mt, cat, st) in cases {
+            let mut state = setup();
+            let md = MoveData { secondary_chance: 100, move_type: mt, category: cat,
+                ..unsafe { core::mem::zeroed() } };
+            apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
+            assert_eq!(state.sides[1].team[0].status, st, "move {id} index-0 status wrong");
+            assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} phantom-flinched");
+        }
+    }
+
+    #[test]
+    fn test_status_select_all_indices() {
+        // fixed_rng(v) returns v%max: rng(100)=v<100 always triggers, rng(3)=v selects.
+        // Tri Attack 0/1/2 → brn/par/frz, Dire Claw 0/1/2 → psn/par/slp (moves.ts order).
+        let tri  = [STATUS_BURN,   STATUS_PARALYSIS, STATUS_FREEZE];
+        let dire = [STATUS_POISON, STATUS_PARALYSIS, STATUS_SLEEP];
+        for idx in 0u32..3 {
+            let mut s = setup();
+            let md = MoveData { secondary_chance: 100, move_type: Type::Normal,
+                category: MoveCategory::Special, ..unsafe { core::mem::zeroed() } };
+            apply_secondary(&mut s, 0, 1, &md, crate::data::MOVE_TRI_ATTACK as u16, &mut fixed_rng(idx));
+            assert_eq!(s.sides[1].team[0].status, tri[idx as usize], "Tri Attack idx {idx}");
+
+            let mut s = setup();
+            let md = MoveData { secondary_chance: 100, move_type: Type::Poison,
+                category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+            apply_secondary(&mut s, 0, 1, &md, crate::data::MOVE_DIRE_CLAW as u16, &mut fixed_rng(idx));
+            assert_eq!(s.sides[1].team[0].status, dire[idx as usize], "Dire Claw idx {idx}");
         }
     }
 
