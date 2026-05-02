@@ -211,6 +211,34 @@ fn move_secondary_confuses(move_id: u16) -> bool {
     )
 }
 
+#[inline]
+/// Damaging moves whose real onHit handler the 16-byte MoveData can't encode
+/// (sound-disable, trap, PP-drop, conditional-confuse, 3-way status select), so
+/// `apply_primary_secondary`'s type-heuristic/flinch fallthrough would invent a
+/// flinch Showdown never applies. Suppress that phantom flinch for these.
+fn move_secondary_no_flinch(move_id: u16) -> bool {
+    use crate::data::*;
+    matches!(move_id as usize,
+        MOVE_THROAT_CHOP | MOVE_SPIRIT_SHACKLE | MOVE_EERIE_SPELL
+        | MOVE_ALLURING_VOICE | MOVE_TRI_ATTACK
+    )
+}
+
+#[inline]
+/// Multi-secondary moves carrying a flinch rider alongside their primary secondary.
+/// codegen collapses Showdown's `secondaries:[...]` to one slot, dropping the rider;
+/// it is re-applied as an independent secondary in `apply_secondary`. Returns the
+/// rider's flinch chance: Fire/Ice/Thunder Fang 10% (+ their 10% status), Triple
+/// Arrows 30% (+ its 50% Def-1).
+fn move_secondary_flinch(move_id: u16) -> Option<u8> {
+    use crate::data::*;
+    match move_id as usize {
+        MOVE_FIRE_FANG | MOVE_ICE_FANG | MOVE_THUNDER_FANG => Some(10),
+        MOVE_TRIPLE_ARROWS => Some(30),
+        _ => None,
+    }
+}
+
 /// True iff `victim_side`'s ability blocks `status`. Mold Breaker bypasses the
 /// breakable:1 onSetStatus block, but every status-blocker (Water Veil, Limber,
 /// Magma Armor, Insomnia, Vital Spirit, Immunity, Pastel Veil) also carries an
@@ -221,7 +249,42 @@ fn ability_status_immune(state: &BattleState, victim_side: usize, _source_abilit
     ability_blocks_status(effective_ability(state, victim_side), status)
 }
 
+/// Apply a damaging move's secondary effect(s). The 16-byte hot MoveData holds at
+/// most one secondary (`apply_primary_secondary`); the fang family + Triple Arrows
+/// additionally carry a flinch rider, applied here as an independent secondary after
+/// the primary — mirroring Showdown rolling each `secondaries:[...]` entry separately.
+#[inline]
 fn apply_secondary(
+    state: &mut BattleState,
+    atk_side: usize,
+    def_side: usize,
+    md: &MoveData,
+    move_id: u16,
+    rng: &mut impl FnMut(u32) -> u32,
+) {
+    apply_primary_secondary(state, atk_side, def_side, md, move_id, rng);
+
+    let base = match move_secondary_flinch(move_id) {
+        Some(b) => b as u32,
+        None => return,
+    };
+    let atk_ability = effective_ability(state, atk_side);
+    // Sheer Force removes ALL secondaries, the rider included (primary already
+    // suppressed above).
+    if atk_ability == data_bridge::ABILITY_SHEER_FORCE { return; }
+    // Covert Cloak blocks the rider flinch like any other target-side secondary.
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK)
+    { return; }
+    let chance = if atk_ability == data_bridge::ABILITY_SERENE_GRACE { (base * 2).min(100) } else { base };
+    if rng(100) < chance
+        && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+    {
+        set_volatile(state, def_side, VOL_FLINCHED);
+    }
+}
+
+fn apply_primary_secondary(
     state: &mut BattleState,
     atk_side: usize,
     def_side: usize,
@@ -311,6 +374,10 @@ fn apply_secondary(
         }
         return;
     }
+
+    // Phantom-flinch suppression: these onHit moves reach the fallthrough with no
+    // parseable secondary, but their real Showdown effect is not a flinch.
+    if move_secondary_no_flinch(move_id) { return; }
 
     if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
         set_volatile(state, def_side, VOL_FLINCHED);
@@ -3729,6 +3796,116 @@ mod tests {
         apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_ANCIENT_POWER as u16, &mut fixed_rng(0));
         let b = state.sides[0].active.boosts;
         assert_eq!([b[ATK], b[DEF], b[SPA], b[SPD], b[SPE]], [1, 1, 1, 1, 1]);
+    }
+
+    // ── Secondary flinch: phantom suppression + dropped-rider re-add ──────────
+    // Side-1 active is species 50 (Diglett, Ground): burn/par/freeze all apply.
+
+    fn phantom_md(mt: Type, cat: MoveCategory) -> MoveData {
+        MoveData { secondary_chance: 100, move_type: mt, category: cat, ..unsafe { core::mem::zeroed() } }
+    }
+
+    #[test]
+    fn test_phantom_flinch_suppressed() {
+        // onHit moves whose fallthrough would invent a 100% flinch Showdown never applies.
+        let cases = [
+            (crate::data::MOVE_THROAT_CHOP,    Type::Dark,    MoveCategory::Physical),
+            (crate::data::MOVE_SPIRIT_SHACKLE, Type::Ghost,   MoveCategory::Physical),
+            (crate::data::MOVE_EERIE_SPELL,    Type::Psychic, MoveCategory::Special),
+            (crate::data::MOVE_ALLURING_VOICE, Type::Fairy,   MoveCategory::Special),
+            (crate::data::MOVE_TRI_ATTACK,     Type::Normal,  MoveCategory::Special),
+        ];
+        for (id, mt, cat) in cases {
+            let mut state = setup();
+            let md = phantom_md(mt, cat);
+            apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
+            assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} phantom-flinched");
+            assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "move {id} applied a phantom status");
+        }
+    }
+
+    #[test]
+    fn test_real_flinch_preserved() {
+        // Genuine flinch-only moves (Steel/Flying, status=0) must still flinch.
+        for id in [crate::data::MOVE_IRON_HEAD, crate::data::MOVE_AIR_SLASH] {
+            let mut state = setup();
+            let md = MoveData { secondary_chance: 30, move_type: Type::Steel,
+                category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+            apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
+            assert!(state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} lost its real flinch");
+        }
+    }
+
+    #[test]
+    fn test_real_flinch_respects_chance() {
+        // Iron Head chance 30: a roll of 50 (>=30) must NOT flinch.
+        let mut state = setup();
+        let md = MoveData { secondary_chance: 30, move_type: Type::Steel,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_IRON_HEAD as u16, &mut fixed_rng(50));
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED));
+    }
+
+    #[test]
+    fn test_fang_flinch_rider() {
+        // Fire/Ice/Thunder Fang: primary status AND the dropped 10% flinch rider both fire.
+        let cases = [
+            (crate::data::MOVE_FIRE_FANG,    Type::Fire,     STATUS_BURN),
+            (crate::data::MOVE_ICE_FANG,     Type::Ice,      STATUS_FREEZE),
+            (crate::data::MOVE_THUNDER_FANG, Type::Electric, STATUS_PARALYSIS),
+        ];
+        for (id, mt, st) in cases {
+            let mut state = setup();
+            let md = MoveData { secondary_chance: 10, secondary_status: st, move_type: mt,
+                category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+            apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
+            assert_eq!(state.sides[1].team[0].status, st, "fang {id} primary status dropped");
+            assert!(state.sides[1].active.has_volatile(VOL_FLINCHED), "fang {id} flinch rider dropped");
+        }
+    }
+
+    #[test]
+    fn test_triple_arrows_flinch_rider() {
+        // Triple Arrows: 50% Def-1 primary AND the dropped 30% flinch rider both fire.
+        let mut state = setup();
+        let md = MoveData { secondary_chance: 50, secondary_stat: -1, move_type: Type::Fighting,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_TRIPLE_ARROWS as u16, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].active.boosts[DEF], -1, "Triple Arrows Def-drop dropped");
+        assert!(state.sides[1].active.has_volatile(VOL_FLINCHED), "Triple Arrows flinch rider dropped");
+    }
+
+    #[test]
+    fn test_flinch_rider_independent_of_primary() {
+        // Rider rolls separately from the primary (Showdown's per-secondary random(100)).
+        // Call order is primary-then-rider: seq [99, 0] => primary misses, rider fires.
+        let mut state = setup();
+        let md = MoveData { secondary_chance: 10, secondary_status: STATUS_BURN, move_type: Type::Fire,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        let mut n = 0u32;
+        let mut rng = |max: u32| -> u32 { let v = if n == 0 { 99 } else { 0 }; n += 1; v % max };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_FIRE_FANG as u16, &mut rng);
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "primary should have missed");
+        assert!(state.sides[1].active.has_volatile(VOL_FLINCHED), "rider should have fired");
+
+        // seq [0, 99] => primary fires, rider misses.
+        let mut state = setup();
+        let mut n = 0u32;
+        let mut rng = |max: u32| -> u32 { let v = if n == 0 { 0 } else { 99 }; n += 1; v % max };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_FIRE_FANG as u16, &mut rng);
+        assert_eq!(state.sides[1].team[0].status, STATUS_BURN, "primary should have fired");
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "rider should have missed");
+    }
+
+    #[test]
+    fn test_flinch_rider_not_added_when_moved() {
+        // A target that already moved cannot be flinched by the rider.
+        let mut state = setup();
+        set_volatile(&mut state, 1, VOL_MOVED_THIS_TURN);
+        let md = MoveData { secondary_chance: 10, secondary_status: STATUS_BURN, move_type: Type::Fire,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_FIRE_FANG as u16, &mut fixed_rng(0));
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED));
     }
 
     #[test]
