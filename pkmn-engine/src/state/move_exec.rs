@@ -255,6 +255,29 @@ fn move_secondary_flinch(move_id: u16) -> Option<u8> {
     }
 }
 
+/// The rider a flung item applies to the Fling target (items.ts `fling:` field).
+enum FlingEffect {
+    Status(u8),
+    Flinch,
+}
+
+#[inline]
+/// Items whose Showdown `fling:` field carries a status / volatileStatus rider.
+/// codegen surfaces only the fling base power, so the rider is mapped here off
+/// item_id and applied to the Fling target post-damage under the standard status
+/// guards. Cold path — reached only on a successful Fling, off the per-hit calc
+/// loop. King's Rock / Razor Fang fling a guaranteed flinch (not the held 10%).
+fn fling_item_status(item_id: u16) -> Option<FlingEffect> {
+    Some(match item_id {
+        data_bridge::ITEM_TOXIC_ORB   => FlingEffect::Status(STATUS_BAD_POISON),
+        data_bridge::ITEM_FLAME_ORB   => FlingEffect::Status(STATUS_BURN),
+        data_bridge::ITEM_POISON_BARB => FlingEffect::Status(STATUS_POISON),
+        data_bridge::ITEM_LIGHT_BALL  => FlingEffect::Status(STATUS_PARALYSIS),
+        data_bridge::ITEM_KINGS_ROCK | data_bridge::ITEM_RAZOR_FANG => FlingEffect::Flinch,
+        _ => return None,
+    })
+}
+
 /// True iff `victim_side`'s ability blocks `status`. Mold Breaker bypasses the
 /// breakable:1 onSetStatus block, but every status-blocker (Water Veil, Limber,
 /// Magma Armor, Insomnia, Vital Spirit, Immunity, Pastel Veil) also carries an
@@ -2566,15 +2589,19 @@ pub(crate) fn use_move_called(
     };
     let mut result = calc_damage(state, atk_side, move_id, per_hit_acc, rng);
 
-    // Fling: clear the item now (calc already read power_param). Post-damage
-    // reads (Shell Bell, Throat Spray) and EOT item-damage all see item_id=0,
-    // matching Showdown's pre-damage onUpdate.
-    if move_id == 374 {
+    // Fling: capture the flung item's status rider, then clear the item (calc
+    // already read power_param). Post-damage reads (Shell Bell, Throat Spray) and
+    // EOT item-damage all see item_id=0, matching Showdown's pre-damage onUpdate.
+    let fling_effect = if move_id == 374 {
+        let e = fling_item_status(state.active_mon(atk_side).item_id);
         consume_item(state, atk_side, atk_slot);
         if effective_ability(state, atk_side) == data_bridge::ABILITY_UNBURDEN {
             set_volatile(state, atk_side, VOL_UNBURDEN);
         }
-    }
+        e
+    } else {
+        None
+    };
 
     if result.type_immune {
         apply_crash_if_needed(state, atk_side, md);
@@ -2878,6 +2905,38 @@ pub(crate) fn use_move_called(
         && (md.secondary_stat > 0 || !state.sides[def_side].team[def_slot].is_fainted())
     {
         apply_secondary(state, atk_side, def_side, md, move_id, rng);
+    }
+
+    // Fling (374): apply the flung item's status / flinch rider (captured pre-
+    // consume). Guaranteed (not a chance secondary), so no rng roll; gated like a
+    // status secondary — skipped on substitute / fainted target, under the
+    // standard immunity / safeguard / terrain / ability / Minior guards.
+    if let Some(effect) = fling_effect {
+        if !result.hits_substitute && !state.sides[def_side].team[def_slot].is_fainted() {
+            match effect {
+                FlingEffect::Status(status) => {
+                    if !type_immune_to_status(state, def_side, status)
+                        && state.sides[def_side].side_conditions.safeguard_turns() == 0
+                        && !terrain_blocks_status(state, def_side, status)
+                        && !ability_status_immune(state, def_side, effective_ability(state, atk_side), status)
+                        && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+                        && set_status(state, def_side, def_slot, status, 0)
+                    {
+                        try_synchronize_back(state, def_side, atk_side, status);
+                    }
+                }
+                FlingEffect::Flinch => {
+                    let has_covert_cloak = state.field.magic_room_turns() == 0
+                        && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
+                    if !has_covert_cloak
+                        && !state.sides[def_side].active.has_volatile(VOL_FLINCHED)
+                        && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+                    {
+                        set_volatile(state, def_side, VOL_FLINCHED);
+                    }
+                }
+            }
+        }
     }
 
     // King's Rock / Razor Fang: 10% flinch chance on damaging moves.
