@@ -485,6 +485,7 @@ fn execute_status_move(
         && md.effect != MoveEffect::Wish
         && md.effect != MoveEffect::HealingWish
         && md.effect != MoveEffect::LunarDance
+        && md.effect != MoveEffect::Swallow // heals by stockpile count, fails at 0 — see MoveEffect::Swallow arm
     {
         let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
         heal(state, atk_side, atk_slot, max_hp / 2);
@@ -7005,6 +7006,72 @@ mod tests {
         // Boosts removed
         assert_eq!(state.sides[0].active.boosts[DEF], 0);
         assert_eq!(state.sides[0].active.boosts[SPD], 0);
+    }
+
+    // Real move data carries MoveFlags::HEAL on Swallow; the generic HEAL-flag
+    // handler must NOT short-circuit it (Swallow fails at 0 stockpile, heals by
+    // count otherwise). These mirror gen_moves Swallow exactly (flags set).
+    #[test]
+    fn test_swallow_zero_stockpile_no_heal_with_heal_flag() {
+        let mut state = setup();
+        state.sides[0].team[0].current_hp = 100; // well below max 300
+        state.sides[0].active.stockpile = 0;
+
+        let md = MoveData {
+            flags: MoveFlags::HEAL,
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Swallow,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+
+        // 0 stockpile => Swallow fails, no heal (Showdown parity).
+        assert_eq!(state.sides[0].team[0].current_hp, 100);
+    }
+
+    #[test]
+    fn test_swallow_heal_by_stacks_with_heal_flag() {
+        let mut state = setup();
+        state.sides[0].team[0].current_hp = 100; // well below max 300
+        state.sides[0].active.stockpile = 2;
+        state.sides[0].active.boosts[DEF] = 2;
+        state.sides[0].active.boosts[SPD] = 2;
+
+        let md = MoveData {
+            flags: MoveFlags::HEAL,
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Swallow,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+
+        // 2 stacks = heal max_hp/2 = 150; 100 + 150 = 250, then stockpile reset + boosts removed.
+        assert_eq!(state.sides[0].team[0].current_hp, 250);
+        assert_eq!(state.sides[0].active.stockpile & 0x7F, 0);
+        assert_eq!(state.sides[0].active.boosts[DEF], 0);
+        assert_eq!(state.sides[0].active.boosts[SPD], 0);
+    }
+
+    // Control: a plain HEAL-flag recovery move (Recover, MoveEffect::None) must
+    // still heal a flat 50% via the generic handler — the Swallow exclusion must
+    // not regress it.
+    #[test]
+    fn test_recover_heal_flag_still_heals_half() {
+        let mut state = setup();
+        state.sides[0].team[0].current_hp = 100; // max 300
+
+        let md = MoveData {
+            flags: MoveFlags::HEAL,
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::None,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+
+        assert_eq!(state.sides[0].team[0].current_hp, 250); // 100 + 300/2
     }
 
     #[test]
