@@ -3057,6 +3057,11 @@ pub(crate) fn use_move_called(
                 set_terrain(state, TERRAIN_GRASSY, 5);
                 crate::state::switch::check_paradox_deactivation(state);
             }
+            // Sand Spit: any hit → set Sandstorm
+            data_bridge::ABILITY_SAND_SPIT => {
+                set_weather(state, WEATHER_SAND, 5);
+                crate::state::switch::check_paradox_deactivation(state);
+            }
             // Cotton Down: any hit → lower attacker's Spe by 1
             data_bridge::ABILITY_COTTON_DOWN => {
                 if !state.sides[atk_side].team[atk_slot].is_fainted() {
@@ -3515,6 +3520,16 @@ pub(crate) fn use_move_called(
             if def_ability == data_bridge::ABILITY_INNARDS_OUT {
                 deal_damage(state, atk_side, atk_slot, pre_damage_hp);
             }
+        }
+
+        // Sand Spit: onDamagingHit sets Sandstorm even when the holder faints
+        // from the triggering hit (Showdown runs DamagingHit before faint
+        // resolution), so the end-of-turn chip still lands.
+        if !result.hits_substitute
+            && effective_ability_ignoring_faint(state, def_side) == data_bridge::ABILITY_SAND_SPIT
+        {
+            set_weather(state, WEATHER_SAND, 5);
+            crate::state::switch::check_paradox_deactivation(state);
         }
 
         // Showdown's faintMessages returns at checkWin() before runEvent('AfterFaint'),
@@ -5700,6 +5715,58 @@ mod tests {
 
         assert!(state.sides[1].team[0].is_fainted());
         assert_eq!(state.sides[0].team[0].current_hp, atk_hp - atk_max / 4);
+    }
+
+    #[test]
+    fn test_sand_spit_sets_sandstorm_on_hit() {
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_SAND_SPIT;
+        assert_eq!(state.field.weather, WEATHER_NONE);
+
+        // Pound: damaging hit, holder survives → Sand Spit sets Sandstorm.
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(!state.sides[1].team[0].is_fainted());
+        assert_eq!(state.field.weather, WEATHER_SAND);
+        assert_eq!(state.field.weather_turns, 5);
+    }
+
+    #[test]
+    fn test_sand_spit_sets_sandstorm_when_holder_faints() {
+        // Showdown runs onDamagingHit before faint resolution, so a KO'd Sand
+        // Spit holder still sets the weather (realistic-fidelity seed 201685).
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_SAND_SPIT;
+        state.sides[1].team[0].current_hp = 1;
+
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.field.weather, WEATHER_SAND);
+    }
+
+    #[test]
+    fn test_sand_spit_suppressed_no_weather_on_ko() {
+        // Gastro-Acid'd Sand Spit holder must NOT set weather post-faint: a raw
+        // ability_id read would incorrectly trigger here.
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_SAND_SPIT;
+        state.sides[1].team[0].current_hp = 1;
+        set_volatile(&mut state, 1, VOL_ABILITY_SUPPRESSED);
+
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+
+        assert!(state.sides[1].team[0].is_fainted());
+        assert_eq!(state.field.weather, WEATHER_NONE);
+    }
+
+    #[test]
+    fn test_non_sand_spit_hit_sets_no_weather() {
+        // Control: a hit on a defender without Sand Spit sets no weather.
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.field.weather, WEATHER_NONE);
     }
 
     #[test]
