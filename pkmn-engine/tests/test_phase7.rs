@@ -584,6 +584,74 @@ fn test_trick_room_no_affect_priority() {
         "Side 1 should be fainted (priority overrides Trick Room)");
 }
 
+// Lagging Tail (onFractionalPriority -0.1): holder moves last in its bracket.
+// Both mons at 1 HP using Pound → whoever acts first KOs the other before it
+// can retaliate, so the survivor reveals the order.
+#[test]
+fn test_lagging_tail_holder_moves_last() {
+    let mut state = setup();
+    // Side 0 (speed 100) is faster and would normally move first.
+    state.sides[0].team[0].item_id = data_bridge::ITEM_LAGGING_TAIL;
+    state.sides[0].team[0].current_hp = 1;
+    state.sides[1].team[0].current_hp = 1;
+
+    execute_turn(&mut state, &TeamData::default(), 0, 0, &mut dummy_rng);
+
+    // Holder moved last → side 1 KO'd it first; side 1 survives.
+    assert_eq!(state.sides[0].team[0].current_hp, 0,
+        "Lagging Tail holder should move last and be KO'd first");
+    assert!(state.sides[1].team[0].current_hp > 0,
+        "Side 1 should survive (it acted before the Lagging Tail holder)");
+}
+
+#[test]
+fn test_no_lagging_tail_orders_by_speed() {
+    let mut state = setup();
+    // Same setup, no item: faster side 0 acts first and KOs side 1.
+    state.sides[0].team[0].current_hp = 1;
+    state.sides[1].team[0].current_hp = 1;
+
+    execute_turn(&mut state, &TeamData::default(), 0, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[1].team[0].current_hp, 0,
+        "Without Lagging Tail the faster side 0 should act first");
+    assert!(state.sides[0].team[0].current_hp > 0, "Side 0 should survive");
+}
+
+#[test]
+fn test_lagging_tail_beats_trick_room() {
+    let mut state = setup();
+    // Make the holder the SLOWER mon so Trick Room alone would put it FIRST;
+    // Lagging Tail must still send it last.
+    state.sides[0].team[0].stats[4] = 60; // slower than side 1's 80
+    state.sides[0].team[0].item_id = data_bridge::ITEM_LAGGING_TAIL;
+    state.field.trick_room_turns = 5;
+    state.sides[0].team[0].current_hp = 1;
+    state.sides[1].team[0].current_hp = 1;
+
+    execute_turn(&mut state, &TeamData::default(), 0, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[0].team[0].current_hp, 0,
+        "Lagging Tail should move the holder last even under Trick Room");
+    assert!(state.sides[1].team[0].current_hp > 0, "Side 1 should survive");
+}
+
+#[test]
+fn test_both_lagging_tail_cancels_to_speed() {
+    let mut state = setup();
+    // Both hold Lagging Tail → the -0.1 cancels, normal speed order resumes.
+    state.sides[0].team[0].item_id = data_bridge::ITEM_LAGGING_TAIL;
+    state.sides[1].team[0].item_id = data_bridge::ITEM_LAGGING_TAIL;
+    state.sides[0].team[0].current_hp = 1;
+    state.sides[1].team[0].current_hp = 1;
+
+    execute_turn(&mut state, &TeamData::default(), 0, 0, &mut dummy_rng);
+
+    assert_eq!(state.sides[1].team[0].current_hp, 0,
+        "Both holding Lagging Tail cancels → faster side 0 acts first");
+    assert!(state.sides[0].team[0].current_hp > 0, "Side 0 should survive");
+}
+
 // ── Phase 2 Task 13: Encore, Disable, Taunt, Torment ──
 
 #[test]

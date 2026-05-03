@@ -275,6 +275,20 @@ fn resolve_order(
     if a_quick && !b_quick { return no_custap(a, b); }
     if b_quick && !a_quick { return no_custap(b, a); }
 
+    // Fractional-priority items (Lagging Tail / Full Incense, items.ts
+    // onFractionalPriority -0.1): the holder's move goes LAST within its integer
+    // bracket — ahead of the speed compare and regardless of Trick Room. Both
+    // holding one cancels → fall through to speed. Item effect ⇒ Magic Room
+    // suppresses it. Full Incense is isNonstandard:Past, so only Lagging Tail matches.
+    if state.field.magic_room_turns() == 0 {
+        let a_lag = matches!(act_a, ActionKind::Move { .. } | ActionKind::Tera { .. })
+            && state.active_mon(side_a).item_id == data_bridge::ITEM_LAGGING_TAIL;
+        let b_lag = matches!(act_b, ActionKind::Move { .. } | ActionKind::Tera { .. })
+            && state.active_mon(side_b).item_id == data_bridge::ITEM_LAGGING_TAIL;
+        if a_lag && !b_lag { return no_custap(b, a); }
+        if b_lag && !a_lag { return no_custap(a, b); }
+    }
+
     let spd_a = resolve_speed(state, side_a);
     let spd_b = resolve_speed(state, side_b);
     let trick_room = state.field.trick_room_turns > 0;

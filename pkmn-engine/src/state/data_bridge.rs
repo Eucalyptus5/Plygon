@@ -455,6 +455,9 @@ pub const ITEM_PUNCHING_GLOVE: u16 = 749;
 pub const ITEM_COVERT_CLOAK: u16 = 750;
 pub const ITEM_LOADED_DICE: u16 = 751;
 pub const ITEM_BOOSTER_ENERGY: u16 = 745;
+// Fractional-priority items (onFractionalPriority -0.1: holder moves last in its
+// bracket). Full Incense is isNonstandard:Past — absent from the engine item table.
+pub const ITEM_LAGGING_TAIL: u16 = 237;
 
 // Signature orbs (species-gated 1.2× on the legendary's two move types)
 pub const ITEM_ADAMANT_ORB: u16 = 4;
