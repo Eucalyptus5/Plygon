@@ -117,6 +117,12 @@ pub const FIELD_WEATHER_SUPPRESSED: u8 = 1 << 6;
 /// (bit 0 of `_padding[0]` is the once-per-battle Tera-used flag — see legal_moves.rs.)
 pub const SIDE_PAD_STATS_LOWERED: u8 = 1 << 1;
 
+/// SideState `_padding[0]` bit 2: the active mon has completed at least one move
+/// action since switching in (Showdown's `activeMoveActions > 0`). Set in
+/// `execute_action` after any move/Tera/Struggle action, cleared on switch-out.
+/// Read by the Fake Out / First Impression / Mat Block first-turn `onTry` gate.
+pub const SIDE_PAD_ACTED_SINCE_SWITCH: u8 = 1 << 2;
+
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
@@ -289,6 +295,21 @@ impl SideState {
     #[inline(always)]
     pub fn clear_stats_lowered_this_turn(&mut self) {
         self._padding[0] &= !SIDE_PAD_STATS_LOWERED;
+    }
+
+    #[inline(always)]
+    pub fn acted_since_switch_in(&self) -> bool {
+        self._padding[0] & SIDE_PAD_ACTED_SINCE_SWITCH != 0
+    }
+
+    #[inline(always)]
+    pub fn set_acted_since_switch_in(&mut self) {
+        self._padding[0] |= SIDE_PAD_ACTED_SINCE_SWITCH;
+    }
+
+    #[inline(always)]
+    pub fn clear_acted_since_switch_in(&mut self) {
+        self._padding[0] &= !SIDE_PAD_ACTED_SINCE_SWITCH;
     }
 
     #[inline(always)]

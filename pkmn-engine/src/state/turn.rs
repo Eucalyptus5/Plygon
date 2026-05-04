@@ -328,13 +328,16 @@ fn execute_action(
         }
         ActionKind::Move { slot, move_id } => {
             execute_move(state, teams, side, move_id, slot, rng);
+            state.sides[side].set_acted_since_switch_in();
         }
         ActionKind::Tera { move_id } => {
             apply_tera(state, teams, side);
             execute_move(state, teams, side, move_id, 0, rng);
+            state.sides[side].set_acted_since_switch_in();
         }
         ActionKind::Struggle => {
             execute_move(state, teams, side, 0, 0, rng);
+            state.sides[side].set_acted_since_switch_in();
         }
     }
 }

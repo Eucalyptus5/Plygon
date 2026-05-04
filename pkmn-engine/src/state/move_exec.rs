@@ -2297,6 +2297,22 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Fake Out (252) / First Impression (660) / Mat Block (561) onTry: only work
+    // on the user's first move action after switching in. Showdown keys
+    // `source.activeMoveActions > 1` (moves.ts); fail (no damage, no flinch /
+    // side-condition, action consumed) once the user has already taken a move
+    // action this stay-in. codegen drops the onTry so these carry effect:None.
+    // `acted_since_switch_in` is set in execute_action after each move action and
+    // cleared on switch-out, so it works on the lead's first move, fails on later
+    // moves, and works again after switching out and back in. (turns_active is the
+    // wrong proxy: a mid-battle switch-in mon's first move lands at turns_active==1
+    // because the switch turn's EOT already ticked it.)
+    if (move_id == 252 || move_id == 660 || move_id == 561)
+        && state.sides[atk_side].acted_since_switch_in()
+    {
+        return;
+    }
+
     // Focus Punch beforeMoveCallback: the move fails (|cant|, 0 damage) if the
     // user was hit by a damaging move earlier this turn (Showdown's lostFocus,
     // set on any non-Status hit). At -3 priority the faster opponent's damaging
@@ -4055,6 +4071,47 @@ mod tests {
             category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
         apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_FIRE_FANG as u16, &mut fixed_rng(0));
         assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED));
+    }
+
+    #[test]
+    fn test_fake_out_first_turn_only_gate() {
+        // Fake Out (252) works on the user's first move action since switching in
+        // (acted_since_switch_in clear), fails once the user has acted this stay-in,
+        // and works again after the switch-out reset. The flag is set by
+        // execute_action in production; drive it directly here.
+        let mut state = setup();
+        let hp0 = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 252, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < hp0, "Fake Out hits on the first turn out");
+        assert!(state.sides[1].active.has_volatile(VOL_FLINCHED), "Fake Out flinches on the first turn out");
+
+        // User has now acted this stay-in → Fake Out fails (no damage, no flinch).
+        state.sides[0].set_acted_since_switch_in();
+        clear_volatile(&mut state, 1, VOL_FLINCHED);
+        let hp1 = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 252, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, hp1, "Fake Out fails after the user has acted");
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "no flinch on the gated Fake Out");
+
+        // Switch-out clears the flag → Fake Out works again on re-entry.
+        state.sides[0].clear_acted_since_switch_in();
+        let hp2 = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 252, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < hp2, "Fake Out works again after switch-out reset");
+    }
+
+    #[test]
+    fn test_first_impression_first_turn_only_gate() {
+        // First Impression (660) shares the same first-turn onTry gate (no flinch).
+        let mut state = setup();
+        let hp0 = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 660, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < hp0, "First Impression hits on the first turn out");
+
+        state.sides[0].set_acted_since_switch_in();
+        let hp1 = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 660, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, hp1, "First Impression fails after the user has acted");
     }
 
     #[test]
