@@ -221,7 +221,7 @@ fn move_secondary_no_flinch(move_id: u16) -> bool {
     use crate::data::*;
     matches!(move_id as usize,
         MOVE_THROAT_CHOP | MOVE_SPIRIT_SHACKLE | MOVE_EERIE_SPELL
-        | MOVE_ALLURING_VOICE
+        | MOVE_ALLURING_VOICE | MOVE_PSYCHIC_NOISE
     )
 }
 
@@ -3923,6 +3923,7 @@ mod tests {
             (crate::data::MOVE_SPIRIT_SHACKLE, Type::Ghost,   MoveCategory::Physical),
             (crate::data::MOVE_EERIE_SPELL,    Type::Psychic, MoveCategory::Special),
             (crate::data::MOVE_ALLURING_VOICE, Type::Fairy,   MoveCategory::Special),
+            (crate::data::MOVE_PSYCHIC_NOISE,  Type::Psychic, MoveCategory::Special),
         ];
         for (id, mt, cat) in cases {
             let mut state = setup();
