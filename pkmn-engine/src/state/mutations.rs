@@ -60,6 +60,12 @@ pub fn apply_boost_raw(state: &mut BattleState, side: usize, stat_index: usize, 
     if actual != 0 {
         active.boosts[stat_index] = new;
     }
+    // Showdown sets statsLoweredThisTurn on the boost target when any stat actually
+    // dropped (self or foe). Choke point for every genuine stat drop (Contrary has
+    // already inverted to a raise upstream). Read by Lash Out's onBasePower ×2.
+    if actual < 0 {
+        state.sides[side].set_stats_lowered_this_turn();
+    }
     actual
 }
 
@@ -356,6 +362,33 @@ mod tests {
         assert_eq!(s.field.magic_room_turns(), 3);
         set_magic_room(&mut s, 0);
         assert_eq!(s.field.magic_room_turns(), 0);
+    }
+
+    #[test]
+    fn test_stats_lowered_this_turn_flag() {
+        let mut s = setup();
+        // Fresh: not set; the Tera bit (bit 0) is independent.
+        assert!(!s.sides[0].stats_lowered_this_turn());
+        s.sides[0]._padding[0] |= 1; // Tera-used bit, must not be disturbed
+        // A raise does NOT set the lowered flag.
+        apply_boost(&mut s, 0, ATK, 2);
+        assert!(!s.sides[0].stats_lowered_this_turn());
+        // A genuine drop sets it.
+        apply_boost(&mut s, 0, ATK, -1);
+        assert!(s.sides[0].stats_lowered_this_turn());
+        assert_eq!(s.sides[0]._padding[0] & 1, 1, "Tera bit preserved");
+        // Clear (turn boundary / switch-out) resets only this flag.
+        s.sides[0].clear_stats_lowered_this_turn();
+        assert!(!s.sides[0].stats_lowered_this_turn());
+        assert_eq!(s.sides[0]._padding[0] & 1, 1, "Tera bit still preserved");
+        // Contrary inverts the drop into a raise → flag NOT set.
+        s.sides[1].team[0].species_id = 25;
+        s.sides[1].team[0].current_hp = 200;
+        s.sides[1].team[0].max_hp = 200;
+        s.sides[1].team[0].ability_id = data_bridge::ABILITY_CONTRARY;
+        apply_boost(&mut s, 1, ATK, -1);
+        assert!(!s.sides[1].stats_lowered_this_turn());
+        assert_eq!(s.sides[1].active.boosts[ATK], 1, "Contrary raised instead");
     }
 
     #[test]

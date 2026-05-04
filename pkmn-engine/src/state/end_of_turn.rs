@@ -60,6 +60,8 @@ pub fn end_of_turn(state: &mut BattleState, teams: &TeamData, rng: &mut BattleRn
         }
         state.sides[side].active.volatile_flags &= !VOL_PER_TURN_MASK;
         state.sides[side].active.times_hit = 0;
+        // Mirror Showdown's nextTurn reset of statsLoweredThisTurn (sim/battle.ts:1665).
+        state.sides[side].clear_stats_lowered_this_turn();
     }
     state.field.turn += 1;                                       // 18
 }

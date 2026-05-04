@@ -111,6 +111,12 @@ pub const SIDE_LUNAR_DANCE: u8   = 1 << 4;
 
 pub const FIELD_WEATHER_SUPPRESSED: u8 = 1 << 6;
 
+/// SideState `_padding[0]` bit 1: the active mon had at least one stat lowered this
+/// turn (Showdown `statsLoweredThisTurn`). Set in `apply_boost_raw` on any negative
+/// boost, cleared at end-of-turn and on switch-out. Read by Lash Out's onBasePower ×2.
+/// (bit 0 of `_padding[0]` is the once-per-battle Tera-used flag — see legal_moves.rs.)
+pub const SIDE_PAD_STATS_LOWERED: u8 = 1 << 1;
+
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
@@ -266,8 +272,25 @@ pub struct SideState {
 }
 
 impl SideState {
+    // _padding[0]: bit 0 = Tera used this battle (legal_moves/turn/calc);
+    //              bit 1 = stats lowered this turn (Showdown statsLoweredThisTurn).
     // _padding[1..3] stores the item_id of the last berry consumed by the active mon.
     // Cleared on switch-out. Used by Harvest to restore consumed berries at EOT.
+    #[inline(always)]
+    pub fn stats_lowered_this_turn(&self) -> bool {
+        self._padding[0] & SIDE_PAD_STATS_LOWERED != 0
+    }
+
+    #[inline(always)]
+    pub fn set_stats_lowered_this_turn(&mut self) {
+        self._padding[0] |= SIDE_PAD_STATS_LOWERED;
+    }
+
+    #[inline(always)]
+    pub fn clear_stats_lowered_this_turn(&mut self) {
+        self._padding[0] &= !SIDE_PAD_STATS_LOWERED;
+    }
+
     #[inline(always)]
     pub fn last_consumed_berry(&self) -> u16 {
         u16::from_le_bytes([self._padding[1], self._padding[2]])

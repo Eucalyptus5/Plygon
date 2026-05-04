@@ -71,6 +71,9 @@ pub fn switch_out(state: &mut BattleState, teams: &TeamData, side: usize) {
 
     state.sides[side].active.zero();
     state.sides[side].set_last_consumed_berry(0);
+    // Showdown clears statsLoweredThisTurn on switch-out (clearVolatile); the incoming
+    // mon must not inherit the departing mon's this-turn stat-drop state.
+    state.sides[side].clear_stats_lowered_this_turn();
 }
 
 pub fn switch_in(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) {

@@ -318,6 +318,14 @@ pub fn calc_damage(
     let (mp_n, _) = move_effect_power_mod(state, md, atk_side, def_side);
     power = chain_mod(power, mp_n);
 
+    // Lash Out: onBasePower chainModify(2) when the user had a stat lowered this turn
+    // (moves.ts:10081). Cold — the move_id compare is false for every other move.
+    if move_id == crate::data::MOVE_LASH_OUT as u16
+        && state.sides[atk_side].stats_lowered_this_turn()
+    {
+        power = chain_mod(power, 8192); // 2×
+    }
+
     // Defender's ability modifying move base power (Showdown: onSourceBasePower).
     // Breakable (bypassed by Mold Breaker). Dry Skin: 1.25× Fire base power.
     if !mold_breaks(state, def_side, atk_ability) {
@@ -711,6 +719,32 @@ mod tests {
         // 42 * 90 * 150 / 100 = 567000 / 100 = 5670
         // 5670 / 50 = 113, + 2 = 115
         assert_eq!(base, 115);
+    }
+
+    #[test]
+    fn test_lash_out_doubles_when_stat_lowered() {
+        let mut state = test_state();
+        let lash = crate::data::MOVE_LASH_OUT as u16;
+        // Flag set independently of the Atk stat, so the only delta is the BP ×2.
+        let base = calc_damage(&state, 0, lash, 100, &mut fixed_rng(0)).damage;
+        state.sides[0].set_stats_lowered_this_turn();
+        let boosted = calc_damage(&state, 0, lash, 100, &mut fixed_rng(0)).damage;
+        assert!(base > 0, "Lash Out should deal damage");
+        // ×2 base power is lossless in the chain (8192>>12 == 2); allow ±1 final rounding.
+        assert!(boosted >= base * 2 - 1 && boosted <= base * 2 + 1,
+            "Lash Out must ~double with a stat lowered: base={base} boosted={boosted}");
+    }
+
+    #[test]
+    fn test_non_lash_out_move_unaffected_by_flag() {
+        // Control: a different Dark physical (Night Slash) must NOT double on the flag.
+        let mut state = test_state();
+        let night_slash = crate::data::MOVE_NIGHT_SLASH as u16;
+        let off = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
+        state.sides[0].set_stats_lowered_this_turn();
+        let on = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
+        assert!(off > 0);
+        assert_eq!(off, on, "non-Lash-Out move must be unaffected by statsLoweredThisTurn");
     }
 
     #[test]
