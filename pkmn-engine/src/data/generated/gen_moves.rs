@@ -111,7 +111,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Ohko, secondary_status:0,
         self_effect:SelfEffect::None },
     // [13] Razor Wind
     MoveData { flags:MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:80, accuracy:100,
@@ -271,7 +271,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Ohko, secondary_status:0,
         self_effect:SelfEffect::None },
     // [33] Tackle
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
@@ -735,7 +735,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Ohko, secondary_status:0,
         self_effect:SelfEffect::None },
     // [91] Dig
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:80, accuracy:100,
@@ -2647,7 +2647,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Ohko, secondary_status:0,
         self_effect:SelfEffect::None },
     // [330] Muddy Water
     MoveData { flags:MoveFlags::PROTECT, base_power:90, accuracy:85,

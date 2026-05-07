@@ -288,6 +288,8 @@ pub enum MoveEffect {
     Thief            = 124, // Thief/Covet: itemless user steals target's removable item post-hit
 
     FocusPunch       = 125, // Fails (0 damage) if the user took a damaging move-hit earlier this turn
+
+    Ohko             = 126, // Guillotine/Horn Drill/Fissure/Sheer Cold: deal target's max HP; fail on type immunity, user level < target level, Sheer Cold vs Ice
 }
 
 // Flags (16 bits)

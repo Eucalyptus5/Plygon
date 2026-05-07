@@ -66,6 +66,17 @@ fn effective_accuracy(
 ) -> u32 {
     if md.accuracy == 0 { return u32::MAX; }
 
+    // One-hit KO moves bypass all accuracy/evasion modifiers (Showdown
+    // hitStepAccuracy): accuracy = 30 + (userLevel − targetLevel). The level-fail
+    // and type/Ice immunities are enforced deterministically in calc_damage
+    // (type_immune); this only sets the hit chance. (Sheer Cold's base-20 for a
+    // non-Ice user shifts only the miss chance, never the hit/fail outcome.)
+    if md.effect == MoveEffect::Ohko {
+        let atk_level = state.active_mon(atk_side).level as i32;
+        let def_level = state.active_mon(1 - atk_side).level as i32;
+        return (30 + atk_level - def_level).max(1) as u32;
+    }
+
     // Weather-dependent accuracy overrides
     if md.effect == MoveEffect::WeatherAccRain {
         match effective_weather_for(state, atk_side) {
@@ -2621,6 +2632,17 @@ pub(crate) fn use_move_called(
 
     if result.type_immune {
         apply_crash_if_needed(state, atk_side, md);
+        return;
+    }
+
+    // Sturdy vs a one-hit KO move is full immunity (Showdown's Sturdy onTryHit
+    // returns null → holder unharmed at full HP), distinct from the generic
+    // survive-at-1 below. Mold Breaker suppresses it.
+    if md.effect == MoveEffect::Ohko
+        && !result.hits_substitute
+        && effective_ability(state, def_side) == data_bridge::ABILITY_STURDY
+        && !mold_breaks(state, def_side, effective_ability(state, atk_side))
+    {
         return;
     }
 
@@ -5911,6 +5933,28 @@ mod tests {
         execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
 
         assert!(state.sides[1].team[0].is_fainted());
+    }
+
+    #[test]
+    fn test_ohko_kos_without_sturdy() {
+        let mut state = setup();
+        // Fissure (Ground OHKO) vs Diglett (species 50, pure Ground → neutral),
+        // same level, no Sturdy → deals max HP and KOs.
+        execute_move(&mut state, &TeamData::default(), 0, 90, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].is_fainted(), "legit OHKO KOs a non-Sturdy target");
+    }
+
+    #[test]
+    fn test_sturdy_ohko_full_immunity() {
+        let mut state = setup();
+        // Sturdy makes a one-hit KO move FULLY immune (Showdown onTryHit), holder
+        // unharmed at full HP — distinct from the generic survive-at-1 path.
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STURDY;
+        let before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 90, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, before,
+            "Sturdy gives OHKO full immunity (holder stays at full HP, not 1)");
+        assert!(!state.sides[1].team[0].is_fainted());
     }
 
     #[test]

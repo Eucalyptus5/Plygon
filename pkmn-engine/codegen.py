@@ -662,6 +662,13 @@ def has_heal_flag(block, sd_flags):
     return "heal" in sd_flags
 
 
+def has_ohko(block):
+    """One-hit KO moves (Guillotine, Horn Drill, Fissure, Sheer Cold).
+    Showdown carries `ohko: true` (type-immunity only) or `ohko: 'Ice'`
+    (Sheer Cold: additionally immune vs Ice types, gen 7+)."""
+    return extract_field(block, "ohko") is not None
+
+
 def has_recharge(block, sd_flags):
     """Moves with recharge turn (Hyper Beam, etc.).
     Uses the Showdown 'recharge' flag, which is the authoritative indicator.
@@ -783,6 +790,11 @@ def gen_moves():
         effect = "MoveEffect::None"
         if key in MOVE_EFFECT:
             effect = f"MoveEffect::{MOVE_EFFECT[key]}"
+        # One-hit KO moves: data-driven from Showdown's `ohko:` field. These carry
+        # base_power:0 / VarPower::None, so without this they'd fall to the calc.rs
+        # Struggle catch-all (typeless 50-BP + max_hp/4 recoil).
+        if has_ohko(block):
+            effect = "MoveEffect::Ohko"
 
         # VarPower
         var_power = "VarPower::None"

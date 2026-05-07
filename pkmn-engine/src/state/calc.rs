@@ -105,6 +105,29 @@ pub fn calc_damage(
                 // Simplified: these depend on last-hit tracking, return 0 in calc_damage
                 return DamageResult::default();
             }
+            MoveEffect::Ohko => {
+                // One-hit KO (Guillotine/Horn Drill/Fissure/Sheer Cold): deal the
+                // target's max HP. Showdown fails the move on (a) type immunity
+                // (Fissure vs Flying), (b) Sheer Cold vs Ice types (gen 7+), and
+                // (c) user level < target level — each reported as `-immune`.
+                let (move_type, _) = resolve_move_type_with_ability(state, md, atk_side, effective_ability(state, atk_side));
+                let (def_t1, def_t2) = battle_types(state, def_side);
+                let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+                let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+                let eff = dual_type_effectiveness(move_type, def_type1, def_type2);
+                let def_mon = state.active_mon(def_side);
+                let sheer_cold_ice = move_id == crate::data::MOVE_SHEER_COLD as u16
+                    && (def_type1 == Type::Ice || def_type2 == Type::Ice);
+                if eff == 0 || sheer_cold_ice || atk_mon.level < def_mon.level {
+                    return DamageResult { type_immune: true, ..Default::default() };
+                }
+                return DamageResult {
+                    damage: def_mon.max_hp,
+                    effectiveness: eff,
+                    hits: 1,
+                    ..Default::default()
+                };
+            }
             _ => {
                 // Other bp=0 non-VarPower moves: treat as Struggle
                 return calc_struggle(state, atk_side);
@@ -745,6 +768,58 @@ mod tests {
         let on = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
         assert!(off > 0);
         assert_eq!(off, on, "non-Lash-Out move must be unaffected by statsLoweredThisTurn");
+    }
+
+    #[test]
+    fn test_ohko_deals_max_hp() {
+        let mut state = test_state();
+        // Defender Tera Normal (Ground-neutral, not immune), same level.
+        state.sides[1].team[0].tera_type = Type::Normal as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[1].team[0].max_hp = 271;
+        state.sides[1].team[0].current_hp = 271;
+        let r = calc_damage(&state, 0, crate::data::MOVE_FISSURE as u16, 100, &mut fixed_rng(0));
+        assert!(!r.type_immune);
+        assert_eq!(r.damage, 271, "OHKO deals the target's max HP");
+        assert_eq!(r.recoil_damage, 0, "OHKO carries no Struggle recoil");
+    }
+
+    #[test]
+    fn test_ohko_type_immune() {
+        let mut state = test_state();
+        // Defender Tera Flying → Ground (Fissure) is type-immune.
+        state.sides[1].team[0].tera_type = Type::Flying as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        let r = calc_damage(&state, 0, crate::data::MOVE_FISSURE as u16, 100, &mut fixed_rng(0));
+        assert!(r.type_immune);
+        assert_eq!(r.damage, 0);
+    }
+
+    #[test]
+    fn test_ohko_fails_when_user_lower_level() {
+        let mut state = test_state();
+        state.sides[1].team[0].tera_type = Type::Normal as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[0].team[0].level = 50; // user
+        state.sides[1].team[0].level = 80; // target higher → immune
+        let r = calc_damage(&state, 0, crate::data::MOVE_FISSURE as u16, 100, &mut fixed_rng(0));
+        assert!(r.type_immune, "OHKO fails when user level < target level");
+    }
+
+    #[test]
+    fn test_sheer_cold_immune_vs_ice() {
+        let mut state = test_state();
+        // Sheer Cold fails vs Ice types (gen 7+) even though Ice-vs-Ice is not a
+        // type-chart immunity.
+        state.sides[1].team[0].tera_type = Type::Ice as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        let r = calc_damage(&state, 0, crate::data::MOVE_SHEER_COLD as u16, 100, &mut fixed_rng(0));
+        assert!(r.type_immune, "Sheer Cold fails vs Ice types");
+        // Control: Sheer Cold vs a non-Ice (Normal) target deals max HP.
+        state.sides[1].team[0].tera_type = Type::Normal as u8;
+        let r2 = calc_damage(&state, 0, crate::data::MOVE_SHEER_COLD as u16, 100, &mut fixed_rng(0));
+        assert!(!r2.type_immune);
+        assert_eq!(r2.damage, state.sides[1].team[0].max_hp);
     }
 
     #[test]
