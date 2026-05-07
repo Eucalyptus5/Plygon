@@ -342,6 +342,15 @@ VAR_POWER = {
     "payback": "Payback",
     "avalanche": "Avalanche", "revenge": "Avalanche",
     "furycutter": "FuryCutter",
+    "hardpress": "HpRatio", "crushgrip": "HpRatio",
+}
+
+# HP-ratio moves carry basePower:0 in Showdown with a basePowerCallback. We carry
+# the callback's coefficient (full-HP BP) in base_power and resolve the
+# ⌊coeff·hp/maxhp⌋ formula in resolve_power. Coefficient verified from moves.ts.
+VAR_POWER_BASE = {
+    "hardpress": 100,
+    "crushgrip": 120,
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -717,6 +726,9 @@ def gen_moves():
 
         sd_flags = extract_flags(block)
         bp = extract_bp(block)
+        # HP-ratio moves: carry the basePowerCallback coefficient in base_power.
+        if key in VAR_POWER_BASE:
+            bp = VAR_POWER_BASE[key]
         accuracy = extract_accuracy(block)
         category = extract_category(block)
         move_type = extract_type(block)

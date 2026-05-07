@@ -316,6 +316,17 @@ pub fn resolve_power(
             // 2× if target's current HP ≤ 50% of max
             if def_mon.current_hp * 2 <= def_mon.max_hp { 130 } else { 65 }
         }
+        VarPower::HpRatio => {
+            // Hard Press (912) / Crush Grip (462): BP scales with the target's
+            // remaining HP fraction. Showdown moves.ts basePowerCallback:
+            //   ⌊⌊(coeff·100·⌊hp·4096/maxhp⌋ + 2047) / 4096⌋ / 100⌋ || 1
+            // The coefficient (full-HP BP: Hard Press 100, Crush Grip 120) is
+            // carried in base_power by codegen.
+            let coeff = md.base_power as u32;
+            let max = (def_mon.max_hp as u32).max(1);
+            let a = def_mon.current_hp as u32 * 4096 / max;
+            (((coeff * 100 * a + 2047) / 4096) / 100).max(1) as u16
+        }
         VarPower::Payback => {
             // 2× if user moves after target (target already moved this turn)
             if state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) { 100 } else { 50 }
@@ -1092,6 +1103,47 @@ mod tests {
         state.field.terrain = TERRAIN_ELECTRIC;
         state.field.terrain_turns = 5;
         assert_eq!(resolve_power(&state, &md, 0, 1), 140);
+    }
+
+    #[test]
+    fn test_hp_ratio_var_power() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 1;
+        state.sides[0].team[0].stats = [100; 5];
+        state.sides[1].team[0].species_id = 2;
+        state.sides[1].team[0].stats = [100; 5];
+        state.sides[1].team[0].max_hp = 200;
+
+        // Hard Press: coefficient 100 carried in base_power.
+        let md = MoveData {
+            base_power: 100,
+            var_power: VarPower::HpRatio,
+            category: MoveCategory::Physical,
+            move_type: Type::Steel,
+            ..unsafe { core::mem::zeroed() }
+        };
+        // Full HP → 100 BP
+        state.sides[1].team[0].current_hp = 200;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 100);
+        // Half HP → 50 BP
+        state.sides[1].team[0].current_hp = 100;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 50);
+        // 1 HP → clamps to 1, never 0
+        state.sides[1].team[0].current_hp = 1;
+        assert_eq!(resolve_power(&state, &md, 0, 1), 1);
+
+        // Crush Grip: coefficient 120.
+        let md_cg = MoveData {
+            base_power: 120,
+            var_power: VarPower::HpRatio,
+            category: MoveCategory::Physical,
+            move_type: Type::Normal,
+            ..unsafe { core::mem::zeroed() }
+        };
+        state.sides[1].team[0].current_hp = 200;
+        assert_eq!(resolve_power(&state, &md_cg, 0, 1), 120);
+        state.sides[1].team[0].current_hp = 100;
+        assert_eq!(resolve_power(&state, &md_cg, 0, 1), 60);
     }
 
     #[test]

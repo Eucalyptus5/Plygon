@@ -3706,9 +3706,9 @@ pub static GEN_MOVES: &[MoveData] = &[
         effect:MoveEffect::LunarDance, secondary_status:0,
         self_effect:SelfEffect::None },
     // [462] Crush Grip
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:120, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Normal,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::HpRatio, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0,
@@ -7306,9 +7306,9 @@ pub static GEN_MOVES: &[MoveData] = &[
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [912] Hard Press
-    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:0, accuracy:100,
+    MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:100,
         category:MoveCategory::Physical, move_type:Type::Steel,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::HpRatio, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
         effect:MoveEffect::None, secondary_status:0,
