@@ -520,6 +520,8 @@ fn execute_status_move(
         && md.effect != MoveEffect::HealingWish
         && md.effect != MoveEffect::LunarDance
         && md.effect != MoveEffect::Swallow // heals by stockpile count, fails at 0 — see MoveEffect::Swallow arm
+        && move_id as usize != crate::data::MOVE_HEAL_PULSE
+        && move_id as usize != crate::data::MOVE_FLORAL_HEALING // target:Any HEAL — heal the foe, handled below
     {
         let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
         heal(state, atk_side, atk_slot, max_hp / 2);
@@ -568,6 +570,33 @@ fn execute_status_move(
         }
     }
     if !targets_self && md.accuracy != 0 && !accuracy_check(state, atk_side, md, rng) {
+        return;
+    }
+
+    // Heal Pulse (505) / Floral Healing (666): target:Any HEAL moves restore the
+    // TARGET's HP off its own max HP, not the user's. Mirrors Showdown moves.ts
+    // (baseMaxhp): Heal Pulse 50% / 75% with Mega Launcher; Floral Healing 50% /
+    // 0.667 in Grassy Terrain. Fail at target full HP or under Heal Block.
+    if move_id as usize == crate::data::MOVE_HEAL_PULSE
+        || move_id as usize == crate::data::MOVE_FLORAL_HEALING
+    {
+        let tgt = &state.sides[def_side].team[def_slot];
+        if tgt.current_hp >= tgt.max_hp || state.sides[def_side].active.heal_block_turns > 0 {
+            return;
+        }
+        let max_hp = tgt.max_hp as u32;
+        let amount = if move_id as usize == crate::data::MOVE_HEAL_PULSE
+            && effective_ability(state, atk_side) == data_bridge::ABILITY_MEGA_LAUNCHER
+        {
+            crate::state::calc_modifiers::chain_mod(max_hp, 3072) // modify(maxhp, 0.75)
+        } else if move_id as usize == crate::data::MOVE_FLORAL_HEALING
+            && state.field.terrain == TERRAIN_GRASSY
+        {
+            crate::state::calc_modifiers::chain_mod(max_hp, 2732) // modify(maxhp, 0.667)
+        } else {
+            (max_hp + 1) / 2 // ceil(maxhp * 0.5)
+        };
+        heal(state, def_side, def_slot, amount as u16);
         return;
     }
 
@@ -6034,6 +6063,85 @@ mod tests {
         execute_move(&mut state, &TeamData::default(),0, MOVE_RECOVER as u16, 0, &mut fixed_rng(0));
         // Should heal 50% of max HP
         assert_eq!(state.sides[0].team[0].current_hp, hp_before + max_hp / 2);
+    }
+
+    // Heal Pulse (505) / Floral Healing (666) are target:Any HEAL moves: they carry
+    // MoveFlags::HEAL but must heal the TARGET off its own max HP, not the user.
+    #[test]
+    fn test_heal_pulse_heals_target_not_user() {
+        use crate::data::MOVE_HEAL_PULSE;
+        let mut state = setup();
+        state.sides[0].team[0].current_hp = 100; // user (atk_side)
+        state.sides[1].team[0].current_hp = 100; // target (def_side), max 300
+        let md = MoveData {
+            flags: MoveFlags::HEAL, category: MoveCategory::Status, accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), MOVE_HEAL_PULSE as u16);
+        // ceil(300 * 0.5) = 150 onto the target; user untouched.
+        assert_eq!(state.sides[1].team[0].current_hp, 250);
+        assert_eq!(state.sides[0].team[0].current_hp, 100);
+    }
+
+    #[test]
+    fn test_heal_pulse_fails_at_target_full_hp() {
+        use crate::data::MOVE_HEAL_PULSE;
+        let mut state = setup(); // target (side 1) at full 300
+        let md = MoveData {
+            flags: MoveFlags::HEAL, category: MoveCategory::Status, accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), MOVE_HEAL_PULSE as u16);
+        assert_eq!(state.sides[1].team[0].current_hp, 300);
+    }
+
+    #[test]
+    fn test_heal_pulse_fails_under_heal_block() {
+        use crate::data::MOVE_HEAL_PULSE;
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 100;
+        state.sides[1].active.heal_block_turns = 3; // target is heal-blocked
+        let md = MoveData {
+            flags: MoveFlags::HEAL, category: MoveCategory::Status, accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), MOVE_HEAL_PULSE as u16);
+        assert_eq!(state.sides[1].team[0].current_hp, 100);
+    }
+
+    #[test]
+    fn test_heal_pulse_mega_launcher_75pct() {
+        use crate::data::MOVE_HEAL_PULSE;
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = crate::state::data_bridge::ABILITY_MEGA_LAUNCHER;
+        state.sides[1].team[0].current_hp = 50; // max 300
+        let md = MoveData {
+            flags: MoveFlags::HEAL, category: MoveCategory::Status, accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), MOVE_HEAL_PULSE as u16);
+        // modify(300, 0.75) = chain_mod(300, 3072) = 225 → 50 + 225
+        assert_eq!(state.sides[1].team[0].current_hp, 275);
+    }
+
+    #[test]
+    fn test_floral_healing_grassy_terrain() {
+        use crate::data::MOVE_FLORAL_HEALING;
+        let md = MoveData {
+            flags: MoveFlags::HEAL, category: MoveCategory::Status, accuracy: 0,
+            ..unsafe { core::mem::zeroed() }
+        };
+        // No terrain: ceil(300 * 0.5) = 150 → 50 + 150
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 50;
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), MOVE_FLORAL_HEALING as u16);
+        assert_eq!(state.sides[1].team[0].current_hp, 200);
+        // Grassy Terrain: modify(300, 0.667) = chain_mod(300, 2732) = 200 → 50 + 200
+        let mut state = setup();
+        state.field.terrain = TERRAIN_GRASSY;
+        state.sides[1].team[0].current_hp = 50;
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), MOVE_FLORAL_HEALING as u16);
+        assert_eq!(state.sides[1].team[0].current_hp, 250);
     }
 
     #[test]
