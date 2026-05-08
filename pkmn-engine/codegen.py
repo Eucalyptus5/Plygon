@@ -67,6 +67,20 @@ MOVE_EFFECT = {
     "quiverdance": "QuiverDance", "shellsmash": "ShellSmash",
     "coil": "Coil", "shiftgear": "ShiftGear",
     "honeclaws": "HoneClaws",
+    # Self-boost status moves (all carried effect:None → applied no boost).
+    # Reuse the matching boost-vector arm; new arms where none matched.
+    "acidarmor": "IronDefense",                     # +2 Def ≡ Iron Defense
+    "withdraw": "Harden", "harden": "Harden",       # +1 Def
+    "defensecurl": "Harden",                        # +1 Def (Rollout/Ice-Ball doubling rider unmodeled)
+    "cottonguard": "CottonGuard",                   # +3 Def
+    "cosmicpower": "CosmicPower",                   # +1 Def, +1 SpD
+    "amnesia": "Amnesia",                           # +2 SpD
+    "meditate": "Meditate", "sharpen": "Meditate",  # +1 Atk
+    "workup": "WorkUp",                             # +1 Atk, +1 SpA
+    "growth": "Growth",                             # +1 Atk, +1 SpA (×2 in harsh sun)
+    "tailglow": "TailGlow",                         # +3 SpA
+    # Barrier (112, +2 Def ≡ IronDefense) is present but excepted (Past, 0 randbats);
+    # Stuff Cheeks (747) excepted: berry-eat onTry rider, not a pure boost.
     "reflect": "Reflect", "lightscreen": "LightScreen",
     "auroraveil": "AuroraVeil", "tailwind": "Tailwind",
     "trickroom": "TrickRoom",

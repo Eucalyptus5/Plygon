@@ -740,6 +740,25 @@ fn execute_status_move(
             apply_boost(state, atk_side, ATK, 1);
             apply_boost(state, atk_side, ACC, 1);
         }
+        MoveEffect::Harden      => { apply_boost(state, atk_side, DEF, 1); }
+        MoveEffect::CottonGuard => { apply_boost(state, atk_side, DEF, 3); }
+        MoveEffect::CosmicPower => {
+            apply_boost(state, atk_side, DEF, 1);
+            apply_boost(state, atk_side, SPD, 1);
+        }
+        MoveEffect::Amnesia     => { apply_boost(state, atk_side, SPD, 2); }
+        MoveEffect::Meditate    => { apply_boost(state, atk_side, ATK, 1); }
+        MoveEffect::WorkUp      => {
+            apply_boost(state, atk_side, ATK, 1);
+            apply_boost(state, atk_side, SPA, 1);
+        }
+        MoveEffect::Growth      => {
+            // Growth boosts double in harsh sun (moves.ts onModifyMove).
+            let n = if matches!(effective_weather_for(state, atk_side), WEATHER_SUN | WEATHER_HARSH_SUN) { 2 } else { 1 };
+            apply_boost(state, atk_side, ATK, n);
+            apply_boost(state, atk_side, SPA, n);
+        }
+        MoveEffect::TailGlow    => { apply_boost(state, atk_side, SPA, 3); }
 
         // -- Screens --
         // Showdown's Side.addSideCondition (sim/side.ts:405-409) rejects a
@@ -4163,6 +4182,47 @@ mod tests {
         let hp1 = state.sides[1].team[0].current_hp;
         execute_move(&mut state, &TeamData::default(), 0, 660, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, hp1, "First Impression fails after the user has acted");
+    }
+
+    #[test]
+    fn test_self_boost_status_family() {
+        // batch-4·D self-boost family: each must apply its exact Showdown boost.
+        // Expected (atk, def, spa, spd, spe) after one use from neutral.
+        let cases: [(u16, [i8; 5]); 11] = [
+            (151, [0, 2, 0, 0, 0]),  // Acid Armor: +2 Def (≡ Iron Defense)
+            (538, [0, 3, 0, 0, 0]),  // Cotton Guard: +3 Def
+            (110, [0, 1, 0, 0, 0]),  // Withdraw: +1 Def
+            (106, [0, 1, 0, 0, 0]),  // Harden: +1 Def
+            (111, [0, 1, 0, 0, 0]),  // Defense Curl: +1 Def
+            (322, [0, 1, 0, 1, 0]),  // Cosmic Power: +1 Def/+1 SpD
+            (133, [0, 0, 0, 2, 0]),  // Amnesia: +2 SpD
+            (96,  [1, 0, 0, 0, 0]),  // Meditate: +1 Atk
+            (159, [1, 0, 0, 0, 0]),  // Sharpen: +1 Atk
+            (526, [1, 0, 1, 0, 0]),  // Work Up: +1 Atk/+1 SpA
+            (294, [0, 0, 3, 0, 0]),  // Tail Glow: +3 SpA
+        ];
+        for (id, exp) in cases {
+            let mut state = setup();
+            execute_move(&mut state, &TeamData::default(), 0, id, 0, &mut fixed_rng(0));
+            let b = state.sides[0].active.boosts;
+            assert_eq!([b[ATK], b[DEF], b[SPA], b[SPD], b[SPE]], exp, "move {id} boost mismatch");
+        }
+    }
+
+    #[test]
+    fn test_growth_sun_doubles() {
+        // Growth (74): +1 Atk/+1 SpA in clear, +2/+2 in (harsh) sun.
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0, 74, 0, &mut fixed_rng(0));
+        let b = state.sides[0].active.boosts;
+        assert_eq!([b[ATK], b[SPA]], [1, 1], "Growth +1/+1 in clear weather");
+
+        let mut state = setup();
+        state.field.weather = WEATHER_SUN;
+        state.field.weather_turns = 5;
+        execute_move(&mut state, &TeamData::default(), 0, 74, 0, &mut fixed_rng(0));
+        let b = state.sides[0].active.boosts;
+        assert_eq!([b[ATK], b[SPA]], [2, 2], "Growth +2/+2 in sun");
     }
 
     #[test]

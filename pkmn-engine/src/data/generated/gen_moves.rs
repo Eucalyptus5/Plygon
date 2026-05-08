@@ -607,7 +607,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Growth, secondary_status:0,
         self_effect:SelfEffect::None },
     // [75] Razor Leaf
     MoveData { flags:MoveFlags::SLICE | MoveFlags::PROTECT, base_power:55, accuracy:95,
@@ -783,7 +783,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Meditate, secondary_status:0,
         self_effect:SelfEffect::None },
     // [97] Agility
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -863,7 +863,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Harden, secondary_status:0,
         self_effect:SelfEffect::None },
     // [107] Minimize
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -895,7 +895,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Harden, secondary_status:0,
         self_effect:SelfEffect::None },
     // [111] Defense Curl
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -903,7 +903,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Harden, secondary_status:0,
         self_effect:SelfEffect::None },
     // [112] Barrier
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -1079,7 +1079,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Amnesia, secondary_status:0,
         self_effect:SelfEffect::None },
     // [134] Kinesis
     MoveData { flags:MoveFlags::REFLECTABLE | MoveFlags::PROTECT, base_power:0, accuracy:80,
@@ -1223,7 +1223,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::IronDefense, secondary_status:0,
         self_effect:SelfEffect::None },
     // [152] Crabhammer
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:100, accuracy:90,
@@ -1287,7 +1287,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Meditate, secondary_status:0,
         self_effect:SelfEffect::None },
     // [160] Conversion
     MoveData { flags:0, base_power:0, accuracy:0,
@@ -2367,7 +2367,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::TailGlow, secondary_status:0,
         self_effect:SelfEffect::None },
     // [295] Luster Purge
     MoveData { flags:MoveFlags::PROTECT, base_power:95, accuracy:100,
@@ -2591,7 +2591,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::CosmicPower, secondary_status:0,
         self_effect:SelfEffect::None },
     // [323] Water Spout
     MoveData { flags:MoveFlags::PROTECT, base_power:150, accuracy:100,
@@ -4223,7 +4223,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::WorkUp, secondary_status:0,
         self_effect:SelfEffect::None },
     // [527] Electroweb
     MoveData { flags:MoveFlags::PROTECT, base_power:55, accuracy:95,
@@ -4319,7 +4319,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::CottonGuard, secondary_status:0,
         self_effect:SelfEffect::None },
     // [539] Night Daze
     MoveData { flags:MoveFlags::PROTECT, base_power:85, accuracy:95,

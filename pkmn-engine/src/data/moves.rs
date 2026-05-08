@@ -290,6 +290,16 @@ pub enum MoveEffect {
     FocusPunch       = 125, // Fails (0 damage) if the user took a damaging move-hit earlier this turn
 
     Ohko             = 126, // Guillotine/Horn Drill/Fissure/Sheer Cold: deal target's max HP; fail on type immunity, user level < target level, Sheer Cold vs Ice
+
+    // -- Self-boost status moves (batch-4·D self-boost family) --
+    Harden           = 127, // Withdraw/Harden/Defense Curl: +1 Def
+    CottonGuard      = 128, // +3 Def
+    CosmicPower      = 129, // +1 Def, +1 SpD
+    Amnesia          = 130, // +2 SpD
+    Meditate         = 131, // Meditate/Sharpen: +1 Atk
+    WorkUp           = 132, // +1 Atk, +1 SpA
+    Growth           = 133, // +1 Atk, +1 SpA (×2 in harsh sun)
+    TailGlow         = 134, // +3 SpA
 }
 
 // Flags (16 bits)
