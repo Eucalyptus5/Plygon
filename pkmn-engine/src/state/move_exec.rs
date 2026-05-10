@@ -3712,6 +3712,37 @@ pub(crate) fn use_move_called(
 /// span via [`use_move_called`] with `depth=0`. The post-`'exec` thrash
 /// confusion cleanup runs after the helper returns. Mirrors Showdown's
 /// `runMove` (sim/battle-actions.ts:200-296).
+/// Future Sight (248) / Doom Desire (353): Showdown registers a delayed attack on
+/// the target's side instead of dealing damage on use. The hit lands two
+/// end-of-turns later on whoever occupies the target slot then, computed from a
+/// use-time snapshot of the user's offense (level + boosted SpA + STAB kind), so
+/// it resolves even if the user has switched out or fainted. Fails (the move
+/// counts as failed) if one is already pending on that side. PP is already
+/// deducted by the caller before this runs.
+fn register_future_move(
+    state: &mut BattleState, atk_side: usize, def_side: usize, atk_slot: usize, move_id: u16,
+) {
+    if state.sides[def_side].side_conditions.future_move() != 0 {
+        state.sides[atk_side].set_move_failed_this_turn();
+        return;
+    }
+    let (which, move_type) = if move_id == crate::data::MOVE_FUTURE_SIGHT as u16 {
+        (1u8, Type::Psychic)
+    } else {
+        (2u8, Type::Steel)
+    };
+    let level = state.sides[atk_side].team[atk_slot].level;
+    let spa = boosted_stat(
+        effective_stat(state, atk_side, SPA),
+        state.sides[atk_side].active.boosts[SPA],
+    );
+    let (sn, _) = crate::state::calc_modifiers::stab_modifier(state, atk_side, move_type);
+    let stab_kind = match sn { 6144 => 1u8, 8192 => 2, 9216 => 3, _ => 0 };
+    state.sides[def_side]
+        .side_conditions
+        .set_future_move(which, 3, stab_kind, level, spa);
+}
+
 pub fn execute_move(
     state: &mut BattleState,
     teams: &TeamData,
@@ -3912,11 +3943,21 @@ pub fn execute_move(
 
     set_volatile(state, atk_side, VOL_MOVED_THIS_TURN);
 
-    use_move_called(
-        state, teams, atk_side, atk_slot, def_side, def_slot,
-        move_id, is_struggle, is_charge_turn2, is_move_locked,
-        md, rng, 0,
-    );
+    // Future Sight / Doom Desire: register a delayed attack on the target's side
+    // instead of hitting now (Showdown futuremove onTry). PP/last_move are already
+    // handled above; the hit lands two EOTs later (end_of_turn.rs step 3).
+    if !is_charge_turn2 && !is_struggle
+        && (move_id == crate::data::MOVE_FUTURE_SIGHT as u16
+            || move_id == crate::data::MOVE_DOOM_DESIRE as u16)
+    {
+        register_future_move(state, atk_side, def_side, atk_slot, move_id);
+    } else {
+        use_move_called(
+            state, teams, atk_side, atk_slot, def_side, def_slot,
+            move_id, is_struggle, is_charge_turn2, is_move_locked,
+            md, rng, 0,
+        );
+    }
     } // end 'exec
 
     // Thrash confusion: applied regardless of whether the move executed (para/freeze/etc.
@@ -4033,6 +4074,55 @@ mod tests {
         state.sides[0].promote_move_failed();
         assert!(state.sides[0].move_failed_last_turn(),
             "a type-immune move must set move_failed (promoted to last-turn)");
+    }
+
+    // ── Future Sight / Doom Desire: on-use registration ───────────────────────
+    #[test]
+    fn test_future_sight_registers_on_target_side_no_immediate_damage() {
+        let mut state = setup(); // side1 active hp 300/300
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_FUTURE_SIGHT as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].side_conditions.future_move(), 1, "FS registered on target side");
+        assert_eq!(state.sides[1].side_conditions.future_countdown(), 3, "countdown set to 3");
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before, "no immediate damage on use");
+        // snapshot: Pikachu (Electric) gets no Psychic STAB; SpA 150 (boost 0); level 100.
+        assert_eq!(state.sides[1].side_conditions.future_stab_kind(), 0);
+        assert_eq!(state.sides[1].side_conditions.fut_level, state.sides[0].team[0].level);
+        assert_eq!(state.sides[1].side_conditions.fut_spa, state.sides[0].team[0].stats[SPA]);
+    }
+
+    #[test]
+    fn test_future_sight_snapshots_psychic_stab() {
+        let mut state = setup();
+        state.sides[0].active.override_types = [Type::Psychic as u8, Type::Psychic as u8];
+        state.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_FUTURE_SIGHT as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].side_conditions.future_stab_kind(), 1, "Psychic user → ×1.5 STAB snapshot");
+    }
+
+    #[test]
+    fn test_doom_desire_registers_kind_2() {
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_DOOM_DESIRE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].side_conditions.future_move(), 2, "Doom Desire = kind 2");
+        assert_eq!(state.sides[1].team[0].current_hp, 300, "no immediate damage on use");
+    }
+
+    #[test]
+    fn test_future_sight_fails_if_already_pending() {
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_FUTURE_SIGHT as u16, 0, &mut fixed_rng(0));
+        let cd1 = state.sides[1].side_conditions.future_countdown();
+        // Second use while one is still pending → fails (no re-register, move counts as failed).
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_FUTURE_SIGHT as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].side_conditions.future_countdown(), cd1, "no re-register while pending");
+        state.sides[0].promote_move_failed();
+        assert!(state.sides[0].move_failed_last_turn(), "a blocked Future Sight counts as a failed move");
     }
 
     #[test]

@@ -6,12 +6,12 @@ use crate::state::data_bridge::{self, ItemFlag};
 use crate::state::accessors::*;
 use crate::state::mutations::*;
 use crate::state::forme;
-use crate::state::calc_modifiers::{terrain_blocks_status, is_heatproof_effective};
+use crate::state::calc_modifiers::{terrain_blocks_status, is_heatproof_effective, chain_mod};
 
 pub fn end_of_turn(state: &mut BattleState, teams: &TeamData, rng: &mut BattleRng) {
     step_weather(state);                                   // 1
     step_terrain_countdown(state);                               // 2a: decrement only
-    // 3: Future Sight (not yet implemented)
+    for side in 0..2 { step_future_move(state, side, rng); }     // 3: Future Sight / Doom Desire
     step_wish(state);                                      // 4
     for side in 0..2 { step_hydration(state, side); }      // 5a (order 5, sub 3)
     for side in 0..2 { step_item_healing(state, side); }   // 5b (order 5, sub 4)
@@ -123,6 +123,55 @@ fn step_terrain_expiry(state: &mut BattleState) {
         clear_terrain(state);
         crate::state::switch::check_paradox_deactivation(state);
     }
+}
+
+/// Step 3 (Showdown futuremove `onResidualOrder: 3`): resolve a pending Future
+/// Sight / Doom Desire. The `future_move() == 0` fast-exit keeps the common
+/// no-pending path (every bench turn) to a single byte read. On the resolution
+/// tick, deal special damage to the CURRENT slot occupant from the use-time
+/// snapshot (the user may have switched out or fainted), then clear the record.
+fn step_future_move(state: &mut BattleState, side: usize, rng: &mut BattleRng) {
+    let which = state.sides[side].side_conditions.future_move();
+    if which == 0 { return; }
+    let countdown = state.sides[side].side_conditions.future_countdown();
+    if countdown > 1 {
+        state.sides[side].side_conditions.set_future_countdown(countdown - 1);
+        return;
+    }
+    // Resolution tick (countdown reaches 1): snapshot offense, then clear the
+    // record regardless of whether the hit lands.
+    let level = state.sides[side].side_conditions.fut_level;
+    let spa = state.sides[side].side_conditions.fut_spa as u32;
+    let stab_kind = state.sides[side].side_conditions.future_stab_kind();
+    state.sides[side].side_conditions.clear_future_move();
+
+    let slot = state.sides[side].active_index as usize;
+    // Showdown onEnd skips a fainted occupant (the record is still consumed).
+    // Singles: the target slot can never hold the user, so no self-target check.
+    if state.sides[side].team[slot].is_fainted() { return; }
+
+    let (power, move_type): (u32, Type) =
+        if which == 1 { (120, Type::Psychic) } else { (140, Type::Steel) };
+    let (dt1, dt2) = battle_types(state, side);
+    let def_type1 = unsafe { core::mem::transmute::<u8, Type>(dt1) };
+    let def_type2 = unsafe { core::mem::transmute::<u8, Type>(dt2) };
+    let eff = dual_type_effectiveness(move_type, def_type1, def_type2);
+    if eff == 0 { return; } // type-immune (Future Sight Psychic vs Dark)
+
+    let d = boosted_stat(
+        effective_stat(state, side, SPD),
+        state.sides[side].active.boosts[SPD],
+    ).max(1) as u32;
+    let lf = 2 * level as u32 / 5 + 2;
+    let mut dmg = (lf * power * spa / d) / 50 + 2;
+    let roll = 85 + rng.next(16);
+    dmg = dmg * roll / 100;
+    let sn: u32 = match stab_kind { 1 => 6144, 2 => 8192, 3 => 9216, _ => 4096 };
+    dmg = chain_mod(dmg, sn);
+    dmg = dmg * eff as u32 / 4;
+    if dmg == 0 { dmg = 1; }
+    let dmg = dmg.min(u16::MAX as u32) as u16;
+    deal_damage(state, side, slot, dmg);
 }
 
 fn step_wish(state: &mut BattleState) {
@@ -875,6 +924,63 @@ mod tests {
         assert_eq!(s.sides[0].side_conditions.safeguard_turns(), 0);
         assert_eq!(s.sides[0].side_conditions.mist_turns(), 0);
         assert_eq!(s.sides[0].side_conditions.lucky_chant_turns(), 0);
+    }
+
+    // ── Future Sight / Doom Desire delayed-attack resolution ──────────────────
+    fn rng0() -> impl FnMut(u32) -> u32 { |_| 0u32 }
+
+    #[test]
+    fn test_future_move_resolves_at_third_eot() {
+        let mut s = setup(); // side 1 team[0]: species 50 (Ground, Psychic-neutral), hp 200
+        s.sides[1].team[0].current_hp = 500;
+        s.sides[1].team[0].max_hp = 500;
+        s.sides[1].team[0].stats[SPD] = 100;
+        s.sides[1].team[0].level = 100;
+        // Future Sight (kind 1), countdown 3, snapshot level 100 / SpA 200 / STAB ×1.5.
+        s.sides[1].side_conditions.set_future_move(1, 3, 1, 100, 200);
+        let mut c = rng0(); let mut rng = BattleRng::from_closure(&mut c);
+        step_future_move(&mut s, 1, &mut rng);
+        assert_eq!(s.sides[1].team[0].current_hp, 500, "no damage at 1st EOT");
+        assert_eq!(s.sides[1].side_conditions.future_countdown(), 2);
+        step_future_move(&mut s, 1, &mut rng);
+        assert_eq!(s.sides[1].team[0].current_hp, 500, "no damage at 2nd EOT");
+        assert_eq!(s.sides[1].side_conditions.future_countdown(), 1);
+        step_future_move(&mut s, 1, &mut rng);
+        // base=(42*120*200/100)/50+2=203; roll85→172; STAB×1.5→258; neutral→258.
+        assert_eq!(s.sides[1].team[0].current_hp, 242, "damage lands at 3rd EOT");
+        assert_eq!(s.sides[1].side_conditions.future_move(), 0, "record cleared after resolution");
+    }
+
+    #[test]
+    fn test_future_move_no_pending_is_noop() {
+        let mut s = setup();
+        let mut c = rng0(); let mut rng = BattleRng::from_closure(&mut c);
+        step_future_move(&mut s, 1, &mut rng);
+        assert_eq!(s.sides[1].team[0].current_hp, 200, "no pending move → no damage");
+    }
+
+    #[test]
+    fn test_future_sight_immune_vs_dark_clears_without_damage() {
+        let mut s = setup();
+        s.sides[1].team[0].stats[SPD] = 100;
+        s.sides[1].active.override_types = [Type::Dark as u8, Type::Dark as u8];
+        s.sides[1].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+        s.sides[1].side_conditions.set_future_move(1, 1, 1, 100, 200); // resolve this tick
+        let mut c = rng0(); let mut rng = BattleRng::from_closure(&mut c);
+        step_future_move(&mut s, 1, &mut rng);
+        assert_eq!(s.sides[1].team[0].current_hp, 200, "Dark is immune to Future Sight");
+        assert_eq!(s.sides[1].side_conditions.future_move(), 0, "record still consumed");
+    }
+
+    #[test]
+    fn test_future_move_skips_fainted_occupant() {
+        let mut s = setup();
+        s.sides[1].team[0].current_hp = 0; // fainted occupant
+        s.sides[1].side_conditions.set_future_move(1, 1, 1, 100, 200);
+        let mut c = rng0(); let mut rng = BattleRng::from_closure(&mut c);
+        step_future_move(&mut s, 1, &mut rng);
+        assert_eq!(s.sides[1].team[0].current_hp, 0);
+        assert_eq!(s.sides[1].side_conditions.future_move(), 0, "consumed even when occupant fainted");
     }
 
     #[test]

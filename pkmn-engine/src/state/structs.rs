@@ -227,7 +227,7 @@ pub struct ActiveMon {
     pub _padding: [u8; 5],
 }
 
-/// Side conditions: hazards, screens, field effects.  12 bytes.
+/// Side conditions: hazards, screens, field effects.  16 bytes.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct SideConditions {
@@ -244,6 +244,15 @@ pub struct SideConditions {
     pub safeguard_mist: u8,
     /// Packed: bits 0-2 = lucky_chant_turns (0-5), bit 3 = healing_wish, bit 4 = lunar_dance
     pub side_extra: u8,
+    /// Future Sight / Doom Desire pending delayed attack (Showdown `futuremove`
+    /// slotCondition). Packed: bits 0-1 = move (0 none / 1 Future Sight / 2 Doom
+    /// Desire), bits 2-3 = EOT countdown (set 3 at use, resolves at 1), bits 4-5
+    /// = use-time STAB kind (0 ×1.0 / 1 ×1.5 / 2 ×2.0 / 3 ×2.25). Lives in
+    /// SideConditions (not ActiveMon) so it survives the user/target switching.
+    pub fut_meta: u8,
+    pub fut_level: u8,
+    /// Snapshot of the user's effective boosted SpA at use-time.
+    pub fut_spa: u16,
 }
 
 /// Global field state: weather, terrain, trick room, gravity.  10 bytes.
@@ -403,9 +412,9 @@ pub struct TeamData {
 
 const _: () = assert!(size_of::<MonSlot>() == 38);
 const _: () = assert!(size_of::<ActiveMon>() == 72);
-const _: () = assert!(size_of::<SideConditions>() == 12);
+const _: () = assert!(size_of::<SideConditions>() == 16);
 const _: () = assert!(size_of::<FieldState>() == 10);
-const _: () = assert!(size_of::<SideState>() == 316);
+const _: () = assert!(size_of::<SideState>() == 320);
 const _: () = assert!(size_of::<BattleState>() <= 664);
 const _: () = assert!(size_of::<MonBuildData>() == 13);
 
@@ -474,6 +483,33 @@ impl SideConditions {
     pub fn set_lunar_dance(&mut self, v: bool) {
         if v { self.side_extra |= SIDE_LUNAR_DANCE; }
         else { self.side_extra &= !SIDE_LUNAR_DANCE; }
+    }
+
+    // ── Future Sight / Doom Desire pending delayed attack (fut_meta bit-pack) ──
+    /// 0 = none, 1 = Future Sight, 2 = Doom Desire.
+    #[inline(always)]
+    pub fn future_move(&self) -> u8 { self.fut_meta & 0x03 }
+    /// EOT countdown: 3 at use → resolves when it reaches 1.
+    #[inline(always)]
+    pub fn future_countdown(&self) -> u8 { (self.fut_meta >> 2) & 0x03 }
+    /// Use-time STAB kind: 0 ×1.0, 1 ×1.5, 2 ×2.0, 3 ×2.25.
+    #[inline(always)]
+    pub fn future_stab_kind(&self) -> u8 { (self.fut_meta >> 4) & 0x03 }
+    #[inline(always)]
+    pub fn set_future_countdown(&mut self, c: u8) {
+        self.fut_meta = (self.fut_meta & !0x0C) | ((c & 0x03) << 2);
+    }
+    #[inline(always)]
+    pub fn set_future_move(&mut self, which: u8, countdown: u8, stab_kind: u8, level: u8, spa: u16) {
+        self.fut_meta = (which & 0x03) | ((countdown & 0x03) << 2) | ((stab_kind & 0x03) << 4);
+        self.fut_level = level;
+        self.fut_spa = spa;
+    }
+    #[inline(always)]
+    pub fn clear_future_move(&mut self) {
+        self.fut_meta = 0;
+        self.fut_level = 0;
+        self.fut_spa = 0;
     }
 }
 
