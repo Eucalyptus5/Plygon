@@ -77,6 +77,9 @@ pub fn switch_out(state: &mut BattleState, teams: &TeamData, side: usize) {
     // Reset the move-action flag so the incoming mon's first move (e.g. Fake Out)
     // is treated as its first turn out (Showdown resets activeMoveActions on switch).
     state.sides[side].clear_acted_since_switch_in();
+    // Showdown clearVolatile resets moveThisTurnResult/moveLastTurnResult: a
+    // freshly-switched-in mon never doubles Stomping Tantrum / Temper Flare.
+    state.sides[side].clear_move_failed_state();
 }
 
 pub fn switch_in(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) {

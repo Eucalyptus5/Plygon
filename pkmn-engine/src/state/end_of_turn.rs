@@ -62,6 +62,9 @@ pub fn end_of_turn(state: &mut BattleState, teams: &TeamData, rng: &mut BattleRn
         state.sides[side].active.times_hit = 0;
         // Mirror Showdown's nextTurn reset of statsLoweredThisTurn (sim/battle.ts:1665).
         state.sides[side].clear_stats_lowered_this_turn();
+        // Mirror nextTurn's moveLastTurnResult = moveThisTurnResult (sim/battle.ts:1660):
+        // promote this turn's move-failure bit into last-turn for Stomping Tantrum / Temper Flare.
+        state.sides[side].promote_move_failed();
     }
     state.field.turn += 1;                                       // 18
 }

@@ -123,6 +123,16 @@ pub const SIDE_PAD_STATS_LOWERED: u8 = 1 << 1;
 /// Read by the Fake Out / First Impression / Mat Block first-turn `onTry` gate.
 pub const SIDE_PAD_ACTED_SINCE_SWITCH: u8 = 1 << 2;
 
+/// SideState `_padding[0]` bits 3-4: Showdown's `moveThisTurnResult` /
+/// `moveLastTurnResult` lifecycle, collapsed to the only outcome that matters —
+/// a genuine move failure. Bit 3 = this turn's move failed; bit 4 = last turn's
+/// move failed. Bit 3 is set at the move's hit-resolution failure sites
+/// (miss / type-or-ability immunity), promoted to bit 4 at end-of-turn (mirrors
+/// `nextTurn` sim/battle.ts:1660), and both clear on switch-out (clearVolatile).
+/// Bit 4 is read by Stomping Tantrum / Temper Flare's base-power doubling.
+pub const SIDE_PAD_MOVE_FAILED_THIS: u8 = 1 << 3;
+pub const SIDE_PAD_MOVE_FAILED_LAST: u8 = 1 << 4;
+
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
@@ -295,6 +305,36 @@ impl SideState {
     #[inline(always)]
     pub fn clear_stats_lowered_this_turn(&mut self) {
         self._padding[0] &= !SIDE_PAD_STATS_LOWERED;
+    }
+
+    /// Record that this turn's move attempt failed (Showdown `moveThisTurnResult
+    /// = false`). Set only at genuine hit-resolution failures; pre-move skips
+    /// (para/sleep/freeze/flinch/recharge) deliberately leave it clear.
+    #[inline(always)]
+    pub fn set_move_failed_this_turn(&mut self) {
+        self._padding[0] |= SIDE_PAD_MOVE_FAILED_THIS;
+    }
+
+    /// Read by Stomping Tantrum / Temper Flare onBasePower (×2 on prev failure).
+    #[inline(always)]
+    pub fn move_failed_last_turn(&self) -> bool {
+        self._padding[0] & SIDE_PAD_MOVE_FAILED_LAST != 0
+    }
+
+    /// End-of-turn promotion (Showdown `moveLastTurnResult = moveThisTurnResult;
+    /// moveThisTurnResult = undefined`): shift bit 3 → bit 4, clear bit 3. One
+    /// bit-shuffle per active mon per turn — runs in-bench every turn.
+    #[inline(always)]
+    pub fn promote_move_failed(&mut self) {
+        let p = self._padding[0];
+        self._padding[0] = (p & !(SIDE_PAD_MOVE_FAILED_THIS | SIDE_PAD_MOVE_FAILED_LAST))
+            | ((p & SIDE_PAD_MOVE_FAILED_THIS) << 1);
+    }
+
+    /// Clear both move-failure bits (switch-out / clearVolatile).
+    #[inline(always)]
+    pub fn clear_move_failed_state(&mut self) {
+        self._padding[0] &= !(SIDE_PAD_MOVE_FAILED_THIS | SIDE_PAD_MOVE_FAILED_LAST);
     }
 
     #[inline(always)]

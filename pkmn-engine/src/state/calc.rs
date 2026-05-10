@@ -349,6 +349,16 @@ pub fn calc_damage(
         power = chain_mod(power, 8192); // 2×
     }
 
+    // Stomping Tantrum / Temper Flare: onBasePower ×2 when the user's previous
+    // move failed (moves.ts basePowerCallback: `moveLastTurnResult === false`).
+    // Cold — the move_id compare is false for every other move.
+    if (move_id == crate::data::MOVE_STOMPING_TANTRUM as u16
+        || move_id == crate::data::MOVE_TEMPER_FLARE as u16)
+        && state.sides[atk_side].move_failed_last_turn()
+    {
+        power = chain_mod(power, 8192); // 2×
+    }
+
     // Defender's ability modifying move base power (Showdown: onSourceBasePower).
     // Breakable (bypassed by Mold Breaker). Dry Skin: 1.25× Fire base power.
     if !mold_breaks(state, def_side, atk_ability) {
@@ -768,6 +778,53 @@ mod tests {
         let on = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
         assert!(off > 0);
         assert_eq!(off, on, "non-Lash-Out move must be unaffected by statsLoweredThisTurn");
+    }
+
+    #[test]
+    fn test_stomping_tantrum_temper_flare_double_after_failure() {
+        // Defender Tera Normal so Ground (Stomping Tantrum) and Fire (Temper Flare)
+        // are both neutral and never immune — isolates the prev-move-failed ×2.
+        let mut base_state = test_state();
+        base_state.sides[1].team[0].tera_type = Type::Normal as u8;
+        base_state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        for mv in [crate::data::MOVE_STOMPING_TANTRUM as u16, crate::data::MOVE_TEMPER_FLARE as u16] {
+            let mut state = base_state;
+            let base = calc_damage(&state, 0, mv, 100, &mut fixed_rng(0)).damage;
+            // Capture this-turn failure then promote it to last-turn.
+            state.sides[0].set_move_failed_this_turn();
+            state.sides[0].promote_move_failed();
+            let boosted = calc_damage(&state, 0, mv, 100, &mut fixed_rng(0)).damage;
+            assert!(base > 0, "move {mv} should deal damage");
+            assert!(boosted >= base * 2 - 1 && boosted <= base * 2 + 1,
+                "move {mv} must ~double after a failed previous move: base={base} boosted={boosted}");
+        }
+    }
+
+    #[test]
+    fn test_stomping_tantrum_no_double_without_last_turn_failure() {
+        let mut state = test_state();
+        state.sides[1].team[0].tera_type = Type::Normal as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        let st = crate::data::MOVE_STOMPING_TANTRUM as u16;
+        let base = calc_damage(&state, 0, st, 100, &mut fixed_rng(0)).damage;
+        // A this-turn failure that has NOT been promoted must not double this turn
+        // (mirrors Showdown reading moveLastTurnResult, not moveThisTurnResult).
+        state.sides[0].set_move_failed_this_turn();
+        let same = calc_damage(&state, 0, st, 100, &mut fixed_rng(0)).damage;
+        assert_eq!(base, same, "Stomping Tantrum must not double on this-turn-only failure");
+    }
+
+    #[test]
+    fn test_non_stomping_tantrum_unaffected_by_move_failed() {
+        // Night Slash (a physical move) must not double on the move-failed flag.
+        let mut state = test_state();
+        let night_slash = crate::data::MOVE_NIGHT_SLASH as u16;
+        let off = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
+        state.sides[0].set_move_failed_this_turn();
+        state.sides[0].promote_move_failed();
+        let on = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
+        assert!(off > 0);
+        assert_eq!(off, on, "non-Stomping-Tantrum move must ignore move_failed_last_turn");
     }
 
     #[test]

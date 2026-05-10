@@ -533,8 +533,10 @@ fn execute_status_move(
     if !targets_self && state.sides[def_side].active.has_volatile(VOL_PROTECT_THIS_TURN) {
         return;
     }
-    // Semi-invulnerability: status moves miss semi-invulnerable targets
+    // Semi-invulnerability: status moves miss semi-invulnerable targets.
+    // (mark_move_failed here and below mirrors Showdown moveThisTurnResult=false.)
     if !targets_self && state.sides[def_side].active.has_volatile(VOL_SEMI_INVULNERABLE) {
+        mark_move_failed(state, atk_side);
         return;
     }
     // Substitute: block non-bypasssub status moves targeting the opponent.
@@ -545,6 +547,7 @@ fn execute_status_move(
         && state.sides[def_side].active.has_volatile(VOL_SUBSTITUTE)
         && effective_ability(state, atk_side) != data_bridge::ABILITY_INFILTRATOR
     {
+        mark_move_failed(state, atk_side);
         return;
     }
     if !targets_self {
@@ -553,23 +556,28 @@ fn execute_status_move(
         if atk_ability == data_bridge::ABILITY_PRANKSTER
             && has_type(state, def_side, Type::Dark as u8)
         {
+            mark_move_failed(state, atk_side);
             return;
         }
-        if good_as_gold_immunity(state, def_side) { return; }
+        if good_as_gold_immunity(state, def_side) { mark_move_failed(state, atk_side); return; }
         if let Some(eff) = ability_flag_immunity(state, def_side, md.flags, atk_ability) {
             apply_immunity_effect(state, def_side, def_slot, eff);
+            mark_move_failed(state, atk_side);
             return;
         }
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type, atk_ability) {
             apply_immunity_effect(state, def_side, def_slot, eff);
+            mark_move_failed(state, atk_side);
             return;
         }
         // Air Balloon: non-grounded mons are immune to Ground-type moves
         if md.move_type == Type::Ground && !is_grounded(state, def_side) {
+            mark_move_failed(state, atk_side);
             return;
         }
     }
     if !targets_self && md.accuracy != 0 && !accuracy_check(state, atk_side, md, rng) {
+        mark_move_failed(state, atk_side);
         return;
     }
 
@@ -2091,6 +2099,17 @@ fn apply_ally_stat_change(
     }
 }
 
+/// Record that the active mon's move on `atk_side` failed this turn (Showdown
+/// `moveThisTurnResult = false`) — fuels Stomping Tantrum / Temper Flare's ×2.
+/// Placed at the genuine hit-resolution failure sites (miss / type-or-ability
+/// immunity) in both the damaging and status dispatch paths; NOT on Protect-block
+/// / Disguise (Showdown counts those as `true`) nor pre-move skips. A single byte
+/// OR off the per-hit `calc_damage` loop — never runs for a move that connects.
+#[inline(always)]
+fn mark_move_failed(state: &mut BattleState, atk_side: usize) {
+    state.sides[atk_side].set_move_failed_this_turn();
+}
+
 /// Apply crash damage (50% max HP) if the move has CrashDamage self-effect.
 /// Called on every move-failure path: miss, Protect, immunity, semi-invuln.
 #[inline]
@@ -2464,6 +2483,7 @@ pub(crate) fn use_move_called(
             || has_type(state, def_side, Type::Grass as u8))
     {
         apply_crash_if_needed(state, atk_side, md);
+        mark_move_failed(state, atk_side);
         return;
     }
 
@@ -2514,12 +2534,14 @@ pub(crate) fn use_move_called(
             && !can_hit_semi_invuln(move_id, state.sides[def_side].active._padding[1])
         {
             apply_crash_if_needed(state, atk_side, md);
+            mark_move_failed(state, atk_side);
             return;
         }
     }
 
     if !is_struggle && !accuracy_check(state, atk_side, md, rng) {
         apply_crash_if_needed(state, atk_side, md);
+        mark_move_failed(state, atk_side);
         // Fury Cutter resets its escalating BP counter on miss (Showdown
         // clears the `furycutter` volatile when the move fails to hit).
         if move_id == crate::data::MOVE_FURY_CUTTER as u16 {
@@ -2532,6 +2554,7 @@ pub(crate) fn use_move_called(
         // Priority-blocking: Dazzling / Queenly Majesty / Armor Tail
         if priority_block_immunity(state, def_side, md.priority) {
             apply_crash_if_needed(state, atk_side, md);
+            mark_move_failed(state, atk_side);
             return;
         }
         // Flag-based immunities (Bulletproof, Soundproof, Overcoat, Wind Rider)
@@ -2540,12 +2563,14 @@ pub(crate) fn use_move_called(
         if let Some(eff) = ability_flag_immunity(state, def_side, md.flags, atk_ability_imm) {
             apply_immunity_effect(state, def_side, def_slot, eff);
             apply_crash_if_needed(state, atk_side, md);
+            mark_move_failed(state, atk_side);
             return;
         }
         // Type-based immunities and side effects
         if let Some(eff) = ability_type_immunity(state, def_side, md.move_type, atk_ability_imm) {
             apply_immunity_effect(state, def_side, def_slot, eff);
             apply_crash_if_needed(state, atk_side, md);
+            mark_move_failed(state, atk_side);
             return;
         }
     }
@@ -2680,6 +2705,7 @@ pub(crate) fn use_move_called(
 
     if result.type_immune {
         apply_crash_if_needed(state, atk_side, md);
+        mark_move_failed(state, atk_side);
         return;
     }
 
@@ -3992,6 +4018,49 @@ mod tests {
         apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_ANCIENT_POWER as u16, &mut fixed_rng(0));
         let b = state.sides[0].active.boosts;
         assert_eq!([b[ATK], b[DEF], b[SPA], b[SPD], b[SPE]], [1, 1, 1, 1, 1]);
+    }
+
+    // ── Stomping Tantrum / Temper Flare: prev-move-failed capture lifecycle ───
+
+    #[test]
+    fn test_move_failure_capture_and_promote() {
+        // Side 0 (Pikachu, Electric) Thunderbolt into side 1 (Diglett, Ground):
+        // type-immune → the move fails → move-failed flag set, then promoted.
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_THUNDERBOLT as u16, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].move_failed_last_turn(), "not promoted yet");
+        state.sides[0].promote_move_failed();
+        assert!(state.sides[0].move_failed_last_turn(),
+            "a type-immune move must set move_failed (promoted to last-turn)");
+    }
+
+    #[test]
+    fn test_connecting_move_leaves_flag_clear() {
+        // Tackle (Normal) into Diglett connects → no move-failed flag.
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        state.sides[0].promote_move_failed();
+        assert!(!state.sides[0].move_failed_last_turn(),
+            "a connecting move must leave the move-failed flag clear");
+    }
+
+    #[test]
+    fn test_move_failed_bit_lifecycle() {
+        let mut s = SideState::default();
+        s._padding[0] |= 1; // Tera-used bit (must survive)
+        s.set_move_failed_this_turn();
+        assert!(!s.move_failed_last_turn());
+        s.promote_move_failed();
+        assert!(s.move_failed_last_turn());
+        s.promote_move_failed(); // no new this-turn failure → last-turn clears
+        assert!(!s.move_failed_last_turn(), "last-turn clears when this-turn was clean");
+        s.set_move_failed_this_turn();
+        s.promote_move_failed();
+        s.clear_move_failed_state();
+        assert!(!s.move_failed_last_turn(), "switch-out clear wipes the flag");
+        assert_eq!(s._padding[0] & 1, 1, "Tera bit preserved through clear_move_failed_state");
     }
 
     // ── Secondary flinch: phantom suppression + dropped-rider re-add ──────────
