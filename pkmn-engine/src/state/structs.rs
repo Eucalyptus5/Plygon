@@ -133,6 +133,13 @@ pub const SIDE_PAD_ACTED_SINCE_SWITCH: u8 = 1 << 2;
 pub const SIDE_PAD_MOVE_FAILED_THIS: u8 = 1 << 3;
 pub const SIDE_PAD_MOVE_FAILED_LAST: u8 = 1 << 4;
 
+/// SideState `_padding[0]` bit 5: the active mon carries the Ghost-Curse volatile
+/// (Showdown `volatiles['curse']`). Set on the target's side when a Ghost-type uses
+/// Curse, read at end-of-turn for the ¼-max-HP residual (`onResidualOrder: 12`),
+/// cleared on switch-out (clearVolatile). Singles-only: the volatile lives on the
+/// active mon, so a per-side flag on the existing padding suffices (no struct growth).
+pub const SIDE_PAD_CURSED: u8 = 1 << 5;
+
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
@@ -359,6 +366,21 @@ impl SideState {
     #[inline(always)]
     pub fn clear_acted_since_switch_in(&mut self) {
         self._padding[0] &= !SIDE_PAD_ACTED_SINCE_SWITCH;
+    }
+
+    #[inline(always)]
+    pub fn is_cursed(&self) -> bool {
+        self._padding[0] & SIDE_PAD_CURSED != 0
+    }
+
+    #[inline(always)]
+    pub fn set_cursed(&mut self) {
+        self._padding[0] |= SIDE_PAD_CURSED;
+    }
+
+    #[inline(always)]
+    pub fn clear_cursed(&mut self) {
+        self._padding[0] &= !SIDE_PAD_CURSED;
     }
 
     #[inline(always)]

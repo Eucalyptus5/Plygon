@@ -907,11 +907,13 @@ fn execute_status_move(
                 apply_boost(state, atk_side, ATK, 1);
                 apply_boost(state, atk_side, DEF, 1);
                 apply_boost(state, atk_side, SPE, -1);
-            } else {
-                // Ghost Curse: -50% HP from user, apply curse EOT damage to target
-                // (curse volatile not yet available — no free volatile bits)
+            } else if !state.sides[def_side].is_cursed() {
+                // Ghost Curse: ½-max-HP self-cost (directDamage), then the target
+                // carries the curse volatile for the ¼-max-HP EOT residual.
+                // Showdown's onTryHit fails (no self-cost) if the target is already cursed.
                 let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
                 deal_damage(state, atk_side, atk_slot, max_hp / 2);
+                state.sides[def_side].set_cursed();
             }
         }
 

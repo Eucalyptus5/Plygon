@@ -36,6 +36,7 @@ pub fn end_of_turn(state: &mut BattleState, teams: &TeamData, rng: &mut BattleRn
         }
     }
     step_leech_seed(state);                                // 11
+    for side in 0..2 { step_curse(state, side); }          // 12 (Curse residual, onResidualOrder 12)
     for side in 0..2 { step_binding_damage(state, side); } // 13
     for side in 0..2 { step_screen_expiry(state, side); }        // 11
     for side in 0..2 { step_tailwind_expiry(state, side); }      // 12
@@ -237,6 +238,17 @@ fn step_leech_seed(state: &mut BattleState) {
         let opp_slot = state.sides[opp].active_index as usize;
         if !state.sides[opp].team[opp_slot].is_fainted() { heal(state, opp, opp_slot, drain); }
     }
+}
+
+/// Step (Showdown curse volatile `onResidualOrder: 12`): a Ghost-cursed active loses
+/// ¼ of its max HP each end-of-turn (can KO). The bit-gated fast-exit keeps the common
+/// uncursed path to a single byte read; Magic Guard blocks the indirect residual.
+fn step_curse(state: &mut BattleState, side: usize) {
+    if !state.sides[side].is_cursed() { return; }
+    let slot = state.sides[side].active_index as usize;
+    if state.sides[side].team[slot].is_fainted() { return; }
+    if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { return; }
+    deal_proportional_damage(state, side, slot, 1, 4);
 }
 
 fn step_binding_damage(state: &mut BattleState, side: usize) {
@@ -981,6 +993,40 @@ mod tests {
         step_future_move(&mut s, 1, &mut rng);
         assert_eq!(s.sides[1].team[0].current_hp, 0);
         assert_eq!(s.sides[1].side_conditions.future_move(), 0, "consumed even when occupant fainted");
+    }
+
+    #[test]
+    fn test_curse_residual_chips_quarter_max_hp() {
+        let mut s = setup(); // team[0] 200/200
+        s.sides[0].set_cursed();
+        step_curse(&mut s, 0);
+        assert_eq!(s.sides[0].team[0].current_hp, 150); // 200/4 = 50
+    }
+
+    #[test]
+    fn test_curse_residual_can_ko() {
+        let mut s = setup();
+        s.sides[0].team[0].current_hp = 30;
+        s.sides[0].set_cursed();
+        step_curse(&mut s, 0);
+        assert_eq!(s.sides[0].team[0].current_hp, 0);
+        assert!(s.sides[0].team[0].is_fainted());
+    }
+
+    #[test]
+    fn test_curse_residual_magic_guard_blocks() {
+        let mut s = setup();
+        s.sides[0].team[0].ability_id = data_bridge::ABILITY_MAGIC_GUARD;
+        s.sides[0].set_cursed();
+        step_curse(&mut s, 0);
+        assert_eq!(s.sides[0].team[0].current_hp, 200);
+    }
+
+    #[test]
+    fn test_curse_residual_uncursed_is_noop() {
+        let mut s = setup();
+        step_curse(&mut s, 0);
+        assert_eq!(s.sides[0].team[0].current_hp, 200);
     }
 
     #[test]

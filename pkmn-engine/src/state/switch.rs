@@ -80,6 +80,9 @@ pub fn switch_out(state: &mut BattleState, teams: &TeamData, side: usize) {
     // Showdown clearVolatile resets moveThisTurnResult/moveLastTurnResult: a
     // freshly-switched-in mon never doubles Stomping Tantrum / Temper Flare.
     state.sides[side].clear_move_failed_state();
+    // Showdown clearVolatile removes the Ghost-Curse volatile on switch-out: the
+    // incoming mon (incl. a faint replacement) never inherits the curse residual.
+    state.sides[side].clear_cursed();
 }
 
 pub fn switch_in(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) {
