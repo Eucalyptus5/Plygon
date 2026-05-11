@@ -253,6 +253,10 @@ pub const ABILITY_PERISH_BODY: u16   = 253;
 pub const ABILITY_SEED_SOWER: u16    = 269;
 pub const ABILITY_SAND_SPIT: u16     = 245;
 pub const ABILITY_STENCH: u16        = 1;
+
+// Hold Back (Showdown num 610) is isNonstandard:"Unobtainable" → filtered by codegen,
+// so no MOVE_HOLD_BACK const is emitted in gen_moves; declared here for the no-KO clamp.
+pub const MOVE_HOLD_BACK: usize      = 610;
 pub const ABILITY_ELECTROMORPHOSIS: u16 = 280;
 pub const ABILITY_WIND_POWER: u16    = 277;
 pub const ABILITY_THERMAL_EXCHANGE: u16 = 270;

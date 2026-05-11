@@ -2798,6 +2798,15 @@ pub(crate) fn use_move_called(
                 final_damage = cur - 1;
             }
         }
+        // False Swipe / Hold Back never faint the target: onDamage returns target.hp-1
+        // when the hit would KO (deals 0 at 1 HP). Damage still applies, just no faint.
+        let mid = move_id as usize;
+        if mid == crate::data::MOVE_FALSE_SWIPE || mid == data_bridge::MOVE_HOLD_BACK {
+            let cur = state.sides[def_side].team[def_slot].current_hp;
+            if cur > 0 && final_damage >= cur {
+                final_damage = cur - 1;
+            }
+        }
     }
 
     let pre_damage_hp = if !result.hits_substitute {
@@ -6405,6 +6414,59 @@ mod tests {
         assert_eq!(state.sides[1].team[0].current_hp, before,
             "Sturdy gives OHKO full immunity (holder stays at full HP, not 1)");
         assert!(!state.sides[1].team[0].is_fainted());
+    }
+
+    // ── False Swipe / Hold Back: never faint the target (clamp to >=1 HP) ──────
+
+    #[test]
+    fn test_false_swipe_clamps_lethal_hit_to_one_hp() {
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 50;
+        state.sides[1].team[0].max_hp = 50;
+        state.sides[0].team[0].stats[ATK] = 500; // would KO without the clamp
+        execute_move(&mut state, &TeamData::default(),
+            0, crate::data::MOVE_FALSE_SWIPE as u16, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].team[0].current_hp, 1,
+            "False Swipe leaves a would-be-KO'd target at 1 HP");
+        assert!(!state.sides[1].team[0].is_fainted());
+    }
+
+    #[test]
+    fn test_false_swipe_deals_zero_at_one_hp() {
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 1;
+        state.sides[1].team[0].max_hp = 50;
+        state.sides[0].team[0].stats[ATK] = 500;
+        execute_move(&mut state, &TeamData::default(),
+            0, crate::data::MOVE_FALSE_SWIPE as u16, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].team[0].current_hp, 1,
+            "False Swipe deals 0 to a 1-HP target (never faints)");
+        assert!(!state.sides[1].team[0].is_fainted());
+    }
+
+    #[test]
+    fn test_false_swipe_deals_normal_damage_to_full_hp() {
+        let mut state = setup();
+        // Diglett (species 50) full HP, modest attacker → non-lethal hit unaffected.
+        let before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(),
+            0, crate::data::MOVE_FALSE_SWIPE as u16, 0, &mut fixed_rng(99));
+        let after = state.sides[1].team[0].current_hp;
+        assert!(after < before, "False Swipe still deals damage to a full-HP target");
+        assert!(after > 1, "non-lethal False Swipe is not clamped to 1");
+    }
+
+    #[test]
+    fn test_non_false_swipe_move_still_kos() {
+        let mut state = setup();
+        state.sides[1].team[0].current_hp = 50;
+        state.sides[1].team[0].max_hp = 50;
+        state.sides[0].team[0].stats[ATK] = 500;
+        // Tackle (Normal physical) — no clamp → KOs.
+        execute_move(&mut state, &TeamData::default(),
+            0, crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(99));
+        assert!(state.sides[1].team[0].is_fainted(),
+            "a non-False-Swipe move still KOs the target");
     }
 
     #[test]
