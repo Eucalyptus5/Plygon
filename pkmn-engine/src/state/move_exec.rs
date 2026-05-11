@@ -4233,6 +4233,28 @@ mod tests {
     }
 
     #[test]
+    fn test_accuracy_droppers_drop_not_flinch() {
+        use crate::state::structs::ACC;
+        // The accuracy-drop family (boosts:{accuracy:-1}) now carries secondary_stat:-1
+        // from codegen, routing through the <0 block (→ ACCURACY override) instead of the
+        // phantom-flinch fallthrough. Uses the real generated MoveData for each move.
+        let ids = [
+            crate::data::MOVE_MUD_SLAP, crate::data::MOVE_OCTAZOOKA,
+            crate::data::MOVE_MUDDY_WATER, crate::data::MOVE_MUD_BOMB,
+            crate::data::MOVE_MIRROR_SHOT, crate::data::MOVE_LEAF_TORNADO,
+            crate::data::MOVE_NIGHT_DAZE,
+        ];
+        for id in ids {
+            let md = *crate::data::moves::move_data(id);
+            assert_eq!(md.secondary_stat, -1, "move {id} codegen secondary_stat");
+            let mut state = setup();
+            apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
+            assert_eq!(state.sides[1].active.boosts[ACC], -1, "move {id} accuracy not dropped");
+            assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} phantom-flinched");
+        }
+    }
+
+    #[test]
     fn test_real_flinch_respects_chance() {
         // Iron Head chance 30: a roll of 50 (>=30) must NOT flinch.
         let mut state = setup();

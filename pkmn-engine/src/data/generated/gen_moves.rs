@@ -1526,7 +1526,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:100, secondary_stat:0,
+        secondary_chance:100, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [190] Octazooka
@@ -1534,7 +1534,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [191] Spikes
@@ -2654,7 +2654,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Water,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [331] Bullet Seed
@@ -3422,7 +3422,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Ground,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [427] Psycho Cut
@@ -3446,7 +3446,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Steel,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:30, secondary_stat:0,
+        secondary_chance:30, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [430] Flash Cannon
@@ -4302,7 +4302,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Grass,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:50, secondary_stat:0,
+        secondary_chance:50, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [537] Steamroller
@@ -4326,7 +4326,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         category:MoveCategory::Special, move_type:Type::Dark,
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
-        secondary_chance:40, secondary_stat:0,
+        secondary_chance:40, secondary_stat:-1,
         effect:MoveEffect::None, secondary_status:0,
         self_effect:SelfEffect::None },
     // [540] Psystrike

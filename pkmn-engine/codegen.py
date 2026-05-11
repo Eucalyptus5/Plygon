@@ -456,11 +456,14 @@ def _parse_secondary_block(sec_text):
     if st_m:
         status = STATUS_MAP.get(st_m.group(1), 0)
 
-    # Stat boosts in secondary
+    # Stat boosts in secondary. accuracy/evasion carry no MoveData stat field; only
+    # their signed magnitude is needed (the drop stat is resolved at runtime via
+    # secondary_drop_stat_override), so they share the same scalar `stages`.
     boost_m = re.search(r'boosts:\s*\{([^}]*)\}', sec_text)
     if boost_m:
         boost_inner = boost_m.group(1)
-        for st_name, st_idx in STAT_INDEX.items():
+        sec_stat_index = {**STAT_INDEX, "accuracy": 5, "evasion": 6}
+        for st_name, st_idx in sec_stat_index.items():
             val_m = re.search(rf'{st_name}:\s*(-?\d+)', boost_inner)
             if val_m:
                 stat = st_idx
