@@ -266,6 +266,25 @@ fn move_secondary_flinch(move_id: u16) -> Option<u8> {
     }
 }
 
+#[inline]
+/// True iff this damaging move would set a flinch through any engine secondary
+/// path (the fang/Triple-Arrows rider, or the type-heuristic-less fallthrough that
+/// models real flinchers like Iron Head / Air Slash / Zen Headbutt). Mirrors
+/// Showdown's "`move.secondaries` already contains a `volatileStatus:'flinch'`"
+/// test — Stench's onModifyMove adds its flinch ONLY when none is present.
+fn move_has_flinch_secondary(md: &MoveData, move_id: u16) -> bool {
+    if move_secondary_flinch(move_id).is_some() { return true; }
+    md.secondary_chance > 0
+        && md.effect != MoveEffect::RapidSpin
+        && md.secondary_stat == 0
+        && md.secondary_status == STATUS_NONE
+        && !matches!(md.move_type,
+            Type::Fire | Type::Electric | Type::Ice | Type::Poison)
+        && !move_secondary_confuses(move_id)
+        && !move_secondary_no_flinch(move_id)
+        && move_secondary_status_select(move_id).is_none()
+}
+
 /// The rider a flung item applies to the Fling target (items.ts `fling:` field).
 enum FlingEffect {
     Status(u8),
@@ -3073,6 +3092,26 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Stench: onModifyMove pushes a 10% flinch onto the holder's damaging moves
+    // that don't already carry a flinch secondary. Same target-side guards as the
+    // rider flinch (Covert Cloak / VOL_MOVED). Ability effect → unaffected by Magic
+    // Room. Raw-id pre-filter keeps non-Stench mons to a single compare.
+    if state.active_mon(atk_side).ability_id == data_bridge::ABILITY_STENCH
+        && effective_ability(state, atk_side) == data_bridge::ABILITY_STENCH
+        && md.category != MoveCategory::Status
+        && !result.hits_substitute
+        && !state.sides[def_side].team[def_slot].is_fainted()
+        && !state.sides[def_side].active.has_volatile(VOL_FLINCHED)
+        && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+        && !move_has_flinch_secondary(md, move_id)
+    {
+        let has_covert_cloak = state.field.magic_room_turns() == 0
+            && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
+        if !has_covert_cloak && rng(100) < 10 {
+            set_volatile(state, def_side, VOL_FLINCHED);
+        }
+    }
+
     let mut is_contact = md.flags & MoveFlags::CONTACT != 0;
     if is_contact && state.field.magic_room_turns() == 0 {
         let atk_itm = data_bridge::item(state.active_mon(atk_side).item_id);
@@ -4324,6 +4363,66 @@ mod tests {
             category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
         apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_FIRE_FANG as u16, &mut fixed_rng(0));
         assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED));
+    }
+
+    // ── Stench ability-added flinch ──────────────────────────────────────────
+
+    #[test]
+    fn test_move_has_flinch_secondary_predicate() {
+        // Genuine flinchers (fallthrough + rider) vs a non-flincher (Fury Swipes).
+        let iron_head = MoveData { secondary_chance: 30, move_type: Type::Steel,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        assert!(move_has_flinch_secondary(&iron_head, crate::data::MOVE_IRON_HEAD as u16));
+        let fang = MoveData { secondary_chance: 10, secondary_status: STATUS_BURN, move_type: Type::Fire,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        assert!(move_has_flinch_secondary(&fang, crate::data::MOVE_FIRE_FANG as u16));
+        // Fury Swipes: a multi-hit move with no secondary at all.
+        let fury = MoveData { secondary_chance: 0, move_type: Type::Normal,
+            category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+        assert!(!move_has_flinch_secondary(&fury, crate::data::MOVE_FURY_SWIPES as u16));
+    }
+
+    #[test]
+    fn test_stench_adds_flinch() {
+        // Stench attacker, plain non-flinching Tackle → 10% flinch (force_all → fires).
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_STENCH;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].active.has_volatile(VOL_FLINCHED),
+            "Stench should add a flinch to a non-flinching damaging move");
+    }
+
+    #[test]
+    fn test_stench_does_not_double_flinch() {
+        // Iron Head already flinches; Stench must not add a redundant secondary
+        // (force the rng so a phantom second roll would be visible — Iron Head's
+        // own 30% fires under force_all, the Stench arm is gated off by the
+        // already-flinches predicate). The flinch must come solely from the move.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_STENCH;
+        // Iron Head's hot MoveData carries its flinch via the fallthrough — confirm
+        // the predicate keeps the Stench arm from firing on top of it.
+        assert!(move_has_flinch_secondary(
+            &data_bridge::move_hot(crate::data::MOVE_IRON_HEAD as u16),
+            crate::data::MOVE_IRON_HEAD as u16),
+            "Iron Head must register as already-flinching so Stench skips it");
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_IRON_HEAD as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].active.has_volatile(VOL_FLINCHED),
+            "Iron Head flinches on its own");
+    }
+
+    #[test]
+    fn test_stench_suppressed_by_covert_cloak() {
+        // Covert Cloak on the target blocks the Stench flinch like any secondary.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_STENCH;
+        state.sides[1].team[0].item_id = data_bridge::ITEM_COVERT_CLOAK;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED),
+            "Covert Cloak should suppress the Stench-added flinch");
     }
 
     #[test]
