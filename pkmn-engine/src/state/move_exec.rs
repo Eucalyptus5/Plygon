@@ -3883,8 +3883,6 @@ pub fn execute_move(
         break 'exec;
     }
 
-    if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
-
     if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
         if rng(4) == 0 { break 'exec; }
     }
@@ -3914,6 +3912,11 @@ pub fn execute_move(
             break 'exec;
         }
     }
+
+    // Flinch: Showdown's flinch onBeforeMove is priority 8 — it runs AFTER sleep
+    // and freeze (both priority 10), so an asleep/frozen mon still ticks its sleep
+    // counter / rolls its thaw before the flinch cancels the move.
+    if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
 
     // Confusion: 33% self-hit
     if state.sides[atk_side].active.confusion_turns > 0 {
@@ -4423,6 +4426,82 @@ mod tests {
             crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
         assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED),
             "Covert Cloak should suppress the Stench-added flinch");
+    }
+
+    // ── Pre-move ordering: sleep/freeze tick before the flinch break ─────────
+    // Showdown onBeforeMove priority: sleep/freeze (10) > flinch (8). An asleep or
+    // frozen + flinched mon must still tick its counter / roll its thaw, then be
+    // cancelled by the flinch.
+
+    #[test]
+    fn test_flinched_only_skips_move() {
+        // Awake + flinched: no move, no status change (baseline).
+        let mut state = setup();
+        let hp = state.sides[1].team[0].current_hp;
+        set_volatile(&mut state, 0, VOL_FLINCHED);
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, hp, "flinched mon must not move");
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
+    }
+
+    #[test]
+    fn test_asleep_flinched_ticks_then_cant_move() {
+        // Asleep (counter 2) + flinched: sleep decrements to 1 (still asleep), the
+        // flinch then cancels the move. Pre-fix the flinch broke before the tick,
+        // freezing the counter.
+        let mut state = setup();
+        let hp = state.sides[1].team[0].current_hp;
+        set_status(&mut state, 0, 0, STATUS_SLEEP, 2);
+        set_volatile(&mut state, 0, VOL_FLINCHED);
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status_counter, 1, "sleep counter must tick under a flinch");
+        assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP, "still asleep");
+        assert_eq!(state.sides[1].team[0].current_hp, hp, "flinched-asleep mon must not move");
+    }
+
+    #[test]
+    fn test_asleep_flinched_wakes_then_cant_move() {
+        // Asleep (counter 1) + flinched: sleep decrements to 0 → wakes (status
+        // cleared), the flinch still cancels the move this turn.
+        let mut state = setup();
+        let hp = state.sides[1].team[0].current_hp;
+        set_status(&mut state, 0, 0, STATUS_SLEEP, 1);
+        set_volatile(&mut state, 0, VOL_FLINCHED);
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE, "wakes on the 0 tick");
+        assert_eq!(state.sides[1].team[0].current_hp, hp, "still can't move (flinch) the wake turn");
+    }
+
+    #[test]
+    fn test_asleep_not_flinched_ticks_as_before() {
+        // Asleep (counter 2), not flinched: counter decrements, still asleep,
+        // move fails — unchanged behavior, the reorder must not regress it.
+        let mut state = setup();
+        let hp = state.sides[1].team[0].current_hp;
+        set_status(&mut state, 0, 0, STATUS_SLEEP, 2);
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status_counter, 1, "sleep counter ticks");
+        assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP, "still asleep");
+        assert_eq!(state.sides[1].team[0].current_hp, hp, "asleep mon must not move");
+    }
+
+    #[test]
+    fn test_frozen_flinched_thaws_then_cant_move() {
+        // Frozen + flinched: the thaw roll (force_all rng(5)=0 → thaw) runs before
+        // the flinch break, mirroring Showdown's freeze(10) > flinch(8). Pre-fix the
+        // flinch broke first, leaving the mon frozen (the FANG-FLINCH residual #1).
+        let mut state = setup();
+        let hp = state.sides[1].team[0].current_hp;
+        set_status(&mut state, 0, 0, STATUS_FREEZE, 0);
+        set_volatile(&mut state, 0, VOL_FLINCHED);
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE, "thaw roll runs before the flinch break");
+        assert_eq!(state.sides[1].team[0].current_hp, hp, "still can't move (flinch) the thaw turn");
     }
 
     #[test]
