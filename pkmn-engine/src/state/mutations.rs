@@ -270,6 +270,13 @@ pub fn clear_weather(state: &mut BattleState) {
 }
 
 pub fn set_terrain(state: &mut BattleState, terrain: u8, turns: u8) {
+    // Showdown's Field.setTerrain (sim/field.ts:137) refuses to re-set the same
+    // terrain while it's already active (`if (this.terrain === status.id) return
+    // false`) — no duration refresh, unlike weather which has a duration==0
+    // ability exception. Mirror by no-op when the same non-NONE terrain is active.
+    if terrain != TERRAIN_NONE && state.field.terrain == terrain {
+        return;
+    }
     state.field.terrain = terrain;
     state.field.terrain_turns = turns;
 }
@@ -343,6 +350,37 @@ mod tests {
     #[test] fn test_boost_clamp() { let mut s = setup(); apply_boost(&mut s, 0, ATK, 4); assert_eq!(apply_boost(&mut s, 0, ATK, 4), 2); assert_eq!(s.sides[0].active.boosts[ATK], 6); }
     #[test] fn test_volatile() { let mut s = setup(); set_volatile(&mut s, 0, VOL_SUBSTITUTE); assert!(s.sides[0].active.has_volatile(VOL_SUBSTITUTE)); clear_volatile(&mut s, 0, VOL_SUBSTITUTE); assert!(!s.sides[0].active.has_volatile(VOL_SUBSTITUTE)); }
     #[test] fn test_weather() { let mut s = setup(); set_weather(&mut s, WEATHER_RAIN, 5); assert_eq!(s.field.weather, WEATHER_RAIN); clear_weather(&mut s); assert_eq!(s.field.weather, WEATHER_NONE); }
+
+    #[test]
+    fn test_terrain_reset_same_does_not_refresh_duration() {
+        let mut s = setup();
+        set_terrain(&mut s, TERRAIN_GRASSY, 5);
+        s.field.terrain_turns = 2; // simulate two EOT decrements
+        // Re-setting the SAME active terrain is a no-op (Showdown setTerrain false).
+        set_terrain(&mut s, TERRAIN_GRASSY, 5);
+        assert_eq!(s.field.terrain, TERRAIN_GRASSY);
+        assert_eq!(s.field.terrain_turns, 2, "duration must NOT refresh on reuse");
+    }
+
+    #[test]
+    fn test_terrain_set_different_replaces_and_resets() {
+        let mut s = setup();
+        set_terrain(&mut s, TERRAIN_GRASSY, 5);
+        s.field.terrain_turns = 1;
+        // A DIFFERENT terrain replaces and resets the duration as before.
+        set_terrain(&mut s, TERRAIN_ELECTRIC, 5);
+        assert_eq!(s.field.terrain, TERRAIN_ELECTRIC);
+        assert_eq!(s.field.terrain_turns, 5);
+    }
+
+    #[test]
+    fn test_terrain_set_from_none_sets_duration() {
+        let mut s = setup();
+        assert_eq!(s.field.terrain, TERRAIN_NONE);
+        set_terrain(&mut s, TERRAIN_PSYCHIC, 5);
+        assert_eq!(s.field.terrain, TERRAIN_PSYCHIC);
+        assert_eq!(s.field.terrain_turns, 5);
+    }
 
     #[test]
     fn test_wonder_room_toggle() {
