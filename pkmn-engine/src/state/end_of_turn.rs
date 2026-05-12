@@ -256,6 +256,20 @@ fn step_binding_damage(state: &mut BattleState, side: usize) {
     if !state.sides[side].active.has_volatile(VOL_BOUND) { return; }
     if state.sides[side].team[slot].is_fainted() { return; }
 
+    // Showdown's partiallytrapped onResidual (conditions.ts:234-242) ends the trap
+    // silently (no damage) when the source has left: !source.isActive || hp<=0.
+    // Singles invariant: the binder is the opposing active (same assumption as
+    // switch.rs's voluntary-switch release). A faint of the trapper is the only
+    // case not already handled by switch_out, since the faint replacement runs
+    // after EOT — release the bind here so no orphan tick lands.
+    let opp = 1 - side;
+    let opp_slot = state.sides[opp].active_index as usize;
+    if state.sides[opp].team[opp_slot].is_fainted() {
+        clear_volatile(state, side, VOL_BOUND);
+        state.sides[side].active.set_bind_turns(0);
+        return;
+    }
+
     // Decrement counter; expire at 0
     let turns = state.sides[side].active.bind_turns();
     if turns == 0 {
@@ -768,6 +782,31 @@ mod tests {
 
         assert!(!s.sides[0].active.has_volatile(VOL_BOUND));
         assert_eq!(s.sides[0].team[0].current_hp, 200); // no damage on expiry
+    }
+
+    #[test]
+    fn test_binding_tick_continues_while_trapper_active() {
+        let mut s = setup();
+        set_volatile(&mut s, 0, VOL_BOUND);
+        s.sides[0].active.set_bind_turns(3);
+        // Trapper (opposing active) alive → tick lands.
+        step_binding_damage(&mut s, 0);
+        assert_eq!(s.sides[0].active.bind_turns(), 2);
+        assert_eq!(s.sides[0].team[0].current_hp, 175); // 200/8 = 25
+        assert!(s.sides[0].active.has_volatile(VOL_BOUND));
+    }
+
+    #[test]
+    fn test_binding_ends_when_trapper_faints() {
+        let mut s = setup();
+        set_volatile(&mut s, 0, VOL_BOUND);
+        s.sides[0].active.set_bind_turns(3);
+        // Trapper (side 1 active) fainted → trap ends silently, no damage.
+        s.sides[1].team[0].current_hp = 0;
+        step_binding_damage(&mut s, 0);
+        assert!(!s.sides[0].active.has_volatile(VOL_BOUND));
+        assert_eq!(s.sides[0].active.bind_turns(), 0);
+        assert_eq!(s.sides[0].team[0].current_hp, 200); // no orphan tick
     }
 
     #[test]
