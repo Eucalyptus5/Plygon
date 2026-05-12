@@ -233,10 +233,18 @@ fn step_leech_seed(state: &mut BattleState) {
         if state.sides[side].team[slot].is_fainted() { continue; }
         if effective_ability(state, side) == data_bridge::ABILITY_MAGIC_GUARD { continue; }
         let drain = (state.sides[side].team[slot].max_hp / 8).max(1);
+        // Showdown's leechseed onResidual (moves.ts:10246-10249) heals the source
+        // by `this.damage()`'s return value — the ACTUAL HP removed, clamped to the
+        // seeded mon's remaining HP — not the nominal max/8. A seeded mon dying to
+        // the drain itself transfers only what it had left.
+        let before = state.sides[side].team[slot].current_hp;
         deal_damage(state, side, slot, drain);
+        let dealt = before - state.sides[side].team[slot].current_hp;
         let opp = 1 - side;
         let opp_slot = state.sides[opp].active_index as usize;
-        if !state.sides[opp].team[opp_slot].is_fainted() { heal(state, opp, opp_slot, drain); }
+        if dealt > 0 && !state.sides[opp].team[opp_slot].is_fainted() {
+            heal(state, opp, opp_slot, dealt);
+        }
     }
 }
 
@@ -743,6 +751,21 @@ mod tests {
         // 200 / 8 = 25 drain
         assert_eq!(s.sides[0].team[0].current_hp, 175); // drained
         assert_eq!(s.sides[1].team[0].current_hp, 175); // healed
+    }
+
+    #[test]
+    fn test_leech_seed_dying_mon_heals_only_actual() {
+        let mut s = setup(); // team[0] 200/200 both sides
+        // Seeded mon has less HP than the nominal drain (200/8 = 25).
+        s.sides[0].team[0].current_hp = 10;
+        s.sides[1].team[0].current_hp = 150; // damaged seeder so heal is observable
+        set_volatile(&mut s, 0, VOL_LEECH_SEED);
+
+        step_leech_seed(&mut s);
+
+        // Seeded mon faints; seeder heals only the 10 actually removed, not 25.
+        assert_eq!(s.sides[0].team[0].current_hp, 0);
+        assert_eq!(s.sides[1].team[0].current_hp, 160);
     }
 
     #[test]
