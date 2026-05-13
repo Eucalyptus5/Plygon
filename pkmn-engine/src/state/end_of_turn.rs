@@ -25,14 +25,14 @@ pub fn end_of_turn(state: &mut BattleState, teams: &TeamData, rng: &mut BattleRn
     for side in 0..2 {
         let slot = state.sides[side].active_index as usize;
         if !state.sides[side].team[slot].is_fainted() {
-            crate::state::move_exec::check_berry_activation(state, side, slot);
+            crate::state::move_exec::check_berry_activation(state, teams, side, slot, &mut |n| rng.next(n));
         }
     }
     for side in 0..2 {                                            // 9-10 status damage
         step_status_damage(state, side);
         let slot = state.sides[side].active_index as usize;
         if !state.sides[side].team[slot].is_fainted() {
-            crate::state::move_exec::check_berry_activation(state, side, slot);
+            crate::state::move_exec::check_berry_activation(state, teams, side, slot, &mut |n| rng.next(n));
         }
     }
     step_leech_seed(state);                                // 11

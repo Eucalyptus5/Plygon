@@ -116,7 +116,7 @@ pub fn switch_in_phase_a(
     // Check berry activation after hazard damage (e.g. Sitrus Berry can save)
     let slot = state.sides[side].active_index as usize;
     if !state.sides[side].team[slot].is_fainted() {
-        crate::state::move_exec::check_pinch_berry(state, side, slot);
+        crate::state::move_exec::check_pinch_berry(state, teams, side, slot);
     }
 
     // If fainted from hazards, skip ability/item activation

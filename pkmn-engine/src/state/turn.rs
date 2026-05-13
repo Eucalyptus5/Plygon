@@ -492,7 +492,7 @@ pub fn execute_turn(
             if mon.item_id == 0 || mon.is_fainted() { continue; }
             if mon.status == STATUS_NONE && mon.current_hp >= mon.max_hp { continue; }
             if !data_bridge::item(mon.item_id).has(ItemFlag::IS_BERRY) { continue; }
-            crate::state::move_exec::check_berry_activation(state, side, slot);
+            crate::state::move_exec::check_berry_activation(state, teams, side, slot, rng);
         }
     }
 

@@ -1873,8 +1873,10 @@ fn can_hit_semi_invuln(move_id: u16, charge_loc: u8) -> bool {
 /// flavored heal berries (Aguav/Figy/Wiki/Mago/Iapapa), and Gluttony threshold.
 pub fn check_berry_activation(
     state: &mut BattleState,
+    teams: &TeamData,
     side: usize,
     slot: usize,
+    rng: &mut impl FnMut(u32) -> u32,
 ) {
     let mon = &state.sides[side].team[slot];
     if mon.item_id == 0 || mon.is_fainted() { return; }
@@ -1977,6 +1979,25 @@ pub fn check_berry_activation(
             let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
             if current_hp <= threshold {
                 heal(state, side, slot, max_hp / 3);
+                // Showdown items.ts onEat: confuse if the holder's nature dislikes
+                // the berry's flavor (nature.minus === <flavor stat>). Self-inflicted,
+                // so Safeguard does NOT block it (target===source); Own Tempo does.
+                let disliked = match item_id {
+                    data_bridge::ITEM_FIGY_BERRY   => 0, // atk
+                    data_bridge::ITEM_IAPAPA_BERRY => 1, // def
+                    data_bridge::ITEM_WIKI_BERRY   => 2, // spa
+                    data_bridge::ITEM_AGUAV_BERRY  => 3, // spd
+                    _                              => 4, // mago -> spe
+                };
+                let nature = teams.mons[side][slot].nature;
+                let minus = (nature % 5) as usize;
+                let has_minus = (nature / 5) != (nature % 5);
+                if has_minus && minus == disliked
+                    && state.sides[side].active.confusion_turns == 0
+                    && effective_ability(state, side) != data_bridge::ABILITY_OWN_TEMPO
+                {
+                    state.sides[side].active.confusion_turns = (rng(4) + 2) as u8;
+                }
                 consume_berry(state, side, slot);
             }
         }
@@ -2005,11 +2026,15 @@ pub(crate) fn consume_berry(state: &mut BattleState, side: usize, slot: usize) {
     }
 }
 
-/// Legacy alias — some call sites still use this name.
+/// Legacy alias for the switch-in path, which has no RNG stream in scope.
+/// Only the flavor-berry confusion DURATION reads rng; the decision to confuse
+/// is deterministic (nature-based), so a switch-in flavor-berry trigger uses
+/// the minimum 2-turn duration. Sitrus/pinch berries (the usual switch-in case)
+/// consume no rng.
 pub fn check_pinch_berry(
-    state: &mut BattleState, side: usize, slot: usize,
+    state: &mut BattleState, teams: &TeamData, side: usize, slot: usize,
 ) {
-    check_berry_activation(state, side, slot);
+    check_berry_activation(state, teams, side, slot, &mut |_| 0);
 }
 
 /// Synchronize: when a Pokemon with Synchronize is inflicted with burn,
@@ -2965,7 +2990,7 @@ pub(crate) fn use_move_called(
         deal_damage(state, atk_side, atk_slot, result.recoil_damage);
         // Berry activation after recoil (e.g., Sitrus Berry)
         if !state.sides[atk_side].team[atk_slot].is_fainted() {
-            check_berry_activation(state, atk_side, atk_slot);
+            check_berry_activation(state, teams, atk_side, atk_slot, rng);
         }
     }
 
@@ -3010,7 +3035,7 @@ pub(crate) fn use_move_called(
     if !result.hits_substitute
         && !state.sides[def_side].team[def_slot].is_fainted()
     {
-        check_berry_activation(state, def_side, def_slot);
+        check_berry_activation(state, teams, def_side, def_slot, rng);
     }
 
     if !result.hits_substitute
@@ -4627,6 +4652,70 @@ mod tests {
         let hp = state.sides[0].team[0].current_hp;
         execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(0));
         assert!(state.sides[0].team[0].current_hp < hp);
+    }
+
+    // nature = boosted*5 + reduced (0=atk,1=def,2=spa,3=spd,4=spe).
+    // Neutral when boosted == reduced (no minus stat).
+    fn teams_with_nature(nature: u8) -> TeamData {
+        let mut t = TeamData::default();
+        t.mons[0][0].nature = nature;
+        t
+    }
+
+    fn run_flavor_berry(item_id: u16, nature: u8) -> u8 {
+        let mut state = setup();
+        let max = state.sides[0].team[0].max_hp;
+        state.sides[0].team[0].item_id = item_id;
+        state.sides[0].team[0].current_hp = max / 4; // at the ≤¼ trigger threshold
+        let teams = teams_with_nature(nature);
+        check_berry_activation(&mut state, &teams, 0, 0, &mut fixed_rng(0));
+        state.sides[0].active.confusion_turns
+    }
+
+    #[test]
+    fn test_figy_confuses_minus_atk_nature() {
+        // -Atk (reduced=0), +SpA (boosted=2) => nature 10
+        assert!(run_flavor_berry(data_bridge::ITEM_FIGY_BERRY, 10) >= 2,
+            "Figy must confuse a -Atk holder");
+    }
+
+    #[test]
+    fn test_figy_no_confuse_neutral_nature() {
+        // Hardy (boosted==reduced==0) => no minus stat
+        assert_eq!(run_flavor_berry(data_bridge::ITEM_FIGY_BERRY, 0), 0,
+            "Figy must NOT confuse a neutral-nature holder");
+    }
+
+    #[test]
+    fn test_figy_no_confuse_plus_atk_nature() {
+        // +Atk (boosted=0), -SpA (reduced=2) => nature 2; minus is SpA, not Atk
+        assert_eq!(run_flavor_berry(data_bridge::ITEM_FIGY_BERRY, 2), 0,
+            "Figy must NOT confuse a +Atk holder (minus stat is SpA)");
+    }
+
+    #[test]
+    fn test_each_flavor_berry_maps_to_its_disliked_stat() {
+        // (berry, disliked 0-indexed stat): Figy=atk0 Iapapa=def1 Wiki=spa2 Aguav=spd3 Mago=spe4
+        let cases = [
+            (data_bridge::ITEM_FIGY_BERRY, 0u8),
+            (data_bridge::ITEM_IAPAPA_BERRY, 1),
+            (data_bridge::ITEM_WIKI_BERRY, 2),
+            (data_bridge::ITEM_AGUAV_BERRY, 3),
+            (data_bridge::ITEM_MAGO_BERRY, 4),
+        ];
+        for (item, disliked) in cases {
+            // Build a nature whose minus == disliked and plus is a different stat.
+            let plus = (disliked + 1) % 5;
+            let nature = plus * 5 + disliked;
+            assert!(run_flavor_berry(item, nature) >= 2,
+                "berry {} should confuse a -{} holder", item, disliked);
+            // A holder whose minus is a DIFFERENT stat is not confused.
+            let other_minus = (disliked + 1) % 5;
+            let other_plus = (other_minus + 1) % 5;
+            let other_nature = other_plus * 5 + other_minus;
+            assert_eq!(run_flavor_berry(item, other_nature), 0,
+                "berry {} should NOT confuse a holder disliking stat {}", item, other_minus);
+        }
     }
 
     #[test]
@@ -6485,7 +6574,7 @@ mod tests {
         // Actually, we need a valid item in gen_items. Since there are none with PINCH_BERRY,
         // this test validates the function exists and compiles.
         // Full integration testing requires codegen updates (Step 10).
-        check_pinch_berry(&mut state, 1, 0);
+        check_pinch_berry(&mut state, &TeamData::default(), 1, 0);
         // No pinch berry item → no boost
         assert_eq!(state.sides[1].active.boosts[ATK], 0);
     }
