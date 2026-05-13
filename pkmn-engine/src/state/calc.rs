@@ -697,7 +697,21 @@ fn calc_struggle(state: &BattleState, atk_side: usize) -> DamageResult {
     ).max(1);
 
     let lf = level_factor(atk_mon.level);
-    let dmg = ((lf * 50 * a as u32 / d as u32) / 50 + 2).max(1);
+    let mut dmg = (lf * 50 * a as u32 / d as u32) / 50 + 2;
+
+    // Struggle is a normal damage calc (typeless, no STAB, neutral). It still
+    // takes the physical-attacker burn ×0.5 and the defender's screen reduction
+    // (Reflect halves a physical hit). Both are deterministic (no RNG), so
+    // force_all symmetry is preserved. The crit roll and 85-100% damage roll are
+    // not applied here (calc_struggle takes no rng_fn); under force_all the
+    // engine's no-roll base already matches Showdown's forced roll — left as
+    // documented siblings.
+    let atk_ability = effective_ability(state, atk_side);
+    let (bn, _) = burn_modifier(atk_mon.status, MoveCategory::Physical, atk_ability, false);
+    dmg = chain_mod(dmg, bn);
+    let (scn, _) = screen_modifier(state, def_side, MoveCategory::Physical, false, atk_ability);
+    dmg = chain_mod(dmg, scn);
+    let dmg = dmg.max(1);
 
     DamageResult {
         damage: dmg.min(u16::MAX as u32) as u16,
@@ -1008,6 +1022,33 @@ mod tests {
         assert!(result.damage > 0);
         assert_eq!(result.recoil_damage, 300 / 4); // 1/4 max HP
         assert_eq!(result.effectiveness, 4); // neutral
+    }
+
+    #[test]
+    fn test_struggle_burn_halves() {
+        // A burned attacker's Struggle deals ~half the unburned value (Struggle is
+        // Physical → attacker-burn ×0.5). Recoil and effectiveness unchanged.
+        let mut state = test_state();
+        let unburned = calc_struggle(&state, 0).damage;
+        state.sides[0].team[0].status = STATUS_BURN;
+        let burned = calc_struggle(&state, 0);
+        assert!(unburned > 1, "Struggle should deal real damage");
+        // 0.5× via chain_mod (2048>>12) is exact halving (allow ±1 rounding).
+        assert!(burned.damage >= unburned / 2 - 1 && burned.damage <= unburned / 2 + 1,
+            "burned Struggle must halve: unburned={unburned} burned={}", burned.damage);
+        assert_eq!(burned.recoil_damage, 300 / 4, "burn does not change Struggle recoil");
+        assert_eq!(burned.effectiveness, 4);
+    }
+
+    #[test]
+    fn test_struggle_reflect_halves() {
+        // Reflect halves a (physical) Struggle hit; crit/Infiltrator would bypass.
+        let mut state = test_state();
+        let bare = calc_struggle(&state, 0).damage;
+        state.sides[1].side_conditions.reflect_turns = 5;
+        let screened = calc_struggle(&state, 0).damage;
+        assert!(screened >= bare / 2 - 1 && screened <= bare / 2 + 1,
+            "Reflect must halve Struggle: bare={bare} screened={screened}");
     }
 
     #[test]
