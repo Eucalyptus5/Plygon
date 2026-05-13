@@ -3709,6 +3709,26 @@ pub(crate) fn use_move_called(
             }
         }
 
+        // Jaboca / Rowap: onDamagingHit chips the attacker 1/8 even when the
+        // holder faints from the triggering hit (Showdown runs DamagingHit
+        // before faint resolution, like Sand Spit). The live-holder arm above
+        // already covers the survive case; this is the KO'd-holder arm.
+        if !result.hits_substitute
+            && !state.sides[atk_side].team[atk_slot].is_fainted()
+            && state.field.magic_room_turns() == 0
+        {
+            let def_item_id = state.sides[def_side].team[def_slot].item_id;
+            let chips = (def_item_id == data_bridge::ITEM_JABOCA_BERRY
+                            && md.category == MoveCategory::Physical)
+                     || (def_item_id == data_bridge::ITEM_ROWAP_BERRY
+                            && md.category == MoveCategory::Special);
+            if chips {
+                let atk_max = state.sides[atk_side].team[atk_slot].max_hp;
+                deal_damage(state, atk_side, atk_slot, (atk_max / 8).max(1));
+                consume_berry(state, def_side, def_slot);
+            }
+        }
+
         // Sand Spit: onDamagingHit sets Sandstorm even when the holder faints
         // from the triggering hit (Showdown runs DamagingHit before faint
         // resolution), so the end-of-turn chip still lands.
@@ -4716,6 +4736,58 @@ mod tests {
             assert_eq!(run_flavor_berry(item, other_nature), 0,
                 "berry {} should NOT confuse a holder disliking stat {}", item, other_minus);
         }
+    }
+
+    // Side 0 attacks side 1 (the berry holder). `def_hp` controls survive vs KO;
+    // attacker max_hp = 800 so a 1/8 chip = 100. Returns attacker HP lost.
+    fn run_recoil_berry(item_id: u16, move_id: u16, def_hp: u16) -> u16 {
+        let mut state = setup();
+        state.sides[0].team[0].max_hp = 800;
+        state.sides[0].team[0].current_hp = 800;
+        state.sides[0].team[0].stats = [600, 600, 600, 600, 100]; // force a KO at low def_hp
+        state.sides[1].team[0].item_id = item_id;
+        state.sides[1].team[0].current_hp = def_hp;
+        state.sides[1].team[0].max_hp = def_hp.max(300);
+        execute_move(&mut state, &TeamData::default(), 0, move_id, 0, &mut fixed_rng(99));
+        800 - state.sides[0].team[0].current_hp
+    }
+
+    #[test]
+    fn test_jaboca_chips_attacker_holder_survives_physical() {
+        // High HP holder survives Tackle; Jaboca still chips the physical attacker 1/8.
+        let lost = run_recoil_berry(data_bridge::ITEM_JABOCA_BERRY, crate::data::MOVE_TACKLE as u16, 9999);
+        assert_eq!(lost, 100, "Jaboca chips a surviving holder's physical attacker 1/8");
+    }
+
+    #[test]
+    fn test_jaboca_chips_attacker_when_holder_koed_physical() {
+        // Holder KO'd by Tackle; Jaboca still fires as it faints.
+        let mut state = setup();
+        state.sides[0].team[0].max_hp = 800;
+        state.sides[0].team[0].current_hp = 800;
+        state.sides[0].team[0].stats = [600, 600, 600, 600, 100];
+        state.sides[1].team[0].item_id = data_bridge::ITEM_JABOCA_BERRY;
+        state.sides[1].team[0].current_hp = 1;
+        execute_move(&mut state, &TeamData::default(), 0, crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(99));
+        assert!(state.sides[1].team[0].is_fainted(), "holder is KO'd");
+        assert_eq!(800 - state.sides[0].team[0].current_hp, 100,
+            "Jaboca chips the attacker 1/8 even as the holder faints");
+    }
+
+    #[test]
+    fn test_rowap_chips_attacker_on_special() {
+        // Holder survives Swift (special); Rowap chips the special attacker 1/8.
+        let lost = run_recoil_berry(data_bridge::ITEM_ROWAP_BERRY, 129 /* Swift, special */, 9999);
+        assert_eq!(lost, 100, "Rowap chips a surviving holder's special attacker 1/8");
+    }
+
+    #[test]
+    fn test_recoil_berry_wrong_category_no_fire() {
+        // Jaboca does NOT fire on a special hit; Rowap does NOT fire on a physical hit.
+        let jaboca_special = run_recoil_berry(data_bridge::ITEM_JABOCA_BERRY, 129 /* Swift */, 9999);
+        assert_eq!(jaboca_special, 0, "Jaboca must not fire on a special hit");
+        let rowap_physical = run_recoil_berry(data_bridge::ITEM_ROWAP_BERRY, crate::data::MOVE_TACKLE as u16, 9999);
+        assert_eq!(rowap_physical, 0, "Rowap must not fire on a physical hit");
     }
 
     #[test]
