@@ -140,6 +140,12 @@ pub const SIDE_PAD_MOVE_FAILED_LAST: u8 = 1 << 4;
 /// active mon, so a per-side flag on the existing padding suffices (no struct growth).
 pub const SIDE_PAD_CURSED: u8 = 1 << 5;
 
+/// SideState `_padding[0]` bit 6: the active mon had at least one stat raised this
+/// turn (Showdown `statsRaisedThisTurn`). Set in `apply_boost_raw` on any positive
+/// boost (self or foe), cleared at end-of-turn and on switch-out — the mirror of
+/// `SIDE_PAD_STATS_LOWERED`. Read by Burning Jealousy's onHit burn gate.
+pub const SIDE_PAD_STATS_RAISED: u8 = 1 << 6;
+
 pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
@@ -321,6 +327,21 @@ impl SideState {
     #[inline(always)]
     pub fn clear_stats_lowered_this_turn(&mut self) {
         self._padding[0] &= !SIDE_PAD_STATS_LOWERED;
+    }
+
+    #[inline(always)]
+    pub fn stats_raised_this_turn(&self) -> bool {
+        self._padding[0] & SIDE_PAD_STATS_RAISED != 0
+    }
+
+    #[inline(always)]
+    pub fn set_stats_raised_this_turn(&mut self) {
+        self._padding[0] |= SIDE_PAD_STATS_RAISED;
+    }
+
+    #[inline(always)]
+    pub fn clear_stats_raised_this_turn(&mut self) {
+        self._padding[0] &= !SIDE_PAD_STATS_RAISED;
     }
 
     /// Record that this turn's move attempt failed (Showdown `moveThisTurnResult

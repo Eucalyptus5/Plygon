@@ -66,6 +66,12 @@ pub fn apply_boost_raw(state: &mut BattleState, side: usize, stat_index: usize, 
     if actual < 0 {
         state.sides[side].set_stats_lowered_this_turn();
     }
+    // Mirror: Showdown sets statsRaisedThisTurn on the boost target when any stat
+    // actually rose (Contrary/Competitive/Defiant resolve to a raise upstream, so
+    // this choke point is correct). Read by Burning Jealousy's onHit burn gate.
+    if actual > 0 {
+        state.sides[side].set_stats_raised_this_turn();
+    }
     actual
 }
 
@@ -426,6 +432,37 @@ mod tests {
         s.sides[1].team[0].ability_id = data_bridge::ABILITY_CONTRARY;
         apply_boost(&mut s, 1, ATK, -1);
         assert!(!s.sides[1].stats_lowered_this_turn());
+        assert_eq!(s.sides[1].active.boosts[ATK], 1, "Contrary raised instead");
+    }
+
+    #[test]
+    fn test_stats_raised_this_turn_flag() {
+        let mut s = setup();
+        // Fresh: not set.
+        assert!(!s.sides[0].stats_raised_this_turn());
+        // Pre-set the Tera (bit 0) and stats-lowered (bit 1) bits; both must survive.
+        s.sides[0]._padding[0] |= 1 | (1 << 1);
+        // A genuine drop does NOT set the raised flag.
+        apply_boost(&mut s, 0, ATK, -1);
+        assert!(!s.sides[0].stats_raised_this_turn());
+        // A genuine raise sets it.
+        apply_boost(&mut s, 0, ATK, 2);
+        assert!(s.sides[0].stats_raised_this_turn());
+        assert_eq!(s.sides[0]._padding[0] & 1, 1, "Tera bit preserved");
+        assert!(s.sides[0].stats_lowered_this_turn(), "STATS_LOWERED bit preserved");
+        // Clear (turn boundary / switch-out) resets only this flag.
+        s.sides[0].clear_stats_raised_this_turn();
+        assert!(!s.sides[0].stats_raised_this_turn());
+        assert_eq!(s.sides[0]._padding[0] & 1, 1, "Tera bit still preserved");
+        assert!(s.sides[0].stats_lowered_this_turn(), "STATS_LOWERED still preserved");
+        // Contrary inverts a drop into a raise → raised flag IS set.
+        s.sides[1].team[0].species_id = 25;
+        s.sides[1].team[0].current_hp = 200;
+        s.sides[1].team[0].max_hp = 200;
+        s.sides[1].team[0].ability_id = data_bridge::ABILITY_CONTRARY;
+        apply_boost(&mut s, 1, ATK, -1);
+        assert!(s.sides[1].stats_raised_this_turn(), "Contrary raise sets the raised flag");
+        assert!(!s.sides[1].stats_lowered_this_turn(), "Contrary raise does NOT set lowered");
         assert_eq!(s.sides[1].active.boosts[ATK], 1, "Contrary raised instead");
     }
 

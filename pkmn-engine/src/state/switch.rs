@@ -74,6 +74,7 @@ pub fn switch_out(state: &mut BattleState, teams: &TeamData, side: usize) {
     // Showdown clears statsLoweredThisTurn on switch-out (clearVolatile); the incoming
     // mon must not inherit the departing mon's this-turn stat-drop state.
     state.sides[side].clear_stats_lowered_this_turn();
+    state.sides[side].clear_stats_raised_this_turn();
     // Reset the move-action flag so the incoming mon's first move (e.g. Fake Out)
     // is treated as its first turn out (Showdown resets activeMoveActions on switch).
     state.sides[side].clear_acted_since_switch_in();

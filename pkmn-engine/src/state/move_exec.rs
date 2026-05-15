@@ -428,6 +428,15 @@ fn apply_primary_secondary(
         return;
     }
 
+    // Burning Jealousy burns ONLY a target that raised a stat this turn (Showdown
+    // onHit: `if (target.statsRaisedThisTurn) target.trySetStatus('brn')`). Without a
+    // raise nothing happens — no burn, no flinch fallthrough.
+    if move_id as usize == crate::data::MOVE_BURNING_JEALOUSY
+        && !state.sides[def_side].stats_raised_this_turn()
+    {
+        return;
+    }
+
     let status = if md.secondary_status != STATUS_NONE {
         md.secondary_status
     } else {
@@ -4322,6 +4331,40 @@ mod tests {
             apply_secondary(&mut s, 0, 1, &md, crate::data::MOVE_DIRE_CLAW as u16, &mut fixed_rng(idx));
             assert_eq!(s.sides[1].team[0].status, dire[idx as usize], "Dire Claw idx {idx}");
         }
+    }
+
+    #[test]
+    fn test_burning_jealousy_burns_stat_raised_target() {
+        // Target raised a stat this turn → Burning Jealousy burns it (force_all
+        // secondary_chance:100). Side-1 active (Diglett, Ground) accepts burn.
+        let mut state = setup();
+        state.sides[1].set_stats_raised_this_turn();
+        let md = MoveData { secondary_chance: 100, move_type: Type::Fire,
+            category: MoveCategory::Special, ..unsafe { core::mem::zeroed() } };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_BURNING_JEALOUSY as u16, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].status, STATUS_BURN, "stat-raised target must be burned");
+    }
+
+    #[test]
+    fn test_burning_jealousy_no_burn_unraised_target() {
+        // Target raised no stat → no burn, and no phantom-flinch fallthrough.
+        let mut state = setup();
+        let md = MoveData { secondary_chance: 100, move_type: Type::Fire,
+            category: MoveCategory::Special, ..unsafe { core::mem::zeroed() } };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_BURNING_JEALOUSY as u16, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "un-raised target must NOT be burned");
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "no phantom flinch fallthrough");
+    }
+
+    #[test]
+    fn test_non_burning_jealousy_fire_burns_unconditionally() {
+        // A generic Fire move (Flamethrower) keeps its unconditional secondary burn
+        // via the Type::Fire heuristic — the stat-raised gate is Burning-Jealousy-only.
+        let mut state = setup();
+        let md = MoveData { secondary_chance: 100, move_type: Type::Fire,
+            category: MoveCategory::Special, ..unsafe { core::mem::zeroed() } };
+        apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_FLAMETHROWER as u16, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].status, STATUS_BURN, "Flamethrower burn must be unconditional");
     }
 
     #[test]
