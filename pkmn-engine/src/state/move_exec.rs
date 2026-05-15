@@ -2619,6 +2619,14 @@ pub(crate) fn use_move_called(
             mark_move_failed(state, atk_side);
             return;
         }
+        // Dream Eater: onTryImmunity fails unless the target is asleep (or Comatose).
+        if move_id == crate::data::MOVE_DREAM_EATER as u16
+            && state.sides[def_side].team[def_slot].status != STATUS_SLEEP
+            && effective_ability(state, def_side) != data_bridge::ABILITY_COMATOSE
+        {
+            mark_move_failed(state, atk_side);
+            return;
+        }
     }
 
     // Endeavor: set target HP = user HP
@@ -4480,6 +4488,49 @@ mod tests {
             crate::data::MOVE_TACKLE as u16, 0, &mut fixed_rng(0));
         assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED),
             "Covert Cloak should suppress the Stench-added flinch");
+    }
+
+    // ── Dream Eater: onTryImmunity gates on the target being asleep ──────────
+
+    #[test]
+    fn test_dream_eater_fails_on_awake_target() {
+        // Awake target → Dream Eater fails (no damage dealt, no heal to the user).
+        let mut state = setup();
+        state.sides[0].team[0].current_hp = 150; // user damaged, so a heal would show
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_DREAM_EATER as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
+            "Dream Eater must deal no damage to an awake target");
+        assert_eq!(state.sides[0].team[0].current_hp, 150,
+            "Dream Eater must not heal the user when it fails on an awake target");
+    }
+
+    #[test]
+    fn test_dream_eater_hits_asleep_target() {
+        // Asleep target → Dream Eater hits, deals damage, and drains (heals the user).
+        let mut state = setup();
+        state.sides[0].team[0].current_hp = 150;
+        state.sides[1].team[0].status = STATUS_SLEEP;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_DREAM_EATER as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before,
+            "Dream Eater must damage an asleep target");
+        assert!(state.sides[0].team[0].current_hp > 150,
+            "Dream Eater must drain-heal the user when it hits an asleep target");
+    }
+
+    #[test]
+    fn test_dream_eater_hits_comatose_target() {
+        // Comatose target counts as asleep for Dream Eater.
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_COMATOSE;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_DREAM_EATER as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before,
+            "Dream Eater must hit a Comatose target");
     }
 
     // ── Pre-move ordering: sleep/freeze tick before the flinch break ─────────
