@@ -3775,7 +3775,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::GuardSplit, secondary_status:0,
         self_effect:SelfEffect::None },
     // [471] Power Split
     MoveData { flags:MoveFlags::PROTECT, base_power:0, accuracy:0,
@@ -3783,7 +3783,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::PowerSplit, secondary_status:0,
         self_effect:SelfEffect::None },
     // [472] Wonder Room
     MoveData { flags:0, base_power:0, accuracy:0,

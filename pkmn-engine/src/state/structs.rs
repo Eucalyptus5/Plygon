@@ -103,6 +103,12 @@ pub const MON_FLAG_GENDERLESS: u16   = 1 << 8;
 // the pre-swap ability is stashed in ActiveMon.override_ability for switch-out restore.
 pub const MON_FLAG_ABILITY_SWAPPED: u16 = 1 << 9;
 
+/// ActiveMon `_padding[0]` bit 3: Power/Guard Split wrote averaged stats into
+/// `override_stats` on a mon that is neither Transformed nor forme-changed. Tells
+/// `effective_stat` to read `override_stats` (which holds the full 5-stat array, the
+/// affected pair averaged). Cleared on switch-out via `active.zero()`.
+pub const ACTIVE_PAD_STATS_SPLIT: u8 = 1 << 3;
+
 pub const HAZARD_STEALTH_ROCK: u8 = 1 << 0;
 pub const HAZARD_STICKY_WEB: u8   = 1 << 1;
 
@@ -229,7 +235,10 @@ pub struct ActiveMon {
     pub telekinesis_turns: u8,
     pub heal_block_turns: u8,
     pub perish_count: u8,
-    // _padding[0]: baton_pass flag (1 = Baton Pass switch pending, preserve boosts/volatiles)
+    // _padding[0]: bit 0 = baton_pass flag (Baton Pass switch pending, preserve boosts/volatiles)
+    //              bits 1-2 = Protect variant (set in execute_protect)
+    //              bit 3 = stats split active (Power/Guard Split wrote override_stats on a
+    //                      non-Transform/forme mon — effective_stat must read override_stats)
     // _padding[1]: charge location (0=none, 1=air, 2=underground, 3=underwater, 4=vanished)
     // _padding[2]: move-lock turns remaining (Outrage/Thrash: 0=not locked, 1-2=turns left)
     // _padding[3]: bit 0 = protean_activated, bit 1 = attracted, bit 2 = paradox_from_booster,
@@ -620,6 +629,12 @@ impl ActiveMon {
         // Clear bits 2-7, preserve bits 0-1
         self._padding[3] &= 0x03;
     }
+
+    #[inline(always)]
+    pub fn stats_split_active(&self) -> bool { self._padding[0] & ACTIVE_PAD_STATS_SPLIT != 0 }
+
+    #[inline(always)]
+    pub fn set_stats_split(&mut self) { self._padding[0] |= ACTIVE_PAD_STATS_SPLIT; }
 
     #[inline(always)]
     pub fn zero(&mut self) { *self = Self::default(); }

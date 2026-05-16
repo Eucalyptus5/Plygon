@@ -126,8 +126,12 @@ pub fn ability_blocks_status(ability_id: u16, status: u8) -> bool {
 pub fn effective_stat(state: &BattleState, side: usize, stat_index: usize) -> u16 {
     let active = &state.sides[side].active;
     if active.has_volatile(VOL_TRANSFORMED) { return active.override_stats[stat_index]; }
-    // Forme-change stat overrides (Aegislash Blade, Zen Mode, etc.)
-    if active.override_stats[0] != 0 { return active.override_stats[stat_index]; }
+    // Forme-change stat overrides (Aegislash Blade, Zen Mode, etc.); Power/Guard Split
+    // also write the full override_stats array on a non-Transform/non-forme mon, gated
+    // by ACTIVE_PAD_STATS_SPLIT so a split mon reads the averaged stat pair.
+    if active.override_stats[0] != 0 || active.stats_split_active() {
+        return active.override_stats[stat_index];
+    }
     state.active_mon(side).stats[stat_index]
 }
 

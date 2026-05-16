@@ -300,6 +300,9 @@ pub enum MoveEffect {
     WorkUp           = 132, // +1 Atk, +1 SpA
     Growth           = 133, // +1 Atk, +1 SpA (×2 in harsh sun)
     TailGlow         = 134, // +3 SpA
+
+    PowerSplit       = 135, // Average both actives' raw Atk and SpA
+    GuardSplit       = 136, // Average both actives' raw Def and SpD
 }
 
 // Flags (16 bits)

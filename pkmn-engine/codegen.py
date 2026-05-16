@@ -57,6 +57,7 @@ MOVE_EFFECT = {
     "skillswap": "SkillSwap",
     "transform": "Transform",
     "gastroacid": "GastroAcid",
+    "powersplit": "PowerSplit", "guardsplit": "GuardSplit",
     "spore": "Sleep", "sleeppowder": "Sleep", "hypnosis": "Sleep",
     "darkvoid": "Sleep", "grasswhistle": "Sleep", "lovelykiss": "Sleep",
     "sing": "Sleep",

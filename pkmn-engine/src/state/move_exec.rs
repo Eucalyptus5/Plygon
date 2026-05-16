@@ -481,6 +481,33 @@ fn apply_primary_secondary(
     }
 }
 
+/// Power/Guard Split: average both actives' raw stat pair and write the result into
+/// both actives' override_stats, populating the full array so effective_stat reads it.
+fn apply_stat_split(state: &mut BattleState, atk_side: usize, def_side: usize, s1: usize, s2: usize) {
+    for side in [atk_side, def_side] {
+        if !state.sides[side].active.stats_split_active()
+            && !state.sides[side].active.has_volatile(VOL_TRANSFORMED)
+            && state.sides[side].active.override_stats[0] == 0
+        {
+            let full = [
+                effective_stat(state, side, ATK), effective_stat(state, side, DEF),
+                effective_stat(state, side, SPA), effective_stat(state, side, SPD),
+                effective_stat(state, side, SPE),
+            ];
+            state.sides[side].active.override_stats = full;
+        }
+    }
+    let avg1 = ((effective_stat(state, atk_side, s1) as u32
+        + effective_stat(state, def_side, s1) as u32) / 2) as u16;
+    let avg2 = ((effective_stat(state, atk_side, s2) as u32
+        + effective_stat(state, def_side, s2) as u32) / 2) as u16;
+    for side in [atk_side, def_side] {
+        state.sides[side].active.override_stats[s1] = avg1;
+        state.sides[side].active.override_stats[s2] = avg2;
+        state.sides[side].active.set_stats_split();
+    }
+}
+
 fn execute_status_move(
     state: &mut BattleState,
     teams: &TeamData,
@@ -986,6 +1013,18 @@ fn execute_status_move(
             let max_d = state.sides[def_side].team[def_slot].max_hp;
             state.sides[atk_side].team[atk_slot].current_hp = avg.min(max_a);
             state.sides[def_side].team[def_slot].current_hp = avg.min(max_d);
+        }
+
+        // -- Power Split / Guard Split: average both actives' raw (pre-boost) stat
+        //    pair (Power: Atk/SpA; Guard: Def/SpD), writing the average into both
+        //    actives' override_stats. Showdown averages storedStats — the engine's
+        //    effective_stat already returns the raw stat (forme/Transform-aware), so
+        //    averaging it mirrors storedStats. Boosts still apply on top downstream. --
+        MoveEffect::PowerSplit | MoveEffect::GuardSplit => {
+            if !state.sides[def_side].team[def_slot].is_fainted() {
+                let (s1, s2) = if md.effect == MoveEffect::PowerSplit { (ATK, SPA) } else { (DEF, SPD) };
+                apply_stat_split(state, atk_side, def_side, s1, s2);
+            }
         }
 
         // -- PerishSong: set 3-turn perish counter on both --
@@ -4224,6 +4263,75 @@ mod tests {
             crate::data::MOVE_DOOM_DESIRE as u16, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].side_conditions.future_move(), 2, "Doom Desire = kind 2");
         assert_eq!(state.sides[1].team[0].current_hp, 300, "no immediate damage on use");
+    }
+
+    // ── Power Split / Guard Split: raw-stat averaging into override_stats ──────
+    #[test]
+    fn test_power_split_averages_atk_spa_both_actives() {
+        let mut state = setup();
+        // side0 atk 150 / spa 150 ; side1 atk 100 / spa 100 → avg 125 each
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_POWER_SPLIT as u16, 0, &mut fixed_rng(0));
+        assert_eq!(effective_stat(&state, 0, ATK), 125);
+        assert_eq!(effective_stat(&state, 1, ATK), 125);
+        assert_eq!(effective_stat(&state, 0, SPA), 125);
+        assert_eq!(effective_stat(&state, 1, SPA), 125);
+        // Untouched stats read native.
+        assert_eq!(effective_stat(&state, 0, DEF), 100);
+        assert_eq!(effective_stat(&state, 0, SPE), 100);
+        assert_eq!(effective_stat(&state, 1, SPE), 80);
+        assert!(state.sides[0].active.stats_split_active());
+        assert!(state.sides[1].active.stats_split_active());
+    }
+
+    #[test]
+    fn test_guard_split_averages_def_spd_both_actives() {
+        let mut state = setup();
+        // side0 def 100 / spd 100 ; side1 def 100 / spd 100 → avg 100; use distinct values
+        state.sides[0].team[0].stats = [150, 120, 150, 60, 100];
+        state.sides[1].team[0].stats = [100, 80, 100, 100, 80];
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_GUARD_SPLIT as u16, 0, &mut fixed_rng(0));
+        assert_eq!(effective_stat(&state, 0, DEF), 100); // (120+80)/2
+        assert_eq!(effective_stat(&state, 1, DEF), 100);
+        assert_eq!(effective_stat(&state, 0, SPD), 80); // (60+100)/2
+        assert_eq!(effective_stat(&state, 1, SPD), 80);
+        // Atk/SpA untouched.
+        assert_eq!(effective_stat(&state, 0, ATK), 150);
+        assert_eq!(effective_stat(&state, 1, SPA), 100);
+    }
+
+    #[test]
+    fn test_power_split_boosts_apply_on_top() {
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_POWER_SPLIT as u16, 0, &mut fixed_rng(0));
+        // averaged atk 125, then +2 boost (×2) reads 250
+        state.sides[0].active.boosts[ATK] = 2;
+        let raw = effective_stat(&state, 0, ATK);
+        assert_eq!(raw, 125);
+        assert_eq!(boosted_stat(raw, state.sides[0].active.boosts[ATK]), 250);
+    }
+
+    #[test]
+    fn test_stat_split_clears_on_switch_out() {
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_POWER_SPLIT as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].active.stats_split_active());
+        crate::state::switch::switch_out(&mut state, &TeamData::default(), 0);
+        assert!(!state.sides[0].active.stats_split_active(), "split flag cleared on switch-out");
+        assert_eq!(state.sides[0].active.override_stats, [0; 5], "override_stats zeroed");
+        // The incoming mon reads native stats.
+        assert_eq!(effective_stat(&state, 0, ATK), state.sides[0].team[0].stats[ATK]);
+    }
+
+    #[test]
+    fn test_non_split_mon_reads_native_stats() {
+        let state = setup();
+        assert!(!state.sides[0].active.stats_split_active());
+        assert_eq!(effective_stat(&state, 0, ATK), 150);
+        assert_eq!(effective_stat(&state, 0, SPA), 150);
     }
 
     #[test]
