@@ -303,6 +303,7 @@ pub enum MoveEffect {
 
     PowerSplit       = 135, // Average both actives' raw Atk and SpA
     GuardSplit       = 136, // Average both actives' raw Def and SpD
+    Soak             = 137, // Set target's types to pure Water
 }
 
 // Flags (16 bits)

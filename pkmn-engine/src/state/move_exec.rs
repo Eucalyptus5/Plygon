@@ -1027,6 +1027,26 @@ fn execute_status_move(
             }
         }
 
+        // -- Soak: set the target's types to pure Water (Showdown setType('Water')).
+        //    Fails on a fainted target, an already-pure-Water target, a Terastallized
+        //    target, and Arceus/Silvally (cantsuppress base type). --
+        MoveEffect::Soak => {
+            let water = Type::Water as u8;
+            let already_water = {
+                let (t1, t2) = battle_types(state, def_side);
+                t1 == water && t2 == water
+            };
+            let base = data_bridge::base_species(state.sides[def_side].team[def_slot].species_id);
+            if !state.sides[def_side].team[def_slot].is_fainted()
+                && !already_water
+                && !state.sides[def_side].team[def_slot].is_terastallized()
+                && base != data_bridge::SPECIES_ARCEUS && base != data_bridge::SPECIES_SILVALLY
+            {
+                state.sides[def_side].active.override_types = [water, water];
+                set_volatile(state, def_side, VOL_TYPES_OVERRIDDEN);
+            }
+        }
+
         // -- PerishSong: set 3-turn perish counter on both --
         MoveEffect::PerishSong => {
             if !state.sides[atk_side].active.has_volatile(VOL_PERISH_SONG) {
@@ -4332,6 +4352,51 @@ mod tests {
         assert!(!state.sides[0].active.stats_split_active());
         assert_eq!(effective_stat(&state, 0, ATK), 150);
         assert_eq!(effective_stat(&state, 0, SPA), 150);
+    }
+
+    // ── Soak: set the target's types to pure Water ────────────────────────────
+    #[test]
+    fn test_soak_sets_pure_water() {
+        let mut state = setup();
+        // side1 active = species 50 (Diglett, Ground). Soak it to pure Water.
+        let water = Type::Water as u8;
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_SOAK as u16, 0, &mut fixed_rng(0));
+        assert_eq!(effective_types(&state, 1), (water, water));
+        assert!(has_type(&state, 1, water));
+        assert!(!has_type(&state, 1, Type::Ground as u8), "original Ground type replaced");
+    }
+
+    #[test]
+    fn test_soak_type_effectiveness_respects_new_type() {
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_SOAK as u16, 0, &mut fixed_rng(0));
+        // After Soak, battle_types (used by damage/effectiveness) is pure Water.
+        assert_eq!(battle_types(&state, 1), (Type::Water as u8, Type::Water as u8));
+    }
+
+    #[test]
+    fn test_soak_fails_on_terastallized_target() {
+        let mut state = setup();
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[1].team[0].tera_type = Type::Fire as u8;
+        let before = effective_types(&state, 1);
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_SOAK as u16, 0, &mut fixed_rng(0));
+        assert_eq!(effective_types(&state, 1), before, "Soak fails on a Tera'd target");
+        assert!(!state.sides[1].active.has_volatile(VOL_TYPES_OVERRIDDEN));
+    }
+
+    #[test]
+    fn test_soak_clears_on_switch_out() {
+        let mut state = setup();
+        execute_move(&mut state, &TeamData::default(), 0,
+            crate::data::MOVE_SOAK as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].active.has_volatile(VOL_TYPES_OVERRIDDEN));
+        crate::state::switch::switch_out(&mut state, &TeamData::default(), 1);
+        assert!(!state.sides[1].active.has_volatile(VOL_TYPES_OVERRIDDEN), "type override cleared");
+        assert_eq!(state.sides[1].active.override_types, [0, 0]);
     }
 
     #[test]
