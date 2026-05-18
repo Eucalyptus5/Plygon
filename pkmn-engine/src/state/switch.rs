@@ -275,7 +275,9 @@ pub fn perform_double_switch(
 /// Force a switch regardless of trap status. Used by faint replacement and
 /// pivot moves (U-turn, Volt Switch, Baton Pass, etc.) which bypass trapping.
 pub fn perform_switch_forced(state: &mut BattleState, teams: &TeamData, side: usize, new_index: usize) {
-    let is_baton_pass = state.sides[side].active._padding[0] != 0;
+    // Baton Pass sets exactly bit 0 (move_exec.rs `= 1`); mask it so the Protect-variant
+    // (bits 1-2) and Power/Guard-Split (bit 3) flags sharing this byte never spoof it.
+    let is_baton_pass = state.sides[side].active._padding[0] & 1 != 0;
 
     // Save Baton Pass state before switch_out zeros everything
     let saved_boosts: [i8; 7];
@@ -792,6 +794,29 @@ mod tests {
 
         // Boosts should NOT transfer
         assert_eq!(state.sides[0].active.boosts[ATK], 0);
+    }
+
+    #[test]
+    fn test_stats_split_force_switch_no_baton_inheritance() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 200, max_hp: 200,
+            stats: [100; 5], ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 6, current_hp: 200, max_hp: 200,
+            stats: [80; 5], ..Default::default()
+        };
+
+        // Mon used Power/Guard Split (bit 3) and has boosts — but did NOT Baton Pass.
+        state.sides[0].active.set_stats_split();
+        apply_boost(&mut state, 0, ATK, 2);
+
+        // Force-switch (faint replacement / pivot) must NOT inherit boosts.
+        perform_switch_forced(&mut state, &TeamData::default(), 0, 1);
+
+        assert_eq!(state.sides[0].active.boosts[ATK], 0);
+        assert_eq!(state.sides[0].active_index, 1);
     }
 
 
