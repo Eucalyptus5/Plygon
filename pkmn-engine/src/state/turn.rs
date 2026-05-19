@@ -129,7 +129,27 @@ fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 
         ActionKind::Struggle => 0,
         ActionKind::Tera { move_id } | ActionKind::Move { move_id, .. } => {
             if *move_id == 0 { return 0; }
-            let md = data_bridge::move_hot(*move_id);
+            // The dispatched move_id is the chooser's nominal pick, but a mon
+            // locked into a multi-turn move (Outrage/Thrash/Petal Dance),
+            // mid-charge (Fly/Dig turn 2 → recalls last_move), or encored will
+            // execute a DIFFERENT move whose priority governs ordering. Mirror
+            // execute_move's override so a slow locked mon doesn't borrow a
+            // priority bracket from the move it can't actually pick this turn.
+            let active = &state.sides[side].active;
+            let eff_move_id = if active.has_volatile(VOL_CHARGING)
+                || active.has_volatile(VOL_MOVE_LOCKED)
+            {
+                active.last_move
+            } else if active.encore_turns > 0
+                && active.encore_move != 0
+                && *move_id != active.encore_move
+            {
+                active.encore_move
+            } else {
+                *move_id
+            };
+            if eff_move_id == 0 { return 0; }
+            let md = data_bridge::move_hot(eff_move_id);
             let mut pri = md.priority;
             let ability = effective_ability(state, side);
 
@@ -680,6 +700,24 @@ pub fn execute_switch_turn(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_locked_move_priority_uses_actual_move() {
+        // A mon locked into Thrash (priority 0) whose chooser picked Helping
+        // Hand (priority +5) must be ordered by Thrash's priority, not the
+        // borrowed +5 of the move it cannot actually select this turn.
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 100, max_hp: 100, ..Default::default() };
+        state.sides[0].active.last_move = 37; // Thrash
+        state.sides[0].active.set_volatile(VOL_MOVE_LOCKED);
+        // Chosen action: Helping Hand (270, +5) — but the lock forces Thrash.
+        let locked = ActionKind::Move { slot: 0, move_id: 270 };
+        assert_eq!(action_priority(&state, 0, &locked), 0);
+
+        // Without the lock, the nominal +5 move governs.
+        state.sides[0].active = ActiveMon::default();
+        assert_eq!(action_priority(&state, 0, &locked), 5);
+    }
 
     #[test]
     fn test_faint_sweep_clears_boosts() {
