@@ -9892,4 +9892,205 @@ mod tests {
             "Magic Guard user must take 0 mindBlownRecoil self-damage"
         );
     }
+
+    // ─── Empirical-frequency harness ──────────────────────────────────────────
+    //
+    // Drives the REAL compiled rng paths with the actual MCTS PRNG (the 64-bit LCG
+    // from src/main.rs), one continuous deterministic stream per test, then checks
+    // the observed rate against a 99.9% two-sided binomial CI (z=3.29). Tolerances
+    // are fixed up front: never raise N or widen the band to make a test pass.
+
+    /// The MCTS PRNG (src/main.rs): one continuous deterministic stream from `start`.
+    fn lcg(start: u64) -> impl FnMut(u32) -> u32 {
+        let mut seed = start;
+        move |max| {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((seed >> 33) as u32) % max.max(1)
+        }
+    }
+
+    /// 99.9% two-sided binomial CI: |hits/n - p| <= 3.29*sqrt(p(1-p)/n).
+    fn in_ci(hits: u64, n: u64, p: f64) -> bool {
+        let phat = hits as f64 / n as f64;
+        let half = 3.29 * (p * (1.0 - p) / n as f64).sqrt();
+        (phat - p).abs() <= half
+    }
+
+    // ─── Tier 2 — compiled-behavior MATCH checks (assert Showdown spec rate) ───
+
+    #[test]
+    fn freq_crit_base_stage() {
+        // is_crit(stage 0) = rng(24)<1 = 1/24 = 4.167%.
+        // N=200_000: half-width = 3.29*sqrt(.04167*.95833/2e5) = ±0.00147 → band [4.02%,4.31%].
+        let mut rng = lcg(0xC817_0001);
+        let n = 200_000u64;
+        let hits = (0..n).filter(|_| crate::state::calc_modifiers::is_crit(0, &mut rng)).count() as u64;
+        assert!(in_ci(hits, n, 1.0 / 24.0), "base crit {}/{} out of 1/24 band", hits, n);
+    }
+
+    #[test]
+    fn freq_crit_high_stage() {
+        // is_crit(stage 1) = rng(24)<3 = 3/24 = 12.5%.
+        // N=200_000: half-width = 3.29*sqrt(.125*.875/2e5) = ±0.00243 → band [12.26%,12.74%].
+        let mut rng = lcg(0xC817_0002);
+        let n = 200_000u64;
+        let hits = (0..n).filter(|_| crate::state::calc_modifiers::is_crit(1, &mut rng)).count() as u64;
+        assert!(in_ci(hits, n, 3.0 / 24.0), "high crit {}/{} out of 1/8 band", hits, n);
+    }
+
+    #[test]
+    fn freq_multihit_2to5_distribution() {
+        // resolve_hits over a 2-5 move: HIT_TABLE indexed by rng(20) → 35/35/15/15.
+        // Per-bucket 99.9% band, N=200_000. p=.35 → ±0.00351; p=.15 → ±0.00263.
+        let md = MoveData { multihit: (5 << 4) | 2, ..unsafe { core::mem::zeroed() } };
+        let mut rng = lcg(0xC817_0003);
+        let n = 200_000u64;
+        let mut counts = [0u64; 6]; // index by hit-count (2..=5)
+        for _ in 0..n {
+            let h = crate::state::calc_modifiers::resolve_hits(&md, 0, 0, &mut rng);
+            counts[h as usize] += 1;
+        }
+        assert!(in_ci(counts[2], n, 0.35), "2-hit {}/{} out of 35% band", counts[2], n);
+        assert!(in_ci(counts[3], n, 0.35), "3-hit {}/{} out of 35% band", counts[3], n);
+        assert!(in_ci(counts[4], n, 0.15), "4-hit {}/{} out of 15% band", counts[4], n);
+        assert!(in_ci(counts[5], n, 0.15), "5-hit {}/{} out of 15% band", counts[5], n);
+    }
+
+    #[test]
+    fn freq_full_paralysis() {
+        // execute_move with a paralyzed attacker: rng(4)==0 = 25% fully-paralyzed.
+        // Measured by "move did not deduct PP" (full-para skips PP). N=80_000:
+        // half-width = 3.29*sqrt(.25*.75/8e4) = ±0.00504 → band [24.50%,25.50%].
+        let mut rng = lcg(0xC817_0004);
+        let n = 80_000u64;
+        let mut para = 0u64;
+        for _ in 0..n {
+            let mut state = setup();
+            state.sides[0].team[0].status = STATUS_PARALYSIS;
+            let pp_before = state.sides[0].team[0].pp[0];
+            execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut rng);
+            if state.sides[0].team[0].pp[0] == pp_before { para += 1; }
+        }
+        assert!(in_ci(para, n, 0.25), "full-para {}/{} out of 25% band", para, n);
+    }
+
+    #[test]
+    fn freq_freeze_thaw() {
+        // execute_move with a frozen non-fire-move attacker: rng(5)==0 = 20% thaw.
+        // Measured by "status cleared this attempt". N=80_000:
+        // half-width = 3.29*sqrt(.2*.8/8e4) = ±0.00465 → band [19.53%,20.47%].
+        let mut rng = lcg(0xC817_0005);
+        let n = 80_000u64;
+        let mut thawed = 0u64;
+        for _ in 0..n {
+            let mut state = setup();
+            state.sides[0].team[0].status = STATUS_FREEZE;
+            // Move 1 (Pound) is Normal — never auto-thaws.
+            execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut rng);
+            if state.sides[0].team[0].status == STATUS_NONE { thawed += 1; }
+        }
+        assert!(in_ci(thawed, n, 0.20), "freeze-thaw {}/{} out of 20% band", thawed, n);
+    }
+
+    #[test]
+    fn freq_secondary_30pct() {
+        // apply_secondary, primary path: rng(100) >= chance ⇒ skip. chance=30.
+        // Self-stat-boost (+1 SpA) avoids target-side immunity. N=80_000:
+        // half-width = 3.29*sqrt(.3*.7/8e4) = ±0.00533 → band [29.47%,30.53%].
+        let md = MoveData {
+            secondary_chance: 30, secondary_stat: 1,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let mut rng = lcg(0xC817_0006);
+        let n = 80_000u64;
+        let mut fired = 0u64;
+        for _ in 0..n {
+            let mut state = setup();
+            apply_secondary(&mut state, 0, 1, &md, 0, &mut rng);
+            if state.sides[0].active.boosts[SPA] != 0 { fired += 1; }
+        }
+        assert!(in_ci(fired, n, 0.30), "30% secondary {}/{} out of band", fired, n);
+    }
+
+    #[test]
+    fn freq_move_accuracy_70() {
+        // accuracy_check: hit iff rng(100) < acc. md.accuracy=70, no boosts/abilities.
+        // N=80_000: half-width = 3.29*sqrt(.7*.3/8e4) = ±0.00533 → band [69.47%,70.53%].
+        let state = setup();
+        let md = MoveData { accuracy: 70, ..unsafe { core::mem::zeroed() } };
+        let mut rng = lcg(0xC817_0007);
+        let n = 80_000u64;
+        let hits = (0..n).filter(|_| accuracy_check(&state, 0, &md, &mut rng)).count() as u64;
+        assert!(in_ci(hits, n, 0.70), "accuracy-70 {}/{} out of band", hits, n);
+    }
+
+    /// A contact attacker for the contact-ability tests: Normal type (no para/sleep/
+    /// poison type-immunity, not Grass so not powder-immune), no ability/item, full HP.
+    /// Status reset each iteration so the `status == NONE` proc gate stays open.
+    fn reset_contact_attacker(state: &mut BattleState) {
+        let m = &mut state.sides[0].team[0];
+        m.status = STATUS_NONE;
+        m.status_counter = 0;
+        m.current_hp = m.max_hp;
+        state.sides[0].active.confusion_turns = 0;
+        state.sides[0].active.override_types = [Type::Normal as u8, Type::Normal as u8];
+        state.sides[0].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+    }
+
+    #[test]
+    fn freq_static_30pct() {
+        // Contact hit into a Static holder: rng(100)<30 ⇒ paralyze attacker. N=80_000.
+        // half-width = 3.29*sqrt(.3*.7/8e4) = ±0.00533 → band [29.47%,30.53%].
+        let mut rng = lcg(0xC817_0008);
+        let n = 80_000u64;
+        let mut para = 0u64;
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STATIC;
+        for _ in 0..n {
+            reset_contact_attacker(&mut state);
+            execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut rng);
+            if state.sides[0].team[0].status == STATUS_PARALYSIS { para += 1; }
+        }
+        assert!(in_ci(para, n, 0.30), "Static {}/{} out of 30% band", para, n);
+    }
+
+    // ─── Tier 3 — optional uniformity checks ──────────────────────────────────
+
+    #[test]
+    fn freq_tri_attack_3way_uniform() {
+        // Tri Attack picks one of 3 statuses via rng(3) (uniform 1/3 each).
+        // Per-bucket 99.9% band, N=180_000: p=1/3 → ±0.00366 → band [32.97%,33.70%].
+        let md = MoveData {
+            secondary_chance: 100,
+            category: MoveCategory::Special,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let tri = crate::data::MOVE_TRI_ATTACK as u16;
+        let mut rng = lcg(0xC817_0009);
+        let n = 180_000u64;
+        let mut counts = [0u64; 3]; // brn / par / frz indices (Tri Attack order)
+        for _ in 0..n {
+            let mut state = setup();
+            // Neutral-typed target so no status is type-blocked; clear any prior status.
+            state.sides[1].team[0].species_id = 1; // Bulbasaur-ish; overridden below
+            state.sides[1].active.override_types = [Type::Normal as u8, Type::Normal as u8];
+            state.sides[1].active.volatile_flags |= VOL_TYPES_OVERRIDDEN;
+            state.sides[1].team[0].status = STATUS_NONE;
+            apply_secondary(&mut state, 0, 1, &md, tri, &mut rng);
+            match state.sides[1].team[0].status {
+                STATUS_BURN => counts[0] += 1,
+                STATUS_PARALYSIS => counts[1] += 1,
+                STATUS_FREEZE => counts[2] += 1,
+                _ => {}
+            }
+        }
+        let total: u64 = counts.iter().sum();
+        assert!(total > n * 99 / 100, "Tri Attack applied a status {total}/{n} times");
+        for (i, &c) in counts.iter().enumerate() {
+            assert!(in_ci(c, total, 1.0 / 3.0), "Tri Attack status {i}: {c}/{total} off uniform 1/3");
+        }
+    }
 }
