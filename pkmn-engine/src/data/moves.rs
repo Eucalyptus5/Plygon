@@ -52,6 +52,7 @@ pub enum VarPower {
     Avalanche     = 24, // 2× if user was hit by target this turn (Avalanche, Revenge)
     FuryCutter    = 25, // 40 BP, doubles on each consecutive successful hit (cap 160)
     HpRatio       = 26, // BP scales with target's current HP fraction; coefficient (full-HP BP) carried in base_power (Hard Press 100, Crush Grip 120)
+    BeatUp        = 27, // one hit per eligible party member; per-hit BP = 5 + ⌊member base Atk / 10⌋
 }
 
 // Encodes guaranteed self-stat changes, crash damage, and other effects

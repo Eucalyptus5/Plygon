@@ -559,6 +559,29 @@ pub fn calc_damage(
     if parental_bond_active {
         num_hits = 2;
     }
+
+    // Beat Up: one Dark physical hit per eligible party member — the active user
+    // always, plus each non-fainted, non-statused benched member, in party
+    // order. Per-hit BP = 5 + ⌊member base Atk / 10⌋ (the user's own Atk/Def
+    // matchup governs the formula). Cold branch — only Beat Up enters it.
+    let mut beat_up_bp: [u16; 6] = [0; 6];
+    if md.var_power == VarPower::BeatUp {
+        let active_idx = state.sides[atk_side].active_index as usize;
+        let mut n = 0usize;
+        for i in 0..6 {
+            let m = &state.sides[atk_side].team[i];
+            if m.species_id == 0 { continue; }
+            let eligible = i == active_idx
+                || (!m.is_fainted() && m.status == crate::state::structs::STATUS_NONE);
+            if eligible {
+                beat_up_bp[n] = crate::state::calc_modifiers::beat_up_member_bp(
+                    data_bridge::species(m.species_id).atk,
+                );
+                n += 1;
+            }
+        }
+        num_hits = n.max(1) as u8;
+    }
     result.hits = num_hits;
 
     // Pre-compute all loop-invariant modifiers
@@ -602,11 +625,12 @@ pub fn calc_damage(
             result.hits = hit;
             break;
         }
-        // Escalating power: Triple Kick/Axel multiply by hit number
-        let hit_power = if md.var_power == VarPower::Escalating {
-            power * (hit as u32 + 1)
-        } else {
-            power
+        // Escalating power: Triple Kick/Axel multiply by hit number.
+        // Beat Up: each hit reads its own pre-computed per-member BP.
+        let hit_power = match md.var_power {
+            VarPower::Escalating => power * (hit as u32 + 1),
+            VarPower::BeatUp => beat_up_bp[hit as usize] as u32,
+            _ => power,
         };
         let mut dmg: u32 = (lf * hit_power * a32 / d32) / 50 + 2;
 
@@ -753,6 +777,48 @@ mod tests {
         };
         state.phase = PHASE_ACTIONS;
         state
+    }
+
+    #[test]
+    fn test_beat_up_member_bp_formula() {
+        use crate::state::calc_modifiers::beat_up_member_bp;
+        assert_eq!(beat_up_member_bp(55), 10);  // Pikachu  5 + 55/10
+        assert_eq!(beat_up_member_bp(84), 13);  // Charizard 5 + 84/10
+        assert_eq!(beat_up_member_bp(110), 16); // Snorlax  5 + 110/10
+        assert_eq!(beat_up_member_bp(0), 5);    // floor — minimum BP 5
+    }
+
+    #[test]
+    fn test_beat_up_hit_count_eligible_members() {
+        let mut state = test_state();
+        let beat_up = crate::data::MOVE_BEAT_UP as u16;
+        // 3-member party (Pikachu / Charizard / Snorlax), all healthy.
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 100, max_hp: 100,
+            stats: [100, 100, 100, 100, 100], level: 50, ..Default::default() };
+        state.sides[0].team[1] = MonSlot { species_id: 6, current_hp: 100, max_hp: 100, level: 50, ..Default::default() };
+        state.sides[0].team[2] = MonSlot { species_id: 143, current_hp: 100, max_hp: 100, level: 50, ..Default::default() };
+        state.sides[1].team[0] = MonSlot { species_id: 143, current_hp: 300, max_hp: 300,
+            stats: [100, 100, 100, 100, 100], level: 50, ..Default::default() };
+        let r = calc_damage(&state, 0, beat_up, 100, &mut fixed_rng(0));
+        assert_eq!(r.hits, 3, "all 3 healthy party members contribute a hit");
+    }
+
+    #[test]
+    fn test_beat_up_excludes_fainted_and_statused_bench() {
+        let mut state = test_state();
+        let beat_up = crate::data::MOVE_BEAT_UP as u16;
+        // Active user (statused — still counts), one fainted, one statused, one healthy.
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 100, max_hp: 100,
+            stats: [100, 100, 100, 100, 100], status: STATUS_BURN, level: 50, ..Default::default() };
+        state.sides[0].team[1] = MonSlot { species_id: 6, current_hp: 0, max_hp: 100, level: 50, ..Default::default() }; // fainted
+        state.sides[0].team[2] = MonSlot { species_id: 143, current_hp: 100, max_hp: 100,
+            status: STATUS_PARALYSIS, level: 50, ..Default::default() }; // statused bench
+        state.sides[0].team[3] = MonSlot { species_id: 143, current_hp: 100, max_hp: 100, level: 50, ..Default::default() }; // healthy
+        state.sides[1].team[0] = MonSlot { species_id: 143, current_hp: 300, max_hp: 300,
+            stats: [100, 100, 100, 100, 100], level: 50, ..Default::default() };
+        let r = calc_damage(&state, 0, beat_up, 100, &mut fixed_rng(0));
+        // Active user (slot 0, even though burned) + healthy bench (slot 3) = 2 hits.
+        assert_eq!(r.hits, 2, "fainted + statused bench excluded; active user always counts");
     }
 
     #[test]

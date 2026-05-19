@@ -359,6 +359,7 @@ VAR_POWER = {
     "avalanche": "Avalanche", "revenge": "Avalanche",
     "furycutter": "FuryCutter",
     "hardpress": "HpRatio", "crushgrip": "HpRatio",
+    "beatup": "BeatUp",
 }
 
 # HP-ratio moves carry basePower:0 in Showdown with a basePowerCallback. We carry

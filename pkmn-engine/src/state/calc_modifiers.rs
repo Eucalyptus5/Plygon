@@ -348,8 +348,19 @@ pub fn resolve_power(
                 _ => 160,
             }
         }
+        VarPower::BeatUp => {
+            // Representative BP (user's own member) so the power!=0 guard passes;
+            // the per-hit BPs are recomputed per eligible party member in calc.rs.
+            beat_up_member_bp(atk_species.atk)
+        }
         _ => md.base_power as u16,
     }
+}
+
+/// Beat Up per-hit base power for a party member: 5 + ⌊base Atk / 10⌋.
+#[inline]
+pub fn beat_up_member_bp(base_atk: u8) -> u16 {
+    5 + (base_atk as u16) / 10
 }
 
 /// Returns (num, den) in 4096-scale for attacker's ability effect on power.
