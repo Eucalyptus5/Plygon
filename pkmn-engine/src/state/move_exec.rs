@@ -4052,7 +4052,7 @@ pub fn execute_move(
     if state.sides[atk_side].active.confusion_turns > 0 {
         // Showdown's confusion onBeforeMove decrements every move attempt, including the application turn.
         state.sides[atk_side].active.confusion_turns -= 1;
-        if state.sides[atk_side].active.confusion_turns > 0 && rng(3) == 0 {
+        if state.sides[atk_side].active.confusion_turns > 0 && rng(100) < 33 {
             let a = boosted_stat(
                 effective_stat(state, atk_side, ATK),
                 state.sides[atk_side].active.boosts[ATK],
@@ -10055,6 +10055,32 @@ mod tests {
             if state.sides[0].team[0].status == STATUS_PARALYSIS { para += 1; }
         }
         assert!(in_ci(para, n, 0.30), "Static {}/{} out of 30% band", para, n);
+    }
+
+    // ─── Tier 1 — GAP guard: confusion self-hit ──────────────────────────────
+
+    #[test]
+    fn freq_confusion_self_hit() {
+        // execute_move with a confused attacker: self-hit gate is rng(100)<33 = 33.00%.
+        // confusion_turns kept ≥2 each iteration so the post-decrement value stays >0
+        // (Showdown never self-hits on the wake-from-confusion tick). N=400_000:
+        // half-width = 3.29*sqrt(.33*.67/4e5) = ±0.00245 → band [32.76%,33.25%].
+        // This band EXCLUDES the pre-fix wrong rate 33.333% (upper bound 33.245%),
+        // so the test fails on rng(3)==0 (33.33%) and passes only on rng(100)<33.
+        let mut rng = lcg(0xC817_000A);
+        let n = 400_000u64;
+        let mut hit = 0u64;
+        let mut state = setup();
+        for _ in 0..n {
+            state.sides[0].active.confusion_turns = 5;
+            let hp = state.sides[0].team[0].current_hp;
+            execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut rng);
+            if state.sides[0].team[0].current_hp < hp { hit += 1; }
+            // restore both HP bars so neither a self-hit nor the move ever KOs
+            state.sides[0].team[0].current_hp = state.sides[0].team[0].max_hp;
+            state.sides[1].team[0].current_hp = state.sides[1].team[0].max_hp;
+        }
+        assert!(in_ci(hit, n, 0.33), "confusion self-hit {}/{} out of 33.00% band", hit, n);
     }
 
     // ─── Tier 3 — optional uniformity checks ──────────────────────────────────
