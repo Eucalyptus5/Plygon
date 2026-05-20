@@ -7697,6 +7697,24 @@ mod tests {
     }
 
     #[test]
+    fn test_galvanize_explosion_self_faint_keeps_electric_immunity() {
+        // Galvanize-Explosion self-faints the user before calc. The -ate conversion
+        // must still fire (Normal -> Electric), so a Ground defender is immune.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_GALVANIZE;
+        state.sides[1].team[0].species_id = 50; // Diglett (Ground) — immune to Electric
+        let def_hp_before = state.sides[1].team[0].current_hp;
+
+        execute_move(&mut state, &TeamData::default(), 0, 153, 0, &mut fixed_rng(85)); // 153 = Explosion
+
+        assert!(state.sides[0].team[0].is_fainted(), "Explosion user should have self-fainted");
+        assert_eq!(
+            state.sides[1].team[0].current_hp, def_hp_before,
+            "Ground defender must take 0 (Galvanize -> Electric immunity preserved across self-faint)"
+        );
+    }
+
+    #[test]
     fn test_chilling_neigh_atk() {
         let mut state = setup();
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_CHILLING_NEIGH;

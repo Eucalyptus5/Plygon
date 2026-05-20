@@ -138,7 +138,9 @@ pub fn calc_damage(
     let atk_mon = state.active_mon(atk_side);
     let def_mon = state.active_mon(def_side);
     let def_active = &state.sides[def_side].active;
-    let atk_ability = effective_ability(state, atk_side);
+    // Self-Destruct/Explosion faint the user (hp=0) before calc; Showdown's queued
+    // faint leaves isActive set, so the attacker's ability still fires during damage.
+    let atk_ability = effective_ability_ignoring_faint(state, atk_side);
     let def_ability = effective_ability(state, def_side);
     let magic_room = state.field.magic_room_turns() > 0;
     let atk_item = if magic_room { &data_bridge::ItemData::NONE } else { data_bridge::item(atk_mon.item_id) };

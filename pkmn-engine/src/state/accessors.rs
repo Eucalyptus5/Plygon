@@ -83,8 +83,9 @@ pub fn effective_weather_for(state: &BattleState, side: usize) -> u8 {
 #[inline(always)]
 pub fn effective_ability(state: &BattleState, side: usize) -> u16 {
     let mon = state.active_mon(side);
-    // Mirrors Showdown's `ignoringAbility()` short-circuit on `!isActive`
-    // (sim/pokemon.ts:860, gen >= 5): a fainted active mon has no ability.
+    // hp==0 is NOT Showdown's `!isActive`: a queued-but-unprocessed faint keeps the
+    // ability live mid-action. Sites that read across the faint seam (KO-trigger hooks,
+    // self-faint -ate moves) use effective_ability_ignoring_faint instead.
     if mon.is_fainted() { return 0; }
     effective_ability_ignoring_faint(state, side)
 }
