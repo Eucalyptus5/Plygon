@@ -102,6 +102,11 @@ pub const MON_FLAG_GENDERLESS: u16   = 1 << 8;
 // Set when Skill Swap (or a sibling) has overwritten this slot's live ability;
 // the pre-swap ability is stashed in ActiveMon.override_ability for switch-out restore.
 pub const MON_FLAG_ABILITY_SWAPPED: u16 = 1 << 9;
+// Per-move-slot "used at least once" mask (bits 10-13, one per move slot). Mirrors
+// Showdown's `moveSlot.used`, set on every move use (incl. failed/missed) and
+// persistent across switch-out. Last Resort's onTry gate reads it; do NOT derive it
+// from PP deltas (Pressure/restore corrupt those).
+pub const MON_FLAG_MOVE_USED_BASE: u16 = 1 << 10;
 
 /// ActiveMon `_padding[0]` bit 3: Power/Guard Split wrote averaged stats into
 /// `override_stats` on a mon that is neither Transformed nor forme-changed. Tells
@@ -568,6 +573,16 @@ impl SideConditions {
 impl MonSlot {
     #[inline(always)]
     pub fn is_fainted(&self) -> bool { self.current_hp == 0 }
+
+    #[inline(always)]
+    pub fn mark_move_used(&mut self, slot: usize) {
+        self.flags |= MON_FLAG_MOVE_USED_BASE << (slot & 3);
+    }
+
+    #[inline(always)]
+    pub fn move_used(&self, slot: usize) -> bool {
+        self.flags & (MON_FLAG_MOVE_USED_BASE << (slot & 3)) != 0
+    }
 
     #[inline(always)]
     pub fn is_terastallized(&self) -> bool {

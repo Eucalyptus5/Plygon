@@ -2489,6 +2489,31 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Last Resort (387) onTry: fails unless the user knows >= 2 moves AND every
+    // other (non-Last-Resort) move slot has been used at least once this battle.
+    // Mirrors moves.ts:lastresort.onTry. Slot 0 = empty (move id 0) is not counted.
+    // Last Resort's own slot is skipped, matching Showdown's `id === 'lastresort'`
+    // continue. Uses the persistent per-slot used mask, NOT PP deltas.
+    if move_id == 387 {
+        let mon = &state.sides[atk_side].team[atk_slot];
+        let known = mon.moves.iter().filter(|&&m| m != 0).count();
+        if known < 2 {
+            return;
+        }
+        let mut all_others_used = true;
+        for i in 0..4 {
+            let m = mon.moves[i];
+            if m == 0 || m == 387 { continue; }
+            if !mon.move_used(i) {
+                all_others_used = false;
+                break;
+            }
+        }
+        if !all_others_used {
+            return;
+        }
+    }
+
     // Fake Out (252) / First Impression (660) / Mat Block (561) onTry: only work
     // on the user's first move action after switching in. Showdown keys
     // `source.activeMoveActions > 1` (moves.ts); fail (no damage, no flinch /
@@ -4099,6 +4124,12 @@ pub fn execute_move(
                 move_slot as usize
             };
             deduct_pp(state, atk_side, pp_slot, 1);
+            // Showdown's deductPP sets moveSlot.used before onTry/hit, so a move use
+            // marks the slot even if it later fails or misses. Skip while transformed
+            // (used lives on the temporary moveSlots there, not the base slot).
+            if !state.sides[atk_side].active.has_volatile(VOL_TRANSFORMED) {
+                state.sides[atk_side].team[atk_slot].mark_move_used(pp_slot);
+            }
         }
 
         if !is_move_locked {
@@ -4241,6 +4272,37 @@ mod tests {
         apply_secondary(&mut state, 0, 1, &md, crate::data::MOVE_ANCIENT_POWER as u16, &mut fixed_rng(0));
         let b = state.sides[0].active.boosts;
         assert_eq!([b[ATK], b[DEF], b[SPA], b[SPD], b[SPE]], [1, 1, 1, 1, 1]);
+    }
+
+    // ── Last Resort onTry: fails until every other known slot has been used ───
+    #[test]
+    fn test_last_resort_fails_until_other_slots_used() {
+        let mut state = setup();
+        // Two known moves: Last Resort (387) in slot 0, move 2 in slot 1.
+        state.sides[0].team[0].moves = [387, 2, 0, 0];
+        let hp_before = state.sides[1].team[0].current_hp;
+
+        // Slot 1 not yet used → Last Resort fails, no damage.
+        execute_move(&mut state, &TeamData::default(), 0, 387, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before,
+            "Last Resort must fail (no damage) while another known slot is unused");
+
+        // Mark slot 1 used, retry → Last Resort connects.
+        state.sides[0].team[0].mark_move_used(1);
+        execute_move(&mut state, &TeamData::default(), 0, 387, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < hp_before,
+            "Last Resort must connect once every other known slot is used");
+    }
+
+    #[test]
+    fn test_last_resort_fails_with_single_move() {
+        let mut state = setup();
+        // Only Last Resort known → moveSlots.length < 2 → always fails.
+        state.sides[0].team[0].moves = [387, 0, 0, 0];
+        let hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 387, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, hp_before,
+            "Last Resort must fail when it is the only known move");
     }
 
     // ── Stomping Tantrum / Temper Flare: prev-move-failed capture lifecycle ───
