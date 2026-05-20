@@ -572,6 +572,14 @@ pub fn execute_turn(
             return;
         }
 
+        // A first-mover pivot (U-turn / Volt Switch / Parting Shot / Baton Pass /
+        // Teleport) raises a mid-turn switch request: Showdown's turnLoop returns
+        // on `this.requestState` before the slower mon's queued action ever pops
+        // (sim/battle.ts), so the second mover does not move and residuals do not
+        // run until the replacement lands. Mirror that — skip the second action
+        // when the first mover set VOL_MUST_SWITCH on its own side.
+        let first_pivot = state.sides[first.side].active.has_volatile(VOL_MUST_SWITCH);
+
         // Showdown runs the second mover's action and EOT residuals before any
         // forced-replacement prompt: a mid-turn faint after move 1 does NOT block
         // the survivor from moving or from receiving end-of-turn ticks (burn /
@@ -579,7 +587,7 @@ pub fn execute_turn(
         // action only when the second mover itself is fainted; execute_move and
         // execute_action are no-ops on fainted attackers, but a queued Switch
         // would still resolve, so gate explicitly.
-        if !state.active_mon(second.side).is_fainted() {
+        if !first_pivot && !state.active_mon(second.side).is_fainted() {
             execute_action(state, teams, second.side, &second.action, rng);
         }
     }
@@ -717,6 +725,42 @@ mod tests {
         // Without the lock, the nominal +5 move governs.
         state.sides[0].active = ActiveMon::default();
         assert_eq!(action_priority(&state, 0, &locked), 5);
+    }
+
+    #[test]
+    fn test_first_mover_pivot_suppresses_second_mover_queued_move() {
+        use crate::data::MOVE_U_TURN;
+        let mut state = BattleState::default();
+        state.phase = PHASE_ACTIONS;
+        // p1 faster, U-turns with a live bench mon → mid-turn switch request.
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 150],
+            moves: [MOVE_U_TURN as u16, 0, 0, 0], pp: [24, 0, 0, 0],
+            level: 100, ..Default::default()
+        };
+        state.sides[0].team[1] = MonSlot {
+            species_id: 6, current_hp: 200, max_hp: 200,
+            stats: [100, 100, 100, 100, 80], level: 100, ..Default::default()
+        };
+        // p2 slower, with a damaging move queued in slot 0.
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 80],
+            moves: [1, 0, 0, 0], pp: [24, 0, 0, 0],
+            level: 100, ..Default::default()
+        };
+        let p1_hp_before = state.sides[0].team[0].current_hp;
+        execute_turn(&mut state, &TeamData::default(), 0, 0, &mut fixed_rng(0));
+        // Showdown halts at the switch request: the slower p2 mon never fires its
+        // queued move → its PP is untouched and the faster (now pivot-pending) mon
+        // takes no further damage from a second action.
+        assert_eq!(state.sides[1].team[0].pp[0], 24, "p2 queued move must not consume PP");
+        assert_eq!(state.sides[0].team[0].current_hp, p1_hp_before, "p2 queued move must not hit p1");
+    }
+
+    fn fixed_rng(v: u32) -> impl FnMut(u32) -> u32 {
+        move |_| v
     }
 
     #[test]
