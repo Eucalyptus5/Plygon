@@ -3576,16 +3576,24 @@ pub(crate) fn use_move_called(
                         || atk_ability == data_bridge::ABILITY_OVERCOAT
                         || holds_safety_goggles(state, atk_side);
                     if !powder_immune {
+                        // Classify the band FIRST (slp 11 / par 10 / psn 9 = 11/21/30),
+                        // then attempt only that one status with its own immunity guard.
+                        // A status-immune band-roll applies nothing — it must NOT cascade
+                        // into the next arm. Mirrors abilities.ts effectspore.
                         let roll = rng(100);
-                        if roll < 10 && !terrain_blocks_status(state, atk_side, STATUS_SLEEP) && !ability_status_immune(state, atk_side, def_ability, STATUS_SLEEP) {
-                            set_status(state, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
-                            // Synchronize does NOT pass sleep
-                        } else if roll < 20 && !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) && !ability_status_immune(state, atk_side, def_ability, STATUS_PARALYSIS) {
-                            if set_status(state, atk_side, atk_slot, STATUS_PARALYSIS, 0) {
+                        if roll < 11 {
+                            if !terrain_blocks_status(state, atk_side, STATUS_SLEEP) && !ability_status_immune(state, atk_side, def_ability, STATUS_SLEEP) {
+                                set_status(state, atk_side, atk_slot, STATUS_SLEEP, (rng(3) + 2) as u8);
+                                // Synchronize does NOT pass sleep
+                            }
+                        } else if roll < 21 {
+                            if !terrain_blocks_status(state, atk_side, STATUS_PARALYSIS) && !type_immune_to_status(state, atk_side, STATUS_PARALYSIS) && !ability_status_immune(state, atk_side, def_ability, STATUS_PARALYSIS)
+                                && set_status(state, atk_side, atk_slot, STATUS_PARALYSIS, 0) {
                                 try_synchronize_back(state, atk_side, def_side, STATUS_PARALYSIS);
                             }
-                        } else if roll < 30 && !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) && !ability_status_immune(state, atk_side, def_ability, STATUS_POISON) {
-                            if set_status(state, atk_side, atk_slot, STATUS_POISON, 0) {
+                        } else if roll < 30 {
+                            if !terrain_blocks_status(state, atk_side, STATUS_POISON) && !type_immune_to_status(state, atk_side, STATUS_POISON) && !ability_status_immune(state, atk_side, def_ability, STATUS_POISON)
+                                && set_status(state, atk_side, atk_slot, STATUS_POISON, 0) {
                                 try_synchronize_back(state, atk_side, def_side, STATUS_POISON);
                             }
                         }
@@ -10081,6 +10089,57 @@ mod tests {
             state.sides[1].team[0].current_hp = state.sides[1].team[0].max_hp;
         }
         assert!(in_ci(hit, n, 0.33), "confusion self-hit {}/{} out of 33.00% band", hit, n);
+    }
+
+    // ─── Tier 1 — GAP guard: Effect Spore split + immunity fall-through ───────
+
+    #[test]
+    fn freq_effect_spore_split() {
+        // Contact hit into an Effect Spore holder: one rng(100), bands
+        // <11 slp / <21 par / <30 psn. Within procs the split is 11:10:9.
+        // Normal-typed attacker (no type-immunity to any of the 3 statuses, not
+        // Grass so not powder-immune). N=300_000 hits ≈ 90k procs.
+        // Per-status 99.9% band on ~90k procs: slp p=11/30 → ±0.53pp,
+        // par p=10/30 → ±0.52pp, psn p=9/30 → ±0.50pp — all ≪ the 3.33pp
+        // spacing between adjacent bands, so the split is unambiguous.
+        let mut rng = lcg(0xC817_000B);
+        let n = 300_000u64;
+        let mut slp = 0u64;
+        let mut par = 0u64;
+        let mut psn = 0u64;
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_EFFECT_SPORE;
+        for _ in 0..n {
+            reset_contact_attacker(&mut state);
+            execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut rng);
+            match state.sides[0].team[0].status {
+                STATUS_SLEEP => slp += 1,
+                STATUS_PARALYSIS => par += 1,
+                STATUS_POISON => psn += 1,
+                _ => {}
+            }
+        }
+        let procs = slp + par + psn;
+        // Total proc rate is 30% — sanity-check the denominator class first.
+        assert!(in_ci(procs, n, 0.30), "Effect Spore total procs {}/{} out of 30% band", procs, n);
+        assert!(in_ci(slp, procs, 11.0 / 30.0), "slp share {}/{} not 11/30", slp, procs);
+        assert!(in_ci(par, procs, 10.0 / 30.0), "par share {}/{} not 10/30", par, procs);
+        assert!(in_ci(psn, procs, 9.0 / 30.0), "psn share {}/{} not 9/30", psn, procs);
+    }
+
+    #[test]
+    fn effect_spore_sleep_immune_no_fallthrough() {
+        // A sleep-band roll (rng(100)<11) against a sleep-immune attacker must apply
+        // NOTHING — it must not cascade into the paralysis arm. Insomnia blocks sleep
+        // but not paralysis; a roll of 0 lands in the sleep band. Deterministic.
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_EFFECT_SPORE;
+        reset_contact_attacker(&mut state);
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_INSOMNIA;
+        // fixed_rng(0): rng(100)=0 → sleep band; sleep blocked by Insomnia → no fall-through.
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE,
+            "sleep-immune sleep-band roll must apply no status (no paralysis fall-through)");
     }
 
     // ─── Tier 3 — optional uniformity checks ──────────────────────────────────
