@@ -384,6 +384,21 @@ fn apply_tera(state: &mut BattleState, teams: &TeamData, side: usize) {
     }
     let mon = &mut state.sides[side].team[slot];
     if mon.is_fainted() || mon.is_terastallized() { return; }
+    // Ogerpon softlocks (silent no-op) in Showdown unless its Tera type is one
+    // of Fire/Grass/Rock/Water (battle-actions.ts:1926 — the set, not the forme
+    // mask: a Wellspring Ogerpon may Tera into Fire/Grass/Rock too). tera_type
+    // is engine-order here (team_builder converts on ingest).
+    if matches!(mon.species_id, 1017 | 1300 | 1302 | 1305)
+        && !matches!(
+            mon.tera_type,
+            x if x == Type::Fire as u8
+                || x == Type::Grass as u8
+                || x == Type::Rock as u8
+                || x == Type::Water as u8
+        )
+    {
+        return;
+    }
     mon.flags |= MON_FLAG_TERASTALLIZED;
     state.sides[side]._padding[0] |= 1;
 
@@ -761,6 +776,32 @@ mod tests {
 
     fn fixed_rng(v: u32) -> impl FnMut(u32) -> u32 {
         move |_| v
+    }
+
+    #[test]
+    fn test_ogerpon_illegal_tera_type_no_ops() {
+        // Ogerpon-Wellspring (1305) may only Tera into Fire/Grass/Rock/Water.
+        // An out-of-set Tera type (Ghost) must be a silent no-op (mirror SD).
+        let mut illegal = BattleState::default();
+        illegal.sides[1].team[0] = MonSlot {
+            species_id: 1305, ability_id: 11, current_hp: 100, max_hp: 100,
+            tera_type: Type::Ghost as u8, ..Default::default()
+        };
+        apply_tera(&mut illegal, &TeamData::default(), 1);
+        assert!(!illegal.sides[1].team[0].is_terastallized(), "Ghost-Tera Ogerpon must not terastallize");
+        assert_eq!(illegal.sides[1].team[0].ability_id, 11, "ability must stay Water Absorb");
+        assert_eq!(illegal.sides[1].active.boosts[SPD], 0, "no Embody Aspect boost on illegal Tera");
+
+        // In-set Tera (Water = the forme mask) must still go through.
+        let mut legal = BattleState::default();
+        legal.sides[1].team[0] = MonSlot {
+            species_id: 1305, ability_id: 11, current_hp: 100, max_hp: 100,
+            tera_type: Type::Water as u8, ..Default::default()
+        };
+        apply_tera(&mut legal, &TeamData::default(), 1);
+        assert!(legal.sides[1].team[0].is_terastallized(), "Water-Tera Ogerpon must terastallize");
+        assert_eq!(legal.sides[1].team[0].ability_id, data_bridge::ABILITY_EMBODY_ASPECT_WELLSPRING);
+        assert_eq!(legal.sides[1].active.boosts[SPD], 1, "Embody Aspect SpD +1 on legal Tera");
     }
 
     #[test]
