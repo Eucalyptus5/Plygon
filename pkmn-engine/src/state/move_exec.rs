@@ -575,6 +575,8 @@ fn execute_status_move(
         && md.effect != MoveEffect::HealingWish
         && md.effect != MoveEffect::LunarDance
         && md.effect != MoveEffect::Swallow // heals by stockpile count, fails at 0 — see MoveEffect::Swallow arm
+        && md.effect != MoveEffect::Heal25
+        && md.effect != MoveEffect::Heal25CureStatus // 25% heals, handled in the main effect match
         && move_id as usize != crate::data::MOVE_HEAL_PULSE
         && move_id as usize != crate::data::MOVE_FLORAL_HEALING // target:Any HEAL — heal the foe, handled below
     {
@@ -1159,6 +1161,15 @@ fn execute_status_move(
                 // If both types were Flying, become pure Normal
                 state.sides[atk_side].active.override_types = [new_t1, new_t2];
                 set_volatile(state, atk_side, VOL_TYPES_OVERRIDDEN);
+            }
+        }
+
+        // Life Dew / Jungle Healing / Lunar Blessing: heal 25% (SD modify(maxhp, 0.25)).
+        MoveEffect::Heal25 | MoveEffect::Heal25CureStatus => {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            heal(state, atk_side, atk_slot, crate::state::calc_modifiers::chain_mod(max_hp as u32, 1024) as u16);
+            if md.effect == MoveEffect::Heal25CureStatus {
+                clear_status(state, atk_side, atk_slot);
             }
         }
 
@@ -1747,6 +1758,7 @@ fn is_self_targeting(md: &MoveData) -> bool {
         MoveEffect::DestinyBond | MoveEffect::ClangorousSoul |
         MoveEffect::Curse | MoveEffect::NoRetreat | MoveEffect::TidyUp |
         MoveEffect::AquaRing | MoveEffect::Ingrain |
+        MoveEffect::Heal25 | MoveEffect::Heal25CureStatus |
         MoveEffect::Charge | MoveEffect::Endure |
         // Ally-target boosts: in singles resolve to self
         MoveEffect::AllyBoost => true,
@@ -5696,6 +5708,40 @@ mod tests {
 
         execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
         assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+    }
+
+    #[test]
+    fn test_heal25_quarter_round_half_up() {
+        let mut state = setup();
+        // maxhp 131 → SD modify(maxhp, 0.25) = 33 (round-half-up; floor would give 32).
+        state.sides[0].team[0].max_hp = 131;
+        state.sides[0].team[0].current_hp = 1;
+        let md = MoveData {
+            category: MoveCategory::Status,
+            flags: MoveFlags::HEAL,
+            effect: MoveEffect::Heal25,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+        assert_eq!(state.sides[0].team[0].current_hp, 34); // 1 + 33
+    }
+
+    #[test]
+    fn test_heal25_cure_status_clears_status() {
+        let mut state = setup();
+        state.sides[0].team[0].max_hp = 200;
+        state.sides[0].team[0].current_hp = 50;
+        state.sides[0].team[0].status = STATUS_POISON;
+        state.sides[0].team[0].status_counter = 1;
+        let md = MoveData {
+            category: MoveCategory::Status,
+            flags: MoveFlags::HEAL,
+            effect: MoveEffect::Heal25CureStatus,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+        assert_eq!(state.sides[0].team[0].current_hp, 100); // 50 + modify(200, 0.25)=50
+        assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     }
 
     /// Helper: set up move-lock state as if the first thrash turn already executed.

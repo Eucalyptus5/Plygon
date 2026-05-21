@@ -157,6 +157,10 @@ MOVE_EFFECT = {
     "healingwish": "HealingWish",
     "lunardance": "LunarDance",
     "courtchange": "CourtChange",
+    # heal: [1,4] / onHit modify(maxhp, 0.25) — without these they fall to the
+    # generic-HEAL 50% fallback. Jungle Healing / Lunar Blessing also cureStatus.
+    "lifedew": "Heal25",
+    "junglehealing": "Heal25CureStatus", "lunarblessing": "Heal25CureStatus",
     "roost": "Roost",
     "saltcure": "SaltCure",
     "gravity": "Gravity",

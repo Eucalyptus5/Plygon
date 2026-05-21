@@ -305,6 +305,9 @@ pub enum MoveEffect {
     PowerSplit       = 135, // Average both actives' raw Atk and SpA
     GuardSplit       = 136, // Average both actives' raw Def and SpD
     Soak             = 137, // Set target's types to pure Water
+
+    Heal25           = 138, // Life Dew: heal 25% max HP (SD modify(maxhp, 0.25)), not the generic-HEAL 50%
+    Heal25CureStatus = 139, // Jungle Healing / Lunar Blessing: heal 25% + cureStatus
 }
 
 // Flags (16 bits)

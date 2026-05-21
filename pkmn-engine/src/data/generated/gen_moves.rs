@@ -6343,7 +6343,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Heal25, secondary_status:0,
         self_effect:SelfEffect::None },
     // [792] Obstruct
     MoveData { flags:0, base_power:0, accuracy:100,
@@ -6543,7 +6543,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Heal25CureStatus, secondary_status:0,
         self_effect:SelfEffect::None },
     // [817] Wicked Blow
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PUNCH | MoveFlags::PROTECT, base_power:75, accuracy:100,
@@ -6807,7 +6807,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Heal25CureStatus, secondary_status:0,
         self_effect:SelfEffect::None },
     // [850] Take Heart
     MoveData { flags:0, base_power:0, accuracy:0,
