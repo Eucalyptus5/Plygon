@@ -576,9 +576,13 @@ pub fn calc_damage(
             let eligible = i == active_idx
                 || (!m.is_fainted() && m.status == crate::state::structs::STATUS_NONE);
             if eligible {
-                beat_up_bp[n] = crate::state::calc_modifiers::beat_up_member_bp(
+                // Showdown runs onBasePower per hit against that hit's own BP, so
+                // Technician's ≤60 gate is re-checked per member (member BPs differ).
+                let member_bp = crate::state::calc_modifiers::beat_up_member_bp(
                     data_bridge::species(m.species_id).atk,
                 );
+                let (ap_n, _) = ability_power_mod(state, md, atk_side, member_bp);
+                beat_up_bp[n] = chain_mod(member_bp as u32, ap_n).min(u16::MAX as u32) as u16;
                 n += 1;
             }
         }
@@ -821,6 +825,28 @@ mod tests {
         let r = calc_damage(&state, 0, beat_up, 100, &mut fixed_rng(0));
         // Active user (slot 0, even though burned) + healthy bench (slot 3) = 2 hits.
         assert_eq!(r.hits, 2, "fainted + statused bench excluded; active user always counts");
+    }
+
+    #[test]
+    fn test_beat_up_technician_boosts_each_hit() {
+        let beat_up = crate::data::MOVE_BEAT_UP as u16;
+        let build = |ability: u16| {
+            let mut state = test_state();
+            state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 100, max_hp: 100,
+                stats: [100, 120, 100, 100, 100], ability_id: ability, level: 50, ..Default::default() };
+            state.sides[0].team[1] = MonSlot { species_id: 6, current_hp: 100, max_hp: 100, level: 50, ..Default::default() };
+            state.sides[1].team[0] = MonSlot { species_id: 143, current_hp: 300, max_hp: 300,
+                stats: [100, 100, 100, 100, 100], level: 50, ..Default::default() };
+            calc_damage(&state, 0, beat_up, 100, &mut fixed_rng(0))
+        };
+        let neutral = build(0);
+        let tech = build(data_bridge::ABILITY_TECHNICIAN);
+        assert_eq!(tech.hits, neutral.hits);
+        for h in 0..neutral.hits as usize {
+            assert!(tech.per_hit_damages[h] > neutral.per_hit_damages[h],
+                "hit {} must be boosted by Technician (≤60 BP): {} vs {}",
+                h, tech.per_hit_damages[h], neutral.per_hit_damages[h]);
+        }
     }
 
     #[test]
