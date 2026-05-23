@@ -521,12 +521,12 @@ fn execute_status_move(
     let def_slot = state.sides[def_side].active_index as usize;
 
     if md.effect == MoveEffect::Protect {
-        execute_protect(state, atk_side, move_id, rng);
+        execute_protect(state, atk_side, def_side, move_id, rng);
         return;
     }
 
     if md.effect == MoveEffect::Endure {
-        execute_endure(state, atk_side, rng);
+        execute_endure(state, atk_side, def_side, rng);
         return;
     }
 
@@ -1837,9 +1837,18 @@ const PROTECT_SPIKY_SHIELD: u8 = 3;
 fn execute_protect(
     state: &mut BattleState,
     side: usize,
+    def_side: usize,
     move_id: u16,
     rng: &mut impl FnMut(u32) -> u32,
 ) {
+    // Showdown's protect.onPrepareHit gates on `!!this.queue.willAct()`: if no
+    // opponent action is still pending (it switched, or already moved), Protect
+    // FAILS before the stall roll. pending_actions[def_side] is 0xFF once the
+    // opponent's queued action has resolved, so an opponent-switch (resolves
+    // first) leaves 0xFF here and the EOT reset zeroes the stall counter.
+    if state.pending_actions[def_side] == 0xFF {
+        return;
+    }
     let consecutive = state.sides[side].active.protect_consecutive;
     // Showdown's `stall` volatile ladder: success 1/3^n on the nth consecutive
     // use (counter 3→9→27, counterMax beyond is out of force_all's deterministic
@@ -1872,8 +1881,14 @@ fn execute_protect(
 fn execute_endure(
     state: &mut BattleState,
     side: usize,
+    def_side: usize,
     rng: &mut impl FnMut(u32) -> u32,
 ) {
+    // Same willAct() gate as Protect: Endure shares the stall ladder, and its
+    // onPrepareHit fails identically when no opponent action is still pending.
+    if state.pending_actions[def_side] == 0xFF {
+        return;
+    }
     let consecutive = state.sides[side].active.protect_consecutive;
     let succeeds = match consecutive {
         0 => true,
@@ -5142,7 +5157,8 @@ mod tests {
     #[test]
     fn test_protect() {
         let mut state = setup();
-        execute_protect(&mut state, 1, 0, &mut fixed_rng(0));
+        state.pending_actions[0] = 0; // opponent still has a pending action (willAct)
+        execute_protect(&mut state, 1, 0, 0, &mut fixed_rng(0));
         assert!(state.sides[1].active.has_volatile(VOL_PROTECT_THIS_TURN));
         let hp = state.sides[1].team[0].current_hp;
         execute_move(&mut state, &TeamData::default(),0, 1, 0, &mut fixed_rng(99));
@@ -5219,8 +5235,9 @@ mod tests {
     #[test]
     fn test_protect_first_always_succeeds() {
         let mut state = setup();
+        state.pending_actions[1] = 0;
         assert_eq!(state.sides[0].active.protect_consecutive, 0);
-        execute_protect(&mut state, 0, 0, &mut fixed_rng(99));
+        execute_protect(&mut state, 0, 1, 0, &mut fixed_rng(99));
         assert!(state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
         assert_eq!(state.sides[0].active.protect_consecutive, 1);
     }
@@ -5228,9 +5245,10 @@ mod tests {
     #[test]
     fn test_protect_consecutive_can_fail() {
         let mut state = setup();
+        state.pending_actions[1] = 0;
         state.sides[0].active.protect_consecutive = 1;
         // rng(3) returns 1 (not 0), so Protect fails
-        execute_protect(&mut state, 0, 0, &mut fixed_rng(1));
+        execute_protect(&mut state, 0, 1, 0, &mut fixed_rng(1));
         assert!(!state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
     }
 
@@ -5239,15 +5257,38 @@ mod tests {
         // 4th consecutive use (consecutive==3) rolls 1/27 — succeeds when rng(27)==0,
         // matching Showdown's stall counter=27. The 5th (consecutive>=4) hard-fails.
         let mut state = setup();
+        state.pending_actions[1] = 0;
         state.sides[0].active.protect_consecutive = 3;
-        execute_protect(&mut state, 0, 0, &mut fixed_rng(0));
+        execute_protect(&mut state, 0, 1, 0, &mut fixed_rng(0));
         assert!(state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
         assert_eq!(state.sides[0].active.protect_consecutive, 4);
 
         let mut state2 = setup();
+        state2.pending_actions[1] = 0;
         state2.sides[0].active.protect_consecutive = 4;
-        execute_protect(&mut state2, 0, 0, &mut fixed_rng(0));
+        execute_protect(&mut state2, 0, 1, 0, &mut fixed_rng(0));
         assert!(!state2.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
+    }
+
+    #[test]
+    fn test_protect_fails_when_opponent_not_acting() {
+        // Showdown's willAct() gate: on an opponent-switch turn the switch resolves
+        // first and pending_actions[def_side] is 0xFF when Protect runs, so Protect
+        // FAILS and the stall counter does not climb (the EOT reset zeroes it).
+        let mut state = setup();
+        state.pending_actions[1] = 0xFF; // opponent already resolved (switched/moved)
+        state.sides[0].active.protect_consecutive = 1;
+        execute_protect(&mut state, 0, 1, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
+        // Counter must NOT increment on the gated-out use.
+        assert_eq!(state.sides[0].active.protect_consecutive, 1);
+
+        // Endure shares the ladder and the same gate.
+        let mut state2 = setup();
+        state2.pending_actions[1] = 0xFF;
+        execute_endure(&mut state2, 0, 1, &mut fixed_rng(0));
+        assert!(!state2.sides[0].active.has_volatile(VOL_ENDURE));
+        assert_eq!(state2.sides[0].active.protect_consecutive, 0);
     }
 
     #[test]
