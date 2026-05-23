@@ -55,6 +55,7 @@ MOVE_EFFECT = {
     "stunspore": "ThunderWave", "glare": "ThunderWave",
     "poisonpowder": "PoisonPowder", "poisongas": "PoisonPowder",
     "skillswap": "SkillSwap",
+    "simplebeam": "SimpleBeam",
     "transform": "Transform",
     "gastroacid": "GastroAcid",
     "powersplit": "PowerSplit", "guardsplit": "GuardSplit",

@@ -308,6 +308,8 @@ pub enum MoveEffect {
 
     Heal25           = 138, // Life Dew: heal 25% max HP (SD modify(maxhp, 0.25)), not the generic-HEAL 50%
     Heal25CureStatus = 139, // Jungle Healing / Lunar Blessing: heal 25% + cureStatus
+
+    SimpleBeam       = 140, // Set target's ability to Simple; fails vs cantsuppress/Simple/Truant/Ability Shield
 }
 
 // Flags (16 bits)

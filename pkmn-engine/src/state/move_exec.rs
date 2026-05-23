@@ -1272,6 +1272,22 @@ fn execute_status_move(
             }
         }
 
+        // -- Simple Beam: set target's ability to Simple (moves.ts simplebeam) --
+        MoveEffect::SimpleBeam => {
+            if !state.sides[def_side].team[def_slot].is_fainted() {
+                let def_ab = effective_ability(state, def_side);
+                let has_shield = state.field.magic_room_turns() == 0
+                    && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::ABILITY_SHIELD);
+                if !has_shield
+                    && !is_cantsuppress_ability(def_ab)
+                    && def_ab != data_bridge::ABILITY_SIMPLE
+                    && def_ab != data_bridge::ABILITY_TRUANT
+                {
+                    skill_swap_apply(state, def_side, def_slot, data_bridge::ABILITY_SIMPLE);
+                }
+            }
+        }
+
         // -- Transform: copy target's species/ability/types/stats/moves/boosts (Ditto) --
         MoveEffect::Transform => {
             let user_transformed = state.sides[atk_side].active.has_volatile(VOL_TRANSFORMED);
@@ -7757,6 +7773,31 @@ mod tests {
 
         assert_ne!(state.sides[0].active.override_ability, data_bridge::ABILITY_MUMMY);
         assert!(!state.sides[0].active.has_volatile(VOL_ABILITY_OVERRIDDEN));
+    }
+
+    #[test]
+    fn test_simple_beam_sets_simple() {
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 493; // Simple Beam
+        state.sides[1].team[0].ability_id = 100; // arbitrary suppressible ability
+
+        execute_move(&mut state, &TeamData::default(), 0, 493, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.sides[1].team[0].ability_id, data_bridge::ABILITY_SIMPLE);
+        assert_eq!(state.sides[1].active.override_ability, 100);
+        assert!(state.sides[1].team[0].flags & MON_FLAG_ABILITY_SWAPPED != 0);
+    }
+
+    #[test]
+    fn test_simple_beam_fails_vs_truant() {
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 493; // Simple Beam
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_TRUANT;
+
+        execute_move(&mut state, &TeamData::default(), 0, 493, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.sides[1].team[0].ability_id, data_bridge::ABILITY_TRUANT);
+        assert!(state.sides[1].team[0].flags & MON_FLAG_ABILITY_SWAPPED == 0);
     }
 
     #[test]
