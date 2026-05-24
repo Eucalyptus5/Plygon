@@ -4073,21 +4073,28 @@ pub fn execute_move(
 
     if state.sides[atk_side].active.has_volatile(VOL_RECHARGING) {
         clear_volatile(state, atk_side, VOL_RECHARGING);
+        // Showdown's mustrecharge onBeforeMove also removes the truant volatile:
+        // the recharge turn doubles as the loaf turn.
+        state.sides[atk_side].active.clear_truant_loaf_pending();
         break 'exec;
     }
 
-    // Truant: loaf every other turn. Showdown toggles a per-mon volatile in
-    // onBeforeMove (pri 9); the volatile clears on switch, so a Pokémon acts the
-    // turn it comes in. turns_active is 0 on that first turn (incremented at EOT)
-    // and zeroed on switch — even = act, odd = loaf — which reproduces the toggle
-    // for native Truant mons without a (now-exhausted) volatile bit. Checked
-    // before any rng() so a loaf consumes no forced-RNG in lockstep mode. Raw
-    // ability_id pre-filter keeps non-Truant mons to a single compare.
-    if state.sides[atk_side].active.turns_active & 1 == 1
-        && state.sides[atk_side].team[atk_slot].ability_id == data_bridge::ABILITY_TRUANT
+    // Truant: Showdown toggles a per-mon volatile in onBeforeMove (pri 9) —
+    // present → remove + loaf; absent → add + act. The volatile clears on
+    // switch-in, so a mon always acts its first attempt after coming in (incl.
+    // faint replacements); the toggle is set even if flinch/confusion/para
+    // (all lower priority) abort the move afterwards. Mirrored as an active-pad
+    // bit wiped by active.zero(). Checked before any rng() so a loaf consumes
+    // no forced-RNG in lockstep mode. Raw ability_id pre-filter keeps non-Truant
+    // mons to a single compare.
+    if state.sides[atk_side].team[atk_slot].ability_id == data_bridge::ABILITY_TRUANT
         && effective_ability(state, atk_side) == data_bridge::ABILITY_TRUANT
     {
-        break 'exec;
+        if state.sides[atk_side].active.truant_loaf_pending() {
+            state.sides[atk_side].active.clear_truant_loaf_pending();
+            break 'exec;
+        }
+        state.sides[atk_side].active.set_truant_loaf_pending();
     }
 
     if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
@@ -5213,34 +5220,69 @@ mod tests {
     }
 
     #[test]
-    fn test_truant_loafs_every_other_turn() {
+    fn test_truant_loafs_every_other_attempt() {
         let mut state = setup();
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
 
-        // turns_active even (0) → acts: PP spent.
+        // First attempt: toggle clear → acts (PP spent), toggle set.
         let pp = state.sides[0].team[0].pp[0];
         execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
-        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "even turn: Truant acts");
+        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "first attempt: Truant acts");
+        assert!(state.sides[0].active.truant_loaf_pending());
 
-        // turns_active odd (1) → loafs: no PP spent.
+        // Second attempt: toggle set → loafs (no PP spent), toggle cleared.
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp, "second attempt: Truant loafs");
+        assert!(!state.sides[0].active.truant_loaf_pending());
+
+        // Third attempt: acts again.
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "third attempt: Truant acts again");
+    }
+
+    #[test]
+    fn test_truant_acts_first_attempt_after_switch_in() {
+        // A mon switched in on turn N has turns_active==1 on its first attacking
+        // turn (zeroed by the switch, ticked at that turn's EOT). Showdown acts:
+        // the truant volatile was cleared on switch-in.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
         state.sides[0].active.turns_active = 1;
-        let pp = state.sides[0].team[0].pp[0];
-        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
-        assert_eq!(state.sides[0].team[0].pp[0], pp, "odd turn: Truant loafs");
 
-        // turns_active even again (2) → acts.
-        state.sides[0].active.turns_active = 2;
         let pp = state.sides[0].team[0].pp[0];
         execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
-        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "even turn: Truant acts again");
+        assert_eq!(
+            state.sides[0].team[0].pp[0], pp - 1,
+            "switched-in Truant acts its first attempt"
+        );
+    }
+
+    #[test]
+    fn test_truant_recharge_turn_clears_loaf_toggle() {
+        // Showdown's mustrecharge onBeforeMove removes the truant volatile: the
+        // recharge turn doubles as the loaf turn, and the mon acts right after.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
+        state.sides[0].active.set_truant_loaf_pending();
+        set_volatile(&mut state, 0, VOL_RECHARGING);
+
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert!(!state.sides[0].active.truant_loaf_pending());
+
+        let pp = state.sides[0].team[0].pp[0];
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].pp[0], pp - 1, "Truant acts after recharge turn");
     }
 
     #[test]
     fn test_truant_suppressed_does_not_loaf() {
-        // Gastro Acid / Neutralizing Gas suppresses Truant → no loaf even on odd turn.
+        // Gastro Acid / Neutralizing Gas suppresses Truant → no loaf even with the
+        // toggle pending.
         let mut state = setup();
         state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
-        state.sides[0].active.turns_active = 1;
+        state.sides[0].active.set_truant_loaf_pending();
         set_volatile(&mut state, 0, VOL_ABILITY_SUPPRESSED);
         let pp = state.sides[0].team[0].pp[0];
         execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
