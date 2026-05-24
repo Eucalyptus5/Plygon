@@ -278,8 +278,7 @@ fn move_has_flinch_secondary(md: &MoveData, move_id: u16) -> bool {
         && md.effect != MoveEffect::RapidSpin
         && md.secondary_stat == 0
         && md.secondary_status == STATUS_NONE
-        && !matches!(md.move_type,
-            Type::Fire | Type::Electric | Type::Ice | Type::Poison)
+        && !matches!(md.move_type, Type::Fire | Type::Poison)
         && !move_secondary_confuses(move_id)
         && !move_secondary_no_flinch(move_id)
         && move_secondary_status_select(move_id).is_none()
@@ -441,10 +440,8 @@ fn apply_primary_secondary(
         md.secondary_status
     } else {
         match md.move_type {
-            Type::Fire     => STATUS_BURN,
-            Type::Electric => STATUS_PARALYSIS,
-            Type::Ice      => STATUS_FREEZE,
-            Type::Poison   => STATUS_POISON,
+            Type::Fire   => STATUS_BURN,
+            Type::Poison => STATUS_POISON,
             _ => STATUS_NONE,
         }
     };
@@ -4581,6 +4578,26 @@ mod tests {
             apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
             assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} phantom-flinched");
             assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "move {id} applied a phantom status");
+        }
+    }
+
+    #[test]
+    fn test_status_less_ice_electric_secondary_flinches() {
+        // Icicle Crash / Mountain Gale / Zing Zap carry volatileStatus:'flinch'
+        // (unencodable in MoveData) — no type-derived freeze/paralysis applies.
+        let cases = [
+            (crate::data::MOVE_ICICLE_CRASH,  Type::Ice),
+            (crate::data::MOVE_MOUNTAIN_GALE, Type::Ice),
+            (crate::data::MOVE_ZING_ZAP,      Type::Electric),
+        ];
+        for (id, mt) in cases {
+            let mut state = setup();
+            let md = MoveData { secondary_chance: 30, move_type: mt,
+                category: MoveCategory::Physical, ..unsafe { core::mem::zeroed() } };
+            apply_secondary(&mut state, 0, 1, &md, id as u16, &mut fixed_rng(0));
+            assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "move {id} applied a phantom status");
+            assert!(state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} must flinch");
+            assert!(move_has_flinch_secondary(&md, id as u16), "move {id} must register as a flincher");
         }
     }
 
