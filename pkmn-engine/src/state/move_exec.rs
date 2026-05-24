@@ -4079,27 +4079,11 @@ pub fn execute_move(
         break 'exec;
     }
 
-    // Truant: Showdown toggles a per-mon volatile in onBeforeMove (pri 9) —
-    // present → remove + loaf; absent → add + act. The volatile clears on
-    // switch-in, so a mon always acts its first attempt after coming in (incl.
-    // faint replacements); the toggle is set even if flinch/confusion/para
-    // (all lower priority) abort the move afterwards. Mirrored as an active-pad
-    // bit wiped by active.zero(). Checked before any rng() so a loaf consumes
-    // no forced-RNG in lockstep mode. Raw ability_id pre-filter keeps non-Truant
-    // mons to a single compare.
-    if state.sides[atk_side].team[atk_slot].ability_id == data_bridge::ABILITY_TRUANT
-        && effective_ability(state, atk_side) == data_bridge::ABILITY_TRUANT
-    {
-        if state.sides[atk_side].active.truant_loaf_pending() {
-            state.sides[atk_side].active.clear_truant_loaf_pending();
-            break 'exec;
-        }
-        state.sides[atk_side].active.set_truant_loaf_pending();
-    }
-
-    if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
-        if rng(4) == 0 { break 'exec; }
-    }
+    // The checks below mirror Showdown's onBeforeMove handlers in descending
+    // priority order — slp/frz 10, truant 9, flinch 8, taunt 5, confusion 3,
+    // attract 2, par 1 — and a cancel stops the chain, so e.g. a full-para
+    // turn never reaches a lower-priority check and confusion always ticks
+    // (and may self-hit) before paralysis rolls.
 
     // Sleep: decrement counter, fail unless waking up.
     // This is the ONLY place the sleep counter is decremented (not in end_of_turn).
@@ -4127,10 +4111,33 @@ pub fn execute_move(
         }
     }
 
-    // Flinch: Showdown's flinch onBeforeMove is priority 8 — it runs AFTER sleep
-    // and freeze (both priority 10), so an asleep/frozen mon still ticks its sleep
-    // counter / rolls its thaw before the flinch cancels the move.
+    // Truant: Showdown toggles a per-mon volatile — present → remove + loaf;
+    // absent → add + act. The volatile clears on switch-in, so a mon always
+    // acts its first attempt after coming in (incl. faint replacements); the
+    // toggle is set even if flinch/confusion/para (all lower priority) abort
+    // the move afterwards, but does NOT advance while asleep/frozen (slp/frz
+    // cancel first). Mirrored as an active-pad bit wiped by active.zero().
+    // Raw ability_id pre-filter keeps non-Truant mons to a single compare.
+    if state.sides[atk_side].team[atk_slot].ability_id == data_bridge::ABILITY_TRUANT
+        && effective_ability(state, atk_side) == data_bridge::ABILITY_TRUANT
+    {
+        if state.sides[atk_side].active.truant_loaf_pending() {
+            state.sides[atk_side].active.clear_truant_loaf_pending();
+            break 'exec;
+        }
+        state.sides[atk_side].active.set_truant_loaf_pending();
+    }
+
+    // Flinch: an asleep/frozen mon still ticks its sleep counter / rolls its
+    // thaw before the flinch cancels the move.
     if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
+
+    // Taunt: block status moves (same-turn or future turns)
+    if !is_struggle && md.category == MoveCategory::Status
+        && state.sides[atk_side].active.taunt_turns > 0
+    {
+        break 'exec;
+    }
 
     // Confusion: 33% self-hit
     if state.sides[atk_side].active.confusion_turns > 0 {
@@ -4158,11 +4165,9 @@ pub fn execute_move(
         if rng(2) == 0 { break 'exec; }
     }
 
-    // Taunt: block status moves (same-turn or future turns)
-    if !is_struggle && md.category == MoveCategory::Status
-        && state.sides[atk_side].active.taunt_turns > 0
-    {
-        break 'exec;
+    // Paralysis: 25% full paralysis
+    if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
+        if rng(4) == 0 { break 'exec; }
     }
 
     if !is_charge_turn2 {
@@ -5309,6 +5314,55 @@ mod tests {
         // rng(3) returns 1 (not 0), so no self-hit; counter goes 3 -> 2 this turn.
         execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(1));
         assert_eq!(state.sides[0].active.confusion_turns, 2);
+    }
+
+    #[test]
+    fn test_confusion_ticks_before_paralysis() {
+        // Showdown's confusion (pri 3) runs before par (pri 1): on a full-para
+        // turn the counter still decrements and the self-hit lands first.
+        let mut state = setup();
+        state.sides[0].team[0].status = STATUS_PARALYSIS;
+        state.sides[0].active.confusion_turns = 2;
+        let def_hp = state.sides[1].team[0].current_hp;
+        // rng→0 forces both the self-hit roll and the full-para roll.
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.confusion_turns, 1, "confusion ticks before par");
+        assert!(
+            state.sides[0].team[0].current_hp < 300,
+            "confusion self-hit lands before the par roll"
+        );
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp, "move itself cancelled");
+    }
+
+    #[test]
+    fn test_sleep_cancels_before_truant_toggle() {
+        // Showdown's slp (pri 10) cancels before truant (pri 9): the loaf
+        // toggle does not advance while asleep.
+        let mut state = setup();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_TRUANT;
+        state.sides[0].team[0].status = STATUS_SLEEP;
+        state.sides[0].team[0].status_counter = 3;
+        execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[0].team[0].status_counter, 2, "sleep counter ticks");
+        assert!(
+            !state.sides[0].active.truant_loaf_pending(),
+            "toggle does not advance while asleep"
+        );
+    }
+
+    #[test]
+    fn test_taunt_cancels_before_confusion_tick() {
+        // Showdown's taunt (pri 5) cancels a status move before confusion
+        // (pri 3) decrements or self-hits.
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 45;
+        state.sides[0].active.taunt_turns = 2;
+        state.sides[0].active.confusion_turns = 2;
+        execute_move(&mut state, &TeamData::default(), 0, 45, 0, &mut fixed_rng(99));
+        assert_eq!(
+            state.sides[0].active.confusion_turns, 2,
+            "taunt cancels before confusion ticks"
+        );
     }
 
     #[test]
