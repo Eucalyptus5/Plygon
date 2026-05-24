@@ -1164,13 +1164,17 @@ fn execute_status_move(
             }
         }
 
-        // Life Dew / Jungle Healing / Lunar Blessing: heal 25% (SD modify(maxhp, 0.25)).
-        MoveEffect::Heal25 | MoveEffect::Heal25CureStatus => {
+        // Life Dew: SD routes it through heal:[1,4] data → Math.round(maxhp/4), half-up.
+        MoveEffect::Heal25 => {
+            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+            heal(state, atk_side, atk_slot, (max_hp + 2) >> 2);
+        }
+
+        // Jungle Healing / Lunar Blessing: SD onHit modify(maxhp, 0.25), half-down.
+        MoveEffect::Heal25CureStatus => {
             let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
             heal(state, atk_side, atk_slot, crate::state::calc_modifiers::chain_mod(max_hp as u32, 1024) as u16);
-            if md.effect == MoveEffect::Heal25CureStatus {
-                clear_status(state, atk_side, atk_slot);
-            }
+            clear_status(state, atk_side, atk_slot);
         }
 
         // -- Safeguard --
@@ -5770,8 +5774,8 @@ mod tests {
     #[test]
     fn test_heal25_quarter_round_half_up() {
         let mut state = setup();
-        // maxhp 131 → SD modify(maxhp, 0.25) = 33 (round-half-up; floor would give 32).
-        state.sides[0].team[0].max_hp = 131;
+        // maxhp 158 → SD heal:[1,4] = Math.round(39.5) = 40; half-down gives 39.
+        state.sides[0].team[0].max_hp = 158;
         state.sides[0].team[0].current_hp = 1;
         let md = MoveData {
             category: MoveCategory::Status,
@@ -5780,13 +5784,14 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
         execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
-        assert_eq!(state.sides[0].team[0].current_hp, 34); // 1 + 33
+        assert_eq!(state.sides[0].team[0].current_hp, 41); // 1 + 40
     }
 
     #[test]
     fn test_heal25_cure_status_clears_status() {
         let mut state = setup();
-        state.sides[0].team[0].max_hp = 200;
+        // maxhp 158 → SD modify(maxhp, 0.25) = 39 (half-down; Math.round would give 40).
+        state.sides[0].team[0].max_hp = 158;
         state.sides[0].team[0].current_hp = 50;
         state.sides[0].team[0].status = STATUS_POISON;
         state.sides[0].team[0].status_counter = 1;
@@ -5797,7 +5802,7 @@ mod tests {
             ..unsafe { core::mem::zeroed() }
         };
         execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
-        assert_eq!(state.sides[0].team[0].current_hp, 100); // 50 + modify(200, 0.25)=50
+        assert_eq!(state.sides[0].team[0].current_hp, 89); // 50 + modify(158, 0.25)=39
         assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     }
 
