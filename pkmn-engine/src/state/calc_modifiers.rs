@@ -674,9 +674,10 @@ pub fn item_final_mod(
         num = chain_mod(num, METRONOME_DMG[idx]);
     }
 
+    // Chilan halves any Normal hit (Normal is never super-effective); typed berries stay SE-only.
     if def_item.has(ItemFlag::RESIST_BERRY)
         && def_item.type_param == move_type as u8
-        && effectiveness > 4
+        && (effectiveness > 4 || move_type == Type::Normal)
     {
         num = num / 2; // 0.5×
         berry_consumed = true;
@@ -1031,6 +1032,21 @@ mod tests {
         assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, data_bridge::ABILITY_GUTS, false), (4096, 4096));
         assert_eq!(burn_modifier(STATUS_NONE, MoveCategory::Physical, 0, false), (4096, 4096));
         assert_eq!(burn_modifier(STATUS_BURN, MoveCategory::Physical, 0, true), (4096, 4096)); // Facade bypasses burn
+    }
+
+    #[test]
+    fn test_chilan_halves_normal_hits() {
+        let none = &ItemData::NONE;
+        let chilan = data_bridge::item(66);
+        // Neutral and resisted Normal hits both halve + consume
+        assert_eq!(item_final_mod(none, chilan, Type::Normal, 4, 0), (2048, 4096, true));
+        assert_eq!(item_final_mod(none, chilan, Type::Normal, 2, 0), (2048, 4096, true));
+        // Non-Normal move never triggers Chilan
+        assert_eq!(item_final_mod(none, chilan, Type::Fire, 8, 0), (4096, 4096, false));
+        // Typed berries stay SE-only: Charti (Rock) inert at neutral, live at SE
+        let charti = data_bridge::item(62);
+        assert_eq!(item_final_mod(none, charti, Type::Rock, 4, 0), (4096, 4096, false));
+        assert_eq!(item_final_mod(none, charti, Type::Rock, 8, 0), (2048, 4096, true));
     }
 
     #[test]
