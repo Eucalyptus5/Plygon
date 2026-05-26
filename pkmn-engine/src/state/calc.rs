@@ -747,7 +747,8 @@ fn calc_struggle(state: &BattleState, atk_side: usize) -> DamageResult {
         damage: dmg.min(u16::MAX as u32) as u16,
         effectiveness: 4, // neutral
         hits: 1,
-        recoil_damage: atk_mon.max_hp / 4,
+        // Gen 5+: clampIntRange(round(baseMaxhp / 4), 1), not truncation.
+        recoil_damage: ((atk_mon.max_hp + 2) / 4).max(1),
         ..Default::default()
     }
 }
@@ -1116,6 +1117,24 @@ mod tests {
         assert!(result.damage > 0);
         assert_eq!(result.recoil_damage, 300 / 4); // 1/4 max HP
         assert_eq!(result.effectiveness, 4); // neutral
+    }
+
+    #[test]
+    fn test_struggle_recoil_rounds_half_up() {
+        // Gen 5+: recoil = clampIntRange(round(max_hp / 4), 1), not truncation.
+        let mut state = test_state();
+        state.sides[0].team[0].max_hp = 150; // 37.5 rounds up
+        state.sides[0].team[0].current_hp = 150;
+        assert_eq!(calc_struggle(&state, 0).recoil_damage, 38);
+        state.sides[0].team[0].max_hp = 151; // 37.75 rounds up
+        assert_eq!(calc_struggle(&state, 0).recoil_damage, 38);
+        state.sides[0].team[0].max_hp = 149; // 37.25 rounds down
+        assert_eq!(calc_struggle(&state, 0).recoil_damage, 37);
+        state.sides[0].team[0].max_hp = 152; // exact
+        assert_eq!(calc_struggle(&state, 0).recoil_damage, 38);
+        state.sides[0].team[0].max_hp = 1; // 0.25 rounds to 0, clamped to 1
+        state.sides[0].team[0].current_hp = 1;
+        assert_eq!(calc_struggle(&state, 0).recoil_damage, 1);
     }
 
     #[test]
