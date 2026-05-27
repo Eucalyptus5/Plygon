@@ -154,6 +154,7 @@ MOVE_EFFECT = {
     "destinybond": "DestinyBond",
     "trick": "Trick", "switcheroo": "Trick",
     "disable": "Disable",
+    "spite": "Spite",
     "torment": "Torment",
     "healingwish": "HealingWish",
     "lunardance": "LunarDance",

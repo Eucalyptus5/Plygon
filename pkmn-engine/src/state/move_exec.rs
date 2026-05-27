@@ -1111,6 +1111,20 @@ fn execute_status_move(
             }
         }
 
+        // -- Spite: deduct 4 PP from the target's last-used move --
+        MoveEffect::Spite => {
+            let last = state.sides[def_side].active.last_move;
+            if last != 0 {
+                let moves = effective_moves(state, def_side);
+                for i in 0..4 {
+                    if moves[i] == last {
+                        deduct_pp(state, def_side, i, 4);
+                        break;
+                    }
+                }
+            }
+        }
+
         // -- Torment --
         MoveEffect::Torment => {
             if !state.sides[def_side].active.has_volatile(VOL_TORMENT) {
@@ -7962,6 +7976,60 @@ mod tests {
 
         assert_eq!(state.sides[1].team[0].ability_id, data_bridge::ABILITY_TRUANT);
         assert!(state.sides[1].team[0].flags & MON_FLAG_ABILITY_SWAPPED == 0);
+    }
+
+    #[test]
+    fn test_spite_deducts_4_pp_from_targets_last_move() {
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 180; // Spite
+        state.sides[1].team[0].moves = [56, 2, 3, 4];
+        state.sides[1].team[0].pp = [8, 24, 24, 24];
+        state.sides[1].active.last_move = 56;
+
+        execute_move(&mut state, &TeamData::default(), 0, 180, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.sides[1].team[0].pp[0], 4);
+    }
+
+    #[test]
+    fn test_spite_clamps_pp_at_zero() {
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 180;
+        state.sides[1].team[0].moves = [56, 2, 3, 4];
+        state.sides[1].team[0].pp = [3, 24, 24, 24];
+        state.sides[1].active.last_move = 56;
+
+        execute_move(&mut state, &TeamData::default(), 0, 180, 0, &mut fixed_rng(99));
+
+        assert_eq!(state.sides[1].team[0].pp[0], 0);
+    }
+
+    #[test]
+    fn test_spite_fails_without_usable_last_move() {
+        // No last move at all: nothing is deducted.
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 180;
+        state.sides[1].team[0].pp = [24, 24, 24, 24];
+        state.sides[1].active.last_move = 0;
+        execute_move(&mut state, &TeamData::default(), 0, 180, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].team[0].pp, [24, 24, 24, 24]);
+
+        // Last move already at 0 PP: Showdown's deductPP returns 0 -> move fails.
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 180;
+        state.sides[1].team[0].moves = [56, 2, 3, 4];
+        state.sides[1].team[0].pp = [0, 24, 24, 24];
+        state.sides[1].active.last_move = 56;
+        execute_move(&mut state, &TeamData::default(), 0, 180, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].team[0].pp, [0, 24, 24, 24]);
+
+        // Last move not in the target's current moveset (e.g. Struggle): fails.
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = 180;
+        state.sides[1].team[0].pp = [24, 24, 24, 24];
+        state.sides[1].active.last_move = 165;
+        execute_move(&mut state, &TeamData::default(), 0, 180, 0, &mut fixed_rng(99));
+        assert_eq!(state.sides[1].team[0].pp, [24, 24, 24, 24]);
     }
 
     #[test]

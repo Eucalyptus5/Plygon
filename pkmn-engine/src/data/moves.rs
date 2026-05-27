@@ -310,6 +310,8 @@ pub enum MoveEffect {
     Heal25CureStatus = 139, // Jungle Healing / Lunar Blessing: heal 25% + cureStatus
 
     SimpleBeam       = 140, // Set target's ability to Simple; fails vs cantsuppress/Simple/Truant/Ability Shield
+
+    Spite            = 141, // Deduct 4 PP from the target's last-used move; fails if none/unknown/0 PP
 }
 
 // Flags (16 bits)
