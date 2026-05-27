@@ -107,6 +107,9 @@ pub const MON_FLAG_ABILITY_SWAPPED: u16 = 1 << 9;
 // persistent across switch-out. Last Resort's onTry gate reads it; do NOT derive it
 // from PP deltas (Pressure/restore corrupt those).
 pub const MON_FLAG_MOVE_USED_BASE: u16 = 1 << 10;
+// Showdown's `ateBerry`: set whenever this mon eats a berry, battle-lifetime
+// (survives switch-out, never cleared). Belch's legality gate reads it.
+pub const MON_FLAG_ATE_BERRY: u16 = 1 << 14;
 
 /// ActiveMon `_padding[0]` bit 3: Power/Guard Split wrote averaged stats into
 /// `override_stats` on a mon that is neither Transformed nor forme-changed. Tells

@@ -158,6 +158,11 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
             let md = data_bridge::move_hot(moves[i]);
             if md.flags & MoveFlags::HEAL != 0 { continue; }
         }
+        // Belch: unselectable until the user has eaten a berry this battle.
+        if moves[i] as usize == crate::data::MOVE_BELCH
+            && state.sides[side].team[state.sides[side].active_index as usize].flags
+                & MON_FLAG_ATE_BERRY == 0
+        { continue; }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
         // Choice lock: suppressed by Magic Room (items), but Gorilla Tactics ability lock
         // is not suppressed by Magic Room.
@@ -224,9 +229,12 @@ pub fn must_struggle(state: &BattleState, side: usize) -> bool {
     {
         let moves = effective_moves(state, side);
         for i in 0..4 {
-            if moves[i] != 0 && effective_pp(state, side, i) > 0 {
-                return false;
-            }
+            if moves[i] == 0 || effective_pp(state, side, i) == 0 { continue; }
+            if moves[i] as usize == crate::data::MOVE_BELCH
+                && state.sides[side].team[state.sides[side].active_index as usize].flags
+                    & MON_FLAG_ATE_BERRY == 0
+            { continue; }
+            return false;
         }
         return true;
     }
@@ -464,6 +472,29 @@ mod tests {
         let a = legal_actions(&s, 0);
         // Thunderbolt (slot 0) shared with opponent -> blocked
         assert!(!a.as_slice().contains(&0u8));
+    }
+
+    #[test]
+    fn test_belch_requires_eaten_berry() {
+        let mut s = make_state();
+        s.sides[0].team[0].moves[0] = crate::data::MOVE_BELCH as u16;
+        // No berry eaten yet: Belch (slot 0) must not be offered.
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().contains(&0u8));
+        // After eating a berry it becomes selectable for the rest of the battle.
+        s.sides[0].team[0].flags |= MON_FLAG_ATE_BERRY;
+        let a = legal_actions(&s, 0);
+        assert!(a.as_slice().contains(&0u8));
+    }
+
+    #[test]
+    fn test_belch_only_no_berry_forces_struggle() {
+        let mut s = make_state();
+        s.sides[0].team[0].moves = [crate::data::MOVE_BELCH as u16, 0, 0, 0];
+        s.sides[0].team[0].pp = [16, 0, 0, 0];
+        let a = legal_actions(&s, 0);
+        assert!(a.as_slice().contains(&ACTION_STRUGGLE));
+        assert!(must_struggle(&s, 0));
     }
 
     #[test]

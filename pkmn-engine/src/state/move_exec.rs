@@ -2124,6 +2124,10 @@ pub fn check_berry_activation(
 pub(crate) fn consume_berry(state: &mut BattleState, side: usize, slot: usize) {
     let item_id = state.sides[side].team[slot].item_id;
     state.sides[side].set_last_consumed_berry(item_id);
+    // Berry Juice routes through here too but is drunk, not eaten (no ateBerry).
+    if data_bridge::item(item_id).has(ItemFlag::IS_BERRY) {
+        state.sides[side].team[slot].flags |= MON_FLAG_ATE_BERRY;
+    }
     consume_item(state, side, slot);
     let ability = effective_ability(state, side);
     if ability == data_bridge::ABILITY_UNBURDEN {
@@ -3210,6 +3214,7 @@ pub(crate) fn use_move_called(
         let def_itm = data_bridge::item(def_item_id);
         if def_itm.has(ItemFlag::RESIST_BERRY) {
             state.sides[def_side].set_last_consumed_berry(def_item_id);
+            state.sides[def_side].team[def_slot].flags |= MON_FLAG_ATE_BERRY;
             consume_item(state, def_side, def_slot);
             if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
                 set_volatile(state, def_side, VOL_UNBURDEN);
@@ -5170,6 +5175,19 @@ mod tests {
         state.sides[1].team[0].max_hp = def_hp.max(300);
         execute_move(&mut state, &TeamData::default(), 0, move_id, 0, &mut fixed_rng(99));
         800 - state.sides[0].team[0].current_hp
+    }
+
+    #[test]
+    fn test_consume_berry_sets_ate_berry_flag() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_SITRUS_BERRY;
+        consume_berry(&mut state, 1, 0);
+        assert!(state.sides[1].team[0].flags & MON_FLAG_ATE_BERRY != 0);
+        // Berry Juice is drunk (useItem), not eaten: no ateBerry in Showdown.
+        let mut state = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_BERRY_JUICE;
+        consume_berry(&mut state, 1, 0);
+        assert!(state.sides[1].team[0].flags & MON_FLAG_ATE_BERRY == 0);
     }
 
     #[test]
