@@ -38,6 +38,15 @@ pub fn item_forme(item_id: u16) -> u16 {
     if idx < ITEM_FORME.len() { ITEM_FORME[idx] } else { 0 }
 }
 
+/// Showdown's `notransform` ability flag: the ability is ignored while its
+/// holder is transformed (sim/pokemon.ts `ignoringAbility`).
+#[inline(always)]
+pub fn ability_notransform(ability_id: u16) -> bool {
+    use crate::data::gen_abilities::NOTRANSFORM_ABILITY_BITS;
+    let w = (ability_id >> 6) as usize;
+    w < NOTRANSFORM_ABILITY_BITS.len() && (NOTRANSFORM_ABILITY_BITS[w] >> (ability_id & 63)) & 1 != 0
+}
+
 /// Base species IDs (positive `num` values from `pokemon-showdown/data/pokedex.ts`
 /// entries carrying `gender: "N"`). Sorted ascending for binary_search. Formes
 /// inherit via `FORME_TO_BASE` (see `is_genderless_species`).

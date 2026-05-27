@@ -100,6 +100,12 @@ pub fn effective_ability_ignoring_faint(state: &BattleState, side: usize) -> u16
     let active = &state.sides[side].active;
     if active.has_volatile(VOL_ABILITY_SUPPRESSED) { return 0; }
     if active.has_volatile(VOL_ABILITY_OVERRIDDEN) || active.has_volatile(VOL_TRANSFORMED) {
+        // Showdown ignores `notransform`-flagged abilities while transformed.
+        if active.has_volatile(VOL_TRANSFORMED)
+            && data_bridge::ability_notransform(active.override_ability)
+        {
+            return 0;
+        }
         return active.override_ability;
     }
     mon.ability_id
@@ -293,6 +299,20 @@ mod tests {
         state.sides[0].active.override_pp = [5, 5, 5, 5];
         assert_eq!(effective_stat(&state, 0, ATK), 84);
         assert_eq!(effective_moves(&state, 0), [53, 126, 257, 394]);
+    }
+
+    #[test]
+    fn test_transform_suppresses_notransform_ability() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 132;
+        state.sides[0].team[0].current_hp = 100;
+        state.sides[0].active.volatile_flags |= VOL_TRANSFORMED;
+        state.sides[0].active.override_ability = data_bridge::ABILITY_PROTOSYNTHESIS;
+        assert_eq!(effective_ability(&state, 0), 0);
+        assert_eq!(effective_ability_ignoring_faint(&state, 0), 0);
+        // Copied abilities without the notransform flag stay live.
+        state.sides[0].active.override_ability = data_bridge::ABILITY_INTIMIDATE;
+        assert_eq!(effective_ability(&state, 0), data_bridge::ABILITY_INTIMIDATE);
     }
 
     #[test]

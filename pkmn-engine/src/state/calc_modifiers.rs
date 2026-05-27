@@ -138,9 +138,8 @@ pub fn stab_modifier(state: &BattleState, atk_side: usize, move_type: Type) -> (
 
     if mon.is_terastallized() {
         let tera_type = mon.tera_type;
-        let sp = data_bridge::species(mon.species_id);
-        let orig_t1 = sp.type1 as u8;
-        let orig_t2 = sp.type2 as u8;
+        // Showdown's getTypes(false, true): pre-tera current types (Transform/Soak-aware).
+        let (orig_t1, orig_t2) = effective_types(state, atk_side);
         let matches_tera = mt == tera_type;
         let matches_original = mt == orig_t1 || mt == orig_t2;
 
@@ -1056,6 +1055,25 @@ mod tests {
         assert_eq!(stab_modifier(&state, 0, Type::Normal), (6144, 4096));
         // Fire move → no STAB
         assert_eq!(stab_modifier(&state, 0, Type::Fire), (4096, 4096));
+    }
+
+    #[test]
+    fn test_stab_tera_transformed_reads_override_types() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0].species_id = 132; // Ditto: Normal
+        state.sides[0].team[0].current_hp = 100;
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        state.sides[0].team[0].tera_type = Type::Fire as u8;
+        state.sides[0].active.volatile_flags |= VOL_TRANSFORMED;
+        state.sides[0].active.override_types = [Type::Water as u8, Type::Water as u8];
+        // Water move: matches the transformed (pre-tera) type only → 1.5×
+        assert_eq!(stab_modifier(&state, 0, Type::Water), (6144, 4096));
+        // Tera into the transformed type: tera + pre-tera both match → 2×
+        state.sides[0].team[0].tera_type = Type::Water as u8;
+        assert_eq!(stab_modifier(&state, 0, Type::Water), (8192, 4096));
+        // Fire move: matches tera type only → 1.5× (unchanged by the swap)
+        state.sides[0].team[0].tera_type = Type::Fire as u8;
+        assert_eq!(stab_modifier(&state, 0, Type::Fire), (6144, 4096));
     }
 
     #[test]
