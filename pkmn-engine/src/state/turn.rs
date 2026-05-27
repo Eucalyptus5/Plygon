@@ -53,6 +53,19 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
     }
 }
 
+/// Re-encode a decoded action for `pending_actions`. Normalizing through the
+/// decode keeps a forced Struggle (raw byte 255, a must-struggle redirect, or
+/// an out-of-range byte) distinct from ACTION_RESOLVED.
+#[inline(always)]
+fn encode_pending(action: &ActionKind) -> u8 {
+    match action {
+        ActionKind::Move { slot, .. } => *slot,
+        ActionKind::Switch { target } => ACTION_SWITCH_0 + *target,
+        ActionKind::Tera { .. } => ACTION_TERA,
+        ActionKind::Struggle => ACTION_STRUGGLE,
+    }
+}
+
 #[derive(Clone, Copy)]
 struct OrderedAction {
     side: usize,
@@ -552,10 +565,10 @@ pub fn execute_turn(
 
     let second_raw = if second.side == 0 { action_p1 } else { action_p2 };
 
-    // Publish each side's raw action so move-execute logic can introspect the
-    // opponent's queued action (Sucker Punch onTry).
-    state.pending_actions[0] = action_p1;
-    state.pending_actions[1] = action_p2;
+    // Publish each side's decoded action so move-execute logic can introspect
+    // the opponent's queued action (Protect/Endure willAct, Sucker Punch onTry).
+    state.pending_actions[0] = encode_pending(&act0);
+    state.pending_actions[1] = encode_pending(&act1);
 
     // Double-switch: resolve each side fully (switch-out + install + ability +
     // item) in outgoing-speed order. The faster-switching side's switch-in
@@ -570,14 +583,14 @@ pub fn execute_turn(
             second.side, t_second as usize,
             rng,
         );
-        state.pending_actions[0] = 0xFF;
-        state.pending_actions[1] = 0xFF;
+        state.pending_actions[0] = ACTION_RESOLVED;
+        state.pending_actions[1] = ACTION_RESOLVED;
     } else {
         execute_action(state, teams, first.side, &first.action, rng);
 
         // First mover has resolved — invalidate their entry so the second mover's
         // Sucker Punch sees "defender already moved".
-        state.pending_actions[first.side] = 0xFF;
+        state.pending_actions[first.side] = ACTION_RESOLVED;
 
         // Showdown runs checkWin after every action; if move 1 wiped a side the
         // battle ends before move 2 (and before residuals). Mirror that — a

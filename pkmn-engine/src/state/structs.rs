@@ -168,6 +168,11 @@ pub const ACTION_SWITCH_0: u8 = 4;
 pub const ACTION_SWITCH_5: u8 = 9;
 pub const ACTION_TERA: u8     = 10;
 pub const ACTION_STRUGGLE: u8 = 255;
+/// `pending_actions` sentinel for "this side's action already resolved".
+/// Distinct from ACTION_STRUGGLE: a forced Struggle is submitted as byte 255,
+/// so 0xFF cannot double as the resolved marker. Never produced by the
+/// pending-action encoder, so it cannot collide with a queued action.
+pub const ACTION_RESOLVED: u8 = 0xFE;
 
 pub const BATTLE_LEVEL: u16 = 100;
 
@@ -445,10 +450,11 @@ pub struct BattleState {
     pub field: FieldState,
     pub phase: u8,
     pub _padding: u8,
-    /// Per-side raw action byte for the current turn, populated by execute_turn
-    /// before either action runs. Used by Sucker Punch's onTry to introspect
-    /// the defender's queued action without changing every call site's signature.
-    /// 0xFF = unknown / no action queued (Sucker Punch treats as fail).
+    /// Per-side queued action for the current turn, populated by execute_turn
+    /// from the DECODED actions before either runs (a must-struggle redirect or
+    /// out-of-range byte is stored as ACTION_STRUGGLE). Set to ACTION_RESOLVED
+    /// once the side's action resolves. Read by the willAct/willMove mirrors:
+    /// Protect/Endure, Sucker Punch, Upper Hand, Analytic.
     pub pending_actions: [u8; 2],
     /// Battle-level last move used by anyone (Showdown `battle.lastMove`).
     /// Written last-write-wins by every `use_move_called` call; default 0 means
@@ -708,6 +714,6 @@ impl BattleState {
     pub fn clear_turn_resume(&mut self) {
         self._padding = 0;
         self.field._padding = 0;
-        self.pending_actions = [0xFF, 0xFF];
+        self.pending_actions = [ACTION_RESOLVED, ACTION_RESOLVED];
     }
 }

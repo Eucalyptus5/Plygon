@@ -388,13 +388,14 @@ pub fn ability_power_mod(
         // `this.queue.willMove(target)`, which is false both when the target
         // already moved and when the target switched in this turn (newlySwitched
         // also has no pending move). Engine signal: pending_actions[def] is set
-        // to 0xFF the moment the defender's queued action resolves (move or
-        // switch — see turn.rs:execute_turn). Requiring atk's slot to still be
-        // populated keeps calc-only mode (both slots default 0xFF) from
-        // spuriously activating Analytic.
+        // to ACTION_RESOLVED the moment the defender's queued action resolves
+        // (move or switch — see turn.rs:execute_turn); a pending forced Struggle
+        // stores ACTION_STRUGGLE and suppresses the boost. Requiring atk's slot
+        // to still be pending keeps calc-only mode from spuriously activating
+        // Analytic.
         data_bridge::ABILITY_ANALYTIC
-            if state.pending_actions[1 - atk_side] == 0xFF
-                && state.pending_actions[atk_side] != 0xFF
+            if state.pending_actions[1 - atk_side] == ACTION_RESOLVED
+                && state.pending_actions[atk_side] != ACTION_RESOLVED
             => (5325, 4096),
 
         // Rivalry: 1.25× same gender, 0.75× opposite. Showdown short-circuits to
@@ -1074,6 +1075,24 @@ mod tests {
         // Fire move: matches tera type only → 1.5× (unchanged by the swap)
         state.sides[0].team[0].tera_type = Type::Fire as u8;
         assert_eq!(stab_modifier(&state, 0, Type::Fire), (6144, 4096));
+    }
+
+    #[test]
+    fn test_analytic_gate_vs_pending_forced_struggle() {
+        // abilities.ts:analytic — willMove(target) returns the defender's
+        // queued forced Struggle, so the 1.3× must NOT apply while it pends.
+        let mut state = BattleState::default();
+        state.sides[0].team[0].ability_id = data_bridge::ABILITY_ANALYTIC;
+        state.sides[0].team[0].current_hp = 100;
+        let md = data_bridge::move_hot(33);
+        state.pending_actions = [0, ACTION_STRUGGLE];
+        assert_eq!(ability_power_mod(&state, md, 0, 100), (4096, 4096),
+            "no Analytic boost while the defender's forced Struggle pends");
+        // Defender resolved → boost applies even when the attacker's own
+        // pending action is a forced Struggle.
+        state.pending_actions = [ACTION_STRUGGLE, ACTION_RESOLVED];
+        assert_eq!(ability_power_mod(&state, md, 0, 100), (5325, 4096),
+            "Analytic boost must apply to a force-Struggling attacker once the defender resolved");
     }
 
     #[test]

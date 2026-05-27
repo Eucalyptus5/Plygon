@@ -1860,10 +1860,12 @@ fn execute_protect(
 ) {
     // Showdown's protect.onPrepareHit gates on `!!this.queue.willAct()`: if no
     // opponent action is still pending (it switched, or already moved), Protect
-    // FAILS before the stall roll. pending_actions[def_side] is 0xFF once the
-    // opponent's queued action has resolved, so an opponent-switch (resolves
-    // first) leaves 0xFF here and the EOT reset zeroes the stall counter.
-    if state.pending_actions[def_side] == 0xFF {
+    // FAILS before the stall roll. pending_actions[def_side] is ACTION_RESOLVED
+    // once the opponent's queued action has resolved, so an opponent-switch
+    // (resolves first) leaves it here and the EOT reset zeroes the stall
+    // counter. A pending forced Struggle (ACTION_STRUGGLE) still counts as
+    // willAct — Protect succeeds and blocks it.
+    if state.pending_actions[def_side] == ACTION_RESOLVED {
         return;
     }
     let consecutive = state.sides[side].active.protect_consecutive;
@@ -1903,7 +1905,7 @@ fn execute_endure(
 ) {
     // Same willAct() gate as Protect: Endure shares the stall ladder, and its
     // onPrepareHit fails identically when no opponent action is still pending.
-    if state.pending_actions[def_side] == 0xFF {
+    if state.pending_actions[def_side] == ACTION_RESOLVED {
         return;
     }
     let consecutive = state.sides[side].active.protect_consecutive;
@@ -2500,10 +2502,13 @@ pub(crate) fn use_move_called(
         let queued_move_id: u16 = match raw {
             0..=3 => effective_moves(state, def_side)[raw as usize],
             ACTION_TERA => effective_moves(state, def_side)[0],
-            _ => 0, // switch / 0xFF / unknown
+            _ => 0, // switch / resolved
         };
-        let queued_is_damaging = queued_move_id != 0
-            && data_bridge::move_hot(queued_move_id).category != MoveCategory::Status;
+        // A pending forced Struggle is a queued attacking move: willMove is
+        // truthy and Struggle's category is Physical, so Sucker Punch succeeds.
+        let queued_is_damaging = raw == ACTION_STRUGGLE
+            || (queued_move_id != 0
+                && data_bridge::move_hot(queued_move_id).category != MoveCategory::Status);
         if def_already_moved || !queued_is_damaging {
             return;
         }
@@ -2522,6 +2527,8 @@ pub(crate) fn use_move_called(
         let queued_move_id: u16 = match raw {
             0..=3 => effective_moves(state, def_side)[raw as usize],
             ACTION_TERA => effective_moves(state, def_side)[0],
+            // switch / resolved; also a pending Struggle — priority 0 never
+            // qualifies, matching Showdown's `> 0.1` gate.
             _ => 0,
         };
         let queued_qualifies = queued_move_id != 0 && {
@@ -5406,10 +5413,11 @@ mod tests {
     #[test]
     fn test_protect_fails_when_opponent_not_acting() {
         // Showdown's willAct() gate: on an opponent-switch turn the switch resolves
-        // first and pending_actions[def_side] is 0xFF when Protect runs, so Protect
-        // FAILS and the stall counter does not climb (the EOT reset zeroes it).
+        // first and pending_actions[def_side] is ACTION_RESOLVED when Protect runs,
+        // so Protect FAILS and the stall counter does not climb (the EOT reset
+        // zeroes it).
         let mut state = setup();
-        state.pending_actions[1] = 0xFF; // opponent already resolved (switched/moved)
+        state.pending_actions[1] = ACTION_RESOLVED; // opponent already resolved (switched/moved)
         state.sides[0].active.protect_consecutive = 1;
         execute_protect(&mut state, 0, 1, 0, &mut fixed_rng(0));
         assert!(!state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN));
@@ -5418,10 +5426,30 @@ mod tests {
 
         // Endure shares the ladder and the same gate.
         let mut state2 = setup();
-        state2.pending_actions[1] = 0xFF;
+        state2.pending_actions[1] = ACTION_RESOLVED;
         execute_endure(&mut state2, 0, 1, &mut fixed_rng(0));
         assert!(!state2.sides[0].active.has_volatile(VOL_ENDURE));
         assert_eq!(state2.sides[0].active.protect_consecutive, 0);
+    }
+
+    #[test]
+    fn test_protect_succeeds_vs_pending_forced_struggle() {
+        // A PP-exhausted opponent's forced Struggle is submitted as byte 255 —
+        // a PENDING action, not the resolved sentinel. Showdown's willAct()
+        // sees the queued Struggle and Protect succeeds (and blocks it).
+        let mut state = setup();
+        state.pending_actions[1] = ACTION_STRUGGLE;
+        execute_protect(&mut state, 0, 1, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].active.has_volatile(VOL_PROTECT_THIS_TURN),
+            "Protect must succeed vs a pending forced Struggle");
+        assert_eq!(state.sides[0].active.protect_consecutive, 1);
+
+        // Endure shares the gate.
+        let mut state2 = setup();
+        state2.pending_actions[1] = ACTION_STRUGGLE;
+        execute_endure(&mut state2, 0, 1, &mut fixed_rng(0));
+        assert!(state2.sides[0].active.has_volatile(VOL_ENDURE),
+            "Endure must succeed vs a pending forced Struggle");
     }
 
     #[test]
@@ -9468,6 +9496,29 @@ mod tests {
         execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
             "Upper Hand must fail when the defender has already moved");
+    }
+
+    #[test]
+    fn test_sucker_punch_succeeds_vs_pending_forced_struggle() {
+        // Showdown: willMove(target) returns the queued Struggle action and
+        // Struggle is Physical, so Sucker Punch connects.
+        let mut state = setup();
+        state.pending_actions[1] = ACTION_STRUGGLE;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 389, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before,
+            "Sucker Punch must connect vs a pending forced Struggle");
+    }
+
+    #[test]
+    fn test_upper_hand_fails_vs_pending_forced_struggle() {
+        // Struggle is damaging but priority 0 → fails Showdown's `> 0.1` gate.
+        let mut state = setup();
+        state.pending_actions[1] = ACTION_STRUGGLE;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
+            "Upper Hand must fail vs a pending forced Struggle (priority 0)");
     }
 
     // ─────────────────────────────────────────────────────────────────
