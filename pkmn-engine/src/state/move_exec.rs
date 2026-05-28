@@ -3833,6 +3833,32 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Eject Button: a damaged surviving holder is forced out mid-turn and the
+    // attacker's own pivot switch is cancelled (items.ts ejectbutton). Showdown
+    // resumes the saved rest-of-turn after the replacement lands: the departed
+    // holder's queued move is skipped but residuals still run, so park the
+    // deferred-EOT marker on the holder's side. Phazed holders keep the item
+    // (forceSwitchFlag pre-empts it).
+    if md.effect != MoveEffect::Whirlwind
+        && !result.hits_substitute
+        && state.field.magic_room_turns() == 0
+        && !state.sides[def_side].team[def_slot].is_fainted()
+        && data_bridge::item(state.sides[def_side].team[def_slot].item_id)
+            .has(ItemFlag::EJECT_BUTTON)
+    {
+        let has_bench = (0..6).any(|i| {
+            i != def_slot
+                && state.sides[def_side].team[i].species_id != 0
+                && state.sides[def_side].team[i].current_hp > 0
+        });
+        if has_bench {
+            consume_item(state, def_side, def_slot);
+            set_volatile(state, def_side, VOL_MUST_SWITCH);
+            clear_volatile(state, atk_side, VOL_MUST_SWITCH);
+            state.set_turn_resume(SUBPHASE_AFTER_MOVE1, def_side, 0);
+        }
+    }
+
     // Dragon Tail / Circle Throw: damaging moves with phazing effect
     if md.effect == MoveEffect::Whirlwind
         && !state.sides[def_side].team[def_slot].is_fainted()
@@ -7414,6 +7440,39 @@ mod tests {
         execute_move(&mut state, &TeamData::default(),0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
         // U-turn should set VOL_MUST_SWITCH (attacker has a bench mon)
         assert!(state.sides[0].active.has_volatile(VOL_MUST_SWITCH));
+    }
+
+    #[test]
+    fn test_eject_button_ejects_damaged_holder() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_EJECT_BUTTON;
+        execute_move(&mut state, &TeamData::default(), 0, 33, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].active.has_volatile(VOL_MUST_SWITCH), "damaged holder must be forced out");
+        assert_eq!(state.sides[1].team[0].item_id, 0, "Eject Button is consumed");
+        assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1, "deferred-EOT resume marker set");
+        assert_eq!(state.second_mover_side(), 1, "resume skips the departing holder's stale action");
+    }
+
+    #[test]
+    fn test_eject_button_cancels_attacker_pivot() {
+        use crate::data::MOVE_U_TURN;
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.sides[1].team[0].item_id = data_bridge::ITEM_EJECT_BUTTON;
+        execute_move(&mut state, &TeamData::default(), 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].active.has_volatile(VOL_MUST_SWITCH), "holder ejects");
+        assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH), "U-turn user's switch is cancelled");
+    }
+
+    #[test]
+    fn test_eject_button_no_bench_no_trigger() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_EJECT_BUTTON;
+        state.sides[1].team[1] = MonSlot::default();
+        execute_move(&mut state, &TeamData::default(), 0, 33, 0, &mut fixed_rng(0));
+        assert!(!state.sides[1].active.has_volatile(VOL_MUST_SWITCH), "no bench → no eject");
+        assert_eq!(state.sides[1].team[0].item_id, data_bridge::ITEM_EJECT_BUTTON, "item retained");
+        assert_eq!(state.turn_subphase(), SUBPHASE_NORMAL);
     }
 
     #[test]

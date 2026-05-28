@@ -604,9 +604,11 @@ pub fn execute_turn(
         // Teleport) raises a mid-turn switch request: Showdown's turnLoop returns
         // on `this.requestState` before the slower mon's queued action ever pops
         // (sim/battle.ts), so the second mover does not move and residuals do not
-        // run until the replacement lands. Mirror that — skip the second action
-        // when the first mover set VOL_MUST_SWITCH on its own side.
-        let first_pivot = state.sides[first.side].active.has_volatile(VOL_MUST_SWITCH);
+        // run until the replacement lands. Eject Button raises the same request on
+        // the TARGET's side. Mirror both — skip the second action when the first
+        // action left VOL_MUST_SWITCH pending on either side.
+        let first_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH)
+            || state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
 
         // Showdown runs the second mover's action and EOT residuals before any
         // forced-replacement prompt: a mid-turn faint after move 1 does NOT block
@@ -785,6 +787,40 @@ mod tests {
         // takes no further damage from a second action.
         assert_eq!(state.sides[1].team[0].pp[0], 24, "p2 queued move must not consume PP");
         assert_eq!(state.sides[0].team[0].current_hp, p1_hp_before, "p2 queued move must not hit p1");
+    }
+
+    #[test]
+    fn test_eject_button_suppresses_holder_queued_move_and_pauses() {
+        let mut state = BattleState::default();
+        state.phase = PHASE_ACTIONS;
+        // p1 faster, plain damaging move into the Eject Button holder.
+        state.sides[0].team[0] = MonSlot {
+            species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 150],
+            moves: [33, 0, 0, 0], pp: [24, 0, 0, 0],
+            level: 100, ..Default::default()
+        };
+        // p2 slower holder with a damaging move queued and a live bench mon.
+        state.sides[1].team[0] = MonSlot {
+            species_id: 50, current_hp: 300, max_hp: 300,
+            stats: [150, 100, 150, 100, 80],
+            moves: [33, 0, 0, 0], pp: [24, 0, 0, 0],
+            item_id: crate::state::data_bridge::ITEM_EJECT_BUTTON,
+            level: 100, ..Default::default()
+        };
+        state.sides[1].team[1] = MonSlot {
+            species_id: 10, current_hp: 200, max_hp: 200,
+            stats: [80, 80, 80, 80, 60], level: 100, ..Default::default()
+        };
+        let p1_hp_before = state.sides[0].team[0].current_hp;
+        execute_turn(&mut state, &TeamData::default(), 0, 0, &mut fixed_rng(0));
+        // Showdown halts at the holder's switch request: the holder's queued move
+        // never fires and the turn pauses pre-EOT for the forced replacement.
+        assert_eq!(state.sides[1].team[0].pp[0], 24, "holder's queued move must not consume PP");
+        assert_eq!(state.sides[0].team[0].current_hp, p1_hp_before, "holder's queued move must not hit p1");
+        assert_eq!(state.sides[1].team[0].item_id, 0, "Eject Button is consumed");
+        assert_eq!(state.phase, PHASE_SWITCH_P2, "holder side owes a forced replacement");
+        assert_eq!(state.turn_subphase(), SUBPHASE_AFTER_MOVE1, "deferred EOT runs after the replacement");
     }
 
     fn fixed_rng(v: u32) -> impl FnMut(u32) -> u32 {
