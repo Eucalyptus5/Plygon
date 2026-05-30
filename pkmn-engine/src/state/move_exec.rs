@@ -3698,13 +3698,20 @@ pub(crate) fn use_move_called(
             }
         }
 
-        // Cute Charm: 30% attract on contact (holder must be alive)
+        // Cute Charm: 30% attract on contact (holder must be alive). The attract
+        // volatile only takes for M/F pairs — the roll is consumed even when the gate fails.
         if def_alive
             && def_ability == data_bridge::ABILITY_CUTE_CHARM
             && !state.sides[atk_side].active.is_attracted()
         {
             if rng(100) < 30 {
-                state.sides[atk_side].active.set_attracted(true);
+                let atk_flags = state.sides[atk_side].team[atk_slot].flags;
+                let def_flags = state.sides[def_side].team[def_slot].flags;
+                if (atk_flags | def_flags) & MON_FLAG_GENDERLESS == 0
+                    && (atk_flags ^ def_flags) & MON_FLAG_FEMALE != 0
+                {
+                    state.sides[atk_side].active.set_attracted(true);
+                }
             }
         }
 

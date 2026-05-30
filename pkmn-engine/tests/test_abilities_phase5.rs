@@ -824,3 +824,31 @@ fn test_shed_skin_no_cure() {
 
     assert_eq!(state.sides[0].team[0].status, STATUS_PARALYSIS);
 }
+
+#[test]
+fn test_cute_charm_same_gender_no_attract() {
+    let mut state = setup();
+    state.sides[1].team[0].ability_id = ABILITY_CUTE_CHARM;
+    // Default flags on both sides → male attacker vs male holder.
+    pkmn_engine::state::move_exec::execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut |_: u32| 0u32);
+    assert!(!state.sides[0].active.is_attracted());
+}
+
+#[test]
+fn test_cute_charm_genderless_no_attract() {
+    let mut state = setup();
+    state.sides[1].team[0].ability_id = ABILITY_CUTE_CHARM;
+    state.sides[1].team[0].flags |= MON_FLAG_FEMALE;
+    state.sides[0].team[0].flags |= MON_FLAG_GENDERLESS;
+    pkmn_engine::state::move_exec::execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut |_: u32| 0u32);
+    assert!(!state.sides[0].active.is_attracted());
+}
+
+#[test]
+fn test_cute_charm_opposite_gender_attracts() {
+    let mut state = setup();
+    state.sides[1].team[0].ability_id = ABILITY_CUTE_CHARM;
+    state.sides[0].team[0].flags |= MON_FLAG_FEMALE;
+    pkmn_engine::state::move_exec::execute_move(&mut state, &TeamData::default(), 0, 1, 0, &mut |_: u32| 0u32);
+    assert!(state.sides[0].active.is_attracted());
+}
