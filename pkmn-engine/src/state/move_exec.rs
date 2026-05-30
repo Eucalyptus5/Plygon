@@ -3859,6 +3859,36 @@ pub(crate) fn use_move_called(
         }
     }
 
+    // Red Card: a damaged surviving holder drags the attacker out to a random
+    // teammate with no switch request — Showdown's phazing loop runs before
+    // the U-turn request block, so the attacker's own pivot is pre-empted.
+    // Phazing moves bail first: a Dragon-Tailed holder keeps the card.
+    if md.effect != MoveEffect::Whirlwind
+        && !result.hits_substitute
+        && state.field.magic_room_turns() == 0
+        && !state.sides[def_side].team[def_slot].is_fainted()
+        && !state.sides[atk_side].team[atk_slot].is_fainted()
+        && data_bridge::item(state.sides[def_side].team[def_slot].item_id)
+            .has(ItemFlag::RED_CARD)
+    {
+        let mut targets = [0usize; 5];
+        let mut cnt = 0usize;
+        for i in 0..6 {
+            if i != atk_slot
+                && state.sides[atk_side].team[i].species_id != 0
+                && state.sides[atk_side].team[i].current_hp > 0
+            {
+                targets[cnt] = i;
+                cnt += 1;
+            }
+        }
+        if cnt > 0 {
+            consume_item(state, def_side, def_slot);
+            let pick = targets[rng(cnt as u32) as usize];
+            crate::state::switch::perform_switch_forced(state, teams, atk_side, pick);
+        }
+    }
+
     // Dragon Tail / Circle Throw: damaging moves with phazing effect
     if md.effect == MoveEffect::Whirlwind
         && !state.sides[def_side].team[def_slot].is_fainted()
@@ -7473,6 +7503,50 @@ mod tests {
         assert!(!state.sides[1].active.has_volatile(VOL_MUST_SWITCH), "no bench → no eject");
         assert_eq!(state.sides[1].team[0].item_id, data_bridge::ITEM_EJECT_BUTTON, "item retained");
         assert_eq!(state.turn_subphase(), SUBPHASE_NORMAL);
+    }
+
+    #[test]
+    fn test_red_card_drags_attacker_out() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_RED_CARD;
+        execute_move(&mut state, &TeamData::default(), 0, 33, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active_index, 1, "attacker is dragged to the bench mon");
+        assert_eq!(state.sides[1].team[0].item_id, 0, "Red Card is consumed");
+        assert_eq!(state.turn_subphase(), SUBPHASE_NORMAL, "drag raises no switch request");
+    }
+
+    #[test]
+    fn test_red_card_pre_empts_attacker_pivot() {
+        use crate::data::MOVE_U_TURN;
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = MOVE_U_TURN as u16;
+        state.sides[1].team[0].item_id = data_bridge::ITEM_RED_CARD;
+        execute_move(&mut state, &TeamData::default(), 0, MOVE_U_TURN as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active_index, 1, "U-turn user is dragged, not choosing");
+        assert!(!state.sides[0].active.has_volatile(VOL_MUST_SWITCH), "pivot request pre-empted");
+        assert_eq!(state.sides[1].team[0].item_id, 0, "Red Card is consumed");
+    }
+
+    #[test]
+    fn test_red_card_no_bench_no_trigger() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = data_bridge::ITEM_RED_CARD;
+        state.sides[0].team[1] = MonSlot::default();
+        execute_move(&mut state, &TeamData::default(), 0, 33, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active_index, 0, "no bench → no drag");
+        assert_eq!(state.sides[1].team[0].item_id, data_bridge::ITEM_RED_CARD, "item retained");
+    }
+
+    #[test]
+    fn test_red_card_phazed_holder_keeps_card() {
+        use crate::data::MOVE_DRAGON_TAIL;
+        let mut state = setup();
+        state.sides[0].team[0].moves[0] = MOVE_DRAGON_TAIL as u16;
+        state.sides[1].team[0].item_id = data_bridge::ITEM_RED_CARD;
+        execute_move(&mut state, &TeamData::default(), 0, MOVE_DRAGON_TAIL as u16, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active_index, 0, "attacker stays in");
+        assert_eq!(state.sides[1].team[0].item_id, data_bridge::ITEM_RED_CARD,
+            "phazed holder keeps the card");
     }
 
     #[test]

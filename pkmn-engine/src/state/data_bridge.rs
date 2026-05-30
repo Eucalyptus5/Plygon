@@ -449,6 +449,7 @@ pub const ITEM_SITRUS_BERRY: u16 = 448;
 pub const ITEM_STARF_BERRY: u16 = 472;
 pub const ITEM_STICKY_BARB: u16 = 476;
 pub const ITEM_EJECT_BUTTON: u16 = 118;
+pub const ITEM_RED_CARD: u16 = 387;
 pub const ITEM_THICK_CLUB: u16 = 491;
 pub const ITEM_THROAT_SPRAY: u16 = 713;
 pub const ITEM_WEAKNESS_POLICY: u16 = 609;
