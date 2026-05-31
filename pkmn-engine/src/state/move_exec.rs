@@ -3510,6 +3510,7 @@ pub(crate) fn use_move_called(
             match atk_ability {
                 data_bridge::ABILITY_POISON_TOUCH
                     if !def_has_cloak
+                    && effective_ability(state, def_side) != data_bridge::ABILITY_SHIELD_DUST
                     && is_contact
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_POISON)
@@ -3525,6 +3526,7 @@ pub(crate) fn use_move_called(
                 }
                 data_bridge::ABILITY_TOXIC_CHAIN
                     if !def_has_cloak
+                    && effective_ability(state, def_side) != data_bridge::ABILITY_SHIELD_DUST
                     && state.sides[def_side].team[def_slot].status == STATUS_NONE
                     && !terrain_blocks_status(state, def_side, STATUS_BAD_POISON)
                     && !type_immune_to_status(state, def_side, STATUS_BAD_POISON)
