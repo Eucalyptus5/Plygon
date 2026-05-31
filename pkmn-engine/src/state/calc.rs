@@ -293,7 +293,18 @@ pub fn calc_damage(
             && md.var_power == VarPower::None
             && !is_fling
         {
-            base_power = 60;
+            // Weather Ball / Terrain Pulse double basePower in onModifyMove, which in
+            // Showdown runs before the floor check; floor only the undoubled power.
+            let modified_bp = match md.effect {
+                MoveEffect::WeatherBall | MoveEffect::TerrainPulse => {
+                    let (n, _) = move_effect_power_mod(state, md, atk_side, def_side);
+                    if n == 8192 { base_power * 2 } else { base_power }
+                }
+                _ => base_power,
+            };
+            if modified_bp < 60 {
+                base_power = 60;
+            }
         }
     }
 

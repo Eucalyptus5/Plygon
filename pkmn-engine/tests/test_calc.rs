@@ -365,3 +365,57 @@ fn test_crit_bypasses_screens() {
     assert_eq!(res_crit_screen.damage, res_crit_no_screen.damage,
         "Crit should bypass Reflect: {} vs {}", res_crit_screen.damage, res_crit_no_screen.damage);
 }
+
+#[test]
+fn test_tera_floor_skips_weather_doubled_weather_ball() {
+    let mut state = setup();
+    state.field.weather = WEATHER_RAIN;
+    state.field.weather_turns = 5;
+    state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+    state.sides[0].team[0].tera_type = Type::Water as u8;
+
+    // Weather Ball in rain: onModifyMove doubles 50 -> 100 before Showdown's
+    // Tera floor check, so the floor must not fire. Hydro Pump (110 BP, same
+    // type/category/STAB/weather chain) bounds it from above; a floored-then-
+    // doubled 120 BP would exceed it.
+    let wb = calc_damage(&state, 0, 311, 0, &mut |_| 1);
+    let hp = calc_damage(&state, 0, 56, 0, &mut |_| 1);
+    assert!(wb.damage > 0 && hp.damage > 0);
+    assert!(wb.damage < hp.damage,
+        "Tera Weather Ball in rain should be 100 BP (< Hydro Pump 110): {} vs {}",
+        wb.damage, hp.damage);
+}
+
+#[test]
+fn test_tera_floor_fires_for_no_weather_weather_ball() {
+    let mut state = setup();
+    state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+    state.sides[0].team[0].tera_type = Type::Normal as u8;
+
+    // No weather: Weather Ball stays 50 BP Normal, so the Tera floor still
+    // applies (50 -> 60). Swift is a plain 60 BP Normal special move.
+    let wb = calc_damage(&state, 0, 311, 0, &mut |_| 1);
+    let swift = calc_damage(&state, 0, 129, 0, &mut |_| 1);
+    assert!(wb.damage > 0);
+    assert_eq!(wb.damage, swift.damage,
+        "No-weather Tera Weather Ball should floor to 60 BP (= Swift): {} vs {}",
+        wb.damage, swift.damage);
+}
+
+#[test]
+fn test_tera_floor_skips_terrain_doubled_terrain_pulse() {
+    let mut state = setup();
+    state.field.terrain = TERRAIN_ELECTRIC;
+    state.field.terrain_turns = 5;
+    state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+    state.sides[0].team[0].tera_type = Type::Electric as u8;
+
+    // Terrain Pulse in terrain (grounded user): 50 -> 100 before the floor
+    // check; a floored-then-doubled 120 BP would equal Zap Cannon's 120.
+    let tp = calc_damage(&state, 0, 805, 0, &mut |_| 1);
+    let zc = calc_damage(&state, 0, 192, 0, &mut |_| 1);
+    assert!(tp.damage > 0 && zc.damage > 0);
+    assert!(tp.damage < zc.damage,
+        "Tera Terrain Pulse in terrain should be 100 BP (< Zap Cannon 120): {} vs {}",
+        tp.damage, zc.damage);
+}
