@@ -488,7 +488,7 @@ pub fn ability_atk_stat_mod(
         data_bridge::ABILITY_STAKEOUT
             if def_turns_active == 0 && field_turn > 0 => a * 2,
         data_bridge::ABILITY_SLOW_START
-            if turns_active < 5 => a / 2,
+            if category == MoveCategory::Physical && turns_active < 5 => a / 2,
         data_bridge::ABILITY_DEFEATIST
             if hp * 2 <= max_hp => a / 2,
         data_bridge::ABILITY_FLOWER_GIFT

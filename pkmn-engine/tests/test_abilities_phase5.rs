@@ -531,6 +531,16 @@ fn test_slow_start() {
 }
 
 #[test]
+fn test_slow_start_special_not_halved() {
+    // Showdown slowstart has onModifyAtk + onModifySpe only — SpA is untouched
+    let a = ability_atk_stat_mod(
+        200, ABILITY_SLOW_START, MoveCategory::Special, STATUS_NONE,
+        Type::Normal, WEATHER_NONE, 300, 300, 3, 0, 0, TERRAIN_NONE,
+    );
+    assert_eq!(a, 200);
+}
+
+#[test]
 fn test_hydration_in_rain() {
     let mut state = setup();
     state.sides[0].team[0].ability_id = ABILITY_HYDRATION;
