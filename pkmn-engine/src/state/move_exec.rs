@@ -7668,6 +7668,42 @@ mod tests {
     }
 
     #[test]
+    fn test_pixilate_skips_no_weather_weather_ball() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        let md = MoveData {
+            move_type: Type::Normal,
+            base_power: 50,
+            category: MoveCategory::Special,
+            effect: MoveEffect::WeatherBall,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_PIXILATE,
+        );
+        assert_eq!(new_type, Type::Normal);
+        assert!(!boost);
+    }
+
+    #[test]
+    fn test_refrigerate_skips_no_terrain_terrain_pulse() {
+        use crate::state::calc_modifiers::resolve_move_type_with_ability;
+        let state = BattleState::default();
+        let md = MoveData {
+            move_type: Type::Normal,
+            base_power: 50,
+            category: MoveCategory::Special,
+            effect: MoveEffect::TerrainPulse,
+            ..unsafe { core::mem::zeroed() }
+        };
+        let (new_type, boost) = resolve_move_type_with_ability(
+            &state, &md, 0, data_bridge::ABILITY_REFRIGERATE,
+        );
+        assert_eq!(new_type, Type::Normal);
+        assert!(!boost);
+    }
+
+    #[test]
     fn test_galvanize_converts_normal_to_electric() {
         use crate::state::calc_modifiers::resolve_move_type_with_ability;
         let state = BattleState::default();

@@ -922,12 +922,18 @@ pub fn resolve_move_type_with_ability(
 
     // -ate abilities: Normal → specific type (1.2×)
     if base_type == Type::Normal {
-        match atk_ability {
-            data_bridge::ABILITY_GALVANIZE  => return (Type::Electric, true),
-            data_bridge::ABILITY_PIXILATE   => return (Type::Fairy, true),
-            data_bridge::ABILITY_AERILATE   => return (Type::Flying, true),
-            data_bridge::ABILITY_REFRIGERATE => return (Type::Ice, true),
-            _ => {}
+        let ate_type = match atk_ability {
+            data_bridge::ABILITY_GALVANIZE  => Some(Type::Electric),
+            data_bridge::ABILITY_PIXILATE   => Some(Type::Fairy),
+            data_bridge::ABILITY_AERILATE   => Some(Type::Flying),
+            data_bridge::ABILITY_REFRIGERATE => Some(Type::Ice),
+            _ => None,
+        };
+        if let Some(t) = ate_type {
+            // Showdown noModifyType: dynamic-type resolvers keep their own type
+            if !matches!(md.effect, MoveEffect::WeatherBall | MoveEffect::TerrainPulse) {
+                return (t, true);
+            }
         }
     }
 
