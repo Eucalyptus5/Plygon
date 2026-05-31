@@ -297,6 +297,7 @@ pub const ABILITY_NO_GUARD: u16      = 99;
 pub const ABILITY_COMPOUND_EYES: u16 = 14;
 pub const ABILITY_VICTORY_STAR: u16  = 162;
 pub const ABILITY_SERENE_GRACE: u16  = 32;
+pub const ABILITY_SHIELD_DUST: u16   = 19;
 pub const ABILITY_SAND_VEIL: u16     = 8;
 pub const ABILITY_SNOW_CLOAK: u16    = 81;
 pub const ABILITY_GLUTTONY: u16      = 82;

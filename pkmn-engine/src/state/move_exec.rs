@@ -340,7 +340,8 @@ fn apply_secondary(
     // Sheer Force removes ALL secondaries, the rider included (primary already
     // suppressed above).
     if atk_ability == data_bridge::ABILITY_SHEER_FORCE { return; }
-    // Covert Cloak blocks the rider flinch like any other target-side secondary.
+    // Shield Dust / Covert Cloak block the rider flinch like any other target-side secondary.
+    if effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST { return; }
     if state.field.magic_room_turns() == 0
         && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK)
     { return; }
@@ -394,6 +395,9 @@ fn apply_primary_secondary(
         return;
     }
 
+    // Shield Dust strips every opponent-added secondary (onModifySecondaries → return []),
+    // the same scope as the Covert Cloak item.
+    if effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST { return; }
     let has_covert_cloak = state.field.magic_room_turns() == 0
         && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
     if has_covert_cloak { return; }
@@ -3264,9 +3268,10 @@ pub(crate) fn use_move_called(
                     }
                 }
                 FlingEffect::Flinch => {
-                    let has_covert_cloak = state.field.magic_room_turns() == 0
-                        && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
-                    if !has_covert_cloak
+                    let blocks_secondary = effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST
+                        || (state.field.magic_room_turns() == 0
+                            && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK));
+                    if !blocks_secondary
                         && !state.sides[def_side].active.has_volatile(VOL_FLINCHED)
                         && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
                     {
@@ -3289,9 +3294,9 @@ pub(crate) fn use_move_called(
             && !state.sides[def_side].active.has_volatile(VOL_FLINCHED)
             && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
         {
-            let has_covert_cloak = data_bridge::item(state.active_mon(def_side).item_id)
-                .has(ItemFlag::COVERT_CLOAK);
-            if !has_covert_cloak && rng(10) < 1 {
+            let blocks_secondary = effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST
+                || data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
+            if !blocks_secondary && rng(10) < 1 {
                 set_volatile(state, def_side, VOL_FLINCHED);
             }
         }
@@ -3310,9 +3315,10 @@ pub(crate) fn use_move_called(
         && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
         && !move_has_flinch_secondary(md, move_id)
     {
-        let has_covert_cloak = state.field.magic_room_turns() == 0
-            && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
-        if !has_covert_cloak && rng(100) < 10 {
+        let blocks_secondary = effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST
+            || (state.field.magic_room_turns() == 0
+                && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK));
+        if !blocks_secondary && rng(100) < 10 {
             set_volatile(state, def_side, VOL_FLINCHED);
         }
     }
@@ -9339,6 +9345,62 @@ mod tests {
         };
         apply_secondary(&mut state, 0, 1, &md, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[0].active.boosts[ATK], 1);
+    }
+
+    #[test]
+    fn test_shield_dust_blocks_secondary_status() {
+        let md = MoveData {
+            secondary_chance: 100, secondary_status: STATUS_BURN,
+            move_type: Type::Fire, category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        let mut holder = setup();
+        holder.sides[1].team[0].ability_id = data_bridge::ABILITY_SHIELD_DUST;
+        apply_secondary(&mut holder, 0, 1, &md, 0, &mut fixed_rng(0));
+        assert_eq!(holder.sides[1].team[0].status, STATUS_NONE,
+            "Shield Dust should suppress the added status secondary");
+
+        let mut plain = setup();
+        plain.sides[1].team[0].ability_id = data_bridge::ABILITY_NONE;
+        apply_secondary(&mut plain, 0, 1, &md, 0, &mut fixed_rng(0));
+        assert_eq!(plain.sides[1].team[0].status, STATUS_BURN,
+            "without Shield Dust the secondary still fires");
+    }
+
+    #[test]
+    fn test_shield_dust_blocks_secondary_flinch() {
+        let md = MoveData {
+            secondary_chance: 100,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+
+        let mut holder = setup();
+        holder.sides[1].team[0].ability_id = data_bridge::ABILITY_SHIELD_DUST;
+        apply_secondary(&mut holder, 0, 1, &md, 0, &mut fixed_rng(0));
+        assert!(!holder.sides[1].active.has_volatile(VOL_FLINCHED),
+            "Shield Dust should suppress the flinch secondary");
+
+        let mut plain = setup();
+        plain.sides[1].team[0].ability_id = data_bridge::ABILITY_NONE;
+        apply_secondary(&mut plain, 0, 1, &md, 0, &mut fixed_rng(0));
+        assert!(plain.sides[1].active.has_volatile(VOL_FLINCHED),
+            "without Shield Dust the flinch still fires");
+    }
+
+    #[test]
+    fn test_shield_dust_allows_self_boost() {
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_SHIELD_DUST;
+        let md = MoveData {
+            secondary_chance: 100, secondary_stat: 1,
+            category: MoveCategory::Physical, base_power: 80,
+            ..unsafe { core::mem::zeroed() }
+        };
+        apply_secondary(&mut state, 0, 1, &md, 0, &mut fixed_rng(0));
+        assert_eq!(state.sides[0].active.boosts[ATK], 1,
+            "Shield Dust on the target must not block the attacker's self-boost");
     }
 
     #[test]
