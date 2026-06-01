@@ -1138,18 +1138,30 @@ fn execute_status_move(
         }
 
         // -- HealingWish: user faints, next switch-in fully heals --
+        // SD onTryHit fails (NOT_FAIL) when canSwitch is false: a last mon stays fully untouched.
         MoveEffect::HealingWish => {
             let hp = state.sides[atk_side].team[atk_slot].current_hp;
-            if hp > 0 {
+            let has_bench = (0..6).any(|i| {
+                i != atk_slot
+                    && state.sides[atk_side].team[i].species_id != 0
+                    && state.sides[atk_side].team[i].current_hp > 0
+            });
+            if hp > 0 && has_bench {
                 deal_damage(state, atk_side, atk_slot, hp);
                 state.sides[atk_side].side_conditions.set_healing_wish(true);
             }
         }
 
         // -- LunarDance: user faints, next switch-in fully heals + PP --
+        // Same last-mon switch-availability precondition as Healing Wish.
         MoveEffect::LunarDance => {
             let hp = state.sides[atk_side].team[atk_slot].current_hp;
-            if hp > 0 {
+            let has_bench = (0..6).any(|i| {
+                i != atk_slot
+                    && state.sides[atk_side].team[i].species_id != 0
+                    && state.sides[atk_side].team[i].current_hp > 0
+            });
+            if hp > 0 && has_bench {
                 deal_damage(state, atk_side, atk_slot, hp);
                 state.sides[atk_side].side_conditions.set_lunar_dance(true);
             }
