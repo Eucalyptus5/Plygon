@@ -975,6 +975,7 @@ SPECIFIC_ITEMS = {
     "scopelens": ("CRIT_BOOST",),
     "widelens": ("WIDE_LENS",),
     "focussash": ("FOCUS_SASH", "CONSUMABLE"),
+    "focusband": ("FOCUS_BAND",),
     "airballoon": ("AIR_BALLOON", "CONSUMABLE"),
     "safetygoggles": ("SAFETY_GOGGLES",),
     "rockyhelmet": ("ROCKY_HELMET",),

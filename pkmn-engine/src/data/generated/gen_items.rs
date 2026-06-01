@@ -155,7 +155,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [149] Flying Gem
     t[149] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 9, power_param: 0, forme_species: 0 };
     // [150] Focus Band
-    t[150] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, forme_species: 0 };
+    t[150] = ItemData { flags: F::FOCUS_BAND, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [151] Focus Sash
     t[151] = ItemData { flags: F::CONSUMABLE | F::FOCUS_SASH, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [155] Full Incense

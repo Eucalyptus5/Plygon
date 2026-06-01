@@ -101,6 +101,9 @@ pub mod ItemFlag {
     // universal TYPE_BOOST held items (Charcoal, Mystic Water, …).
     pub const SIGNATURE_ORB: u64    = 1 << 59;
 
+    // Focus Band: 1/10 survive-at-1HP on a would-be KO Move hit, at any HP, reusable.
+    pub const FOCUS_BAND: u64       = 1 << 60;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }

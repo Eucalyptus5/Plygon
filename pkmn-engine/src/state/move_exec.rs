@@ -3009,6 +3009,20 @@ pub(crate) fn use_move_called(
                 final_damage = def_mon.current_hp - 1;
             }
         }
+        // Focus Band: 1/10 to survive a would-be-KO Move hit at any HP, leaving 1 HP.
+        // Unlike Focus Sash it is not full-HP-gated and is not consumed (reusable).
+        // Showdown rolls randomChance(1,10) before the KO test, so consume the roll
+        // on every would-KO Move hit to a holder to keep force_all aligned.
+        {
+            let def_mon = &state.sides[def_side].team[def_slot];
+            let holds_focus_band = state.field.magic_room_turns() == 0
+                && data_bridge::item(def_mon.item_id).has(ItemFlag::FOCUS_BAND);
+            if holds_focus_band && def_mon.current_hp > 0 && final_damage >= def_mon.current_hp
+                && rng(10) == 0
+            {
+                final_damage = def_mon.current_hp - 1;
+            }
+        }
         // Endure: clamp Move-effect damage to leave 1 HP (any starting HP). Recoil
         // and contact-recoil call deal_damage directly so they bypass this branch,
         // matching Showdown's effectType==='Move' gate on the endure volatile.
