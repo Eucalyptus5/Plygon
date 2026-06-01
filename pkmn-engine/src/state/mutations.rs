@@ -3,6 +3,7 @@
 use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::state::accessors::effective_ability;
+use crate::state::calc_modifiers::mold_breaks;
 use crate::data::items::ItemFlag;
 
 pub fn deal_damage(state: &mut BattleState, side: usize, slot: usize, amount: u16) {
@@ -100,6 +101,18 @@ pub fn try_opponent_stat_drop_from(
             apply_boost(state, source, stat, stages);
         }
         return 0;
+    }
+
+    // breakable:1 abilities block opponent drops (Hyper Cutter: Atk only); Mold Breaker bypasses
+    if source != target {
+        let clear_body = matches!(target_ability,
+            data_bridge::ABILITY_CLEAR_BODY
+            | data_bridge::ABILITY_WHITE_SMOKE
+            | data_bridge::ABILITY_FULL_METAL_BODY)
+            || (target_ability == data_bridge::ABILITY_HYPER_CUTTER && stat == ATK);
+        if clear_body && !mold_breaks(state, target, effective_ability(state, source)) {
+            return 0;
+        }
     }
 
     let actual = apply_boost(state, target, stat, stages);
