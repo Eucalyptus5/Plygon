@@ -2307,6 +2307,26 @@ fn apply_crash_if_needed(
     }
 }
 
+/// mindBlownRecoil (Steel Beam / Mind Blown) fires from Showdown's onAfterMove,
+/// which runs whether or not the move connected, so a missed Steel Beam still
+/// charges round(maxhp/2) self-recoil. Mirrors the hit-path block: single-hit
+/// only (!multihit), Magic-Guard-exempt (Rock Head does NOT exempt).
+#[inline]
+fn apply_half_max_hp_recoil_on_failure(
+    state: &mut BattleState,
+    atk_side: usize,
+    md: &MoveData,
+) {
+    if md.self_effect == SelfEffect::HalfMaxHpRecoil
+        && md.multihit == 0
+        && effective_ability(state, atk_side) != data_bridge::ABILITY_MAGIC_GUARD
+    {
+        let atk_slot = state.sides[atk_side].active_index as usize;
+        let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
+        deal_damage(state, atk_side, atk_slot, (max_hp + 1) >> 1);
+    }
+}
+
 /// Apply the attacker's self-effect after damage + drain/recoil.
 /// CrashDamage is NOT handled here (it's on the failure paths via apply_crash_if_needed).
 #[inline]
@@ -2753,6 +2773,7 @@ pub(crate) fn use_move_called(
 
     if !is_struggle && !accuracy_check(state, atk_side, md, rng) {
         apply_crash_if_needed(state, atk_side, md);
+        apply_half_max_hp_recoil_on_failure(state, atk_side, md);
         mark_move_failed(state, atk_side);
         // Fury Cutter resets its escalating BP counter on miss (Showdown
         // clears the `furycutter` volatile when the move fails to hit).
