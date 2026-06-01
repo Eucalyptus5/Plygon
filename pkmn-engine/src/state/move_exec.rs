@@ -2986,10 +2986,12 @@ pub(crate) fn use_move_called(
             return;
         }
 
-        // Ice Face: blocks one Physical hit
+        // Ice Face: blocks one Physical hit. Showdown gates on species.id==='eiscue'
+        // (base only), so the already-busted Noice forme gets no shield.
         if def_ability == data_bridge::ABILITY_ICE_FACE
             && shields & 2 == 0
             && md.category == MoveCategory::Physical
+            && state.sides[def_side].team[def_slot].species_id == 875
         {
             state.sides[def_side].active._padding[4] = shields | 2;
             return;
