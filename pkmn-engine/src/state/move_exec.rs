@@ -307,11 +307,12 @@ fn fling_item_status(item_id: u16) -> Option<FlingEffect> {
     })
 }
 
-/// True iff `victim_side`'s ability blocks `status`. Mold Breaker bypasses the
-/// breakable:1 onSetStatus block, but every status-blocker (Water Veil, Limber,
-/// Magma Armor, Insomnia, Vital Spirit, Immunity, Pastel Veil) also carries an
-/// onUpdate cure that fires outside Mold Breaker's ignore scope, so the status
-/// is re-cured the same tick and never sticks — net effect matches the block.
+/// True iff `victim_side`'s ability blocks `status`. The single-status blockers
+/// (Water Veil, Limber, Magma Armor, Insomnia, Vital Spirit, Immunity, Pastel Veil)
+/// carry breakable:1 plus an onUpdate cure that fires outside Mold Breaker's ignore
+/// scope, so even when Mold Breaker bypasses the block the status is re-cured the
+/// same tick. Comatose is not breakable and blocks unconditionally; ignoring the
+/// source ability here yields the correct non-breakable result for it.
 #[inline]
 fn ability_status_immune(state: &BattleState, victim_side: usize, _source_ability: u16, status: u8) -> bool {
     ability_blocks_status(effective_ability(state, victim_side), status)

@@ -112,19 +112,25 @@ pub fn effective_ability_ignoring_faint(state: &BattleState, side: usize) -> u16
 }
 
 /// True iff `ability_id` confers immunity to `status`. Covers the status-blocker
-/// ability family. All of these carry Showdown's `breakable: 1` flag, so the
-/// inflict site composes the result with `mold_breaks`.
+/// ability family. The single-status blockers (Water Veil, Limber, Magma Armor,
+/// Insomnia, Vital Spirit, Immunity, Pastel Veil) carry Showdown's `breakable: 1`
+/// flag; Comatose blocks every move-status and is NOT breakable.
 #[inline(always)]
 pub fn ability_blocks_status(ability_id: u16, status: u8) -> bool {
     match status {
-        STATUS_BURN      => ability_id == data_bridge::ABILITY_WATER_VEIL,
-        STATUS_PARALYSIS => ability_id == data_bridge::ABILITY_LIMBER,
-        STATUS_FREEZE    => ability_id == data_bridge::ABILITY_MAGMA_ARMOR,
+        STATUS_BURN      => ability_id == data_bridge::ABILITY_WATER_VEIL
+                            || ability_id == data_bridge::ABILITY_COMATOSE,
+        STATUS_PARALYSIS => ability_id == data_bridge::ABILITY_LIMBER
+                            || ability_id == data_bridge::ABILITY_COMATOSE,
+        STATUS_FREEZE    => ability_id == data_bridge::ABILITY_MAGMA_ARMOR
+                            || ability_id == data_bridge::ABILITY_COMATOSE,
         STATUS_SLEEP     => ability_id == data_bridge::ABILITY_INSOMNIA
-                            || ability_id == data_bridge::ABILITY_VITAL_SPIRIT,
+                            || ability_id == data_bridge::ABILITY_VITAL_SPIRIT
+                            || ability_id == data_bridge::ABILITY_COMATOSE,
         STATUS_POISON | STATUS_BAD_POISON =>
             ability_id == data_bridge::ABILITY_IMMUNITY
-            || ability_id == data_bridge::ABILITY_PASTEL_VEIL,
+            || ability_id == data_bridge::ABILITY_PASTEL_VEIL
+            || ability_id == data_bridge::ABILITY_COMATOSE,
         _ => false,
     }
 }
