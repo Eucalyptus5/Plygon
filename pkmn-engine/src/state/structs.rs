@@ -218,7 +218,7 @@ pub struct MonSlot {
     pub flags: u16,
 }
 
-/// Volatile battlefield presence.  Zeroed on switch-out.  72 bytes.
+/// Volatile battlefield presence.  Zeroed on switch-out.  76 bytes.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct ActiveMon {
@@ -226,6 +226,9 @@ pub struct ActiveMon {
     pub substitute_hp: u16,
     pub last_move: u16,
     pub last_move_hit_by: u16,
+    // HP removed by attacking moves this turn (reset at EOT with times_hit); drives
+    // Counter/Mirror Coat (2x) and Metal Burst (1.5x). Showdown's counter volatile is duration:1.
+    pub damage_taken_this_turn: u16,
     pub override_species: u16,
     pub override_ability: u16,
     // move Transform overwrites the live base ability_id with the copied one for
@@ -483,10 +486,10 @@ pub struct TeamData {
 }
 
 const _: () = assert!(size_of::<MonSlot>() == 38);
-const _: () = assert!(size_of::<ActiveMon>() == 72);
+const _: () = assert!(size_of::<ActiveMon>() == 76);
 const _: () = assert!(size_of::<SideConditions>() == 16);
 const _: () = assert!(size_of::<FieldState>() == 10);
-const _: () = assert!(size_of::<SideState>() == 320);
+const _: () = assert!(size_of::<SideState>() == 324);
 const _: () = assert!(size_of::<BattleState>() <= 664);
 const _: () = assert!(size_of::<MonBuildData>() == 13);
 

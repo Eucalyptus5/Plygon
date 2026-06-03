@@ -2863,12 +2863,11 @@ pub(crate) fn use_move_called(
     // Counter: return 2× physical damage taken this turn
     if md.effect == MoveEffect::Counter {
         let last_hit = state.sides[atk_side].active.last_move_hit_by;
-        if last_hit != 0 {
+        let taken = state.sides[atk_side].active.damage_taken_this_turn;
+        if last_hit != 0 && taken != 0 {
             let last_md = data_bridge::move_hot(last_hit);
             if last_md.category == MoveCategory::Physical {
-                // Approximate: use 1/4 of attacker's max HP as base (simplified for MCTS)
-                let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
-                deal_damage(state, def_side, def_slot, max_hp / 2);
+                deal_damage(state, def_side, def_slot, taken.saturating_mul(2));
             }
         }
         return;
@@ -2877,22 +2876,22 @@ pub(crate) fn use_move_called(
     // MirrorCoat: return 2× special damage taken this turn
     if md.effect == MoveEffect::MirrorCoat {
         let last_hit = state.sides[atk_side].active.last_move_hit_by;
-        if last_hit != 0 {
+        let taken = state.sides[atk_side].active.damage_taken_this_turn;
+        if last_hit != 0 && taken != 0 {
             let last_md = data_bridge::move_hot(last_hit);
             if last_md.category == MoveCategory::Special {
-                let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
-                deal_damage(state, def_side, def_slot, max_hp / 2);
+                deal_damage(state, def_side, def_slot, taken.saturating_mul(2));
             }
         }
         return;
     }
 
-    // MetalBurst: return 1.5× last damage taken
+    // MetalBurst: return 1.5× last damage taken (any category); SD floors the 1.5×
     if md.effect == MoveEffect::MetalBurst {
         let last_hit = state.sides[atk_side].active.last_move_hit_by;
-        if last_hit != 0 {
-            let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
-            deal_damage(state, def_side, def_slot, max_hp * 3 / 8);
+        let taken = state.sides[atk_side].active.damage_taken_this_turn;
+        if last_hit != 0 && taken != 0 {
+            deal_damage(state, def_side, def_slot, (taken as u32 * 3 / 2).min(u16::MAX as u32) as u16);
         }
         return;
     }
@@ -3131,6 +3130,8 @@ pub(crate) fn use_move_called(
         result.hits = hits_done;
         // Update final_damage to the total actually dealt, for Shell Bell / drain / etc.
         final_damage = total_dealt.min(u16::MAX as u32) as u16;
+        // SD records the whole multi-hit move's total against the defender for Counter et al.
+        state.sides[def_side].active.damage_taken_this_turn = final_damage;
         result.damage = final_damage;
         multi_hit_applied = true;
     }
@@ -3143,7 +3144,11 @@ pub(crate) fn use_move_called(
                 clear_volatile(state, def_side, VOL_SUBSTITUTE);
             }
         } else {
+            let hp_before = state.sides[def_side].team[def_slot].current_hp;
             deal_damage(state, def_side, def_slot, final_damage);
+            // Mirror SD: Counter/Metal Burst read the LAST damaging hit's amount this turn.
+            state.sides[def_side].active.damage_taken_this_turn =
+                hp_before.saturating_sub(state.sides[def_side].team[def_slot].current_hp);
             state.sides[def_side].active.last_move_hit_by = move_id;
             state.sides[def_side].active.times_hit =
                 state.sides[def_side].active.times_hit.saturating_add(1);
