@@ -2973,6 +2973,10 @@ pub(crate) fn use_move_called(
         return;
     }
 
+    // Disguise / Ice Face zero the hit's damage (Showdown's onDamage returns 0) but
+    // do NOT cancel the move: the attacker's Life Orb recoil + the move's secondary
+    // still fire. Flag it here, then skip only the defender damage-resolution below.
+    let mut shield_blocked = false;
     if !result.hits_substitute {
         let def_ability = effective_ability(state, def_side);
         let shields = state.sides[def_side].active._padding[4];
@@ -2983,18 +2987,19 @@ pub(crate) fn use_move_called(
             // Disguise costs 1/8 max HP when broken (Gen 8+)
             let max_hp = state.sides[def_side].team[def_slot].max_hp;
             deal_damage(state, def_side, def_slot, max_hp / 8);
-            return;
+            shield_blocked = true;
         }
 
         // Ice Face: blocks one Physical hit. Showdown gates on species.id==='eiscue'
         // (base only), so the already-busted Noice forme gets no shield.
-        if def_ability == data_bridge::ABILITY_ICE_FACE
+        if !shield_blocked
+            && def_ability == data_bridge::ABILITY_ICE_FACE
             && shields & 2 == 0
             && md.category == MoveCategory::Physical
             && state.sides[def_side].team[def_slot].species_id == 875
         {
             state.sides[def_side].active._padding[4] = shields | 2;
-            return;
+            shield_blocked = true;
         }
     }
 
@@ -3002,7 +3007,13 @@ pub(crate) fn use_move_called(
     // Flag set when multi-hit path has already applied damage + per-hit contact recoil.
     // This disables the default damage-apply and default post-hit contact recoil blocks.
     let mut multi_hit_applied = false;
-    if !result.hits_substitute {
+    // A shielded hit deals 0; mark applied so the deal-damage + multi-hit + damage-clamp
+    // machinery is skipped, while recoil/secondary downstream still fire.
+    if shield_blocked {
+        final_damage = 0;
+        multi_hit_applied = true;
+    }
+    if !shield_blocked && !result.hits_substitute {
         let def_mon = &state.sides[def_side].team[def_slot];
         if def_mon.current_hp == def_mon.max_hp && final_damage >= def_mon.current_hp {
             let def_item = if state.field.magic_room_turns() > 0 {
@@ -3067,7 +3078,7 @@ pub(crate) fn use_move_called(
     // Multi-hit path: apply damage per-hit, interleaving contact recoil and faint checks.
     // Needed so Rough Skin / Iron Barbs / Rocky Helmet trigger per-hit (BUG-P2-D-104),
     // and so the attacker can faint mid-burst, stopping remaining hits.
-    if result.hits > 1 && !result.hits_substitute {
+    if result.hits > 1 && !result.hits_substitute && !shield_blocked {
         // Pre-compute is_contact (matches the block at L2157+ below)
         let mut mh_is_contact = md.flags & MoveFlags::CONTACT != 0;
         if mh_is_contact && state.field.magic_room_turns() == 0 {
