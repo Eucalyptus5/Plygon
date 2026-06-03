@@ -3155,6 +3155,10 @@ pub(crate) fn use_move_called(
         }
     }
 
+    if result.target_heal > 0 {
+        heal(state, def_side, def_slot, result.target_heal);
+    }
+
     if result.drain_heal > 0 {
         // Showdown heals a fraction of HP *actually removed*, not the uncapped rolled
         // damage; on a faint/low-HP target the calc-time heal over-heals. Recompute from

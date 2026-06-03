@@ -28,6 +28,8 @@ pub struct DamageResult {
     pub type_immune: bool,
     pub drain_heal: u16,
     pub recoil_damage: u16,
+    /// Heal applied to the TARGET off its own max HP (Present's heal roll).
+    pub target_heal: u16,
     pub hits_substitute: bool,
     pub item_consumed: bool,
     /// Per-hit damage for multi-hit moves (indexed by hit number).
@@ -66,6 +68,29 @@ pub fn calc_damage(
     if md.category == MoveCategory::Status {
         return DamageResult::default();
     }
+
+    // Present: Showdown onModifyMove rolls random(10) → rand<2 heal[1,4] (no
+    // damage, heals the target off its base max HP), rand<6 BP40, rand<9 BP80,
+    // else BP120. The roll is consumed here so force_all (random(10)→0 → heal)
+    // stays in lockstep with Showdown's setupRng intercept. The BP branches fall
+    // through to the Normal-typed main path (so Ghost immunity applies); the
+    // heal branch returns early with no damage and no recoil.
+    let present_bp = if md.var_power == VarPower::Present {
+        match rng_fn(10) {
+            0 | 1 => {
+                let def_mon = state.active_mon(def_side);
+                return DamageResult {
+                    hits: 1,
+                    effectiveness: 4,
+                    target_heal: ((def_mon.max_hp + 2) / 4).max(1),
+                    ..Default::default()
+                };
+            }
+            2..=5 => 40,
+            6..=8 => 80,
+            _ => 120,
+        }
+    } else { 0 };
 
     // Fixed-damage moves with base_power=0 are handled here (not as Struggle).
     // SeismicToss/Night Shade: damage = user's level.
@@ -278,7 +303,13 @@ pub fn calc_damage(
         result.effectiveness = eff;
     }
 
-    let mut base_power = if is_fling { fling_bp as u16 } else { resolve_power(state, md, atk_side, def_side) };
+    let mut base_power = if is_fling {
+        fling_bp as u16
+    } else if present_bp != 0 {
+        present_bp
+    } else {
+        resolve_power(state, md, atk_side, def_side)
+    };
 
     // Tera min-BP=60 floor (Showdown sim/battle-actions.ts:1657-1665):
     // terastallized + move type matches Tera type + BP<60 + priority<=0 + !multihit + not variable-BP-callback.
@@ -898,6 +929,45 @@ mod tests {
         let on = calc_damage(&state, 0, night_slash, 100, &mut fixed_rng(0)).damage;
         assert!(off > 0);
         assert_eq!(off, on, "non-Lash-Out move must be unaffected by statsLoweredThisTurn");
+    }
+
+    #[test]
+    fn test_present_heal_roll_deals_no_damage_no_recoil() {
+        // random(10)=0 → heal branch: 0 damage, no self-recoil, target healed 1/4 max HP.
+        let mut state = test_state();
+        state.sides[1].team[0].current_hp = 100; // below max so heal is observable
+        state.sides[1].team[0].max_hp = 300;
+        let r = calc_damage(&state, 0, crate::data::MOVE_PRESENT as u16, 100, &mut fixed_rng(0));
+        assert_eq!(r.damage, 0, "Present heal roll deals no damage");
+        assert_eq!(r.recoil_damage, 0, "Present must NOT charge Struggle self-recoil");
+        assert_eq!(r.target_heal, (300 + 2) / 4, "heal branch restores round(maxhp/4) to the target");
+    }
+
+    #[test]
+    fn test_present_bp_rolls() {
+        let mut state = test_state();
+        state.sides[1].team[0].tera_type = Type::Normal as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        let bp40 = calc_damage(&state, 0, crate::data::MOVE_PRESENT as u16, 100, &mut fixed_rng(3)).damage;
+        let bp80 = calc_damage(&state, 0, crate::data::MOVE_PRESENT as u16, 100, &mut fixed_rng(7)).damage;
+        let bp120 = calc_damage(&state, 0, crate::data::MOVE_PRESENT as u16, 100, &mut fixed_rng(9)).damage;
+        assert!(bp40 > 0 && bp80 > bp40 && bp120 > bp80,
+            "Present BP rolls 40<80<120 scale monotonically: {bp40} {bp80} {bp120}");
+        // No self-recoil on the damaging branches either.
+        let r = calc_damage(&state, 0, crate::data::MOVE_PRESENT as u16, 100, &mut fixed_rng(9));
+        assert_eq!(r.recoil_damage, 0);
+    }
+
+    #[test]
+    fn test_present_normal_typed_ghost_immune() {
+        // A forced BP roll vs a Ghost target must be type-immune (Present is Normal,
+        // not the typeless Struggle path it used to fall through to).
+        let mut state = test_state();
+        state.sides[1].team[0].tera_type = Type::Ghost as u8;
+        state.sides[1].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        let r = calc_damage(&state, 0, crate::data::MOVE_PRESENT as u16, 100, &mut fixed_rng(9));
+        assert!(r.type_immune, "Present (Normal) is immune vs a Ghost target");
+        assert_eq!(r.damage, 0);
     }
 
     #[test]
