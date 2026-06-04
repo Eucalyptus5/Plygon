@@ -2652,8 +2652,11 @@ pub(crate) fn use_move_called(
     // Call*-family dispatches do not burn the once-per-switch flag.
     if !is_struggle && !is_charge_turn2 && !is_move_locked && !is_call_family(move_id) {
         let atk_ability = effective_ability(state, atk_side);
+        // Showdown's setType returns false on a terastallized mon (sim/pokemon.ts),
+        // so Libero/Protean's onPrepareHit aborts and never burns the once-per-switch flag.
         if (atk_ability == data_bridge::ABILITY_PROTEAN || atk_ability == data_bridge::ABILITY_LIBERO)
             && state.sides[atk_side].active._padding[3] & 1 == 0
+            && !state.sides[atk_side].team[atk_slot].is_terastallized()
         {
             let new_type = md.move_type as u8;
             state.sides[atk_side].active.override_types = [new_type, new_type];
