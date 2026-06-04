@@ -104,6 +104,9 @@ pub mod ItemFlag {
     // Focus Band: 1/10 survive-at-1HP on a would-be KO Move hit, at any HP, reusable.
     pub const FOCUS_BAND: u64       = 1 << 60;
 
+    // Bright Powder / Lax Incense: holder gives attackers x3686/4096 accuracy (~10% evasion).
+    pub const EVASION_ITEM: u64     = 1 << 61;
+
     // Convenience masks
     pub const IS_CHOICE: u64 = CHOICE_ATK | CHOICE_SPA | CHOICE_SPE;
 }

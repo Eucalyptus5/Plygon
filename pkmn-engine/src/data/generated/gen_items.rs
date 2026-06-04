@@ -51,7 +51,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [ 44] Bluk Berry
     t[44] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [ 51] Bright Powder
-    t[51] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, forme_species: 0 };
+    t[51] = ItemData { flags: F::EVASION_ITEM, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [ 53] Bug Gem
     t[53] = ItemData { flags: F::CONSUMABLE | F::GEM, type_param: 11, power_param: 0, forme_species: 0 };
     // [ 54] Burn Drive
@@ -213,7 +213,7 @@ pub static GEN_ITEMS: [ItemData; 762] = {
     // [238] Lansat Berry
     t[238] = ItemData { flags: F::IS_BERRY, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [240] Lax Incense
-    t[240] = ItemData { flags: 0, type_param: 0xFF, power_param: 10, forme_species: 0 };
+    t[240] = ItemData { flags: F::EVASION_ITEM, type_param: 0xFF, power_param: 10, forme_species: 0 };
     // [241] Leaf Stone
     t[241] = ItemData { flags: 0, type_param: 0xFF, power_param: 30, forme_species: 0 };
     // [242] Leftovers

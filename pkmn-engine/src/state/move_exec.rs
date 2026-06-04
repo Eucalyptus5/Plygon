@@ -135,6 +135,13 @@ fn effective_accuracy(
         accuracy = accuracy * 11 / 10;
     }
 
+    if state.field.magic_room_turns() == 0
+        && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::EVASION_ITEM)
+    {
+        // Showdown brightpowder/laxincense chainModify([3686,4096]) with modify() rounding.
+        accuracy = (accuracy * 3686 + 2047) >> 12;
+    }
+
     if state.field.gravity_turns > 0 { accuracy = accuracy * 5 / 3; }
 
     accuracy

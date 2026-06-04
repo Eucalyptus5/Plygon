@@ -975,6 +975,8 @@ SPECIFIC_ITEMS = {
     "razorclaw": ("CRIT_BOOST",),
     "scopelens": ("CRIT_BOOST",),
     "widelens": ("WIDE_LENS",),
+    "brightpowder": ("EVASION_ITEM",),
+    "laxincense": ("EVASION_ITEM",),
     "focussash": ("FOCUS_SASH", "CONSUMABLE"),
     "focusband": ("FOCUS_BAND",),
     "airballoon": ("AIR_BALLOON", "CONSUMABLE"),
