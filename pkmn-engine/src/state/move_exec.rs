@@ -451,14 +451,16 @@ fn apply_primary_secondary(
         }
     };
 
-    if status != STATUS_NONE
-        && !type_immune_to_status(state, def_side, status)
-        && state.sides[def_side].side_conditions.safeguard_turns() == 0
-        && !terrain_blocks_status(state, def_side, status)
-        && !ability_status_immune(state, def_side, atk_ability, status)
-        && !crate::state::forme::is_minior_meteor_forme(state, def_side)
-    {
-        if set_status(state, def_side, def_slot, status, 0) {
+    // A blocked pure-status secondary must not fall through to VOL_FLINCHED:
+    // Showdown's trySetStatus silently no-ops on immunity and never flinches.
+    if status != STATUS_NONE {
+        if !type_immune_to_status(state, def_side, status)
+            && state.sides[def_side].side_conditions.safeguard_turns() == 0
+            && !terrain_blocks_status(state, def_side, status)
+            && !ability_status_immune(state, def_side, atk_ability, status)
+            && !crate::state::forme::is_minior_meteor_forme(state, def_side)
+            && set_status(state, def_side, def_slot, status, 0)
+        {
             try_synchronize_back(state, def_side, atk_side, status);
         }
         return;
