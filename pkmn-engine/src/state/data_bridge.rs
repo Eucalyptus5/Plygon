@@ -448,6 +448,7 @@ pub const ITEM_ROWAP_BERRY: u16 = 420;
 pub const ITEM_SHELL_BELL: u16 = 438;
 pub const ITEM_SITRUS_BERRY: u16 = 448;
 pub const ITEM_STARF_BERRY: u16 = 472;
+pub const ITEM_LANSAT_BERRY: u16 = 238;
 pub const ITEM_STICKY_BARB: u16 = 476;
 pub const ITEM_EJECT_BUTTON: u16 = 118;
 pub const ITEM_RED_CARD: u16 = 387;

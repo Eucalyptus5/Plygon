@@ -2126,6 +2126,16 @@ pub fn check_berry_activation(
         return;
     }
 
+    // Lansat onEat: addVolatile('focusenergy') => +2 crit stage (not the +1 CRIT_BOOST item flag).
+    if item_id == data_bridge::ITEM_LANSAT_BERRY {
+        let threshold = if has_gluttony { max_hp / 2 } else { max_hp / 4 };
+        if current_hp <= threshold {
+            set_volatile(state, side, VOL_FOCUS_ENERGY);
+            consume_berry(state, side, slot);
+        }
+        return;
+    }
+
     match item_id {
         data_bridge::ITEM_AGUAV_BERRY | data_bridge::ITEM_FIGY_BERRY |
         data_bridge::ITEM_WIKI_BERRY | data_bridge::ITEM_MAGO_BERRY |
