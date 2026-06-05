@@ -243,6 +243,16 @@ pub fn must_struggle(state: &BattleState, side: usize) -> bool {
     count == 0
 }
 
+/// First legal move slot (same filter as `generate_legal_moves`), or None when none is selectable.
+#[inline]
+pub fn first_legal_move_slot(state: &BattleState, side: usize) -> Option<u8> {
+    let mut list = ActionList::new();
+    if generate_legal_moves(state, side, &mut list) == 0 {
+        return None;
+    }
+    Some(list.actions[0])
+}
+
 pub fn available_switches(state: &BattleState, side: usize) -> u8 {
     let s = &state.sides[side];
     let current = s.active_index as usize;

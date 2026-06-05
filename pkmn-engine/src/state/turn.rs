@@ -38,6 +38,14 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
             if crate::state::legal_moves::must_struggle(state, side) {
                 return ActionKind::Struggle;
             }
+            // Empty-slot byte with a legal move present: Showdown collapses an
+            // out-of-range index to the only legal move (sim/side.ts:560-562).
+            if move_id == 0 {
+                if let Some(slot) = crate::state::legal_moves::first_legal_move_slot(state, side) {
+                    let m = effective_moves(state, side)[slot as usize];
+                    return ActionKind::Move { slot, move_id: m };
+                }
+            }
             ActionKind::Move { slot: action, move_id }
         }
         4..=9 => ActionKind::Switch { target: action - 4 },
