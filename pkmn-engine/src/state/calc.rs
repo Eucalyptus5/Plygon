@@ -785,12 +785,19 @@ fn calc_struggle(state: &BattleState, atk_side: usize) -> DamageResult {
     dmg = chain_mod(dmg, scn);
     let dmg = dmg.max(1);
 
+    // Struggle has no sound/bypasssub flag, so it hits a live Substitute like any
+    // normal move (only Infiltrator bypasses). calc_struggle returns before the
+    // normal-move sub block, so mirror it here.
+    let hits_substitute = state.sides[def_side].active.has_volatile(VOL_SUBSTITUTE)
+        && atk_ability != data_bridge::ABILITY_INFILTRATOR;
+
     DamageResult {
         damage: dmg.min(u16::MAX as u32) as u16,
         effectiveness: 4, // neutral
         hits: 1,
         // Gen 5+: clampIntRange(round(baseMaxhp / 4), 1), not truncation.
         recoil_damage: ((atk_mon.max_hp + 2) / 4).max(1),
+        hits_substitute,
         ..Default::default()
     }
 }
