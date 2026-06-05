@@ -325,6 +325,13 @@ fn ability_status_immune(state: &BattleState, victim_side: usize, _source_abilit
     ability_blocks_status(effective_ability(state, victim_side), status)
 }
 
+/// Inner Focus blocks the flinch volatile (onTryAddVolatile returns null for `flinch`).
+/// effective_ability honors a Traced Inner Focus.
+#[inline(always)]
+fn flinch_immune(state: &BattleState, def_side: usize) -> bool {
+    effective_ability(state, def_side) == data_bridge::ABILITY_INNER_FOCUS
+}
+
 /// Apply a damaging move's secondary effect(s). The 16-byte hot MoveData holds at
 /// most one secondary (`apply_primary_secondary`); the fang family + Triple Arrows
 /// additionally carry a flinch rider, applied here as an independent secondary after
@@ -350,6 +357,7 @@ fn apply_secondary(
     if atk_ability == data_bridge::ABILITY_SHEER_FORCE { return; }
     // Shield Dust / Covert Cloak block the rider flinch like any other target-side secondary.
     if effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST { return; }
+    if flinch_immune(state, def_side) { return; }
     if state.field.magic_room_turns() == 0
         && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK)
     { return; }
@@ -487,7 +495,9 @@ fn apply_primary_secondary(
     // parseable secondary, but their real Showdown effect is not a flinch.
     if move_secondary_no_flinch(move_id) { return; }
 
-    if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
+    if !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
+        && !flinch_immune(state, def_side)
+    {
         set_volatile(state, def_side, VOL_FLINCHED);
     }
 }
@@ -3361,6 +3371,7 @@ pub(crate) fn use_move_called(
                 }
                 FlingEffect::Flinch => {
                     let blocks_secondary = effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST
+                        || flinch_immune(state, def_side)
                         || (state.field.magic_room_turns() == 0
                             && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK));
                     if !blocks_secondary
@@ -3387,6 +3398,7 @@ pub(crate) fn use_move_called(
             && !state.sides[def_side].active.has_volatile(VOL_MOVED_THIS_TURN)
         {
             let blocks_secondary = effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST
+                || flinch_immune(state, def_side)
                 || data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK);
             if !blocks_secondary && rng(10) < 1 {
                 set_volatile(state, def_side, VOL_FLINCHED);
@@ -3408,6 +3420,7 @@ pub(crate) fn use_move_called(
         && !move_has_flinch_secondary(md, move_id)
     {
         let blocks_secondary = effective_ability(state, def_side) == data_bridge::ABILITY_SHIELD_DUST
+            || flinch_immune(state, def_side)
             || (state.field.magic_room_turns() == 0
                 && data_bridge::item(state.active_mon(def_side).item_id).has(ItemFlag::COVERT_CLOAK));
         if !blocks_secondary && rng(100) < 10 {
