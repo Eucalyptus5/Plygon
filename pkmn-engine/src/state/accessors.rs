@@ -126,6 +126,7 @@ pub fn ability_blocks_status(ability_id: u16, status: u8) -> bool {
                             || ability_id == data_bridge::ABILITY_COMATOSE,
         STATUS_SLEEP     => ability_id == data_bridge::ABILITY_INSOMNIA
                             || ability_id == data_bridge::ABILITY_VITAL_SPIRIT
+                            || ability_id == data_bridge::ABILITY_SWEET_VEIL
                             || ability_id == data_bridge::ABILITY_COMATOSE,
         STATUS_POISON | STATUS_BAD_POISON =>
             ability_id == data_bridge::ABILITY_IMMUNITY

@@ -577,7 +577,7 @@ fn execute_status_move(
         _ => {}
     }
 
-    // Rest: full heal + 3-turn sleep, fail at full HP / Insomnia / Vital Spirit / Comatose.
+    // Rest: full heal + 3-turn sleep, fail at full HP / sleep-immune ability (Sweet Veil too).
     // Mirrors Showdown moves.ts:15014-15036.
     if move_id as usize == crate::data::MOVE_REST {
         let mon = &state.sides[atk_side].team[atk_slot];
