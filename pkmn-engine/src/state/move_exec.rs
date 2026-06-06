@@ -2326,9 +2326,11 @@ fn apply_ally_stat_change(
 /// Record that the active mon's move on `atk_side` failed this turn (Showdown
 /// `moveThisTurnResult = false`) — fuels Stomping Tantrum / Temper Flare's ×2.
 /// Placed at the genuine hit-resolution failure sites (miss / type-or-ability
-/// immunity) in both the damaging and status dispatch paths; NOT on Protect-block
-/// / Disguise (Showdown counts those as `true`) nor pre-move skips. A single byte
-/// OR off the per-hit `calc_damage` loop — never runs for a move that connects.
+/// immunity) in both dispatch paths AND at the pre-move aborts whose Showdown
+/// onBeforeMove returns `false` (para/sleep/freeze/flinch/truant/taunt/confusion/
+/// attract). NOT on Protect-block / Disguise (Showdown counts those as `true`),
+/// nor on recharge (Showdown returns `null` there). A single byte OR off the
+/// per-hit `calc_damage` loop — never runs for a move that connects.
 #[inline(always)]
 fn mark_move_failed(state: &mut BattleState, atk_side: usize) {
     state.sides[atk_side].set_move_failed_this_turn();
@@ -4296,10 +4298,11 @@ pub fn execute_move(
         if counter > 0 {
             state.sides[atk_side].team[atk_slot].status_counter = counter - 1;
             if counter > 1 {
-                if move_id != 214 { break 'exec; }
+                if move_id != 214 { mark_move_failed(state, atk_side); break 'exec; }
             } else {
                 clear_status(state, atk_side, atk_slot);
-                if move_id == 214 { break 'exec; }
+                // Sleep Talk on the wake-up tick fails its onTry (status no longer slp).
+                if move_id == 214 { mark_move_failed(state, atk_side); break 'exec; }
             }
         }
     }
@@ -4309,6 +4312,7 @@ pub fn execute_move(
         if md.move_type == Type::Fire || rng(5) == 0 {
             clear_status(state, atk_side, atk_slot);
         } else {
+            mark_move_failed(state, atk_side);
             break 'exec;
         }
     }
@@ -4325,6 +4329,7 @@ pub fn execute_move(
     {
         if state.sides[atk_side].active.truant_loaf_pending() {
             state.sides[atk_side].active.clear_truant_loaf_pending();
+            mark_move_failed(state, atk_side);
             break 'exec;
         }
         state.sides[atk_side].active.set_truant_loaf_pending();
@@ -4332,12 +4337,13 @@ pub fn execute_move(
 
     // Flinch: an asleep/frozen mon still ticks its sleep counter / rolls its
     // thaw before the flinch cancels the move.
-    if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { break 'exec; }
+    if state.sides[atk_side].active.has_volatile(VOL_FLINCHED) { mark_move_failed(state, atk_side); break 'exec; }
 
     // Taunt: block status moves (same-turn or future turns)
     if !is_struggle && md.category == MoveCategory::Status
         && state.sides[atk_side].active.taunt_turns > 0
     {
+        mark_move_failed(state, atk_side);
         break 'exec;
     }
 
@@ -4358,18 +4364,19 @@ pub fn execute_move(
             let level_factor = 2 * level / 5 + 2;
             let dmg = ((level_factor * 40 * a / d) / 50 + 2) as u16;
             deal_damage(state, atk_side, atk_slot, dmg);
+            mark_move_failed(state, atk_side);
             break 'exec;
         }
     }
 
     // Attraction: 50% chance to skip turn
     if state.sides[atk_side].active.is_attracted() {
-        if rng(2) == 0 { break 'exec; }
+        if rng(2) == 0 { mark_move_failed(state, atk_side); break 'exec; }
     }
 
     // Paralysis: 25% full paralysis
     if state.sides[atk_side].team[atk_slot].status == STATUS_PARALYSIS {
-        if rng(4) == 0 { break 'exec; }
+        if rng(4) == 0 { mark_move_failed(state, atk_side); break 'exec; }
     }
 
     if !is_charge_turn2 {

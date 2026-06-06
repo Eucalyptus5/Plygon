@@ -146,8 +146,10 @@ pub const SIDE_PAD_ACTED_SINCE_SWITCH: u8 = 1 << 2;
 /// `moveLastTurnResult` lifecycle, collapsed to the only outcome that matters —
 /// a genuine move failure. Bit 3 = this turn's move failed; bit 4 = last turn's
 /// move failed. Bit 3 is set at the move's hit-resolution failure sites
-/// (miss / type-or-ability immunity), promoted to bit 4 at end-of-turn (mirrors
-/// `nextTurn` sim/battle.ts:1660), and both clear on switch-out (clearVolatile).
+/// (miss / type-or-ability immunity) and at the pre-move aborts Showdown's
+/// onBeforeMove returns `false` for (not recharge, which returns `null`),
+/// promoted to bit 4 at end-of-turn (mirrors `nextTurn` sim/battle.ts:1660),
+/// and both clear on switch-out (clearVolatile).
 /// Bit 4 is read by Stomping Tantrum / Temper Flare's base-power doubling.
 pub const SIDE_PAD_MOVE_FAILED_THIS: u8 = 1 << 3;
 pub const SIDE_PAD_MOVE_FAILED_LAST: u8 = 1 << 4;
@@ -376,8 +378,9 @@ impl SideState {
     }
 
     /// Record that this turn's move attempt failed (Showdown `moveThisTurnResult
-    /// = false`). Set only at genuine hit-resolution failures; pre-move skips
-    /// (para/sleep/freeze/flinch/recharge) deliberately leave it clear.
+    /// = false`). Set at genuine hit-resolution failures and at pre-move aborts
+    /// that Showdown's onBeforeMove returns `false` for (para/sleep/freeze/flinch/
+    /// truant/taunt/confusion/attract). Recharge returns `null`, so it stays clear.
     #[inline(always)]
     pub fn set_move_failed_this_turn(&mut self) {
         self._padding[0] |= SIDE_PAD_MOVE_FAILED_THIS;
