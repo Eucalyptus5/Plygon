@@ -2746,7 +2746,7 @@ pub(crate) fn use_move_called(
     }
 
     // Self-Destruct / Explosion / Misty Explosion: user faints before damage
-    if matches!(move_id, 120 | 153 | 606) {
+    if matches!(move_id, 120 | 153 | 802) {
         let hp = state.sides[atk_side].team[atk_slot].current_hp;
         deal_damage(state, atk_side, atk_slot, hp);
     }
