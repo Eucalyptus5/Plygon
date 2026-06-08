@@ -110,6 +110,10 @@ pub const MON_FLAG_MOVE_USED_BASE: u16 = 1 << 10;
 // Showdown's `ateBerry`: set whenever this mon eats a berry, battle-lifetime
 // (survives switch-out, never cleared). Belch's legality gate reads it.
 pub const MON_FLAG_ATE_BERRY: u16 = 1 << 14;
+// Disguise's shield is already broken. Showdown does a permanent formeChange to
+// Mimikyu-Busted so the shield never returns on re-entry; this per-slot flag
+// survives switch-out (active._padding[4] bit 0 is wiped by active.zero()).
+pub const MON_FLAG_DISGUISE_BUSTED: u16 = 1 << 15;
 
 /// ActiveMon `_padding[0]` bit 3: Power/Guard Split wrote averaged stats into
 /// `override_stats` on a mon that is neither Transformed nor forme-changed. Tells

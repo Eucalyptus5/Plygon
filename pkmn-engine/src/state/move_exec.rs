@@ -3067,9 +3067,15 @@ pub(crate) fn use_move_called(
         let def_ability = effective_ability(state, def_side);
         let shields = state.sides[def_side].active._padding[4];
 
-        // Disguise: blocks one hit of any category
-        if def_ability == data_bridge::ABILITY_DISGUISE && shields & 1 == 0 {
+        // Disguise: blocks one hit of any category. The bust is a permanent
+        // formeChange in Showdown, so once busted (even via a prior switch-out)
+        // the shield never returns. The per-slot MON_FLAG survives active.zero().
+        if def_ability == data_bridge::ABILITY_DISGUISE
+            && shields & 1 == 0
+            && state.sides[def_side].team[def_slot].flags & MON_FLAG_DISGUISE_BUSTED == 0
+        {
             state.sides[def_side].active._padding[4] = shields | 1;
+            state.sides[def_side].team[def_slot].flags |= MON_FLAG_DISGUISE_BUSTED;
             // Disguise costs 1/8 max HP when broken (Gen 8+)
             let max_hp = state.sides[def_side].team[def_slot].max_hp;
             deal_damage(state, def_side, def_slot, max_hp / 8);
