@@ -183,7 +183,10 @@ fn step_wish(state: &mut BattleState) {
         if sc.wish_turns == 1 {
             let slot = state.sides[side].active_index as usize;
             let wish_hp = sc.wish_hp;
-            heal(state, side, slot, wish_hp);
+            // Showdown wish onEnd gates on !target.fainted; a KO'd mon stays fainted.
+            if !state.sides[side].team[slot].is_fainted() {
+                heal(state, side, slot, wish_hp);
+            }
             state.sides[side].side_conditions.wish_hp = 0;
             state.sides[side].side_conditions.wish_turns = 0;
         } else if state.sides[side].side_conditions.wish_turns > 1 {
