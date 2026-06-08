@@ -2536,6 +2536,58 @@ fn foe_pokemon_left(state: &BattleState, side: usize) -> bool {
     })
 }
 
+// Focus Sash / Sturdy / Focus Band / Endure survival procs, evaluated against ONE
+// hit's damage and the defender's CURRENT HP. Showdown runs each as an onDamage
+// callback per hit (effectType==='Move'), so a multi-hit move re-tests them every
+// hit: Sturdy/Sash gate on hp===maxhp (fail after the first hit), Band/Endure on
+// would-KO at any HP. Returns the clamped damage and applies Sash consumption +
+// Unburden. Focus Band's randomChance(1,10) is rolled here so the roll lands per hit.
+#[inline]
+fn survival_clamp(
+    state: &mut BattleState,
+    atk_side: usize,
+    def_side: usize,
+    def_slot: usize,
+    damage: u16,
+    rng: &mut impl FnMut(u32) -> u32,
+) -> u16 {
+    let mut dmg = damage;
+    let def_mon = &state.sides[def_side].team[def_slot];
+    let cur = def_mon.current_hp;
+    if def_mon.current_hp == def_mon.max_hp && dmg >= cur {
+        let def_item = if state.field.magic_room_turns() > 0 {
+            &data_bridge::ItemData::NONE
+        } else {
+            data_bridge::item(def_mon.item_id)
+        };
+        let def_ability = effective_ability(state, def_side);
+        if def_item.has(ItemFlag::FOCUS_SASH) {
+            dmg = cur - 1;
+            consume_item(state, def_side, def_slot);
+            if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
+                set_volatile(state, def_side, VOL_UNBURDEN);
+            }
+        } else if def_ability == data_bridge::ABILITY_STURDY
+            && !mold_breaks(state, def_side, effective_ability(state, atk_side))
+        {
+            dmg = cur - 1;
+        }
+    }
+    let def_mon = &state.sides[def_side].team[def_slot];
+    let holds_focus_band = state.field.magic_room_turns() == 0
+        && data_bridge::item(def_mon.item_id).has(ItemFlag::FOCUS_BAND);
+    if holds_focus_band && def_mon.current_hp > 0 && dmg >= def_mon.current_hp && rng(10) == 0 {
+        dmg = def_mon.current_hp - 1;
+    }
+    if state.sides[def_side].active.has_volatile(VOL_ENDURE) {
+        let cur = state.sides[def_side].team[def_slot].current_hp;
+        if cur > 0 && dmg >= cur {
+            dmg = cur - 1;
+        }
+    }
+    dmg
+}
+
 /// Inner "useMove" dispatch — mirrors Showdown's `useMove` in
 /// `sim/battle-actions.ts:298-376`. The outer entry `execute_move` runs
 /// Showdown's `runMove` prelude (`sim/battle-actions.ts:200-296`: PP,
@@ -3047,50 +3099,11 @@ pub(crate) fn use_move_called(
         final_damage = 0;
         multi_hit_applied = true;
     }
-    if !shield_blocked && !result.hits_substitute {
-        let def_mon = &state.sides[def_side].team[def_slot];
-        if def_mon.current_hp == def_mon.max_hp && final_damage >= def_mon.current_hp {
-            let def_item = if state.field.magic_room_turns() > 0 {
-                &data_bridge::ItemData::NONE
-            } else {
-                data_bridge::item(def_mon.item_id)
-            };
-            let def_ability = effective_ability(state, def_side);
-            if def_item.has(ItemFlag::FOCUS_SASH) {
-                final_damage = def_mon.current_hp - 1;
-                consume_item(state, def_side, def_slot);
-                if effective_ability(state, def_side) == data_bridge::ABILITY_UNBURDEN {
-                    set_volatile(state, def_side, VOL_UNBURDEN);
-                }
-            } else if def_ability == data_bridge::ABILITY_STURDY
-                && !mold_breaks(state, def_side, effective_ability(state, atk_side))
-            {
-                final_damage = def_mon.current_hp - 1;
-            }
-        }
-        // Focus Band: 1/10 to survive a would-be-KO Move hit at any HP, leaving 1 HP.
-        // Unlike Focus Sash it is not full-HP-gated and is not consumed (reusable).
-        // Showdown rolls randomChance(1,10) before the KO test, so consume the roll
-        // on every would-KO Move hit to a holder to keep force_all aligned.
-        {
-            let def_mon = &state.sides[def_side].team[def_slot];
-            let holds_focus_band = state.field.magic_room_turns() == 0
-                && data_bridge::item(def_mon.item_id).has(ItemFlag::FOCUS_BAND);
-            if holds_focus_band && def_mon.current_hp > 0 && final_damage >= def_mon.current_hp
-                && rng(10) == 0
-            {
-                final_damage = def_mon.current_hp - 1;
-            }
-        }
-        // Endure: clamp Move-effect damage to leave 1 HP (any starting HP). Recoil
-        // and contact-recoil call deal_damage directly so they bypass this branch,
-        // matching Showdown's effectType==='Move' gate on the endure volatile.
-        if state.sides[def_side].active.has_volatile(VOL_ENDURE) {
-            let cur = state.sides[def_side].team[def_slot].current_hp;
-            if cur > 0 && final_damage >= cur {
-                final_damage = cur - 1;
-            }
-        }
+    // Single-hit path: clamp survival procs once here. The multi-hit path below
+    // re-evaluates them per hit (Showdown's onDamage fires every hit), so it skips
+    // this pre-clamp to avoid testing the full-HP gate against the summed total.
+    if !shield_blocked && !result.hits_substitute && result.hits <= 1 {
+        final_damage = survival_clamp(state, atk_side, def_side, def_slot, final_damage, rng);
         // False Swipe / Hold Back never faint the target: onDamage returns target.hp-1
         // when the hit would KO (deals 0 at 1 HP). Damage still applies, just no faint.
         let mid = move_id as usize;
@@ -3127,33 +3140,10 @@ pub(crate) fn use_move_called(
         let mut hits_done: u8 = 0;
         for i in 0..result.hits {
             let per_hit = result.per_hit_damages[i as usize];
-            // First hit: if damage was adjusted by Focus Sash / Sturdy, apply the
-            // adjustment to this one hit. final_damage holds the adjusted total
-            // (actually: def_mon current_hp - 1) but only matters when the full
-            // multi-hit sum would have KO'd and the first hit alone doesn't KO.
-            // To keep behavior simple and correct in the common case (first-hit
-            // already >= current HP), gate on: if adjusted final_damage < full
-            // total, prefer dealing adjusted amount on hit 0 and stopping.
-            let dmg_this = if i == 0 && final_damage < result.damage {
-                let d = final_damage;
-                let hp_before = state.sides[def_side].team[def_slot].current_hp;
-                deal_damage(state, def_side, def_slot, d);
-                total_dealt += hp_before.saturating_sub(
-                    state.sides[def_side].team[def_slot].current_hp,
-                ) as u32;
-                hits_done += 1;
-                state.sides[def_side].active.last_move_hit_by = move_id;
-                state.sides[def_side].active.times_hit =
-                    state.sides[def_side].active.times_hit.saturating_add(1);
-                // Focus Sash / Sturdy adjusted: defender is at 1 HP and further hits
-                // would KO. Apply contact recoil once (for this hit) and then stop.
-                if mh_is_contact
-                    && !state.sides[atk_side].team[atk_slot].is_fainted()
-                {
-                    apply_contact_recoil(state, atk_side, atk_slot, def_side, md);
-                }
-                break;
-            } else { per_hit };
+            // Re-test the survival procs against THIS hit's damage and the
+            // defender's current HP. Sturdy/Sash only save the full-HP first hit;
+            // a later hit on the now-not-full mon KOs (Showdown's per-hit onDamage).
+            let dmg_this = survival_clamp(state, atk_side, def_side, def_slot, per_hit, rng);
             let hp_before = state.sides[def_side].team[def_slot].current_hp;
             deal_damage(state, def_side, def_slot, dmg_this);
             total_dealt += hp_before.saturating_sub(
