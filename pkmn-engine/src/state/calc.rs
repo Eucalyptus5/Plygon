@@ -403,6 +403,12 @@ pub fn calc_damage(
         power = chain_mod(power, 8192); // 2×
     }
 
+    // Fickle Beam: onBasePower randomChance(3,10) → chainModify(2) (moves.ts ficklebeam).
+    // Reuses the harness-overridable rng(100) secondary source; cold for every other move.
+    if move_id == crate::data::MOVE_FICKLE_BEAM as u16 && rng_fn(100) < 30 {
+        power = chain_mod(power, 8192); // 2×
+    }
+
     // Defender's ability modifying move base power (Showdown: onSourceBasePower).
     // Breakable (bypassed by Mold Breaker). Dry Skin: 1.25× Fire base power.
     if !mold_breaks(state, def_side, atk_ability) {
