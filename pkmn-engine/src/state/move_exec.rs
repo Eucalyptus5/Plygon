@@ -602,7 +602,16 @@ fn execute_status_move(
         && move_id as usize != crate::data::MOVE_FLORAL_HEALING // target:Any HEAL — heal the foe, handled below
     {
         let max_hp = state.sides[atk_side].team[atk_slot].max_hp;
-        heal(state, atk_side, atk_slot, max_hp / 2);
+        // heal:[1,2] moves (Roost etc.) round half-up via Math.round(maxhp/2);
+        // weather heals (Synthesis/Morning Sun/Moonlight/Shore Up) floor via this.heal(this.modify(maxhp,0.5)).
+        let amount = match move_id as usize {
+            crate::data::MOVE_SYNTHESIS
+            | crate::data::MOVE_MORNING_SUN
+            | crate::data::MOVE_MOONLIGHT
+            | crate::data::MOVE_SHORE_UP => max_hp / 2,
+            _ => (max_hp + 1) >> 1,
+        };
+        heal(state, atk_side, atk_slot, amount);
         return;
     }
 
