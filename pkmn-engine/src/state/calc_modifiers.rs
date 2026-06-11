@@ -347,6 +347,13 @@ pub fn resolve_power(
                 _ => 160,
             }
         }
+        VarPower::Rollout => {
+            // 30 BP doubling per consecutive hit (Showdown bp = 30·2^contactHitCount),
+            // capped at 480 (5 hits). The hit count lives in _padding[2] while the
+            // user is Rollout-locked; it advances after each landed hit in move_exec.
+            let count = state.sides[atk_side].active._padding[2].min(4);
+            30u16 << count
+        }
         VarPower::BeatUp => {
             // Representative BP (user's own member) so the power!=0 guard passes;
             // the per-hit BPs are recomputed per eligible party member in calc.rs.

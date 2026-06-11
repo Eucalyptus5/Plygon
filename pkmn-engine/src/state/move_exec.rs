@@ -2804,6 +2804,14 @@ pub(crate) fn use_move_called(
     {
         set_volatile(state, atk_side, VOL_MOVE_LOCKED);
         state.sides[atk_side].active._padding[2] = 2; // Uproar locks a fixed 3 turns total
+    } else if !is_charge_turn2 && !is_struggle && !is_move_locked
+        && md.effect == MoveEffect::Rollout
+    {
+        // Rollout/Ice Ball lock onto the move (Showdown addVolatile('rollout') +
+        // onLockMove). _padding[2] counts landed hits for the doubling; the lock
+        // ends on miss or after the 5th hit (see the locked-turn block below).
+        set_volatile(state, atk_side, VOL_MOVE_LOCKED);
+        state.sides[atk_side].active._padding[2] = 0;
     }
 
     // Self-Destruct / Explosion / Misty Explosion: user faints before damage
@@ -2887,6 +2895,12 @@ pub(crate) fn use_move_called(
         // clears the `furycutter` volatile when the move fails to hit).
         if move_id == crate::data::MOVE_FURY_CUTTER as u16 {
             state.sides[atk_side].active.consec_move_count = 0;
+        }
+        // Rollout/Ice Ball end their lock (and reset the BP counter) on a miss:
+        // Showdown's volatile is not refreshed when the move fails to connect.
+        if move_id == 205 || move_id == 301 {
+            clear_volatile(state, atk_side, VOL_MOVE_LOCKED);
+            state.sides[atk_side].active._padding[2] = 0;
         }
         return;
     }
@@ -3202,6 +3216,21 @@ pub(crate) fn use_move_called(
             state.sides[def_side].active.last_move_hit_by = move_id;
             state.sides[def_side].active.times_hit =
                 state.sides[def_side].active.times_hit.saturating_add(1);
+        }
+    }
+
+    // Rollout/Ice Ball: a landed hit advances the doubling counter (Showdown's
+    // basePowerCallback bumps contactHitCount). The lock ends after the 5th hit;
+    // until then the doubled BP keeps the user locked into the move.
+    if (move_id == 205 || move_id == 301)
+        && state.sides[atk_side].active.has_volatile(VOL_MOVE_LOCKED)
+    {
+        let count = state.sides[atk_side].active._padding[2].saturating_add(1);
+        if count >= 5 {
+            clear_volatile(state, atk_side, VOL_MOVE_LOCKED);
+            state.sides[atk_side].active._padding[2] = 0;
+        } else {
+            state.sides[atk_side].active._padding[2] = count;
         }
     }
 
@@ -4226,11 +4255,18 @@ pub fn execute_move(
     let was_last_locked_turn;
     if is_move_locked {
         move_id = state.sides[atk_side].active.last_move;
-        let counter = state.sides[atk_side].active._padding[2];
-        state.sides[atk_side].active._padding[2] = counter - 1;
-        was_last_locked_turn = counter <= 1;
-        if was_last_locked_turn {
-            clear_volatile(state, atk_side, VOL_MOVE_LOCKED);
+        // Rollout/Ice Ball: _padding[2] counts UP per landed hit (advanced post-hit),
+        // and the lock ends on miss or at the 5-hit cap — never via the Thrash-style
+        // turn countdown, and with no lock-end self-confusion.
+        if move_id == 205 || move_id == 301 {
+            was_last_locked_turn = false;
+        } else {
+            let counter = state.sides[atk_side].active._padding[2];
+            state.sides[atk_side].active._padding[2] = counter - 1;
+            was_last_locked_turn = counter <= 1;
+            if was_last_locked_turn {
+                clear_volatile(state, atk_side, VOL_MOVE_LOCKED);
+            }
         }
     } else {
         was_last_locked_turn = false;

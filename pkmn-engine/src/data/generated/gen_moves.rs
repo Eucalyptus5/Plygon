@@ -1652,10 +1652,10 @@ pub static GEN_MOVES: &[MoveData] = &[
     // [205] Rollout
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:30, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Rock,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::Rollout, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Rollout, secondary_status:0,
         self_effect:SelfEffect::None },
     // [206] False Swipe
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:40, accuracy:100,
@@ -2420,10 +2420,10 @@ pub static GEN_MOVES: &[MoveData] = &[
     // [301] Ice Ball
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::BULLET | MoveFlags::PROTECT, base_power:30, accuracy:90,
         category:MoveCategory::Physical, move_type:Type::Ice,
-        var_power:VarPower::None, crit_ratio:0, drain:0, priority:0,
+        var_power:VarPower::Rollout, crit_ratio:0, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::Rollout, secondary_status:0,
         self_effect:SelfEffect::None },
     // [302] Needle Arm
     MoveData { flags:MoveFlags::CONTACT | MoveFlags::PROTECT, base_power:60, accuracy:100,

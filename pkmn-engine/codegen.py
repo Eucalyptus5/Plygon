@@ -139,6 +139,7 @@ MOVE_EFFECT = {
     "outrage": "Thrash", "petaldance": "Thrash", "thrash": "Thrash",
     "ragingfury": "Thrash",
     "uproar": "Uproar",
+    "rollout": "Rollout", "iceball": "Rollout",
 
     # -- Phase 7: Additional status/utility effects --
     "bellydrum": "BellyDrum",
@@ -364,6 +365,7 @@ VAR_POWER = {
     "payback": "Payback",
     "avalanche": "Avalanche", "revenge": "Avalanche",
     "furycutter": "FuryCutter",
+    "rollout": "Rollout", "iceball": "Rollout",
     "hardpress": "HpRatio", "crushgrip": "HpRatio",
     "beatup": "BeatUp",
     "present": "Present",

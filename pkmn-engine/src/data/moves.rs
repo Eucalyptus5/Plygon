@@ -53,6 +53,7 @@ pub enum VarPower {
     FuryCutter    = 25, // 40 BP, doubles on each consecutive successful hit (cap 160)
     HpRatio       = 26, // BP scales with target's current HP fraction; coefficient (full-HP BP) carried in base_power (Hard Press 100, Crush Grip 120)
     BeatUp        = 27, // one hit per eligible party member; per-hit BP = 5 + ⌊member base Atk / 10⌋
+    Rollout       = 28, // 30 BP, doubles per consecutive hit while move-locked (cap 480 / 5 hits); Rollout, Ice Ball
 }
 
 // Encodes guaranteed self-stat changes, crash damage, and other effects
@@ -312,6 +313,8 @@ pub enum MoveEffect {
     SimpleBeam       = 140, // Set target's ability to Simple; fails vs cantsuppress/Simple/Truant/Ability Shield
 
     Spite            = 141, // Deduct 4 PP from the target's last-used move; fails if none/unknown/0 PP
+
+    Rollout          = 142, // Rollout/Ice Ball: lock the user for up to 5 hits; lock ends on miss/5-hit cap
 }
 
 // Flags (16 bits)
