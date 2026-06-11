@@ -237,6 +237,12 @@ pub fn check_tera_shift(state: &mut BattleState, teams: &TeamData, side: usize) 
     if ability == data_bridge::ABILITY_TERA_SHIFT && species == TERAPAGOS {
         apply_terapagos_forme(state, teams, side, TERAPAGOS_TERASTAL);
         state.sides[side].team[slot].ability_id = data_bridge::ABILITY_TERA_SHELL;
+    } else if ability == data_bridge::ABILITY_TERA_SHELL && species == TERAPAGOS
+        && state.sides[side].active.override_species == 0
+    {
+        // Showdown's Terastal forme is permanent; switch-out's active.zero()
+        // cleared the override while leaving Tera Shell + base species, so re-apply it.
+        apply_terapagos_forme(state, teams, side, TERAPAGOS_TERASTAL);
     } else if species == TERAPAGOS_TERASTAL && state.sides[side].team[slot].is_terastallized() {
         apply_terapagos_forme(state, teams, side, TERAPAGOS_STELLAR);
         state.sides[side].team[slot].ability_id = data_bridge::ABILITY_TERAFORM_ZERO;
