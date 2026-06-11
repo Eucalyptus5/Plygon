@@ -4429,7 +4429,12 @@ pub fn execute_move(
             } else {
                 move_slot as usize
             };
-            deduct_pp(state, atk_side, pp_slot, 1);
+            // Pressure (onDeductPP returns 1) makes a foe-targeting move cost +1 PP
+            // when the opposing active bears it; self/field-targeting moves don't pay it.
+            let pressure_pp = if !is_self_targeting(md)
+                && effective_ability(state, def_side) == data_bridge::ABILITY_PRESSURE
+            { 1 } else { 0 };
+            deduct_pp(state, atk_side, pp_slot, 1 + pressure_pp);
             // Showdown's deductPP sets moveSlot.used before onTry/hit, so a move use
             // marks the slot even if it later fails or misses. Skip while transformed
             // (used lives on the temporary moveSlots there, not the base slot).

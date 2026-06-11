@@ -152,6 +152,7 @@ pub const ABILITY_DRAGONS_MAW: u16   = 263;
 pub const ABILITY_TRANSISTOR: u16    = 262;
 pub const ABILITY_STEELWORKER: u16   = 200;
 pub const ABILITY_ROCKY_PAYLOAD: u16 = 276;
+pub const ABILITY_PRESSURE: u16      = 46;
 
 // -- Damage calc: attacker damage mods --
 pub const ABILITY_TECHNICIAN: u16    = 101;
