@@ -59,7 +59,7 @@ fn holds_safety_goggles(state: &BattleState, side: usize) -> bool {
 /// Compute the effective accuracy value for a move, accounting for all modifiers.
 /// Returns u32::MAX for guaranteed hits (accuracy=0, No Guard, weather bypass).
 /// Pure function — no RNG, no state mutation.
-fn effective_accuracy(
+pub fn effective_accuracy(
     state: &BattleState,
     atk_side: usize,
     md: &MoveData,
