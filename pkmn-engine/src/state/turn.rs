@@ -420,6 +420,7 @@ fn apply_tera(state: &mut BattleState, teams: &TeamData, side: usize) {
     {
         return;
     }
+    if mon.tera_type == TERA_TYPE_NORMAL { mon.tera_type = Type::Normal as u8; }
     mon.flags |= MON_FLAG_TERASTALLIZED;
     state.sides[side]._padding[0] |= 1;
 
@@ -871,5 +872,15 @@ mod tests {
         state.sides[1].team[0] = MonSlot { species_id: 6, current_hp: 200, max_hp: 200, ..Default::default() };
         faint_sweep(&mut state);
         assert_eq!(state.sides[0].active.boosts, [0i8; 7]);
+    }
+
+    #[test]
+    fn test_normal_tera_sentinel_resolves_to_normal() {
+        let mut state = BattleState::default();
+        // current_hp/max_hp must be live: apply_tera early-returns on a 0-HP (fainted) mon.
+        state.sides[1].team[0] = MonSlot { tera_type: TERA_TYPE_NORMAL, current_hp: 100, max_hp: 100, ..Default::default() };
+        apply_tera(&mut state, &TeamData::default(), 1);
+        assert!(state.sides[1].team[0].is_terastallized(), "sentinel mon must terastallize");
+        assert_eq!(state.sides[1].team[0].tera_type, Type::Normal as u8, "sentinel resolves to real Normal (0)");
     }
 }

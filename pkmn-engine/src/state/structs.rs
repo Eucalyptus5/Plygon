@@ -90,6 +90,9 @@ pub const VOL_PER_TURN_MASK: u32 =
     | VOL_DESTINY_BOND;
 
 pub const MON_FLAG_TERASTALLIZED: u16 = 1 << 0;
+// tera_type-space sentinel (distinct from pending_actions' ACTION_RESOLVED): tera_type==0
+// means both Normal and "no Tera", so this marks a real Tera-Normal until apply_tera clears it.
+pub const TERA_TYPE_NORMAL: u8 = 0xFE;
 pub const MON_FLAG_FEMALE: u16       = 1 << 1;
 pub const MON_FLAG_TRANSFORMED: u16  = 1 << 2;
 // Palafin: Zero to Hero triggered
