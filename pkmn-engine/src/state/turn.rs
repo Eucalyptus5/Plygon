@@ -22,7 +22,7 @@ use crate::data::types::Type;
 pub enum ActionKind {
     Move { slot: u8, move_id: u16 },
     Switch { target: u8 },
-    Tera { move_id: u16 },
+    Tera { slot: u8, move_id: u16 },
     Struggle,
 }
 
@@ -49,13 +49,13 @@ fn decode_action(state: &BattleState, side: usize, action: u8) -> ActionKind {
             ActionKind::Move { slot: action, move_id }
         }
         4..=9 => ActionKind::Switch { target: action - 4 },
-        ACTION_TERA => {
-            // MCTS simplification: tera is combined with move 0
-            let move_id = effective_moves(state, side)[0];
+        ACTION_TERA_0..=ACTION_TERA_3 => {
+            let slot = action - ACTION_TERA_0;
+            let move_id = effective_moves(state, side)[slot as usize];
             if crate::state::legal_moves::must_struggle(state, side) {
                 return ActionKind::Struggle;
             }
-            ActionKind::Tera { move_id }
+            ActionKind::Tera { slot, move_id }
         }
         _ => ActionKind::Struggle,
     }
@@ -69,7 +69,7 @@ fn encode_pending(action: &ActionKind) -> u8 {
     match action {
         ActionKind::Move { slot, .. } => *slot,
         ActionKind::Switch { target } => ACTION_SWITCH_0 + *target,
-        ActionKind::Tera { .. } => ACTION_TERA,
+        ActionKind::Tera { slot, .. } => ACTION_TERA_0 + *slot,
         ActionKind::Struggle => ACTION_STRUGGLE,
     }
 }
@@ -148,7 +148,7 @@ fn action_priority(state: &BattleState, side: usize, action: &ActionKind) -> i8 
     match action {
         ActionKind::Switch { .. } => 7,
         ActionKind::Struggle => 0,
-        ActionKind::Tera { move_id } | ActionKind::Move { move_id, .. } => {
+        ActionKind::Tera { move_id, .. } | ActionKind::Move { move_id, .. } => {
             if *move_id == 0 { return 0; }
             // The dispatched move_id is the chooser's nominal pick, but a mon
             // locked into a multi-turn move (Outrage/Thrash/Petal Dance),
@@ -302,12 +302,12 @@ fn resolve_order(
         return OrderResult { first: b, second: a, custap_side: Some(side_b) };
     }
 
-    let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
+    let a_quick = matches!(act_a, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id, .. } if {
         let md = data_bridge::move_hot(move_id);
         md.category != MoveCategory::Status
     }) && effective_ability(state, side_a) == data_bridge::ABILITY_QUICK_DRAW
         && rng(10) < 3;
-    let b_quick = matches!(act_b, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id } if {
+    let b_quick = matches!(act_b, ActionKind::Move { move_id, .. } | ActionKind::Tera { move_id, .. } if {
         let md = data_bridge::move_hot(move_id);
         md.category != MoveCategory::Status
     }) && effective_ability(state, side_b) == data_bridge::ABILITY_QUICK_DRAW
@@ -371,7 +371,7 @@ fn execute_action(
             execute_move(state, teams, side, move_id, slot, rng);
             state.sides[side].set_acted_since_switch_in();
         }
-        ActionKind::Tera { move_id } => {
+        ActionKind::Tera { move_id, .. } => {
             apply_tera(state, teams, side);
             execute_move(state, teams, side, move_id, 0, rng);
             state.sides[side].set_acted_since_switch_in();
@@ -882,5 +882,35 @@ mod tests {
         apply_tera(&mut state, &TeamData::default(), 1);
         assert!(state.sides[1].team[0].is_terastallized(), "sentinel mon must terastallize");
         assert_eq!(state.sides[1].team[0].tera_type, Type::Normal as u8, "sentinel resolves to real Normal (0)");
+    }
+
+    #[test]
+    fn test_tera_high_bytes_are_tera_not_struggle() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 100, max_hp: 100,
+            tera_type: Type::Water as u8, moves: [85, 33, 53, 22], pp: [16, 16, 16, 16],
+            level: 100, ..Default::default() };
+        let d11 = decode_action(&state, 0, 11);
+        assert!(matches!(d11, ActionKind::Tera { .. }), "byte 11 must decode to Tera, got {d11:?}");
+        assert_eq!(encode_pending(&decode_action(&state, 0, 10)), 10);
+        assert_eq!(encode_pending(&d11), 11, "slot-1 Tera must re-encode to byte 11");
+    }
+
+    #[test]
+    fn test_tera_slot_decode_encode_roundtrip() {
+        let mut state = BattleState::default();
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 100, max_hp: 100,
+            tera_type: Type::Water as u8, moves: [85, 33, 53, 22], pp: [16, 16, 16, 16],
+            level: 100, ..Default::default() };
+        for (byte, want) in [(ACTION_TERA, 0u8), (ACTION_TERA_1, 1), (ACTION_TERA_2, 2), (ACTION_TERA_3, 3)] {
+            match decode_action(&state, 0, byte) {
+                ActionKind::Tera { slot, move_id } => {
+                    assert_eq!(slot, want);
+                    assert_eq!(move_id, state.sides[0].team[0].moves[want as usize]);
+                    assert_eq!(encode_pending(&ActionKind::Tera { slot, move_id }), byte);
+                }
+                other => panic!("byte {byte} decoded to {other:?}, expected Tera"),
+            }
+        }
     }
 }

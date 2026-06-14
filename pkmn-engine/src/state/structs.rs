@@ -178,7 +178,11 @@ pub const ACTION_MOVE_0: u8   = 0;
 pub const ACTION_MOVE_3: u8   = 3;
 pub const ACTION_SWITCH_0: u8 = 4;
 pub const ACTION_SWITCH_5: u8 = 9;
-pub const ACTION_TERA: u8     = 10;
+pub const ACTION_TERA_0: u8   = 10;
+pub const ACTION_TERA_1: u8   = 11;
+pub const ACTION_TERA_2: u8   = 12;
+pub const ACTION_TERA_3: u8   = 13;
+pub const ACTION_TERA: u8     = ACTION_TERA_0;
 pub const ACTION_STRUGGLE: u8 = 255;
 /// `pending_actions` sentinel for "this side's action already resolved".
 /// Distinct from ACTION_STRUGGLE: a forced Struggle is submitted as byte 255,
