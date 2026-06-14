@@ -2345,6 +2345,19 @@ fn mark_move_failed(state: &mut BattleState, atk_side: usize) {
     state.sides[atk_side].set_move_failed_this_turn();
 }
 
+/// End the Rollout/Ice Ball move-lock (and reset the doubling counter) when the
+/// move did not execute this turn. Showdown's `rollout` condition has base
+/// duration:1 and only basePowerCallback (run on the executing damage step)
+/// refreshes it to 2, so any non-connecting turn (miss, Protect, immunity, or a
+/// pre-move abort) lets the duration tick to 0 and frees the user next turn.
+#[inline]
+fn end_rollout_lock(state: &mut BattleState, atk_side: usize, move_id: u16) {
+    if move_id == 205 || move_id == 301 {
+        clear_volatile(state, atk_side, VOL_MOVE_LOCKED);
+        state.sides[atk_side].active._padding[2] = 0;
+    }
+}
+
 /// Apply crash damage (50% max HP) if the move has CrashDamage self-effect.
 /// Called on every move-failure path: miss, Protect, immunity, semi-invuln.
 #[inline]
@@ -2871,6 +2884,7 @@ pub(crate) fn use_move_called(
                 _ => {} // Normal Protect: no penalty
             }
         }
+        end_rollout_lock(state, atk_side, move_id);
         return;
     }
 
@@ -2883,6 +2897,7 @@ pub(crate) fn use_move_called(
         {
             apply_crash_if_needed(state, atk_side, md);
             mark_move_failed(state, atk_side);
+            end_rollout_lock(state, atk_side, move_id);
             return;
         }
     }
@@ -2896,12 +2911,7 @@ pub(crate) fn use_move_called(
         if move_id == crate::data::MOVE_FURY_CUTTER as u16 {
             state.sides[atk_side].active.consec_move_count = 0;
         }
-        // Rollout/Ice Ball end their lock (and reset the BP counter) on a miss:
-        // Showdown's volatile is not refreshed when the move fails to connect.
-        if move_id == 205 || move_id == 301 {
-            clear_volatile(state, atk_side, VOL_MOVE_LOCKED);
-            state.sides[atk_side].active._padding[2] = 0;
-        }
+        end_rollout_lock(state, atk_side, move_id);
         return;
     }
 
@@ -2910,6 +2920,7 @@ pub(crate) fn use_move_called(
         if priority_block_immunity(state, def_side, md.priority) {
             apply_crash_if_needed(state, atk_side, md);
             mark_move_failed(state, atk_side);
+            end_rollout_lock(state, atk_side, move_id);
             return;
         }
         // Flag-based immunities (Bulletproof, Soundproof, Overcoat, Wind Rider)
@@ -2919,6 +2930,7 @@ pub(crate) fn use_move_called(
             apply_immunity_effect(state, def_side, def_slot, eff);
             apply_crash_if_needed(state, atk_side, md);
             mark_move_failed(state, atk_side);
+            end_rollout_lock(state, atk_side, move_id);
             return;
         }
         // Type-based immunities and side effects
@@ -2926,6 +2938,7 @@ pub(crate) fn use_move_called(
             apply_immunity_effect(state, def_side, def_slot, eff);
             apply_crash_if_needed(state, atk_side, md);
             mark_move_failed(state, atk_side);
+            end_rollout_lock(state, atk_side, move_id);
             return;
         }
         // Dream Eater: onTryImmunity fails unless the target is asleep (or Comatose).
@@ -3068,6 +3081,7 @@ pub(crate) fn use_move_called(
     if result.type_immune {
         apply_crash_if_needed(state, atk_side, md);
         mark_move_failed(state, atk_side);
+        end_rollout_lock(state, atk_side, move_id);
         return;
     }
 
@@ -4483,6 +4497,16 @@ pub fn execute_move(
         );
     }
     } // end 'exec
+
+    // A move-locked Rollout/Ice Ball aborted before dispatch (flinch/para/sleep/
+    // freeze/confusion-self-hit/attraction/Truant) ends its lock: the rollout
+    // duration is only refreshed on the executing damage step. VOL_MOVED_THIS_TURN
+    // is set only once dispatch is reached (after every `break 'exec`), so its
+    // absence marks a pre-move abort. (Protect/immunity/miss exits inside dispatch
+    // clear the lock themselves.)
+    if is_move_locked && !state.sides[atk_side].active.has_volatile(VOL_MOVED_THIS_TURN) {
+        end_rollout_lock(state, atk_side, move_id);
+    }
 
     // Thrash confusion: applied regardless of whether the move executed (para/freeze/etc.
     // still end the lock and cause confusion). Own Tempo blocks this self-confusion.
