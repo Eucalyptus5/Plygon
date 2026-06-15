@@ -20,12 +20,12 @@ const GRAVITY_BLOCKED: [u16; 9] = [
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ActionList {
-    pub actions: [u8; 10],
+    pub actions: [u8; 13],
     pub count: u8,
 }
 
 impl ActionList {
-    pub fn new() -> Self { Self { actions: [0; 10], count: 0 } }
+    pub fn new() -> Self { Self { actions: [0; 13], count: 0 } }
     #[inline(always)]
     fn push(&mut self, action: u8) { self.actions[self.count as usize] = action; self.count += 1; }
     pub fn as_slice(&self) -> &[u8] { &self.actions[..self.count as usize] }
@@ -52,8 +52,11 @@ fn generate_full_actions(state: &BattleState, side: usize) -> ActionList {
     let move_count = generate_legal_moves(state, side, &mut list);
     if move_count == 0 { list.push(ACTION_STRUGGLE); }
     generate_legal_switches(state, side, &mut list);
-    if can_tera(state, side) {
-        list.push(ACTION_TERA);
+    if can_tera(state, side) && move_count > 0 {
+        for k in 0..move_count as usize {
+            let slot = list.as_slice()[k];      // a legal move-slot byte (0..=3)
+            list.push(ACTION_TERA_0 + slot);
+        }
     }
     list
 }
@@ -522,5 +525,22 @@ mod tests {
         let a = legal_actions(&s, 0);
         let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
         assert_eq!(move_actions.len(), 4);
+    }
+
+    // Proven-RED: on HEAD only byte 10 is offered and count==10 (asserts fail, no panic).
+    #[test]
+    fn tera_offers_per_move_bytes_and_fills_to_count_13() {
+        let mut s = BattleState::default();
+        s.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 200, max_hp: 200,
+            moves: [85, 521, 447, 417], pp: [24, 32, 32, 32], tera_type: 2, ..Default::default() };
+        for j in 1..6u16 {
+            s.sides[0].team[j as usize] = MonSlot { species_id: j, current_hp: 100, max_hp: 100, ..Default::default() };
+        }
+        s.phase = PHASE_ACTIONS;
+        let a = legal_actions(&s, 0);
+        for slot in 0..4u8 {
+            assert!(a.as_slice().contains(&(ACTION_TERA + slot)), "expected tera byte {}", ACTION_TERA + slot);
+        }
+        assert_eq!(a.count, 13, "4 moves + 5 switches + 4 tera = 13");
     }
 }
