@@ -2661,7 +2661,7 @@ pub(crate) fn use_move_called(
         let raw = state.pending_actions[def_side];
         let queued_move_id: u16 = match raw {
             0..=3 => effective_moves(state, def_side)[raw as usize],
-            ACTION_TERA => effective_moves(state, def_side)[0],
+            ACTION_TERA_0..=ACTION_TERA_3 => effective_moves(state, def_side)[(raw - ACTION_TERA_0) as usize],
             _ => 0, // switch / resolved
         };
         // A pending forced Struggle is a queued attacking move: willMove is
@@ -2686,7 +2686,7 @@ pub(crate) fn use_move_called(
         let raw = state.pending_actions[def_side];
         let queued_move_id: u16 = match raw {
             0..=3 => effective_moves(state, def_side)[raw as usize],
-            ACTION_TERA => effective_moves(state, def_side)[0],
+            ACTION_TERA_0..=ACTION_TERA_3 => effective_moves(state, def_side)[(raw - ACTION_TERA_0) as usize],
             // switch / resolved; also a pending Struggle — priority 0 never
             // qualifies, matching Showdown's `> 0.1` gate.
             _ => 0,
@@ -10027,6 +10027,34 @@ mod tests {
         execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
         assert_eq!(state.sides[1].team[0].current_hp, def_hp_before,
             "Upper Hand must fail vs a pending forced Struggle (priority 0)");
+    }
+
+    // E7: Sucker Punch must read the defender's REAL queued tera slot, not slot 0.
+    #[test]
+    fn test_sucker_punch_reads_defender_tera_slot3() {
+        let mut state = setup();
+        // Defender is queued to tera and click its slot-3 move (Quick Attack, damaging).
+        state.sides[1].team[0].moves = [0, 0, 0, 98];
+        state.sides[1].team[0].tera_type = 2;
+        state.pending_actions[1] = ACTION_TERA_3;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 389, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before,
+            "Sucker Punch must fire vs a defender queued to tera into a damaging slot-3 move");
+    }
+
+    // E8: Upper Hand must read the defender's REAL queued tera slot, not slot 0.
+    #[test]
+    fn test_upper_hand_reads_defender_tera_slot2() {
+        let mut state = setup();
+        // Defender queued to tera + click slot-2 Quick Attack (98, priority +1, damaging).
+        state.sides[1].team[0].moves = [0, 0, 98, 0];
+        state.sides[1].team[0].tera_type = 2;
+        state.pending_actions[1] = ACTION_TERA_2;
+        let def_hp_before = state.sides[1].team[0].current_hp;
+        execute_move(&mut state, &TeamData::default(), 0, 918, 0, &mut fixed_rng(0));
+        assert!(state.sides[1].team[0].current_hp < def_hp_before,
+            "Upper Hand must fire vs a defender queued to tera into a priority slot-2 move");
     }
 
     // ─────────────────────────────────────────────────────────────────

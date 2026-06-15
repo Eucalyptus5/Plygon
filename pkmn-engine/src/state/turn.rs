@@ -371,9 +371,9 @@ fn execute_action(
             execute_move(state, teams, side, move_id, slot, rng);
             state.sides[side].set_acted_since_switch_in();
         }
-        ActionKind::Tera { move_id, .. } => {
+        ActionKind::Tera { slot, move_id } => {
             apply_tera(state, teams, side);
-            execute_move(state, teams, side, move_id, 0, rng);
+            execute_move(state, teams, side, move_id, slot, rng);
             state.sides[side].set_acted_since_switch_in();
         }
         ActionKind::Struggle => {
@@ -912,5 +912,21 @@ mod tests {
                 other => panic!("byte {byte} decoded to {other:?}, expected Tera"),
             }
         }
+    }
+
+    // E5: tera must charge PP to the chosen slot, not slot 0.
+    #[test]
+    fn test_tera_slot3_charges_pp_to_slot3() {
+        let mut state = BattleState::default();
+        state.phase = PHASE_ACTIONS;
+        state.sides[0].team[0] = MonSlot { species_id: 25, current_hp: 300, max_hp: 300,
+            stats: [150,100,150,100,150], moves: [1,2,3,1], pp: [24,24,24,24],
+            tera_type: Type::Water as u8, level: 100, ..Default::default() };
+        state.sides[1].team[0] = MonSlot { species_id: 50, current_hp: 300, max_hp: 300,
+            stats: [100,100,100,100,80], moves: [1,0,0,0], pp: [24,0,0,0], level: 100, ..Default::default() };
+        execute_turn(&mut state, &TeamData::default(), ACTION_TERA_3, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].team[0].is_terastallized());
+        assert_eq!(state.sides[0].team[0].pp[3], 23, "tera charges PP to slot 3");
+        assert_eq!(state.sides[0].team[0].pp[0], 24, "slot 0 PP untouched");
     }
 }
