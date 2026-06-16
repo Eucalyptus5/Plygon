@@ -1672,4 +1672,17 @@ mod tests {
         assert_eq!(result.hits, 3);
         assert!(result.damage > 0);
     }
+
+    #[test]
+    fn test_tera_min_bp_floor() {
+        // Sub-60 same-type Tera move is floored to 60 BP (battle-actions.ts:1657-1665).
+        let mut state = test_state();
+        state.sides[0].team[0].tera_type = Type::Normal as u8;
+        state.sides[0].team[0].flags |= MON_FLAG_TERASTALLIZED;
+        // Pound (Normal Physical BP 40) floored to 60 must equal Covet (BP 60; Thief is post-damage).
+        let floored = calc_damage(&state, 0, crate::data::MOVE_POUND as u16, 100, &mut fixed_rng(0)).damage;
+        let ref60   = calc_damage(&state, 0, crate::data::MOVE_COVET as u16, 100, &mut fixed_rng(0)).damage;
+        assert!(floored > 0);
+        assert_eq!(floored, ref60, "sub-60 same-type Tera move must floor to 60 BP: {floored} vs {ref60}");
+    }
 }
