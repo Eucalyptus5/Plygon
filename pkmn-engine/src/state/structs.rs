@@ -213,7 +213,7 @@ pub fn boosted_stat(raw: u16, stage: i8) -> u16 {
 /// `flags` is u16 (was u8) to fit MON_FLAG_GENDERLESS at bit 8; placed at the
 /// struct tail so the prior `_pad: u8` is absorbed by the widening with no
 /// size change.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct MonSlot {
     pub species_id: u16,
@@ -232,7 +232,7 @@ pub struct MonSlot {
 }
 
 /// Volatile battlefield presence.  Zeroed on switch-out.  76 bytes.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct ActiveMon {
     pub volatile_flags: u32,
@@ -285,7 +285,7 @@ pub struct ActiveMon {
 }
 
 /// Side conditions: hazards, screens, field effects.  16 bytes.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct SideConditions {
     pub wish_hp: u16,
@@ -313,7 +313,7 @@ pub struct SideConditions {
 }
 
 /// Global field state: weather, terrain, trick room, gravity.  10 bytes.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct FieldState {
     pub turn: u16,
@@ -343,7 +343,7 @@ impl FieldState {
 }
 
 /// One player's complete side state.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct SideState {
     pub active: ActiveMon,
@@ -463,7 +463,7 @@ impl SideState {
 }
 
 /// The complete mutable battle state.  ≤ 640 bytes.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct BattleState {
     pub sides: [SideState; 2],
@@ -484,7 +484,7 @@ pub struct BattleState {
 }
 
 /// Immutable per-Pokémon build data.  Lives in Tier 2 (never copied by MCTS).
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 pub struct MonBuildData {
     pub ivs: [u8; 6],
@@ -493,7 +493,7 @@ pub struct MonBuildData {
 }
 
 /// Build-time sidecar for both teams.  Shared by reference, never copied.
-#[derive(Clone, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, PartialEq, Eq, Default, Debug, serde::Serialize, serde::Deserialize)]
 pub struct TeamData {
     pub mons: [[MonBuildData; 6]; 2],
     pub levels: [[u8; 6]; 2],
