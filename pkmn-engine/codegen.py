@@ -737,6 +737,7 @@ def gen_moves():
     lines_hot = []
     lines_cold = []
     name_consts = []
+    cantusetwice_ids = []
 
     for i in range(slots):
         if i not in moves:
@@ -761,6 +762,8 @@ def gen_moves():
             name_raw = key
 
         sd_flags = extract_flags(block)
+        if "cantusetwice" in sd_flags:
+            cantusetwice_ids.append(i)
         bp = extract_bp(block)
         # HP-ratio moves: carry the basePowerCallback coefficient in base_power.
         if key in VAR_POWER_BASE:
@@ -924,6 +927,8 @@ def gen_moves():
     out.append("")
     out.extend(name_consts)
     out.append("")
+    out.append("// Moves that cannot be selected on consecutive turns (Showdown `cantusetwice` flag).")
+    out.append(f"pub const CANTUSETWICE_MOVES: &[u16] = &[{', '.join(str(x) for x in sorted(cantusetwice_ids))}];")
 
     (OUT / "gen_moves.rs").write_text("\n".join(out) + "\n", encoding="utf-8")
     print(f"Wrote {OUT / 'gen_moves.rs'}: {len(moves)} moves, {slots} slots")

@@ -9182,3 +9182,5 @@ pub const MOVE_UPPER_HAND: usize = 918;
 pub const MOVE_MALIGNANT_CHAIN: usize = 919;
 pub const MOVE_NIHIL_LIGHT: usize = 920;
 
+// Moves that cannot be selected on consecutive turns (Showdown `cantusetwice` flag).
+pub const CANTUSETWICE_MOVES: &[u16] = &[893, 901];

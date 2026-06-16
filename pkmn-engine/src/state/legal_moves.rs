@@ -4,6 +4,7 @@ use crate::state::structs::*;
 use crate::state::data_bridge;
 use crate::state::accessors::*;
 use crate::data::moves::MoveFlags;
+use crate::data::gen_moves::CANTUSETWICE_MOVES;
 
 /// Move IDs that are blocked by Gravity (all moves with `gravity: 1` in Showdown).
 const GRAVITY_BLOCKED: [u16; 9] = [
@@ -167,6 +168,8 @@ fn generate_legal_moves(state: &BattleState, side: usize, list: &mut ActionList)
                 & MON_FLAG_ATE_BERRY == 0
         { continue; }
         if active.has_volatile(VOL_TORMENT) && moves[i] == active.last_move { continue; }
+        // Gen-9 cantusetwice: a move can't be selected the turn after it resolves.
+        if moves[i] == active.last_move && CANTUSETWICE_MOVES.contains(&moves[i]) { continue; }
         // Choice lock: suppressed by Magic Room (items), but Gorilla Tactics ability lock
         // is not suppressed by Magic Room.
         if active.choice_locked_move != 0 && moves[i] != active.choice_locked_move {
@@ -452,6 +455,27 @@ mod tests {
         assert!(!a.as_slice().contains(&1u8)); // slot 1 blocked
         let move_actions: Vec<u8> = a.as_slice().iter().copied().filter(|&x| x <= ACTION_MOVE_3).collect();
         assert_eq!(move_actions.len(), 3);
+    }
+
+    #[test]
+    fn test_cantusetwice_blocked_turn_after_use() {
+        let mut s = make_state();
+        s.sides[0].team[0].moves = [893, 901, 447, 417]; // Gigaton Hammer, Blood Moon, +2
+        s.sides[0].team[0].pp = [8, 8, 32, 32];
+        // Neither used yet: both offered.
+        let a = legal_actions(&s, 0);
+        assert!(a.as_slice().contains(&0u8), "Gigaton Hammer offered when not last move");
+        assert!(a.as_slice().contains(&1u8), "Blood Moon offered when not last move");
+        // Gigaton Hammer resolved last turn: slot 0 blocked, Blood Moon still offered.
+        s.sides[0].active.last_move = 893;
+        let a = legal_actions(&s, 0);
+        assert!(!a.as_slice().contains(&0u8), "Gigaton Hammer must not be offered the turn after use");
+        assert!(a.as_slice().contains(&1u8), "Blood Moon still offered (was not last move)");
+        // Blood Moon resolved last turn: slot 1 blocked, Gigaton Hammer offered again.
+        s.sides[0].active.last_move = 901;
+        let a = legal_actions(&s, 0);
+        assert!(a.as_slice().contains(&0u8), "Gigaton Hammer offered again (Blood Moon was last)");
+        assert!(!a.as_slice().contains(&1u8), "Blood Moon must not be offered the turn after use");
     }
 
     #[test]
