@@ -16,4 +16,4 @@ harness = false
 
 [profile.release]
 debug = true
-lto = "thin"
+lto = "fat"
