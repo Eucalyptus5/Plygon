@@ -11091,4 +11091,87 @@ mod tests {
             assert!(in_ci(c, total, 1.0 / 3.0), "Tri Attack status {i}: {c}/{total} off uniform 1/3");
         }
     }
+
+    #[test]
+    fn test_bright_powder_accuracy_chain() {
+        let mut state = setup();
+        let md = MoveData { accuracy: 100, category: MoveCategory::Physical,
+            ..unsafe { core::mem::zeroed() } };
+        assert_eq!(effective_accuracy(&state, 0, &md), 100);
+        state.sides[1].team[0].item_id = 51; // Bright Powder
+        // (100*3686 + 2047) >> 12 = 90 (Showdown chainModify([3686,4096]) with modify() rounding)
+        assert_eq!(effective_accuracy(&state, 0, &md), 90);
+    }
+
+    #[test]
+    fn test_lansat_berry_pinch_focus_energy() {
+        let mut state = setup();
+        let teams = TeamData::default();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_LANSAT_BERRY;
+        state.sides[0].team[0].current_hp = 100; // above max_hp/4 = 75
+        check_berry_activation(&mut state, &teams, 0, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].active.has_volatile(VOL_FOCUS_ENERGY));
+        assert_eq!(state.sides[0].team[0].item_id, data_bridge::ITEM_LANSAT_BERRY);
+        state.sides[0].team[0].current_hp = 75; // exactly max_hp/4
+        check_berry_activation(&mut state, &teams, 0, 0, &mut fixed_rng(0));
+        assert!(state.sides[0].active.has_volatile(VOL_FOCUS_ENERGY),
+            "Lansat onEat is addVolatile('focusenergy'), not the +1 CRIT_BOOST item flag");
+        assert_eq!(state.sides[0].team[0].item_id, 0, "berry consumed");
+    }
+
+    #[test]
+    fn test_focus_sash_survival_clamp() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = 151; // Focus Sash
+        let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(dmg, 299, "full-HP lethal hit clamped to HP-1");
+        assert_eq!(state.sides[1].team[0].item_id, 0, "sash consumed");
+    }
+
+    #[test]
+    fn test_sturdy_survival_clamp() {
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_STURDY;
+        let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(dmg, 299);
+        state.sides[1].team[0].current_hp = 200;
+        let dmg2 = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(dmg2, 999, "Sturdy only saves at full HP");
+    }
+
+    #[test]
+    fn test_focus_band_survival_clamp() {
+        let mut state = setup();
+        state.sides[1].team[0].item_id = 150; // Focus Band
+        state.sides[1].team[0].current_hp = 200;
+        let saved = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(0));
+        assert_eq!(saved, 199, "rng(10)==0 proc holds at 1 HP, works below full HP");
+        let unsaved = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(unsaved, 999, "no proc when rng(10)!=0");
+    }
+
+    #[test]
+    fn test_endure_survival_clamp() {
+        let mut state = setup();
+        set_volatile(&mut state, 1, VOL_ENDURE);
+        state.sides[1].team[0].current_hp = 50;
+        let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(dmg, 49);
+    }
+
+    #[test]
+    fn test_survival_clamp_override_ability_sturdy() {
+        let mut state = setup();
+        set_volatile(&mut state, 1, VOL_ABILITY_OVERRIDDEN);
+        state.sides[1].active.override_ability = data_bridge::ABILITY_STURDY;
+        let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(dmg, 299, "Sturdy acquired via override (Skill Swap et al.) still clamps");
+    }
+
+    #[test]
+    fn test_survival_clamp_no_trigger_passthrough() {
+        let mut state = setup();
+        let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(0));
+        assert_eq!(dmg, 999, "no item, normal ability, no volatile: lethal damage passes through");
+    }
 }
