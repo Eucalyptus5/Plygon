@@ -11169,6 +11169,15 @@ mod tests {
     }
 
     #[test]
+    fn test_survival_clamp_transformed_ability_sturdy() {
+        let mut state = setup();
+        set_volatile(&mut state, 1, VOL_TRANSFORMED);
+        state.sides[1].active.override_ability = data_bridge::ABILITY_STURDY;
+        let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(1));
+        assert_eq!(dmg, 299, "Sturdy copied via Transform still clamps");
+    }
+
+    #[test]
     fn test_survival_clamp_no_trigger_passthrough() {
         let mut state = setup();
         let dmg = survival_clamp(&mut state, 0, 1, 0, 999, &mut fixed_rng(0));
