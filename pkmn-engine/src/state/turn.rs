@@ -631,12 +631,14 @@ pub fn execute_turn(
         }
     }
 
-    // Pivot moves: transition to switch phase before end-of-turn. A pending
-    // pivot supersedes residuals (Showdown defers residuals to after the
-    // pivot replacement lands).
+    // A pending pivot defers the slower mon's queued move + the EOT until the
+    // replacement lands; park the resume marker (unless Eject already parked one).
     let p1_pivot = state.sides[0].active.has_volatile(VOL_MUST_SWITCH);
     let p2_pivot = state.sides[1].active.has_volatile(VOL_MUST_SWITCH);
     if p1_pivot || p2_pivot {
+        if state.turn_subphase() != SUBPHASE_AFTER_MOVE1 {
+            state.set_turn_resume(SUBPHASE_AFTER_MOVE1, second.side, second_raw);
+        }
         faint_sweep(state);
         return;
     }
@@ -662,10 +664,6 @@ pub fn execute_turn(
 
     faint_sweep(state);
     state.clear_turn_resume();
-
-    // second_raw was only meaningful for the deprecated SUBPHASE_AFTER_MOVE1
-    // resume path; bind explicitly to silence unused-variable warnings.
-    let _ = second_raw;
 }
 
 pub fn execute_switch_turn(
