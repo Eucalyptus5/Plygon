@@ -451,22 +451,19 @@ pub fn calc_damage(
         else if def_stat_idx == SPD { def_stat_idx = DEF; }
     }
 
-    let mut a = effective_stat(state, atk_stat_side, atk_stat_idx);
-    let mut d = effective_stat(state, def_side, def_stat_idx);
+    let a = effective_stat(state, atk_stat_side, atk_stat_idx);
+    let d = effective_stat(state, def_side, def_stat_idx);
 
     // Mold Breaker bypasses Battle Armor / Shell Armor for crit checks
-    // (unless the defender holds Ability Shield).
+    // (unless the defender holds Ability Shield). The crit itself is rolled per
+    // hit inside the damage loop (Showdown rolls it independently per hit); this
+    // only decides whether a crit is possible at all.
     let mold = mold_breaks(state, def_side, atk_ability);
     let c_stage = crit_stage(state, atk_side, md);
-    let is_crit = if state.sides[def_side].side_conditions.lucky_chant_turns() > 0 {
-        false
-    } else if !mold && (def_ability == data_bridge::ABILITY_BATTLE_ARMOR
-           || def_ability == data_bridge::ABILITY_SHELL_ARMOR) {
-        false
-    } else {
-        is_crit(c_stage, rng_fn)
-    };
-    result.crit = is_crit;
+    let crit_suppressed = state.sides[def_side].side_conditions.lucky_chant_turns() > 0
+        || (!mold
+            && (def_ability == data_bridge::ABILITY_BATTLE_ARMOR
+                || def_ability == data_bridge::ABILITY_SHELL_ARMOR));
 
     // Unaware: ignore opponent's stat boosts in damage calc.
     // Attacking Unaware: ignore defender's Def/SpD boosts (treat as 0).
@@ -480,113 +477,119 @@ pub fn calc_damage(
         if atk_ability == data_bridge::ABILITY_UNAWARE { 0 } else { raw }
     };
 
-    // Crits ignore unfavorable boost stages (boosts use original indices, not Wonder Room swapped)
-    if is_crit {
-        a = boosted_stat(a, atk_stage.max(0));
-        d = boosted_stat(d, def_stage.min(0));
-    } else {
-        a = boosted_stat(a, atk_stage);
-        d = boosted_stat(d, def_stage);
-    }
-
     // Effective defender ability (suppressed by Mold Breaker for stat mods)
     let def_ability_for_stat = if mold { 0 } else { def_ability };
 
-    a = ability_atk_stat_mod(
-        a, atk_ability, category, atk_mon.status,
-        move_type, effective_weather_for(state, atk_side),
-        atk_mon.current_hp, atk_mon.max_hp,
-        state.sides[atk_side].active.turns_active,
-        state.sides[def_side].active.turns_active,
-        state.field.turn, state.field.terrain,
-    );
+    // Attacker/defender stat chains, factored so both the non-crit and crit
+    // boost stages can run the full chain: a crit ignores unfavorable stages, so
+    // the base stat — and every multiplier keyed off it — can differ per hit.
+    let atk_final = |a_in: u16| -> u32 {
+        let mut a = ability_atk_stat_mod(
+            a_in, atk_ability, category, atk_mon.status,
+            move_type, effective_weather_for(state, atk_side),
+            atk_mon.current_hp, atk_mon.max_hp,
+            state.sides[atk_side].active.turns_active,
+            state.sides[def_side].active.turns_active,
+            state.field.turn, state.field.terrain,
+        );
 
-    // Defender's ability modifying attacker's stat (Showdown: onSourceModifyAtk/SpA)
-    // These are all breakable (bypassed by Mold Breaker)
-    if !mold {
-        // Water Bubble: 0.5x attacker's Atk/SpA for Fire moves
-        if def_ability == data_bridge::ABILITY_WATER_BUBBLE && move_type == Type::Fire {
-            a = chain_mod(a as u32, 2048) as u16;
+        // Defender's ability modifying attacker's stat (Showdown: onSourceModifyAtk/SpA)
+        // These are all breakable (bypassed by Mold Breaker)
+        if !mold {
+            if def_ability == data_bridge::ABILITY_WATER_BUBBLE && move_type == Type::Fire {
+                a = chain_mod(a as u32, 2048) as u16;
+            }
+            if def_ability == data_bridge::ABILITY_PURIFYING_SALT && move_type == Type::Ghost {
+                a = chain_mod(a as u32, 2048) as u16;
+            }
+            // Thick Fat implemented stat-side (not 2× Def) to match Showdown's
+            // onSourceModifyAtk/SpA truncation order.
+            if def_ability == data_bridge::ABILITY_THICK_FAT
+                && (move_type == Type::Fire || move_type == Type::Ice)
+            {
+                a = chain_mod(a as u32, 2048) as u16;
+            }
+            if def_ability == data_bridge::ABILITY_HEATPROOF && move_type == Type::Fire {
+                a = chain_mod(a as u32, 2048) as u16;
+            }
         }
-        // Purifying Salt: 0.5x attacker's Atk/SpA for Ghost moves
-        if def_ability == data_bridge::ABILITY_PURIFYING_SALT && move_type == Type::Ghost {
-            a = chain_mod(a as u32, 2048) as u16;
+
+        // Protosynthesis/Quark Drive: 1.3× for non-Spe stats (suppressed by Neutralizing Gas)
+        let atk_paradox = state.sides[atk_side].active.paradox_stat();
+        if atk_paradox > 0 && !state.sides[atk_side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
+            let boosted = (atk_paradox - 1) as usize;
+            if boosted == atk_stat_idx && boosted != SPE {
+                a = (a as u32 * 5325 / 4096) as u16; // 1.3×
+            }
         }
-        // Thick Fat: 0.5x attacker's Atk/SpA for Fire/Ice moves. Implemented here as
-        // a stat-side modifier (not as 2× Def) to match Showdown's onSourceModifyAtk/SpA
-        // truncation order.
-        if def_ability == data_bridge::ABILITY_THICK_FAT
-            && (move_type == Type::Fire || move_type == Type::Ice)
+
+        if is_physical && atk_item.has(ItemFlag::CHOICE_ATK) { a = (a as u32 * 3 / 2) as u16; }
+        if !is_physical && atk_item.has(ItemFlag::CHOICE_SPA) { a = (a as u32 * 3 / 2) as u16; }
+        // Thick Club: 2× Atk for Marowak/Cubone
+        if !magic_room && is_physical && atk_mon.item_id == data_bridge::ITEM_THICK_CLUB {
+            let sp = effective_species(state, atk_side);
+            if sp == data_bridge::SPECIES_MAROWAK || sp == data_bridge::SPECIES_CUBONE {
+                a *= 2;
+            }
+        }
+        // Light Ball: 2× Atk and SpA for Pikachu
+        if !magic_room && atk_mon.item_id == data_bridge::ITEM_LIGHT_BALL {
+            let sp = effective_species(state, atk_side);
+            if sp == data_bridge::SPECIES_PIKACHU { a *= 2; }
+        }
+        a as u32
+    };
+
+    let def_final = |d_in: u16| -> u32 {
+        let mut d = d_in;
+        // Ruin abilities: Sword of Ruin (285) reduces opponent's Def by 0.75x.
+        // (Beads/Tablets/Vessel of Ruin share ID 284, indistinguishable — only Sword of Ruin implemented.)
+        if is_physical {
+            if atk_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
+                d = chain_mod(d as u32, 3072) as u16; // 0.75× Def
+            } else if def_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
+                d = chain_mod(d as u32, 3072) as u16; // 0.75× Def from opponent's Sword of Ruin
+            }
+        }
+
+        d = ability_def_stat_mod(
+            d, def_ability_for_stat, category, move_type,
+            def_mon.status, effective_weather_for(state, def_side), state.field.terrain,
+        );
+
+        let def_paradox = state.sides[def_side].active.paradox_stat();
+        if def_paradox > 0 && !state.sides[def_side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
+            let boosted = (def_paradox - 1) as usize;
+            if boosted == def_stat_idx && boosted != SPE {
+                d = (d as u32 * 5325 / 4096) as u16; // 1.3×
+            }
+        }
+
+        if !is_physical && def_item.has(ItemFlag::ASSAULT_VEST) { d = (d as u32 * 3 / 2) as u16; }
+        if def_item.has(ItemFlag::EVIOLITE)
+            && data_bridge::species(effective_species(state, def_side)).nfe
         {
-            a = chain_mod(a as u32, 2048) as u16;
+            d = (d as u32 * 3 / 2) as u16;
         }
-        // Heatproof: 0.5x attacker's Atk/SpA for Fire moves (Showdown onSourceModifyAtk/SpA).
-        if def_ability == data_bridge::ABILITY_HEATPROOF && move_type == Type::Fire {
-            a = chain_mod(a as u32, 2048) as u16;
+        // Deep Sea Scale: 2× SpD for Clamperl
+        if !magic_room && !is_physical && def_mon.item_id == data_bridge::ITEM_DEEP_SEA_SCALE {
+            let sp = effective_species(state, def_side);
+            if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
         }
-    }
 
-    // Ruin abilities: Sword of Ruin (285) reduces opponent's Def by 0.75x.
-    // (Beads/Tablets/Vessel of Ruin share ID 284, indistinguishable — only Sword of Ruin implemented.)
-    if is_physical {
-        if atk_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
-            d = chain_mod(d as u32, 3072) as u16; // 0.75× Def
-        } else if def_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
-            d = chain_mod(d as u32, 3072) as u16; // 0.75× Def from opponent's Sword of Ruin
-        }
-    }
+        d = weather_def_stat_mod(d, effective_weather_for(state, def_side), category, def_t1, def_t2);
+        if d == 0 { d = 1; }
+        d as u32
+    };
 
-    d = ability_def_stat_mod(
-        d, def_ability_for_stat, category, move_type,
-        def_mon.status, effective_weather_for(state, def_side), state.field.terrain,
-    );
+    // Crits ignore unfavorable boost stages (boosts use original indices, not
+    // Wonder Room swapped). The crit variant only differs when the ignored stage
+    // is actually unfavorable (negative Atk / positive Def), so reuse otherwise.
+    let a32_nc = atk_final(boosted_stat(a, atk_stage));
+    let a32_crit = if atk_stage < 0 { atk_final(boosted_stat(a, atk_stage.max(0))) } else { a32_nc };
+    let d32_nc = def_final(boosted_stat(d, def_stage));
+    let d32_crit = if def_stage > 0 { def_final(boosted_stat(d, def_stage.min(0))) } else { d32_nc };
 
-    // Protosynthesis/Quark Drive: 1.3× for non-Spe stats (suppressed by Neutralizing Gas)
-    let atk_paradox = state.sides[atk_side].active.paradox_stat();
-    if atk_paradox > 0 && !state.sides[atk_side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
-        let boosted = (atk_paradox - 1) as usize;
-        if boosted == atk_stat_idx && boosted != SPE {
-            a = (a as u32 * 5325 / 4096) as u16; // 1.3×
-        }
-    }
-    let def_paradox = state.sides[def_side].active.paradox_stat();
-    if def_paradox > 0 && !state.sides[def_side].active.has_volatile(VOL_ABILITY_SUPPRESSED) {
-        let boosted = (def_paradox - 1) as usize;
-        if boosted == def_stat_idx && boosted != SPE {
-            d = (d as u32 * 5325 / 4096) as u16; // 1.3×
-        }
-    }
-
-    if is_physical && atk_item.has(ItemFlag::CHOICE_ATK) { a = (a as u32 * 3 / 2) as u16; }
-    if !is_physical && atk_item.has(ItemFlag::CHOICE_SPA) { a = (a as u32 * 3 / 2) as u16; }
-    // Thick Club: 2× Atk for Marowak/Cubone
-    if !magic_room && is_physical && atk_mon.item_id == data_bridge::ITEM_THICK_CLUB {
-        let sp = effective_species(state, atk_side);
-        if sp == data_bridge::SPECIES_MAROWAK || sp == data_bridge::SPECIES_CUBONE {
-            a *= 2;
-        }
-    }
-    // Light Ball: 2× Atk and SpA for Pikachu
-    if !magic_room && atk_mon.item_id == data_bridge::ITEM_LIGHT_BALL {
-        let sp = effective_species(state, atk_side);
-        if sp == data_bridge::SPECIES_PIKACHU { a *= 2; }
-    }
-
-    if !is_physical && def_item.has(ItemFlag::ASSAULT_VEST) { d = (d as u32 * 3 / 2) as u16; }
-    if def_item.has(ItemFlag::EVIOLITE)
-        && data_bridge::species(effective_species(state, def_side)).nfe
-    {
-        d = (d as u32 * 3 / 2) as u16;
-    }
-    // Deep Sea Scale: 2× SpD for Clamperl
-    if !magic_room && !is_physical && def_mon.item_id == data_bridge::ITEM_DEEP_SEA_SCALE {
-        let sp = effective_species(state, def_side);
-        if sp == data_bridge::SPECIES_CLAMPERL { d *= 2; }
-    }
-
-    d = weather_def_stat_mod(d, effective_weather_for(state, def_side), category, def_t1, def_t2);
-
-    if d == 0 { d = 1; }
     if power == 0 { return result; }
 
     let mut num_hits = resolve_hits(md, atk_ability, atk_item.flags, rng_fn);
@@ -644,7 +647,8 @@ pub fn calc_damage(
     if wn == 0 { return result; } // nullified (e.g. Harsh Sun vs Water)
     let (sn, _) = stab_modifier(state, atk_side, move_type);
     let (bn, _) = burn_modifier(atk_mon.status, category, atk_ability, md.var_power == VarPower::Facade);
-    let (scn, _) = screen_modifier(state, def_side, category, is_crit, atk_ability);
+    let (scn_nc, _) = screen_modifier(state, def_side, category, false, atk_ability);
+    let (scn_crit, _) = screen_modifier(state, def_side, category, true, atk_ability);
     let (dan, _) = defender_ability_final_mod(state, md, def_side, eff, atk_ability);
     let (aan, _) = attacker_ability_final_mod(atk_ability, eff);
     let (ifn, _, berry_consumed) = item_final_mod(
@@ -652,7 +656,8 @@ pub fn calc_damage(
         state.sides[atk_side].active.consec_move_count,
     );
     if berry_consumed { result.item_consumed = true; }
-    let sniper_n = sniper_final_mod(atk_ability, is_crit);
+    let sniper_nc = sniper_final_mod(atk_ability, false);
+    let sniper_crit = sniper_final_mod(atk_ability, true);
     // Semi-invulnerable 2× damage modifier: Earthquake/Magnitude hit underground
     // (Dig) targets for 2×; Surf/Whirlpool hit underwater (Dive) targets for 2×.
     // Applied via Showdown's onSourceModifyDamage (chainModify(2)) — 4096-scale.
@@ -667,9 +672,7 @@ pub fn calc_damage(
         };
         if doubles { 8192 } else { 4096 }
     } else { 4096 };
-    let (cn, cd) = if is_crit { crit_multiplier(atk_ability) } else { (1, 1) };
-    let a32 = a as u32;
-    let d32 = d as u32;
+    let (cn, cd) = crit_multiplier(atk_ability);
 
     let mut total_damage: u32 = 0;
 
@@ -679,6 +682,13 @@ pub fn calc_damage(
             result.hits = hit;
             break;
         }
+        // Showdown rolls the crit independently per hit (randomChance inside the
+        // per-hit getDamage), so each hit draws its own crit and the crit-keyed
+        // terms (boost floor, screen bypass, Sniper, ×1.5) resolve per hit.
+        let hit_crit = if crit_suppressed { false } else { is_crit(c_stage, rng_fn) };
+        result.crit |= hit_crit;
+        let (a32, d32) = if hit_crit { (a32_crit, d32_crit) } else { (a32_nc, d32_nc) };
+
         // Escalating power: Triple Kick/Axel multiply by hit number.
         // Beat Up: each hit reads its own pre-computed per-member BP.
         let hit_power = match md.var_power {
@@ -696,7 +706,7 @@ pub fn calc_damage(
         }
 
         dmg = chain_mod(dmg, wn);
-        if is_crit { dmg = dmg * cn / cd; }
+        if hit_crit { dmg = dmg * cn / cd; }
 
         // Random roll: 85-100%
         let roll = 85 + rng_fn(16);
@@ -705,11 +715,11 @@ pub fn calc_damage(
         dmg = chain_mod(dmg, sn);
         dmg = dmg * eff as u32 / 4;
         dmg = chain_mod(dmg, bn);
-        dmg = chain_mod(dmg, scn);
+        dmg = chain_mod(dmg, if hit_crit { scn_crit } else { scn_nc });
         dmg = chain_mod(dmg, dan);
         dmg = chain_mod(dmg, aan);
         dmg = chain_mod(dmg, ifn);
-        dmg = chain_mod(dmg, sniper_n);
+        dmg = chain_mod(dmg, if hit_crit { sniper_crit } else { sniper_nc });
         if semi_invuln_n != 4096 { dmg = chain_mod(dmg, semi_invuln_n); }
 
         if dmg == 0 { dmg = 1; }
@@ -1619,19 +1629,21 @@ mod tests {
         let mut call_count = 0u32;
         let mut seq_rng = |max: u32| -> u32 {
             call_count += 1;
-            // RNG call sequence:
-            //   1: is_crit check (rng for crit) → return 1 (no crit)
+            // RNG call sequence (crit is rolled per hit, after the per-hit accuracy check):
             //   resolve_hits: lo==hi==10, no RNG call
+            //   1: hit 0 crit rng(24) → 1 (no crit)
             //   2: hit 0 random roll rng(16) → 15
             //   3: hit 1 accuracy rng(100) → 0 (hit)
-            //   4: hit 1 random roll rng(16) → 15
-            //   5: hit 2 accuracy rng(100) → 95 (miss)
+            //   4: hit 1 crit rng(24) → 1 (no crit)
+            //   5: hit 1 random roll rng(16) → 15
+            //   6: hit 2 accuracy rng(100) → 95 (miss)
             match call_count {
-                1 => 1,             // crit check: no crit
+                1 => 1,             // hit 0 crit: no crit
                 2 => 15 % max,      // hit 0 random roll
                 3 => 0,             // hit 1 accuracy: 0 < 90 → hit
-                4 => 15 % max,      // hit 1 random roll
-                5 => 95,            // hit 2 accuracy: 95 >= 90 → miss
+                4 => 1,             // hit 1 crit: no crit
+                5 => 15 % max,      // hit 1 random roll
+                6 => 95,            // hit 2 accuracy: 95 >= 90 → miss
                 _ => 0,
             }
         };
@@ -1648,12 +1660,12 @@ mod tests {
         let mut call_count = 0u32;
         let mut seq_rng = |max: u32| -> u32 {
             call_count += 1;
-            // 1: crit check → no crit
             // resolve_hits: lo==hi==3, returns 3 without RNG
+            // 1: hit 0 crit rng(24) → no crit
             // 2: hit 0 random roll
             // 3: hit 1 accuracy → miss
             match call_count {
-                1 => 1,             // crit check: no crit
+                1 => 1,             // hit 0 crit: no crit
                 2 => 15 % max,      // hit 0 random roll
                 3 => 95,            // hit 1 accuracy: 95 >= 90 → miss
                 _ => 0,
