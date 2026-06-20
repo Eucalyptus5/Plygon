@@ -544,12 +544,8 @@ pub fn calc_damage(
         let mut d = d_in;
         // Ruin abilities: Sword of Ruin (285) reduces opponent's Def by 0.75x.
         // (Beads/Tablets/Vessel of Ruin share ID 284, indistinguishable — only Sword of Ruin implemented.)
-        if is_physical {
-            if atk_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
-                d = chain_mod(d as u32, 3072) as u16; // 0.75× Def
-            } else if def_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
-                d = chain_mod(d as u32, 3072) as u16; // 0.75× Def from opponent's Sword of Ruin
-            }
+        if is_physical && atk_ability == data_bridge::ABILITY_SWORD_OF_RUIN {
+            d = chain_mod(d as u32, 3072) as u16; // 0.75× Def
         }
 
         d = ability_def_stat_mod(
