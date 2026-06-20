@@ -11120,6 +11120,20 @@ mod tests {
     }
 
     #[test]
+    fn test_lansat_berry_magic_room_suppressed() {
+        let mut state = setup();
+        let teams = TeamData::default();
+        state.sides[0].team[0].item_id = data_bridge::ITEM_LANSAT_BERRY;
+        state.sides[0].team[0].current_hp = 75; // exactly max_hp/4, would activate without Magic Room
+        state.field.set_magic_room_turns(5);
+        check_berry_activation(&mut state, &teams, 0, 0, &mut fixed_rng(0));
+        assert!(!state.sides[0].active.has_volatile(VOL_FOCUS_ENERGY),
+            "Magic Room suppresses berry activation");
+        assert_eq!(state.sides[0].team[0].item_id, data_bridge::ITEM_LANSAT_BERRY,
+            "berry retained under Magic Room");
+    }
+
+    #[test]
     fn test_focus_sash_survival_clamp() {
         let mut state = setup();
         state.sides[1].team[0].item_id = 151; // Focus Sash
