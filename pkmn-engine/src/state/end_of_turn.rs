@@ -416,6 +416,7 @@ fn step_yawn(state: &mut BattleState, side: usize) {
         if state.sides[side].side_conditions.safeguard_turns() == 0
             && !crate::state::forme::is_minior_meteor_forme(state, side)
             && !terrain_blocks_status(state, side, STATUS_SLEEP)
+            && !ability_blocks_status(effective_ability(state, side), STATUS_SLEEP)
         {
             set_status(state, side, slot, STATUS_SLEEP, 3); // 1-3 turns (MCTS: use median)
         }

@@ -1393,6 +1393,7 @@ fn execute_status_move(
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !crate::state::forme::is_minior_meteor_forme(state, def_side)
                 && !terrain_blocks_status(state, def_side, STATUS_SLEEP)
+                && !ability_blocks_status(effective_ability(state, def_side), STATUS_SLEEP)
             {
                 set_volatile(state, def_side, VOL_YAWN);
                 // Set yawn first-tick marker: bit 7 of _padding[4]
@@ -9260,6 +9261,48 @@ mod tests {
         crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
         assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
         assert_eq!(state.sides[1].team[0].status, STATUS_SLEEP);
+    }
+
+    #[test]
+    fn test_yawn_blocked_by_vital_spirit() {
+        let mut state = setup();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_VITAL_SPIRIT;
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Yawn,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+
+        // Application gate: a sleep-immune ability blocks VOL_YAWN outright.
+        assert!(!state.sides[1].active.has_volatile(VOL_YAWN));
+
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
+    }
+
+    #[test]
+    fn test_yawn_landing_blocked_by_late_vital_spirit() {
+        let mut state = setup();
+
+        let md = MoveData {
+            category: MoveCategory::Status,
+            accuracy: 0,
+            effect: MoveEffect::Yawn,
+            ..unsafe { core::mem::zeroed() }
+        };
+        execute_status_move(&mut state, &TeamData::default(), 0, 1, &md, &mut fixed_rng(0), 0);
+        assert!(state.sides[1].active.has_volatile(VOL_YAWN));
+
+        // Ability acquired after Yawn (Skill Swap / Trace / forme): landing gate re-checks.
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_VITAL_SPIRIT;
+
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        crate::state::end_of_turn::end_of_turn(&mut state, &TeamData::default(), &mut crate::state::BattleRng::from_closure(&mut |_| 0u32));
+        assert_eq!(state.sides[1].team[0].status, STATUS_NONE);
     }
 
     #[test]
