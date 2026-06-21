@@ -2954,18 +2954,30 @@ pub(crate) fn use_move_called(
 
     // Endeavor: set target HP = user HP
     if md.effect == MoveEffect::Endeavor {
-        let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
-        let target_hp = state.sides[def_side].team[def_slot].current_hp;
-        if target_hp > user_hp {
-            deal_damage(state, def_side, def_slot, target_hp - user_hp);
+        let (def_t1, def_t2) = battle_types(state, def_side);
+        let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+        let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+        let eff = crate::data::types::dual_type_effectiveness(md.move_type, def_type1, def_type2);
+        if eff != 0 {
+            let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
+            let target_hp = state.sides[def_side].team[def_slot].current_hp;
+            if target_hp > user_hp {
+                deal_damage(state, def_side, def_slot, target_hp - user_hp);
+            }
         }
         return;
     }
 
     // SuperFang: halve target's current HP
     if md.effect == MoveEffect::SuperFang {
-        let target_hp = state.sides[def_side].team[def_slot].current_hp;
-        deal_damage(state, def_side, def_slot, (target_hp / 2).max(1));
+        let (def_t1, def_t2) = battle_types(state, def_side);
+        let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+        let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+        let eff = crate::data::types::dual_type_effectiveness(md.move_type, def_type1, def_type2);
+        if eff != 0 {
+            let target_hp = state.sides[def_side].team[def_slot].current_hp;
+            deal_damage(state, def_side, def_slot, (target_hp / 2).max(1));
+        }
         return;
     }
 
@@ -3019,11 +3031,18 @@ pub(crate) fn use_move_called(
         return;
     }
 
-    // FinalGambit: deal user's current HP as damage, user faints
+    // FinalGambit: deal user's current HP as damage, user faints (selfdestruct: 'ifHit',
+    // so a type-immune hit does not self-faint the user)
     if md.effect == MoveEffect::FinalGambit {
-        let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
-        deal_damage(state, def_side, def_slot, user_hp);
-        deal_damage(state, atk_side, atk_slot, user_hp);
+        let (def_t1, def_t2) = battle_types(state, def_side);
+        let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+        let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+        let eff = crate::data::types::dual_type_effectiveness(md.move_type, def_type1, def_type2);
+        if eff != 0 {
+            let user_hp = state.sides[atk_side].team[atk_slot].current_hp;
+            deal_damage(state, def_side, def_slot, user_hp);
+            deal_damage(state, atk_side, atk_slot, user_hp);
+        }
         return;
     }
 
