@@ -225,7 +225,7 @@ fn move_secondary_confuses(move_id: u16) -> bool {
     matches!(move_id as usize,
         MOVE_PSYBEAM | MOVE_CONFUSION | MOVE_DIZZY_PUNCH | MOVE_SIGNAL_BEAM
         | MOVE_WATER_PULSE | MOVE_ROCK_CLIMB | MOVE_CHATTER | MOVE_HURRICANE
-        | MOVE_STRANGE_STEAM | MOVE_DUAL_WINGBEAT | MOVE_AXE_KICK
+        | MOVE_STRANGE_STEAM | MOVE_DUAL_WINGBEAT | MOVE_AXE_KICK | MOVE_DYNAMIC_PUNCH
     )
 }
 
@@ -239,7 +239,8 @@ fn move_secondary_no_flinch(move_id: u16) -> bool {
     use crate::data::*;
     matches!(move_id as usize,
         MOVE_THROAT_CHOP | MOVE_SPIRIT_SHACKLE | MOVE_EERIE_SPELL
-        | MOVE_ALLURING_VOICE | MOVE_PSYCHIC_NOISE
+        | MOVE_ALLURING_VOICE | MOVE_PSYCHIC_NOISE | MOVE_SPARKLING_ARIA
+        | MOVE_SALT_CURE | MOVE_SYRUP_BOMB | MOVE_ANCHOR_SHOT | MOVE_GENESIS_SUPERNOVA
     )
 }
 
@@ -4870,6 +4871,28 @@ mod tests {
             assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "move {id} phantom-flinched");
             assert_eq!(state.sides[1].team[0].status, STATUS_NONE, "move {id} applied a phantom status");
         }
+    }
+
+    #[test]
+    fn test_collapsed_volatile_secondaries_no_phantom_flinch() {
+        // 100% marker-volatile secondaries collapse to chance:100/stat:0/status:0
+        // in codegen; none is a real flinch. Dynamic Punch confuses instead.
+        let no_flinch = [
+            crate::data::MOVE_SPARKLING_ARIA, crate::data::MOVE_SALT_CURE,
+            crate::data::MOVE_SYRUP_BOMB, crate::data::MOVE_ANCHOR_SHOT,
+            crate::data::MOVE_GENESIS_SUPERNOVA,
+        ];
+        for id in [crate::data::MOVE_DYNAMIC_PUNCH].iter().chain(no_flinch.iter()).copied() {
+            let md = data_bridge::move_hot(id as u16);
+            assert!(!move_has_flinch_secondary(md, id as u16),
+                "move {id} must not register as a flincher");
+        }
+        // Dynamic Punch applies real 100% confusion (rng(4)+2), never a flinch.
+        let mut state = setup();
+        let md = data_bridge::move_hot(crate::data::MOVE_DYNAMIC_PUNCH as u16);
+        apply_secondary(&mut state, 0, 1, md, crate::data::MOVE_DYNAMIC_PUNCH as u16, &mut fixed_rng(0));
+        assert!(state.sides[1].active.confusion_turns > 0, "Dynamic Punch must confuse the target");
+        assert!(!state.sides[1].active.has_volatile(VOL_FLINCHED), "Dynamic Punch must not flinch");
     }
 
     #[test]
