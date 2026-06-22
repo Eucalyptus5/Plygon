@@ -7247,7 +7247,7 @@ pub static GEN_MOVES: &[MoveData] = &[
         var_power:VarPower::None, crit_ratio:1, drain:0, priority:0,
         multihit:0,
         secondary_chance:0, secondary_stat:0,
-        effect:MoveEffect::None, secondary_status:0,
+        effect:MoveEffect::IvyCudgel, secondary_status:0,
         self_effect:SelfEffect::None },
     // [905] Electro Shot
     MoveData { flags:MoveFlags::PROTECT | MoveFlags::CHARGE, base_power:130, accuracy:100,

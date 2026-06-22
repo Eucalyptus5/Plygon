@@ -115,6 +115,7 @@ MOVE_EFFECT = {
     "weatherball": "WeatherBall",
     "terrainpulse": "TerrainPulse",
     "grassyglide": "GrassyGlide",
+    "ivycudgel": "IvyCudgel",
 
     # -- Weather accuracy --
     "thunder": "WeatherAccRain", "hurricane": "WeatherAccRain",

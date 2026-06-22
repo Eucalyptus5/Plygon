@@ -901,6 +901,14 @@ pub fn resolve_move_type(
                 md.move_type
             }
         }
+        MoveEffect::IvyCudgel => {
+            match state.active_mon(atk_side).species_id {
+                1305 | 1306 => Type::Water,
+                1302 | 1303 => Type::Fire,
+                1300 | 1301 => Type::Rock,
+                _ => md.move_type,
+            }
+        }
         _ => md.move_type,
     }
 }

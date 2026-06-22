@@ -315,6 +315,8 @@ pub enum MoveEffect {
     Spite            = 141, // Deduct 4 PP from the target's last-used move; fails if none/unknown/0 PP
 
     Rollout          = 142, // Rollout/Ice Ball: lock the user for up to 5 hits; lock ends on miss/5-hit cap
+
+    IvyCudgel        = 143, // Type follows the Ogerpon mask forme (Water/Fire/Rock), Teal stays Grass
 }
 
 // Flags (16 bits)
