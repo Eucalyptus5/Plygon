@@ -212,8 +212,8 @@ fn test_type_effectiveness_multiplier() {
 fn test_multihit() {
     let state = setup();
     // Double Slap (3) - 15 BP, 2-5 hits
-    // rng(100) -> 85+ gets 5 hits
-    let mut rng = |x| if x == 100 { 85 } else { 0 };
+    // rng(20) indexes Showdown's sample table; 17-19 are its 5-hit entries
+    let mut rng = |x| if x == 20 { 19 } else { 0 };
     
     let res = calc_damage(&state, 0, 3, 0, &mut rng);
     assert_eq!(res.hits, 5);

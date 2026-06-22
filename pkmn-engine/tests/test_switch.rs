@@ -468,7 +468,7 @@ fn test_unnerve_blocks_berry() {
     state.sides[0].team[0].current_hp = 50;
     state.sides[0].team[0].max_hp = 300;
 
-    check_pinch_berry(&mut state, 0, 0);
+    check_pinch_berry(&mut state, &TeamData::default(), 0, 0);
     // Berry should NOT have activated
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
     assert_eq!(state.sides[0].team[0].current_hp, 50);

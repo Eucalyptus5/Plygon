@@ -56,8 +56,8 @@ fn test_life_orb_power_mod() {
     // Life Orb moved from onBasePower (item_power_mod) to onModifyDamage
     // (item_final_mod) — its 1.3x now applies there, not on base power.
     let itm = item(249); // Life Orb
-    assert_eq!(item_power_mod(itm, 249, Type::Normal, MoveCategory::Physical, 0, 0), (4096, 4096));
-    let (num, den, _) = item_final_mod(itm, item(0), Type::Normal, 4);
+    assert_eq!(item_power_mod(itm, 249, Type::Normal, MoveCategory::Physical, 0), (4096, 4096));
+    let (num, den, _) = item_final_mod(itm, item(0), Type::Normal, 4, 0);
     assert_eq!(num, 5324);
     assert_eq!(den, 4096);
 }
@@ -66,7 +66,7 @@ fn test_life_orb_power_mod() {
 fn test_type_boost_item_power_mod() {
     // Charcoal (id=61) boosts Fire
     let itm = item(61);
-    let (num, den) = item_power_mod(itm, 61, Type::Fire, MoveCategory::Special, 0, 0);
+    let (num, den) = item_power_mod(itm, 61, Type::Fire, MoveCategory::Special, 0);
     assert_eq!(num, 4915); // 1.2× = 4915/4096
     assert_eq!(den, 4096);
 }
@@ -74,14 +74,14 @@ fn test_type_boost_item_power_mod() {
 #[test]
 fn test_type_boost_item_no_boost_wrong_type() {
     let itm = item(61); // Charcoal boosts Fire
-    let (num, den) = item_power_mod(itm, 61, Type::Water, MoveCategory::Special, 0, 0);
+    let (num, den) = item_power_mod(itm, 61, Type::Water, MoveCategory::Special, 0);
     assert_eq!(num, 4096); // no boost for wrong type
 }
 
 #[test]
 fn test_muscle_band_physical_boost() {
     let itm = item(ITEM_MUSCLE_BAND);
-    let (num, den) = item_power_mod(itm, ITEM_MUSCLE_BAND, Type::Normal, MoveCategory::Physical, 0, 0);
+    let (num, den) = item_power_mod(itm, ITEM_MUSCLE_BAND, Type::Normal, MoveCategory::Physical, 0);
     assert_eq!(num, 4505); // 1.1×
     assert_eq!(den, 4096);
 }
@@ -89,28 +89,28 @@ fn test_muscle_band_physical_boost() {
 #[test]
 fn test_muscle_band_no_boost_special() {
     let itm = item(ITEM_MUSCLE_BAND);
-    let (num, den) = item_power_mod(itm, ITEM_MUSCLE_BAND, Type::Normal, MoveCategory::Special, 0, 0);
+    let (num, den) = item_power_mod(itm, ITEM_MUSCLE_BAND, Type::Normal, MoveCategory::Special, 0);
     assert_eq!(num, 4096); // no boost for special
 }
 
 #[test]
 fn test_wise_glasses_special_boost() {
     let itm = item(ITEM_WISE_GLASSES);
-    let (num, den) = item_power_mod(itm, ITEM_WISE_GLASSES, Type::Normal, MoveCategory::Special, 0, 0);
+    let (num, den) = item_power_mod(itm, ITEM_WISE_GLASSES, Type::Normal, MoveCategory::Special, 0);
     assert_eq!(num, 4505);
 }
 
 #[test]
 fn test_punching_glove_punch_boost() {
     let itm = item(ITEM_PUNCHING_GLOVE);
-    let (num, den) = item_power_mod(itm, ITEM_PUNCHING_GLOVE, Type::Normal, MoveCategory::Physical, MoveFlags::PUNCH, 0);
+    let (num, den) = item_power_mod(itm, ITEM_PUNCHING_GLOVE, Type::Normal, MoveCategory::Physical, MoveFlags::PUNCH);
     assert_eq!(num, 4506); // Punching Glove uses Showdown's [4506, 4096]
 }
 
 #[test]
 fn test_punching_glove_no_boost_non_punch() {
     let itm = item(ITEM_PUNCHING_GLOVE);
-    let (num, den) = item_power_mod(itm, ITEM_PUNCHING_GLOVE, Type::Normal, MoveCategory::Physical, 0, 0);
+    let (num, den) = item_power_mod(itm, ITEM_PUNCHING_GLOVE, Type::Normal, MoveCategory::Physical, 0);
     assert_eq!(num, 4096);
 }
 
@@ -137,7 +137,7 @@ fn test_sitrus_berry_heals_at_half() {
     state.sides[0].team[0].item_id = ITEM_SITRUS_BERRY;
     state.sides[0].team[0].current_hp = 140; // 140/300 < 50%
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     assert_eq!(state.sides[0].team[0].current_hp, 215); // heals 25% of max HP
     assert_eq!(state.sides[0].team[0].item_id, 0);
@@ -149,7 +149,7 @@ fn test_sitrus_berry_no_heal_above_half() {
     state.sides[0].team[0].item_id = ITEM_SITRUS_BERRY;
     state.sides[0].team[0].current_hp = 200; // 200/300 > 50%
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     assert_eq!(state.sides[0].team[0].current_hp, 200);
     assert_eq!(state.sides[0].team[0].item_id, ITEM_SITRUS_BERRY);
@@ -163,7 +163,7 @@ fn test_gluttony_berry_at_50_percent() {
     state.sides[0].team[0].ability_id = ABILITY_GLUTTONY;
     state.sides[0].team[0].current_hp = 140; // 140/300 < 50% but > 25%
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     // Gluttony raises berry activation threshold from 25% to 50%
     assert!(state.sides[0].team[0].current_hp > 140);
@@ -176,7 +176,7 @@ fn test_lum_berry_cures_status() {
     state.sides[0].team[0].item_id = ITEM_LUM_BERRY;
     state.sides[0].team[0].status = STATUS_PARALYSIS;
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     assert_eq!(state.sides[0].team[0].status, STATUS_NONE);
     assert_eq!(state.sides[0].team[0].item_id, 0);
@@ -188,7 +188,7 @@ fn test_lum_berry_no_cure_if_healthy() {
     state.sides[0].team[0].item_id = ITEM_LUM_BERRY;
     state.sides[0].team[0].status = STATUS_NONE;
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     assert_eq!(state.sides[0].team[0].item_id, ITEM_LUM_BERRY);
 }
@@ -260,7 +260,7 @@ fn test_berry_juice_heals() {
     state.sides[0].team[0].item_id = ITEM_BERRY_JUICE;
     state.sides[0].team[0].current_hp = 140; // 140/300 < 50%
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     assert_eq!(state.sides[0].team[0].current_hp, 160); // +20
     assert_eq!(state.sides[0].team[0].item_id, 0); // consumed
@@ -272,7 +272,7 @@ fn test_starf_berry_boosts() {
     state.sides[0].team[0].item_id = ITEM_STARF_BERRY;
     state.sides[0].team[0].current_hp = 50; // 50/300 < 25%
 
-    check_berry_activation(&mut state, 0, 0);
+    check_berry_activation(&mut state, &TeamData::default(), 0, 0, &mut |_| 0u32);
 
     assert_eq!(state.sides[0].team[0].item_id, 0);
     let boosts = &state.sides[0].active.boosts;
@@ -382,9 +382,9 @@ fn test_no_loaded_dice_can_hit_2() {
         multihit: (5 << 4) | 2, base_power: 25,
         ..unsafe { core::mem::zeroed() }
     };
-    // Hit distribution maps rng(100): 0..=34->3, 35..=69->2, 70..=84->4, _->5.
+    // rng(20) indexes Showdown's sample table: 0..=6->2, 7..=13->3, 14..=16->4, 17..=19->5.
     // A value in the 2-hit bucket shows 2 is reachable without Loaded Dice.
-    let hits = resolve_hits(&md, 0, 0, &mut |_| 50);
+    let hits = resolve_hits(&md, 0, 0, &mut |_| 3);
     assert_eq!(hits, 2);
 }
 

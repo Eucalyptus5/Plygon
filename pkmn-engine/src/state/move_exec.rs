@@ -6950,6 +6950,7 @@ mod tests {
     #[test]
     fn test_ice_face_blocks_physical() {
         let mut state = setup();
+        state.sides[1].team[0].species_id = 875; // Eiscue: the shield is species-gated
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_ICE_FACE;
 
         let hp_before = state.sides[1].team[0].current_hp;
@@ -6966,6 +6967,7 @@ mod tests {
     fn test_ice_face_doesnt_block_special() {
         let mut state = setup();
         use crate::data::MOVE_FLAMETHROWER;
+        state.sides[1].team[0].species_id = 875;
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_ICE_FACE;
 
         // Flamethrower is Special — Ice Face doesn't block
@@ -6979,6 +6981,7 @@ mod tests {
     #[test]
     fn test_ice_face_broken_takes_physical() {
         let mut state = setup();
+        state.sides[1].team[0].species_id = 875;
         state.sides[1].team[0].ability_id = data_bridge::ABILITY_ICE_FACE;
         state.sides[1].active._padding[4] = 2; // already broken
 

@@ -50,18 +50,21 @@ fn test_screen_modifier() {
     state.sides[1].side_conditions.light_screen_turns = 3;
     state.sides[1].side_conditions.aurora_veil_turns = 3;
     
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false), (2048, 4096));
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false), (2048, 4096));
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false, 0), (2048, 4096));
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false, 0), (2048, 4096));
 
     // Crits ignore screens
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, true), (4096, 4096));
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, true, 0), (4096, 4096));
+
+    // Infiltrator ignores the target's screens
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false, ABILITY_INFILTRATOR), (4096, 4096));
 
     // Clear Aurora Veil to test Reflect/Light Screen independently
     state.sides[1].side_conditions.aurora_veil_turns = 0;
-    
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false), (2048, 4096));
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false), (2048, 4096));
-    assert_eq!(screen_modifier(&state, 1, MoveCategory::Status, false), (4096, 4096));
+
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Physical, false, 0), (2048, 4096));
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Special, false, 0), (2048, 4096));
+    assert_eq!(screen_modifier(&state, 1, MoveCategory::Status, false, 0), (4096, 4096));
 }
 
 #[test]

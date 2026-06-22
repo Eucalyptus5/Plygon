@@ -9,10 +9,10 @@ use pkmn_engine::state::structs::{MonBuildData, MON_FLAG_TERASTALLIZED};
 #[test]
 fn test_struct_sizes() {
     assert_eq!(size_of::<MonSlot>(), 38);
-    assert_eq!(size_of::<ActiveMon>(), 72);
-    assert_eq!(size_of::<SideConditions>(), 12);
+    assert_eq!(size_of::<ActiveMon>(), 76);
+    assert_eq!(size_of::<SideConditions>(), 16);
     assert_eq!(size_of::<FieldState>(), 10);
-    assert_eq!(size_of::<SideState>(), 316);
+    assert_eq!(size_of::<SideState>(), 324);
     assert!(size_of::<BattleState>() <= 664);
     assert_eq!(size_of::<MonBuildData>(), 13);
     assert_eq!(size_of::<ItemData>(), 16);

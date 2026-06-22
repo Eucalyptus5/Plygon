@@ -10,6 +10,7 @@ fn dummy_species(hp: u8, atk: u8, def: u8, spa: u8, spd: u8, spe: u8) -> Species
         type1: Type::Normal,
         type2: Type::Normal,
         weight: 100,
+        nfe: false,
     }
 }
 
