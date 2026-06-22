@@ -740,7 +740,13 @@ fn execute_status_move(
             }
         }
         MoveEffect::ThunderWave => {
-            if !type_immune_to_status(state, def_side, STATUS_PARALYSIS)
+            // Thunder Wave is the unique ignoreImmunity:false status move, so it
+            // respects the Electric-vs-defender type chart (Ground is immune).
+            let (def_t1, def_t2) = battle_types(state, def_side);
+            let def_type1 = unsafe { core::mem::transmute::<u8, Type>(def_t1) };
+            let def_type2 = unsafe { core::mem::transmute::<u8, Type>(def_t2) };
+            if crate::data::types::dual_type_effectiveness(md.move_type, def_type1, def_type2) != 0
+                && !type_immune_to_status(state, def_side, STATUS_PARALYSIS)
                 && state.sides[def_side].side_conditions.safeguard_turns() == 0
                 && !terrain_blocks_status(state, def_side, STATUS_PARALYSIS)
                 && !ability_status_immune(state, def_side, effective_ability(state, atk_side), STATUS_PARALYSIS)
