@@ -1,0 +1,10 @@
+[package]
+name = "poke_mcts"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pkmn-engine = { path = "../pkmn-engine" }
+
+[profile.release]
+debug = true
