@@ -5,6 +5,7 @@ pub mod select;
 pub mod chance;
 pub mod search;
 pub mod policies;
+pub mod gen_sets;
 
 #[cfg(test)]
 pub mod testutil;
