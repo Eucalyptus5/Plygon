@@ -6,6 +6,7 @@ pub mod chance;
 pub mod search;
 pub mod policies;
 pub mod gen_sets;
+pub mod belief;
 
 #[cfg(test)]
 pub mod testutil;
