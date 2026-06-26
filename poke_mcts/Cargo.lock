@@ -27,6 +27,8 @@ name = "poke_mcts"
 version = "0.1.0"
 dependencies = [
  "pkmn-engine",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
