@@ -7,6 +7,7 @@ pub mod search;
 pub mod policies;
 pub mod gen_sets;
 pub mod belief;
+pub mod determinize;
 
 #[cfg(test)]
 pub mod testutil;
