@@ -1,5 +1,5 @@
 use crate::belief::{set_consistent, species_sets, Belief, MonBelief};
-use crate::gen_sets::{SetEntry, GEN9_SET_POOL, GEN9_SET_POOL_TOTAL};
+use crate::gen_sets::{SetEntry, SpeciesSets, GEN9_SET_POOL, GEN9_SET_POOL_TOTAL};
 use crate::rng::Lcg;
 use pkmn_engine::data::types::Type;
 use pkmn_engine::state::data_bridge;
@@ -34,8 +34,14 @@ fn input_from_set(species_id: u16, set: &SetEntry) -> MonBuildInput {
     }
 }
 
+// battle formes (Minior-Meteor, Terapagos-Terastal, ...) are absent from the
+// teambuilder-keyed set pool; fall back to the base species' sets
+fn pool_for(species_id: u16) -> Option<&'static SpeciesSets> {
+    species_sets(species_id).or_else(|| species_sets(data_bridge::base_species(species_id)))
+}
+
 pub fn sample_set(species_id: u16, b: &MonBelief, rng: &mut Lcg) -> MonBuildInput {
-    let pool = species_sets(species_id)
+    let pool = pool_for(species_id)
         .unwrap_or_else(|| panic!("species {species_id} not in set pool — regenerate gen_sets (stale table)"));
     let consistent: Vec<&SetEntry> = pool.sets.iter().filter(|s| set_consistent(s, b)).collect();
     let mut input = if !consistent.is_empty() {
@@ -43,9 +49,9 @@ pub fn sample_set(species_id: u16, b: &MonBelief, rng: &mut Lcg) -> MonBuildInpu
         let mut r = rng.roll(total.max(1));
         let mut chosen = consistent[consistent.len() - 1];
         for s in &consistent { if r < s.count { chosen = s; break; } r -= s.count; }
-        input_from_set(species_id, chosen)
+        input_from_set(pool.species_id, chosen)
     } else {
-        let mut input = input_from_set(species_id, &pool.sets[0]);
+        let mut input = input_from_set(pool.species_id, &pool.sets[0]);
         for &mv in b.moves[..b.n_moves as usize].iter() {
             if !input.moves.contains(&mv) {
                 let slot = input.moves.iter().position(|m| !b.moves[..b.n_moves as usize].contains(m)).unwrap_or(0);
@@ -135,12 +141,15 @@ impl Determinizer for RandomBattle {
             let mut taken: Vec<u16> = Vec::with_capacity(6);
             for mb in belief.mons.iter().filter(|m| m.species_id != 0) {
                 let slot = (0..6)
-                    .find(|&i| obs.state.sides[opp].team[i].species_id == mb.species_id)
+                    .find(|&i| {
+                        let sid = obs.state.sides[opp].team[i].species_id;
+                        sid != 0 && data_bridge::base_species(sid) == data_bridge::base_species(mb.species_id)
+                    })
                     .expect("belief species must exist on the true opponent side");
                 let input = sample_set(mb.species_id, mb, rng);
                 install(&mut state, &mut teams, opp, slot, &input, Some(&obs.state.sides[opp].team[slot]));
                 filled[slot] = true;
-                taken.push(mb.species_id);
+                taken.push(pool_for(mb.species_id).map_or(mb.species_id, |p| p.species_id));
             }
             for slot in 0..6 {
                 if filled[slot] { continue; }
@@ -227,6 +236,31 @@ mod tests {
             distinct_opp_teams.insert((1..6).map(|i| w.state.sides[1].team[i].species_id).collect::<Vec<_>>());
         }
         assert!(distinct_opp_teams.len() > 1, "hidden slots actually vary across worlds");
+    }
+
+    #[test]
+    fn battle_forme_falls_back_to_base_species_pool() {
+        // Minior-Meteor (1291) is a build-time forme; its sets live under Minior (774)
+        let mut rng = Lcg::new(11);
+        let b = MonBelief { species_id: 1291, ..Default::default() };
+        let input = sample_set(1291, &b, &mut rng);
+        assert_eq!(input.species_id, 774, "input uses the teambuilder species");
+    }
+
+    #[test]
+    fn forme_flipped_team_slot_still_found() {
+        // belief recorded Meteor (1291); the true slot has since flipped to Core (774)
+        let (mut s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0])],
+        );
+        s.sides[1].team[0].species_id = 774;
+        let mut belief = Belief::default();
+        belief.note_species(1291, s.sides[1].team[0].level);
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let mut rng = Lcg::new(5);
+        let worlds = RandomBattle.sample_worlds(&obs, &belief, 2, &mut rng);
+        assert_eq!(worlds.len(), 2, "no panic; slot resolved via base species");
     }
 
     #[test]

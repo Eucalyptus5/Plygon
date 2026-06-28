@@ -18,7 +18,16 @@ pub struct Belief { pub mons: [MonBelief; 6] }
 impl Belief {
     /// Returns the slot index for this species, claiming a fresh slot on first sight.
     pub fn note_species(&mut self, species_id: u16, level: u8) -> usize {
-        if let Some(i) = (0..6).find(|&i| self.mons[i].species_id == species_id) { return i; }
+        // forme changes (Shields Down, Tera Shift, ...) rewrite the team slot's
+        // species_id mid-battle; one belief slot per base species, tracking the latest forme
+        let base = pkmn_engine::state::data_bridge::base_species(species_id);
+        if let Some(i) = (0..6).find(|&i| {
+            self.mons[i].species_id != 0
+                && pkmn_engine::state::data_bridge::base_species(self.mons[i].species_id) == base
+        }) {
+            self.mons[i].species_id = species_id;
+            return i;
+        }
         let i = (0..6).find(|&i| self.mons[i].species_id == 0).expect("7th species revealed");
         self.mons[i] = MonBelief { species_id, level, ..Default::default() };
         i
@@ -34,6 +43,15 @@ impl Belief {
         self.mons[slot].tera_type = tera_type;
     }
     pub fn revealed_count(&self) -> usize { (0..6).filter(|&i| self.mons[i].species_id != 0).count() }
+}
+
+pub const ENGINE_STELLAR: u8 = 18;   // pkmn_engine::data::types::Type::Stellar as u8
+pub const SHOWDOWN_STELLAR: u8 = 18;
+pub fn engine_type_to_showdown(t: u8) -> u8 {
+    if t == ENGINE_STELLAR { return SHOWDOWN_STELLAR; }
+    use pkmn_engine::state::team_builder::showdown_type_to_engine;
+    for sd in 0u8..18 { if showdown_type_to_engine(sd) == t { return sd; } }
+    0 // matches the forward chart's OOB clamp to Normal
 }
 
 pub fn species_sets(species_id: u16) -> Option<&'static SpeciesSets> {
@@ -62,6 +80,17 @@ mod tests {
     }
 
     #[test]
+    fn forme_flip_shares_one_belief_slot() {
+        // Minior: Meteor (1291) <-> Core (774) flips rewrite the true team slot mid-battle
+        let mut b = Belief::default();
+        let s0 = b.note_species(1291, 80);
+        let s1 = b.note_species(774, 80);
+        assert_eq!(s0, s1, "same base species, same slot");
+        assert_eq!(b.mons[s0].species_id, 774, "latest forme tracked");
+        assert_eq!(b.revealed_count(), 1);
+    }
+
+    #[test]
     fn note_move_dedups() {
         let mut b = Belief::default();
         let s = b.note_species(445, 78);
@@ -85,6 +114,17 @@ mod tests {
         mb.n_moves = 1;
         mb.tera_revealed = true; mb.tera_type = 3;
         assert!(!set_consistent(&set, &mb), "revealed tera type mismatch");
+    }
+
+    #[test]
+    fn type_map_round_trips_all_showdown_types() {
+        let forward = |sd: u8| -> u8 {
+            if sd == SHOWDOWN_STELLAR { ENGINE_STELLAR }
+            else { pkmn_engine::state::team_builder::showdown_type_to_engine(sd) }
+        };
+        for sd in 0u8..=18 {
+            assert_eq!(engine_type_to_showdown(forward(sd)), sd, "round-trip failed for showdown type {sd}");
+        }
     }
 
     #[test]
