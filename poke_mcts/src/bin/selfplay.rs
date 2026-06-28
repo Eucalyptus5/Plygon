@@ -23,15 +23,30 @@ fn mcts_choose(state: &BattleState, teams: &TeamData, side: usize, time_ms: u64,
 }
 
 fn choose(kind: Kind, state: &BattleState, teams: &TeamData, side: usize, rng: &mut Lcg, time_ms: u64, seed: u64,
-          beliefs: &[poke_mcts::belief::Belief; 2], worlds: usize, max_iters: u64) -> u8 {
+          beliefs: &[poke_mcts::belief::Belief; 2], worlds: usize, max_iters: u64, adaptive: bool) -> u8 {
     match kind {
         Kind::Random => random_action(state, side, rng),
         Kind::Greedy => greedy_action(state, side, rng),
         Kind::Mcts => mcts_choose(state, teams, side, time_ms, seed),
         Kind::Pimc => {
             let obs = poke_mcts::determinize::Observation { state, teams, our_side: side };
+            let (num_worlds, time_ms_per_world) = if adaptive {
+                let opponent = 1 - side;
+                let revealed = beliefs[side].revealed_count();
+                let active_opp = state.active_mon(opponent);
+                let base_opp = pkmn_engine::state::data_bridge::base_species(active_opp.species_id);
+                let active_moves_revealed = beliefs[side].mons.iter()
+                    .find(|m| m.species_id != 0
+                        && pkmn_engine::state::data_bridge::base_species(m.species_id) == base_opp)
+                    .map(|m| m.n_moves as usize)
+                    .unwrap_or(0);
+                let parallelism = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8);
+                poke_mcts::driver::adaptive_budget(revealed, active_moves_revealed, parallelism, time_ms)
+            } else {
+                (worlds, time_ms)
+            };
             let cfg = poke_mcts::driver::PimcConfig {
-                num_worlds: worlds, time_ms_per_world: time_ms, max_iters_per_world: max_iters, seed,
+                num_worlds, time_ms_per_world, max_iters_per_world: max_iters, seed,
             };
             poke_mcts::driver::choose_action(&obs, &beliefs[side], &poke_mcts::determinize::RandomBattle, &cfg)
         }
@@ -39,7 +54,7 @@ fn choose(kind: Kind, state: &BattleState, teams: &TeamData, side: usize, rng: &
 }
 
 /// Returns value for side 0: 1.0 win / 0.5 draw / 0.0 loss.
-fn play(p1: Kind, p2: Kind, t1: &[MonJson], t2: &[MonJson], game_seed: u64, time_ms: u64, worlds: usize, max_iters: u64) -> f64 {
+fn play(p1: Kind, p2: Kind, t1: &[MonJson], t2: &[MonJson], game_seed: u64, time_ms: u64, worlds: usize, max_iters: u64, adaptive: bool) -> f64 {
     let (team1, b1, l1) = build(t1);
     let (team2, b2, l2) = build(t2);
     let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
@@ -67,8 +82,8 @@ fn play(p1: Kind, p2: Kind, t1: &[MonJson], t2: &[MonJson], game_seed: u64, time
         if state.is_game_over() { break; }
         let s1 = splitmix64(game_seed ^ (turn << 1));
         let s2 = splitmix64(game_seed ^ (turn << 1) ^ 1);
-        let a1 = if legal_actions(&state, 0).count > 0 { choose(p1, &state, &teams, 0, &mut pol_rng, time_ms, s1, &beliefs, worlds, max_iters) } else { ACTION_STRUGGLE };
-        let a2 = if legal_actions(&state, 1).count > 0 { choose(p2, &state, &teams, 1, &mut pol_rng, time_ms, s2, &beliefs, worlds, max_iters) } else { ACTION_STRUGGLE };
+        let a1 = if legal_actions(&state, 0).count > 0 { choose(p1, &state, &teams, 0, &mut pol_rng, time_ms, s1, &beliefs, worlds, max_iters, adaptive) } else { ACTION_STRUGGLE };
+        let a2 = if legal_actions(&state, 1).count > 0 { choose(p2, &state, &teams, 1, &mut pol_rng, time_ms, s2, &beliefs, worlds, max_iters, adaptive) } else { ACTION_STRUGGLE };
         for (s, a) in [(0usize, a1), (1usize, a2)] {
             if state.phase != PHASE_ACTIONS { continue; }
             let viewer = 1 - s;
@@ -111,6 +126,7 @@ fn main() {
     let seed: u64 = get("--seed", "1").parse().unwrap();
     let worlds: usize = get("--worlds", "8").parse().unwrap();
     let max_iters: u64 = get("--max-iters", &u64::MAX.to_string()).parse().unwrap();
+    let adaptive: bool = args.iter().any(|a| a == "--adaptive");
     let teams_path = get("--teams", "data/fixture_teams.json");
 
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
@@ -121,9 +137,9 @@ fn main() {
         // alternate seats so team/seat luck cancels
         let (ta, tb) = ((splitmix64(seed ^ g) % nt) as usize, (splitmix64(seed ^ g ^ 0xF00D) % nt) as usize);
         let v = if g % 2 == 0 {
-            play(p1, p2, &fixture.teams[ta], &fixture.teams[tb], seed ^ g, time_ms, worlds, max_iters)
+            play(p1, p2, &fixture.teams[ta], &fixture.teams[tb], seed ^ g, time_ms, worlds, max_iters, adaptive)
         } else {
-            1.0 - play(p2, p1, &fixture.teams[ta], &fixture.teams[tb], seed ^ g, time_ms, worlds, max_iters)
+            1.0 - play(p2, p1, &fixture.teams[ta], &fixture.teams[tb], seed ^ g, time_ms, worlds, max_iters, adaptive)
         };
         score += v;
         if v > 0.6 { w += 1 } else if v < 0.4 { l += 1 } else { d += 1 }

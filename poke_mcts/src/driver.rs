@@ -50,6 +50,20 @@ pub fn pick_from(aggregated: &[(u8, f64)], legal: &ActionList, rng: &mut Lcg) ->
     survivors[0].0
 }
 
+/// (num_worlds, time_ms_per_world). Time-pressure ladder clock deferred to sub-project 2.
+pub fn adaptive_budget(
+    revealed_mons: usize,
+    active_moves_revealed: usize,
+    parallelism: usize,
+    base_time_ms: u64,
+) -> (usize, u64) {
+    if revealed_mons <= 3 && active_moves_revealed == 0 {
+        (parallelism * 4, base_time_ms / 2)
+    } else {
+        (parallelism * 2, base_time_ms)
+    }
+}
+
 pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig) -> u8 {
     let legal = legal_actions(obs.state, obs.our_side);
     if legal.count == 0 { return ACTION_STRUGGLE; }
@@ -76,6 +90,14 @@ mod tests {
     use super::*;
     use crate::determinize::RandomBattle;
     use crate::testutil::*;
+
+    #[test]
+    fn adaptive_budget_rule() {
+        // few reveals + virgin active -> many shallow worlds; else fewer, deeper
+        assert_eq!(adaptive_budget(2, 0, 8, 100), (32, 50));
+        assert_eq!(adaptive_budget(2, 1, 8, 100), (16, 100));
+        assert_eq!(adaptive_budget(5, 0, 8, 100), (16, 100));
+    }
 
     fn arms(v: &[(u8, u32)]) -> Vec<ArmStat> {
         v.iter().map(|&(a, n)| ArmStat { action: a, visits: n, avg_score: 0.5 }).collect()
