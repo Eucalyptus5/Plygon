@@ -3,6 +3,13 @@ name = "poke_mcts"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+closed_loop = []
+
+[[bin]]
+name = "ab_chance"
+required-features = ["closed_loop"]
+
 [dependencies]
 pkmn-engine = { path = "../pkmn-engine" }
 serde = { version = "1", features = ["derive"] }
