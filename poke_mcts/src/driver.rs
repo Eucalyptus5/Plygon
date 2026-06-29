@@ -5,6 +5,7 @@ use crate::eval::Handcrafted;
 use crate::rng::{splitmix64, Lcg};
 use crate::search::{search_world, ArmStat, SearchParams};
 use pkmn_engine::state::*;
+use rayon::prelude::*;
 
 pub struct PimcConfig {
     pub num_worlds: usize,
@@ -75,8 +76,7 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
         max_iters: cfg.max_iters_per_world,
         ..Default::default()
     };
-    // M3 swaps this map to rayon par_iter (Task 18); keep the shape identical
-    let per_world: Vec<(Vec<ArmStat>, f64)> = worlds.iter().enumerate().map(|(k, w)| {
+    let per_world: Vec<(Vec<ArmStat>, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
         let r = search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed);
         (r.side(obs.our_side).to_vec(), w.weight)
@@ -145,5 +145,20 @@ mod tests {
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert_eq!(a, b, "same seed -> same choice (reproducibility, design §10)");
+    }
+
+    #[test]
+    fn parallel_choice_is_deterministic() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0]), mon(143, 47, [34, 0, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        let mut belief = Belief::default();
+        belief.note_species(445, s.sides[1].team[0].level);
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42 };
+        let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
+        let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
+        assert_eq!(a, b, "par_iter order preserved -> same seed -> same choice");
     }
 }
