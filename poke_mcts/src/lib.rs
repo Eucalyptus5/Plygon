@@ -13,5 +13,4 @@ pub mod belief;
 pub mod determinize;
 pub mod driver;
 
-#[cfg(test)]
 pub mod testutil;
