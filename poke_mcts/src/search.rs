@@ -173,7 +173,7 @@ fn same_actions(b: &crate::node::Bandit, l: &ActionList) -> bool {
     (0..b.len as usize).all(|i| b.arms[i].action == l.actions[i])
 }
 
-pub(crate) fn harvest(root: &Node, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
+pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
     let stat = |b: &crate::node::Bandit| {
         (0..b.len as usize)
             .map(|i| {
@@ -186,7 +186,11 @@ pub(crate) fn harvest(root: &Node, iterations: u64, guard_hits: u64, depth_sum: 
             })
             .collect()
     };
-    SearchResult { s1: stat(&root.s1), s2: stat(&root.s2), iterations, guard_hits, depth_sum }
+    SearchResult { s1: stat(s1), s2: stat(s2), iterations, guard_hits, depth_sum }
+}
+
+pub(crate) fn harvest(root: &Node, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
+    harvest_bandits(&root.s1, &root.s2, iterations, guard_hits, depth_sum)
 }
 
 #[cfg(test)]

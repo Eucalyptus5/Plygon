@@ -22,6 +22,26 @@ impl Node {
     }
 }
 
+/// Closed-loop decision node: owns its post-chance state, has no dense child array
+/// (chance edges live in the side map keyed by `child_key`). ~1 KB/node (see CLOSED_LOOP_BYTES_PER_NODE).
+pub struct CNode {
+    pub state: BattleState,
+    pub visits: u32,
+    pub s1: Bandit,
+    pub s2: Bandit,
+}
+
+impl CNode {
+    pub fn from_state(state: &BattleState) -> Self {
+        CNode {
+            state: *state,
+            visits: 0,
+            s1: Bandit::from_actions(&legal_actions(state, 0)),
+            s2: Bandit::from_actions(&legal_actions(state, 1)),
+        }
+    }
+}
+
 #[inline(always)]
 pub fn child_key(a1_arm: usize, a2_arm: usize) -> usize { a1_arm * 10 + a2_arm }
 

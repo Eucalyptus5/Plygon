@@ -1,5 +1,6 @@
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::eval::Handcrafted;
+use poke_mcts::node::CNode;
 use poke_mcts::search::{closed_loop_max_nodes, search_world, ChanceMode, SearchParams};
 use poke_mcts::testutil::*;
 use pkmn_engine::state::*;
@@ -34,4 +35,13 @@ fn closed_loop_cap_shrinks_with_more_worlds() {
     assert!(c16 >= 50_000, "cap too small to search usefully: {c16}");
     // 8 worlds must fit the ceiling: 8 * cap * ~1.1KB <= 2GB
     assert!(8 * c8 as u64 * 1100 <= 2_000_000_000);
+}
+
+#[test]
+fn cnode_owns_state_and_builds_bandits() {
+    let (s, _t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 0, 0, 0]));
+    let n = CNode::from_state(&s);
+    assert_eq!(n.state.phase, PHASE_ACTIONS);
+    assert!(!n.s1.is_empty() && !n.s2.is_empty());
+    assert_eq!(n.visits, 0);
 }

@@ -1,7 +1,7 @@
 use crate::eval::{winner_value, Evaluator};
-use crate::node::{child_key, Node, NO_CHILD};
+use crate::node::{child_key, CNode, NO_CHILD};
 use crate::rng::Lcg;
-use crate::search::{arm0, harvest, leaf, pick, SearchParams, SearchResult};
+use crate::search::{arm0, harvest_bandits, leaf, pick, SearchParams, SearchResult};
 use pkmn_engine::state::*;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -19,11 +19,10 @@ pub fn search_world_closed(
     seed: u64,
 ) -> SearchResult {
     let mut rng = Lcg::new(seed);
-    let mut tree: Vec<Node> = vec![Node::from_state(root_state)];
-    let mut states: Vec<BattleState> = vec![*root_state]; // closed-loop nodes own a state
+    let mut tree: Vec<CNode> = vec![CNode::from_state(root_state)];
     let mut edges: HashMap<(u32, u16), Edge> = HashMap::new();
     if root_state.is_game_over() || (tree[0].s1.is_empty() && tree[0].s2.is_empty()) {
-        return harvest(&tree[0], 0, 0, 0);
+        return harvest_bandits(&tree[0].s1, &tree[0].s2, 0, 0, 0);
     }
     let root_eval = evaluator.eval(root_state);
     let start = Instant::now();
@@ -39,14 +38,14 @@ pub fn search_world_closed(
             let node = &tree[idx];
             let (a1, b1) = pick(&node.s1, node.visits);
             let (a2, b2) = pick(&node.s2, node.visits);
-            if a1 == 255 && a2 == 255 { value = leaf(&states[idx], evaluator, root_eval); break; }
+            if a1 == 255 && a2 == 255 { value = leaf(&tree[idx].state, evaluator, root_eval); break; }
             let key = (idx as u32, child_key(arm0(a1), arm0(a2)) as u16);
             path.push((idx, a1, a2));
             let edge = edges.entry(key).or_insert_with(|| {
                 // first visit: empirically enumerate K sampled futures
                 let mut outcomes: Vec<Outcome> = Vec::new();
                 for _ in 0..K_SAMPLES {
-                    let mut s = states[idx];
+                    let mut s = tree[idx].state;
                     match s.phase {
                         PHASE_ACTIONS => execute_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
                         PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH =>
@@ -73,8 +72,7 @@ pub fn search_world_closed(
                 value = if outcome_state.is_game_over() { winner_value(&outcome_state) }
                         else { leaf(&outcome_state, evaluator, root_eval) };
                 if (tree.len() as u32) < params.max_nodes && !outcome_state.is_game_over() {
-                    tree.push(Node::from_state(&outcome_state));
-                    states.push(outcome_state);
+                    tree.push(CNode::from_state(&outcome_state));
                     let id = (tree.len() - 1) as u32;
                     edges.get_mut(&key).unwrap().outcomes[oi].child = id;
                 }
@@ -91,5 +89,5 @@ pub fn search_world_closed(
         }
         iters += 1;
     }
-    harvest(&tree[0], iters, 0, 0)
+    harvest_bandits(&tree[0].s1, &tree[0].s2, iters, 0, 0)
 }
