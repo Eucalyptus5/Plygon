@@ -1,6 +1,6 @@
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::eval::Handcrafted;
-use poke_mcts::search::{search_world, SearchParams};
+use poke_mcts::search::{closed_loop_max_nodes, search_world, ChanceMode, SearchParams};
 use poke_mcts::testutil::*;
 use pkmn_engine::state::*;
 
@@ -18,4 +18,20 @@ fn open_loop_parity_snapshot() {
     ];
     assert_eq!(got, expected, "open-loop result drifted");
     assert_eq!(r.iterations, 5000);
+}
+
+#[test]
+fn chance_mode_default_is_open_loop() {
+    assert_eq!(ChanceMode::default(), ChanceMode::OpenLoop);
+}
+
+#[test]
+fn closed_loop_cap_shrinks_with_more_worlds() {
+    // RAM-derived: more concurrent worlds => fewer nodes per world.
+    let c8 = closed_loop_max_nodes(8);
+    let c16 = closed_loop_max_nodes(16);
+    assert!(c8 > c16, "{c8} !> {c16}");
+    assert!(c16 >= 50_000, "cap too small to search usefully: {c16}");
+    // 8 worlds must fit the ceiling: 8 * cap * ~1.1KB <= 2GB
+    assert!(8 * c8 as u64 * 1100 <= 2_000_000_000);
 }

@@ -18,6 +18,24 @@ impl Default for SearchParams {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum ChanceMode {
+    #[default]
+    OpenLoop,
+    ClosedLoop,
+}
+
+// Closed-loop nodes own a BattleState + outcome states (~1.1KB/node amortized); peak RAM is
+// LIVE across all rayon worlds, so the per-world cap inverts a fixed ceiling (spec §4.3).
+pub const CLOSED_LOOP_RAM_CEILING_BYTES: u64 = 2_000_000_000;
+const CLOSED_LOOP_BYTES_PER_NODE: u64 = 1_100;
+
+pub fn closed_loop_max_nodes(num_worlds: usize) -> u32 {
+    let worlds = num_worlds.max(1) as u64;
+    let cap = CLOSED_LOOP_RAM_CEILING_BYTES / (worlds * CLOSED_LOOP_BYTES_PER_NODE);
+    cap.clamp(50_000, 2_000_000) as u32
+}
+
 #[derive(Clone, Copy, Default)]
 pub struct ArmStat { pub action: u8, pub visits: u32, pub avg_score: f64 }
 
