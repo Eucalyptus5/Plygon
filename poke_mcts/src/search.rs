@@ -26,6 +26,8 @@ pub struct SearchResult {
     pub s1: Vec<ArmStat>,
     pub s2: Vec<ArmStat>,
     pub iterations: u64,
+    pub guard_hits: u64,
+    pub depth_sum: u64,
 }
 
 impl SearchResult {
@@ -47,11 +49,13 @@ pub fn search_world(
     let mut tree: Vec<Node> = Vec::with_capacity(4096);
     tree.push(Node::from_state(root_state));
     if root_state.is_game_over() || (tree[0].s1.is_empty() && tree[0].s2.is_empty()) {
-        return harvest(&tree[0], 0);
+        return harvest(&tree[0], 0, 0, 0);
     }
     let root_eval = evaluator.eval(root_state) as f32;
     let start = Instant::now();
     let mut iters: u64 = 0;
+    let mut guard_hits: u64 = 0;
+    let mut depth_sum: u64 = 0;
     let mut path: Vec<PathStep> = Vec::with_capacity(64);
 
     'outer: while iters < params.max_iters {
@@ -68,6 +72,7 @@ pub fn search_world(
             // arm-mismatch guard: this sample diverged from the node's recorded shape
             // (provably never fires at the root, where cur is the untouched root state)
             if idx != 0 && (tree[idx].phase != cur.phase || !arms_match(&tree[idx], &cur)) {
+                guard_hits += 1;
                 value = leaf(&cur, evaluator, root_eval);
                 break;
             }
@@ -103,6 +108,7 @@ pub fn search_world(
             idx = child as usize;
         }
 
+        depth_sum += path.len() as u64;
         for step in path.iter() {
             let n = &mut tree[step.node];
             n.visits += 1;
@@ -120,7 +126,7 @@ pub fn search_world(
         iters += 1;
     }
 
-    harvest(&tree[0], iters)
+    harvest(&tree[0], iters, guard_hits, depth_sum)
 }
 
 #[inline]
@@ -149,7 +155,7 @@ fn same_actions(b: &crate::node::Bandit, l: &ActionList) -> bool {
     (0..b.len as usize).all(|i| b.arms[i].action == l.actions[i])
 }
 
-pub(crate) fn harvest(root: &Node, iterations: u64) -> SearchResult {
+pub(crate) fn harvest(root: &Node, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
     let stat = |b: &crate::node::Bandit| {
         (0..b.len as usize)
             .map(|i| {
@@ -162,7 +168,7 @@ pub(crate) fn harvest(root: &Node, iterations: u64) -> SearchResult {
             })
             .collect()
     };
-    SearchResult { s1: stat(&root.s1), s2: stat(&root.s2), iterations }
+    SearchResult { s1: stat(&root.s1), s2: stat(&root.s2), iterations, guard_hits, depth_sum }
 }
 
 #[cfg(test)]

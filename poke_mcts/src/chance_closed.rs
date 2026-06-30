@@ -23,7 +23,7 @@ pub fn search_world_closed(
     let mut states: Vec<BattleState> = vec![*root_state]; // closed-loop nodes own a state
     let mut edges: HashMap<(u32, u16), Edge> = HashMap::new();
     if root_state.is_game_over() || (tree[0].s1.is_empty() && tree[0].s2.is_empty()) {
-        return harvest(&tree[0], 0);
+        return harvest(&tree[0], 0, 0, 0);
     }
     let root_eval = evaluator.eval(root_state);
     let start = Instant::now();
@@ -91,5 +91,5 @@ pub fn search_world_closed(
         }
         iters += 1;
     }
-    harvest(&tree[0], iters)
+    harvest(&tree[0], iters, 0, 0)
 }

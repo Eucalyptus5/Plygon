@@ -114,6 +114,56 @@ fn play(p1: Kind, p2: Kind, t1: &[MonJson], t2: &[MonJson], game_seed: u64, time
     winner_value(&state)
 }
 
+fn stats(mut v: Vec<f64>) -> (f64, f64, f64) {
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let n = v.len();
+    let med = if n % 2 == 0 { (v[n / 2 - 1] + v[n / 2]) / 2.0 } else { v[n / 2] };
+    (v[0], med, v[n - 1])
+}
+
+fn bench(fixture: &Fixture) {
+    let (team1, b1, l1) = build(&fixture.teams[0]);
+    let (team2, b2, l2) = build(&fixture.teams[1]);
+    let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
+    let mut state = BattleState::default();
+    state.sides[0].team = team1;
+    state.sides[1].team = team2;
+    state.phase = PHASE_ACTIONS;
+    switch::switch_in(&mut state, &teams, 0, 0);
+    switch::switch_in(&mut state, &teams, 1, 0);
+
+    let params = SearchParams { time_ms: 100, ..Default::default() };
+    let mut iters: Vec<f64> = Vec::new();
+    let (mut guards, mut depths) = (0u64, 0u64);
+    for seed in 0..10u64 {
+        let r = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, seed);
+        iters.push(r.iterations as f64);
+        guards += r.guard_hits;
+        depths += r.depth_sum;
+    }
+    let total: f64 = iters.iter().sum();
+    let (min, med, max) = stats(iters);
+    println!("search_world iters/100ms: min {:.0} / median {:.0} / max {:.0}", min, med, max);
+    println!("mean depth: {:.2}", depths as f64 / total);
+    println!("guard-fire %: {:.3}", 100.0 * guards as f64 / total);
+
+    let mut belief = poke_mcts::belief::Belief::default();
+    let om = state.active_mon(1);
+    belief.note_species(om.species_id, om.level);
+    let obs = poke_mcts::determinize::Observation { state: &state, teams: &teams, our_side: 0 };
+    let mut wall: Vec<f64> = Vec::new();
+    for seed in 0..10u64 {
+        let cfg = poke_mcts::driver::PimcConfig {
+            num_worlds: 16, time_ms_per_world: 100, max_iters_per_world: u64::MAX, seed,
+        };
+        let t0 = std::time::Instant::now();
+        let _ = poke_mcts::driver::choose_action(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg);
+        wall.push(t0.elapsed().as_secs_f64() * 1000.0);
+    }
+    let (wmin, wmed, wmax) = stats(wall);
+    println!("choose_action 16w@100ms wall-ms/decision: min {:.1} / median {:.1} / max {:.1}", wmin, wmed, wmax);
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let get = |flag: &str, default: &str| -> String {
@@ -130,6 +180,10 @@ fn main() {
     let teams_path = get("--teams", "data/fixture_teams.json");
 
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
+    if args.iter().any(|a| a == "--bench-search") {
+        bench(&fixture);
+        return;
+    }
     let nt = fixture.teams.len() as u64;
     let mut score = 0.0f64;
     let (mut w, mut d, mut l) = (0u64, 0u64, 0u64);
