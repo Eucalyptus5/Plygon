@@ -13,6 +13,15 @@ fn parse_kind(s: &str) -> Kind {
     match s { "random" => Kind::Random, "greedy" => Kind::Greedy, "mcts" => Kind::Mcts, "pimc" => Kind::Pimc, _ => panic!("unknown policy {s}") }
 }
 
+#[derive(Clone, Copy)]
+struct Entrant {
+    kind: Kind,
+    time_ms: u64,
+    worlds: usize,
+    max_iters: u64,
+    adaptive: bool,
+}
+
 fn mcts_choose(state: &BattleState, teams: &TeamData, side: usize, time_ms: u64, seed: u64) -> u8 {
     let legal = legal_actions(state, side);
     if legal.count == 0 { return ACTION_STRUGGLE; }
@@ -22,15 +31,15 @@ fn mcts_choose(state: &BattleState, teams: &TeamData, side: usize, time_ms: u64,
     r.side(side).iter().max_by_key(|a| a.visits).map(|a| a.action).unwrap_or(legal.actions[0])
 }
 
-fn choose(kind: Kind, state: &BattleState, teams: &TeamData, side: usize, rng: &mut Lcg, time_ms: u64, seed: u64,
-          beliefs: &[poke_mcts::belief::Belief; 2], worlds: usize, max_iters: u64, adaptive: bool) -> u8 {
-    match kind {
+fn choose(e: Entrant, state: &BattleState, teams: &TeamData, side: usize, rng: &mut Lcg, seed: u64,
+          beliefs: &[poke_mcts::belief::Belief; 2]) -> u8 {
+    match e.kind {
         Kind::Random => random_action(state, side, rng),
         Kind::Greedy => greedy_action(state, side, rng),
-        Kind::Mcts => mcts_choose(state, teams, side, time_ms, seed),
+        Kind::Mcts => mcts_choose(state, teams, side, e.time_ms, seed),
         Kind::Pimc => {
             let obs = poke_mcts::determinize::Observation { state, teams, our_side: side };
-            let (num_worlds, time_ms_per_world) = if adaptive {
+            let (num_worlds, time_ms_per_world) = if e.adaptive {
                 let opponent = 1 - side;
                 let revealed = beliefs[side].revealed_count();
                 let active_opp = state.active_mon(opponent);
@@ -41,12 +50,12 @@ fn choose(kind: Kind, state: &BattleState, teams: &TeamData, side: usize, rng: &
                     .map(|m| m.n_moves as usize)
                     .unwrap_or(0);
                 let parallelism = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8);
-                poke_mcts::driver::adaptive_budget(revealed, active_moves_revealed, parallelism, time_ms)
+                poke_mcts::driver::adaptive_budget(revealed, active_moves_revealed, parallelism, e.time_ms)
             } else {
-                (worlds, time_ms)
+                (e.worlds, e.time_ms)
             };
             let cfg = poke_mcts::driver::PimcConfig {
-                num_worlds, time_ms_per_world, max_iters_per_world: max_iters, seed,
+                num_worlds, time_ms_per_world, max_iters_per_world: e.max_iters, seed,
             };
             poke_mcts::driver::choose_action(&obs, &beliefs[side], &poke_mcts::determinize::RandomBattle, &cfg)
         }
@@ -54,7 +63,7 @@ fn choose(kind: Kind, state: &BattleState, teams: &TeamData, side: usize, rng: &
 }
 
 /// Returns value for side 0: 1.0 win / 0.5 draw / 0.0 loss.
-fn play(p1: Kind, p2: Kind, t1: &[MonJson], t2: &[MonJson], game_seed: u64, time_ms: u64, worlds: usize, max_iters: u64, adaptive: bool) -> f64 {
+fn play(p1: Entrant, p2: Entrant, t1: &[MonJson], t2: &[MonJson], game_seed: u64) -> f64 {
     let (team1, b1, l1) = build(t1);
     let (team2, b2, l2) = build(t2);
     let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
@@ -82,8 +91,8 @@ fn play(p1: Kind, p2: Kind, t1: &[MonJson], t2: &[MonJson], game_seed: u64, time
         if state.is_game_over() { break; }
         let s1 = splitmix64(game_seed ^ (turn << 1));
         let s2 = splitmix64(game_seed ^ (turn << 1) ^ 1);
-        let a1 = if legal_actions(&state, 0).count > 0 { choose(p1, &state, &teams, 0, &mut pol_rng, time_ms, s1, &beliefs, worlds, max_iters, adaptive) } else { ACTION_STRUGGLE };
-        let a2 = if legal_actions(&state, 1).count > 0 { choose(p2, &state, &teams, 1, &mut pol_rng, time_ms, s2, &beliefs, worlds, max_iters, adaptive) } else { ACTION_STRUGGLE };
+        let a1 = if legal_actions(&state, 0).count > 0 { choose(p1, &state, &teams, 0, &mut pol_rng, s1, &beliefs) } else { ACTION_STRUGGLE };
+        let a2 = if legal_actions(&state, 1).count > 0 { choose(p2, &state, &teams, 1, &mut pol_rng, s2, &beliefs) } else { ACTION_STRUGGLE };
         for (s, a) in [(0usize, a1), (1usize, a2)] {
             if state.phase != PHASE_ACTIONS { continue; }
             let viewer = 1 - s;
@@ -164,6 +173,65 @@ fn bench(fixture: &Fixture) {
     println!("choose_action 16w@100ms wall-ms/decision: min {:.1} / median {:.1} / max {:.1}", wmin, wmed, wmax);
 }
 
+fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed: u64) {
+    let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false };
+    let entrants: [(&str, Entrant); 5] = [
+        ("random", Entrant { kind: Kind::Random, ..base }),
+        ("greedy", Entrant { kind: Kind::Greedy, ..base }),
+        ("mcts", Entrant { kind: Kind::Mcts, ..base }),
+        ("pimc", Entrant { kind: Kind::Pimc, ..base }),
+        ("pimc-adaptive", Entrant { kind: Kind::Pimc, adaptive: true, ..base }),
+    ];
+    let n = entrants.len();
+    let nt = fixture.teams.len() as u64;
+    let mut matrix = vec![vec![0.0f64; n]; n];
+    let mut totals = vec![0.0f64; n];
+    let mut pair_idx = 0u64;
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let (mut score, mut w, mut d, mut l) = (0.0f64, 0u64, 0u64, 0u64);
+            for g in 0..games {
+                let gs = seed ^ splitmix64(pair_idx * 1000 + g);
+                let (ta, tb) = ((splitmix64(gs) % nt) as usize, (splitmix64(gs ^ 0xF00D) % nt) as usize);
+                let v = if g % 2 == 0 {
+                    play(entrants[i].1, entrants[j].1, &fixture.teams[ta], &fixture.teams[tb], gs)
+                } else {
+                    1.0 - play(entrants[j].1, entrants[i].1, &fixture.teams[ta], &fixture.teams[tb], gs)
+                };
+                score += v;
+                if v > 0.6 { w += 1 } else if v < 0.4 { l += 1 } else { d += 1 }
+                if (g + 1) % 20 == 0 {
+                    eprintln!("[{} vs {}] [{}/{}] score {:.1}%", entrants[i].0, entrants[j].0, g + 1, games, 100.0 * score / (g + 1) as f64);
+                }
+            }
+            let pct = 100.0 * score / games as f64;
+            println!("pair {} vs {}: {:.1}%  (W{} D{} L{})", entrants[i].0, entrants[j].0, pct, w, d, l);
+            matrix[i][j] = pct;
+            matrix[j][i] = 100.0 - pct;
+            totals[i] += score;
+            totals[j] += games as f64 - score;
+            pair_idx += 1;
+        }
+    }
+    println!();
+    print!("{:>14}", "");
+    for &(name, _) in &entrants { print!("{:>14}", name); }
+    println!();
+    for i in 0..n {
+        print!("{:>14}", entrants[i].0);
+        for j in 0..n {
+            if i == j { print!("{:>14}", "-"); } else { print!("{:>13.1}%", matrix[i][j]); }
+        }
+        println!();
+    }
+    println!();
+    let per_entrant_games = (games * (n as u64 - 1)) as f64;
+    let mut avg: Vec<(f64, &str)> = (0..n).map(|i| (100.0 * totals[i] / per_entrant_games, entrants[i].0)).collect();
+    avg.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    println!("avg score per entrant:");
+    for (pct, name) in avg { println!("  {:<14} {:.1}%", name, pct); }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let get = |flag: &str, default: &str| -> String {
@@ -184,6 +252,12 @@ fn main() {
         bench(&fixture);
         return;
     }
+    if args.iter().any(|a| a == "--tournament") {
+        tournament(&fixture, games, time_ms, max_iters, seed);
+        return;
+    }
+    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive };
+    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive };
     let nt = fixture.teams.len() as u64;
     let mut score = 0.0f64;
     let (mut w, mut d, mut l) = (0u64, 0u64, 0u64);
@@ -191,9 +265,9 @@ fn main() {
         // alternate seats so team/seat luck cancels
         let (ta, tb) = ((splitmix64(seed ^ g) % nt) as usize, (splitmix64(seed ^ g ^ 0xF00D) % nt) as usize);
         let v = if g % 2 == 0 {
-            play(p1, p2, &fixture.teams[ta], &fixture.teams[tb], seed ^ g, time_ms, worlds, max_iters, adaptive)
+            play(e1, e2, &fixture.teams[ta], &fixture.teams[tb], seed ^ g)
         } else {
-            1.0 - play(p2, p1, &fixture.teams[ta], &fixture.teams[tb], seed ^ g, time_ms, worlds, max_iters, adaptive)
+            1.0 - play(e2, e1, &fixture.teams[ta], &fixture.teams[tb], seed ^ g)
         };
         score += v;
         if v > 0.6 { w += 1 } else if v < 0.4 { l += 1 } else { d += 1 }
