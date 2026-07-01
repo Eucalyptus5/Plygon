@@ -20,6 +20,7 @@ struct Entrant {
     worlds: usize,
     max_iters: u64,
     adaptive: bool,
+    chance_mode: poke_mcts::search::ChanceMode,
 }
 
 fn mcts_choose(state: &BattleState, teams: &TeamData, side: usize, time_ms: u64, seed: u64) -> u8 {
@@ -56,6 +57,7 @@ fn choose(e: Entrant, state: &BattleState, teams: &TeamData, side: usize, rng: &
             };
             let cfg = poke_mcts::driver::PimcConfig {
                 num_worlds, time_ms_per_world, max_iters_per_world: e.max_iters, seed,
+                chance_mode: e.chance_mode,
             };
             poke_mcts::driver::choose_action(&obs, &beliefs[side], &poke_mcts::determinize::RandomBattle, &cfg)
         }
@@ -164,6 +166,7 @@ fn bench(fixture: &Fixture) {
     for seed in 0..10u64 {
         let cfg = poke_mcts::driver::PimcConfig {
             num_worlds: 16, time_ms_per_world: 100, max_iters_per_world: u64::MAX, seed,
+            chance_mode: poke_mcts::search::ChanceMode::OpenLoop,
         };
         let t0 = std::time::Instant::now();
         let _ = poke_mcts::driver::choose_action(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg);
@@ -174,7 +177,7 @@ fn bench(fixture: &Fixture) {
 }
 
 fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed: u64) {
-    let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false };
+    let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false, chance_mode: poke_mcts::search::ChanceMode::OpenLoop };
     let entrants: [(&str, Entrant); 5] = [
         ("random", Entrant { kind: Kind::Random, ..base }),
         ("greedy", Entrant { kind: Kind::Greedy, ..base }),
@@ -245,6 +248,11 @@ fn main() {
     let worlds: usize = get("--worlds", "8").parse().unwrap();
     let max_iters: u64 = get("--max-iters", &u64::MAX.to_string()).parse().unwrap();
     let adaptive: bool = args.iter().any(|a| a == "--adaptive");
+    let chance_mode = match get("--chance-mode", "open").as_str() {
+        "open" => poke_mcts::search::ChanceMode::OpenLoop,
+        "closed" => poke_mcts::search::ChanceMode::ClosedLoop,
+        other => panic!("unknown --chance-mode {other}"),
+    };
     let teams_path = get("--teams", "data/fixture_teams.json");
 
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
@@ -256,8 +264,8 @@ fn main() {
         tournament(&fixture, games, time_ms, max_iters, seed);
         return;
     }
-    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive };
-    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive };
+    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive, chance_mode };
+    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive, chance_mode };
     let nt = fixture.teams.len() as u64;
     let mut score = 0.0f64;
     let (mut w, mut d, mut l) = (0u64, 0u64, 0u64);

@@ -51,10 +51,11 @@ fn main() {
             continue;
         }
 
-        let params = SearchParams { time_ms: 100, max_iters: u64::MAX, ..Default::default() };
+        let open_params = SearchParams { time_ms: 100, max_iters: u64::MAX, ..Default::default() };
+        let closed_params = SearchParams { time_ms: 100, max_iters: u64::MAX, max_nodes: poke_mcts::search::closed_loop_max_nodes(1) };
         let seed = splitmix64(i as u64 ^ 0x5EED);
-        let open = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, seed);
-        let closed = search_world_closed(&state, &teams, &Handcrafted, &params, seed);
+        let open = search_world(&state, &teams, &Handcrafted, &OpenLoop, &open_params, seed);
+        let closed = search_world_closed(&state, &teams, &Handcrafted, &closed_params, seed);
         let (ob, cb) = (best(&open.s1), best(&closed.s1));
         let m = ob.action == cb.action;
         let dv = (ob.avg_score - cb.avg_score).abs();

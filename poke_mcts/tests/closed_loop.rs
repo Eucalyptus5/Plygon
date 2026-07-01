@@ -1,4 +1,7 @@
+use poke_mcts::belief::Belief;
 use poke_mcts::chance::OpenLoop;
+use poke_mcts::determinize::{Observation, RandomBattle};
+use poke_mcts::driver::{choose_action, PimcConfig};
 use poke_mcts::eval::Handcrafted;
 use poke_mcts::node::CNode;
 use poke_mcts::search::{closed_loop_max_nodes, search_world, ChanceMode, SearchParams};
@@ -44,4 +47,25 @@ fn cnode_owns_state_and_builds_bandits() {
     assert_eq!(n.state.phase, PHASE_ACTIONS);
     assert!(!n.s1.is_empty() && !n.s2.is_empty());
     assert_eq!(n.visits, 0);
+}
+
+#[test]
+fn driver_runs_both_modes_and_is_reproducible() {
+    let (s, t) = build_state(
+        vec![mon(25, 9, [85, 150, 0, 0]), mon(143, 47, [34, 0, 0, 0])],
+        vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+    );
+    let mut belief = Belief::default();
+    belief.note_species(445, s.sides[1].team[0].level);
+    let obs = Observation { state: &s, our_side: 0, teams: &t };
+    for mode in [ChanceMode::OpenLoop, ChanceMode::ClosedLoop] {
+        let cfg = PimcConfig {
+            num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 1500,
+            seed: 9, chance_mode: mode,
+        };
+        let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
+        let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
+        assert_eq!(a, b, "{mode:?} not reproducible under seed");
+        assert!(legal_actions(&s, 0).as_slice().contains(&a));
+    }
 }
