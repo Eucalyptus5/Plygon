@@ -8,6 +8,44 @@ use std::time::Instant;
 
 const K_SAMPLES: u32 = 12;
 
+const HP_BANDS: u16 = 16; // band width ~6.25% max-HP; keeps within-band eval drift small (spec §6)
+
+#[inline]
+pub fn hp_band(cur: u16, max: u16) -> u8 {
+    if max == 0 { return 0; }
+    ((cur as u32 * HP_BANDS as u32) / max as u32).min(HP_BANDS as u32 - 1) as u8
+}
+
+// Strategically-meaningful categorical fingerprint of a state. Two samples with equal
+// Signature merge into one outcome (their exact HP differences are collapsed to a band).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct Signature {
+    phase: u8,
+    alive: [u8; 2],
+    active_species: [u16; 2],
+    active_hp_band: [u8; 2],
+    status: [u8; 2],
+    active_idx: [u8; 2],
+}
+
+pub fn signature(s: &BattleState) -> Signature {
+    let mut sig = Signature {
+        phase: s.phase,
+        alive: [0; 2], active_species: [0; 2], active_hp_band: [0; 2],
+        status: [0; 2], active_idx: [0; 2],
+    };
+    for side in 0..2 {
+        let st = &s.sides[side];
+        sig.alive[side] = (0..6).filter(|&i| st.team[i].species_id != 0 && st.team[i].current_hp > 0).count() as u8;
+        let am = &st.team[st.active_index as usize];
+        sig.active_species[side] = am.species_id;
+        sig.active_hp_band[side] = hp_band(am.current_hp, am.max_hp);
+        sig.status[side] = am.status;
+        sig.active_idx[side] = st.active_index;
+    }
+    sig
+}
+
 struct Outcome { state: BattleState, count: u32, child: u32 }
 struct Edge { outcomes: Vec<Outcome> }
 

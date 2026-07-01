@@ -1,5 +1,6 @@
 use poke_mcts::belief::Belief;
 use poke_mcts::chance::OpenLoop;
+use poke_mcts::chance_closed::signature;
 use poke_mcts::determinize::{Observation, RandomBattle};
 use poke_mcts::driver::{choose_action, PimcConfig};
 use poke_mcts::eval::Handcrafted;
@@ -68,4 +69,20 @@ fn driver_runs_both_modes_and_is_reproducible() {
         assert_eq!(a, b, "{mode:?} not reproducible under seed");
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
     }
+}
+
+#[test]
+fn signature_merges_damage_rolls_but_splits_ko() {
+    // Two states identical except a small HP delta within one band => same signature.
+    let (mut a, _t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 0, 0, 0]));
+    let mut b = a;
+    let max = a.sides[1].team[0].max_hp;
+    a.sides[1].team[0].current_hp = max;            // 100%
+    b.sides[1].team[0].current_hp = max - max / 50; // ~98%, same band
+    assert_eq!(signature(&a), signature(&b), "small HP delta must merge");
+
+    // A KO (alive-count change) must NOT merge with a survivor.
+    let mut k = a;
+    k.sides[1].team[0].current_hp = 0;
+    assert_ne!(signature(&a), signature(&k), "KO must split");
 }
