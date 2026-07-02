@@ -8,6 +8,14 @@ use std::time::Instant;
 
 const K_SAMPLES: u32 = 12;
 
+// Incremental count-weighted mean HP for a merged outcome (spec §4.2b): the representative's
+// HP becomes the band centroid, not an arbitrary frozen draw (which would be a per-visit bias).
+#[inline]
+pub fn merge_centroid_hp(existing_hp: u16, existing_count: u32, new_hp: u16) -> u16 {
+    let total = existing_hp as u64 * existing_count as u64 + new_hp as u64;
+    (total / (existing_count as u64 + 1)) as u16
+}
+
 const HP_BANDS: u16 = 16; // band width ~6.25% max-HP; keeps within-band eval drift small (spec §6)
 
 #[inline]

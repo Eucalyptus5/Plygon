@@ -1,5 +1,6 @@
 use poke_mcts::belief::Belief;
 use poke_mcts::chance::OpenLoop;
+use poke_mcts::chance_closed::merge_centroid_hp;
 use poke_mcts::chance_closed::signature;
 use poke_mcts::determinize::{Observation, RandomBattle};
 use poke_mcts::driver::{choose_action, PimcConfig};
@@ -85,4 +86,11 @@ fn signature_merges_damage_rolls_but_splits_ko() {
     let mut k = a;
     k.sides[1].team[0].current_hp = 0;
     assert_ne!(signature(&a), signature(&k), "KO must split");
+}
+
+#[test]
+fn centroid_is_count_weighted_mean() {
+    // existing outcome: HP=80 over count=3; new sample HP=100 => mean = (80*3+100)/4 = 85
+    assert_eq!(merge_centroid_hp(80, 3, 100), 85);
+    assert_eq!(merge_centroid_hp(50, 1, 50), 50);
 }
