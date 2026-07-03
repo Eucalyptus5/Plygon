@@ -6,7 +6,7 @@ use poke_mcts::rng::{splitmix64, Lcg};
 use poke_mcts::search::{search_world, SearchParams};
 use pkmn_engine::state::*;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Kind { Random, Greedy, Mcts, Pimc }
 
 fn parse_kind(s: &str) -> Kind {
@@ -235,6 +235,33 @@ fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed:
     for (pct, name) in avg { println!("  {:<14} {:.1}%", name, pct); }
 }
 
+// Paired CRN head-to-head: each (team-pair, game-seed) played TWICE, swapping which entrant
+// sits side 0. A-A null swaps the side-0 TEAM on the second seating so seat/team-order bias surfaces.
+fn head_to_head(fixture: &Fixture, a: Entrant, b: Entrant, games: u64, seed: u64) {
+    let nt = fixture.teams.len() as u64;
+    let (mut a_w, mut b_w, mut draws, mut n) = (0u64, 0u64, 0u64, 0u64);
+    for g in 0..games {
+        let gs = seed ^ splitmix64(g);
+        let (ta, tb) = ((splitmix64(gs) % nt) as usize, (splitmix64(gs ^ 0xF00D) % nt) as usize);
+        let v_a0 = play(a, b, &fixture.teams[ta], &fixture.teams[tb], gs);
+        let (tb0, tb1) = if a.kind == b.kind && a.chance_mode == b.chance_mode { (tb, ta) } else { (ta, tb) };
+        let v_b0 = play(b, a, &fixture.teams[tb0], &fixture.teams[tb1], gs);
+        for a_val in [v_a0, 1.0 - v_b0] {
+            if a_val > 0.6 { a_w += 1 } else if a_val < 0.4 { b_w += 1 } else { draws += 1 }
+            n += 1;
+        }
+    }
+    let decisive = (a_w + b_w) as f64;
+    let phat = if decisive > 0.0 { a_w as f64 / decisive } else { 0.5 };
+    let se = if decisive > 0.0 { (phat * (1.0 - phat) / decisive).sqrt() } else { 0.0 };
+    let (lo, hi) = (phat - 1.96 * se, phat + 1.96 * se);
+    let z = if se > 0.0 { (phat - 0.5) / se } else { 0.0 };
+    println!("head-to-head A={:?}/{:?} B={:?}/{:?}: n={} A_w={} B_w={} draws={}",
+        a.kind, a.chance_mode, b.kind, b.chance_mode, n, a_w, b_w, draws);
+    println!("  A win-rate (decisive) = {:.3}  95% CI [{:.3}, {:.3}]  z = {:.2}  significant = {}",
+        phat, lo, hi, z, lo > 0.5 || hi < 0.5);
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let get = |flag: &str, default: &str| -> String {
@@ -262,6 +289,16 @@ fn main() {
     }
     if args.iter().any(|a| a == "--tournament") {
         tournament(&fixture, games, time_ms, max_iters, seed);
+        return;
+    }
+    if args.iter().any(|a| a == "--head-to-head") {
+        let mk = |cm| Entrant { kind: Kind::Pimc, time_ms, worlds, max_iters, adaptive: false, chance_mode: cm };
+        let closed = mk(poke_mcts::search::ChanceMode::ClosedLoop);
+        let open = mk(poke_mcts::search::ChanceMode::OpenLoop);
+        println!("== closed vs open ==");
+        head_to_head(&fixture, closed, open, games, seed);
+        println!("== A-A null: open vs open =="); head_to_head(&fixture, open, open, games, seed);
+        println!("== A-A null: closed vs closed =="); head_to_head(&fixture, closed, closed, games, seed);
         return;
     }
     let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive, chance_mode };
