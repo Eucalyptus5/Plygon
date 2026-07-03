@@ -4,9 +4,14 @@ use crate::rng::Lcg;
 use crate::search::{arm0, harvest_bandits, leaf, pick, SearchParams, SearchResult};
 use pkmn_engine::state::*;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 const K_SAMPLES: u32 = 12;
+
+const PER_EDGE_CAP: usize = 16;
+static MAX_OUTCOMES_PER_EDGE: AtomicU32 = AtomicU32::new(0);
+pub fn last_max_outcomes_per_edge() -> u32 { MAX_OUTCOMES_PER_EDGE.load(Ordering::Relaxed) }
 
 // Incremental count-weighted mean HP for a merged outcome (spec §4.2b): the representative's
 // HP becomes the band centroid, not an arbitrary frozen draw (which would be a per-visit bias).
@@ -54,7 +59,7 @@ pub fn signature(s: &BattleState) -> Signature {
     sig
 }
 
-struct Outcome { state: BattleState, count: u32, child: u32 }
+struct Outcome { sig: Signature, state: BattleState, count: u32, child: u32 }
 struct Edge { outcomes: Vec<Outcome> }
 
 pub fn search_world_closed(
@@ -98,11 +103,25 @@ pub fn search_world_closed(
                             execute_switch_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
                         _ => {}
                     }
-                    match outcomes.iter_mut().find(|o| o.state == s) {
-                        Some(o) => o.count += 1,
-                        None => outcomes.push(Outcome { state: s, count: 1, child: NO_CHILD }),
+                    let sg = signature(&s);
+                    match outcomes.iter().position(|o| o.sig == sg) {
+                        Some(i) => {
+                            let o = &mut outcomes[i];
+                            for side in 0..2 {
+                                let ai = o.state.sides[side].active_index as usize;
+                                let nh = s.sides[side].team[ai].current_hp;
+                                let ch = merge_centroid_hp(o.state.sides[side].team[ai].current_hp, o.count, nh);
+                                o.state.sides[side].team[ai].current_hp = ch;
+                            }
+                            o.count += 1;
+                        }
+                        None if outcomes.len() < PER_EDGE_CAP =>
+                            outcomes.push(Outcome { sig: sg, state: s, count: 1, child: NO_CHILD }),
+                        None => {} // cap hit: discard the over-cap sample (no count increment)
                     }
                 }
+                let n = outcomes.len() as u32;
+                MAX_OUTCOMES_PER_EDGE.fetch_max(n, Ordering::Relaxed);
                 Edge { outcomes }
             });
             // weighted re-sample among persistent outcomes

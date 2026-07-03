@@ -1,7 +1,6 @@
 use poke_mcts::belief::Belief;
 use poke_mcts::chance::OpenLoop;
-use poke_mcts::chance_closed::merge_centroid_hp;
-use poke_mcts::chance_closed::signature;
+use poke_mcts::chance_closed::{last_max_outcomes_per_edge, merge_centroid_hp, search_world_closed, signature};
 use poke_mcts::determinize::{Observation, RandomBattle};
 use poke_mcts::driver::{choose_action, PimcConfig};
 use poke_mcts::eval::Handcrafted;
@@ -93,4 +92,19 @@ fn centroid_is_count_weighted_mean() {
     // existing outcome: HP=80 over count=3; new sample HP=100 => mean = (80*3+100)/4 = 85
     assert_eq!(merge_centroid_hp(80, 3, 100), 85);
     assert_eq!(merge_centroid_hp(50, 1, 50), 50);
+}
+
+#[test]
+fn closed_loop_outcomes_per_edge_are_bounded() {
+    // A damaging-move position with crit + damage-roll spread: K_SAMPLES=12 exact draws produce
+    // many distinct full-state HP outcomes; signature/band dedup must collapse same-band rolls.
+    let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 58, 0, 0]));
+    let p = SearchParams { time_ms: 600_000, max_iters: 3000,
+        max_nodes: closed_loop_max_nodes(1), ..Default::default() };
+    let _ = search_world_closed(&s, &t, &Handcrafted, &p, 7);
+    let n = last_max_outcomes_per_edge();
+    assert!(n >= 1, "no outcomes recorded");
+    // Exact dedup over 12 draws on this damaging edge gives >6 distinct HP states; band-centroid
+    // signature dedup must collapse them to a handful of strategically-distinct buckets.
+    assert!(n <= 6, "signature dedup failed to collapse damage rolls: {} (exact would give up to {})", n, 12);
 }
