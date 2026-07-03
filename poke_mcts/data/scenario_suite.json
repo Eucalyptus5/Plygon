@@ -1,0 +1,13 @@
+{
+  "cases": [
+    {
+      "name": "guaranteed-OHKO-bolt-vs-1hp-gyarados",
+      "source": "hand-analysis",
+      "justification": "Gyarados (4x weak to Electric) at 1 HP; Thunderbolt (slot 0) always KOs, Splash (slot 1) never does. Levels/abilities/EVs pinned so the OHKO is deterministic.",
+      "side0": {"species": 25, "level": 50, "ability": 9, "item": 0, "moves": [85, 150, 0, 0], "evs": [85,85,85,85,85,85]},
+      "side1": {"species": 130, "level": 50, "ability": 22, "item": 0, "moves": [58, 0, 0, 0], "evs": [85,85,85,85,85,85]},
+      "overrides": {"side1_active_hp": 1},
+      "correct_action": 0
+    }
+  ]
+}
