@@ -108,3 +108,25 @@ fn closed_loop_outcomes_per_edge_are_bounded() {
     // signature dedup must collapse them to a handful of strategically-distinct buckets.
     assert!(n <= 6, "signature dedup failed to collapse damage rolls: {} (exact would give up to {})", n, 12);
 }
+
+#[test]
+fn closed_loop_reproducible_under_finite_iters() {
+    let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 58, 0, 0]));
+    let p = SearchParams { time_ms: 10_000, max_iters: 4000,
+        max_nodes: closed_loop_max_nodes(1), ..Default::default() };
+    let a = search_world_closed(&s, &t, &Handcrafted, &p, 7);
+    let b = search_world_closed(&s, &t, &Handcrafted, &p, 7);
+    let ga: Vec<(u8, u32, f64)> = a.s1.iter().map(|x| (x.action, x.visits, x.avg_score)).collect();
+    let gb: Vec<(u8, u32, f64)> = b.s1.iter().map(|x| (x.action, x.visits, x.avg_score)).collect();
+    assert_eq!(ga, gb, "closed-loop not bit-reproducible under finite max_iters + fixed seed");
+    assert_eq!(a.iterations, b.iterations);
+}
+
+#[test]
+fn closed_loop_depth_sum_is_nonzero() {
+    let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 58, 0, 0]));
+    let p = SearchParams { time_ms: 600_000, max_iters: 3000,
+        max_nodes: closed_loop_max_nodes(1), ..Default::default() };
+    let r = search_world_closed(&s, &t, &Handcrafted, &p, 7);
+    assert!(r.depth_sum > 0, "closed-loop depth instrument still reports 0");
+}

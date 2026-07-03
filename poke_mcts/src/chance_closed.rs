@@ -70,6 +70,7 @@ pub fn search_world_closed(
     seed: u64,
 ) -> SearchResult {
     let mut rng = Lcg::new(seed);
+    MAX_OUTCOMES_PER_EDGE.store(0, Ordering::Relaxed);
     let mut tree: Vec<CNode> = vec![CNode::from_state(root_state)];
     let mut edges: HashMap<(u32, u16), Edge> = HashMap::new();
     if root_state.is_game_over() || (tree[0].s1.is_empty() && tree[0].s2.is_empty()) {
@@ -78,6 +79,7 @@ pub fn search_world_closed(
     let root_eval = evaluator.eval(root_state);
     let start = Instant::now();
     let mut iters = 0u64;
+    let mut depth_sum = 0u64;
     let mut path: Vec<(usize, u8, u8)> = Vec::with_capacity(64);
 
     while iters < params.max_iters {
@@ -152,7 +154,8 @@ pub fn search_world_closed(
             if a1 != 255 { let a = &mut node.s1.arms[a1 as usize]; a.visits += 1; a.total_score += value; }
             if a2 != 255 { let a = &mut node.s2.arms[a2 as usize]; a.visits += 1; a.total_score += 1.0 - value; }
         }
+        depth_sum += path.len() as u64;
         iters += 1;
     }
-    harvest_bandits(&tree[0].s1, &tree[0].s2, iters, 0, 0)
+    harvest_bandits(&tree[0].s1, &tree[0].s2, iters, 0, depth_sum)
 }
