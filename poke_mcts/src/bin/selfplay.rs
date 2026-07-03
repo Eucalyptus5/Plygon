@@ -21,6 +21,9 @@ struct Entrant {
     max_iters: u64,
     adaptive: bool,
     chance_mode: poke_mcts::search::ChanceMode,
+    pick_mode: poke_mcts::driver::PickMode,
+    filter_threshold: f64,
+    raw_root: bool,
 }
 
 fn mcts_choose(state: &BattleState, teams: &TeamData, side: usize, time_ms: u64, seed: u64) -> u8 {
@@ -58,6 +61,7 @@ fn choose(e: Entrant, state: &BattleState, teams: &TeamData, side: usize, rng: &
             let cfg = poke_mcts::driver::PimcConfig {
                 num_worlds, time_ms_per_world, max_iters_per_world: e.max_iters, seed,
                 chance_mode: e.chance_mode,
+                pick_mode: e.pick_mode, filter_threshold: e.filter_threshold, raw_root: e.raw_root,
             };
             poke_mcts::driver::choose_action(&obs, &beliefs[side], &poke_mcts::determinize::RandomBattle, &cfg)
         }
@@ -167,6 +171,7 @@ fn bench(fixture: &Fixture) {
         let cfg = poke_mcts::driver::PimcConfig {
             num_worlds: 16, time_ms_per_world: 100, max_iters_per_world: u64::MAX, seed,
             chance_mode: poke_mcts::search::ChanceMode::OpenLoop,
+            pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false,
         };
         let t0 = std::time::Instant::now();
         let _ = poke_mcts::driver::choose_action(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg);
@@ -177,7 +182,7 @@ fn bench(fixture: &Fixture) {
 }
 
 fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed: u64) {
-    let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false, chance_mode: poke_mcts::search::ChanceMode::OpenLoop };
+    let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false, chance_mode: poke_mcts::search::ChanceMode::OpenLoop, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
     let entrants: [(&str, Entrant); 5] = [
         ("random", Entrant { kind: Kind::Random, ..base }),
         ("greedy", Entrant { kind: Kind::Greedy, ..base }),
@@ -280,6 +285,13 @@ fn main() {
         "closed" => poke_mcts::search::ChanceMode::ClosedLoop,
         other => panic!("unknown --chance-mode {other}"),
     };
+    let pick_mode = match get("--pick-mode", "weighted").as_str() {
+        "weighted" => poke_mcts::driver::PickMode::Weighted,
+        "argmax" => poke_mcts::driver::PickMode::Argmax,
+        other => panic!("unknown --pick-mode {other}"),
+    };
+    let filter_threshold = if get("--filter-relax", "off") == "on" { 0.0 } else { 0.75 };
+    let raw_root = args.iter().any(|a| a == "--raw-root");
     let teams_path = get("--teams", "data/fixture_teams.json");
 
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
@@ -292,7 +304,8 @@ fn main() {
         return;
     }
     if args.iter().any(|a| a == "--head-to-head") {
-        let mk = |cm| Entrant { kind: Kind::Pimc, time_ms, worlds, max_iters, adaptive: false, chance_mode: cm };
+        let w = if raw_root { 1 } else { worlds };
+        let mk = |cm| Entrant { kind: Kind::Pimc, time_ms, worlds: w, max_iters, adaptive: false, chance_mode: cm, pick_mode, filter_threshold, raw_root };
         let closed = mk(poke_mcts::search::ChanceMode::ClosedLoop);
         let open = mk(poke_mcts::search::ChanceMode::OpenLoop);
         println!("== closed vs open ==");
@@ -301,8 +314,8 @@ fn main() {
         println!("== A-A null: closed vs closed =="); head_to_head(&fixture, closed, closed, games, seed);
         return;
     }
-    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive, chance_mode };
-    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive, chance_mode };
+    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive, chance_mode, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
+    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive, chance_mode, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
     let nt = fixture.teams.len() as u64;
     let mut score = 0.0f64;
     let (mut w, mut d, mut l) = (0u64, 0u64, 0u64);

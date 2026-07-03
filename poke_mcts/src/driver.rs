@@ -8,6 +8,9 @@ use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, Se
 use pkmn_engine::state::*;
 use rayon::prelude::*;
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum PickMode { #[default] Weighted, Argmax }
+
 pub struct PimcConfig {
     pub num_worlds: usize,
     pub time_ms_per_world: u64,
@@ -15,6 +18,9 @@ pub struct PimcConfig {
     pub max_iters_per_world: u64,
     pub seed: u64,
     pub chance_mode: ChanceMode,
+    pub pick_mode: PickMode,
+    pub filter_threshold: f64,
+    pub raw_root: bool,
 }
 
 /// (action_byte, aggregated visit fraction), sorted desc — exposed for tests/logging.
@@ -32,15 +38,16 @@ pub fn aggregate(per_world: &[(Vec<ArmStat>, f64)]) -> Vec<(u8, f64)> {
     v
 }
 
-pub fn pick_from(aggregated: &[(u8, f64)], legal: &ActionList, rng: &mut Lcg) -> u8 {
+pub fn pick_from(aggregated: &[(u8, f64)], legal: &ActionList, rng: &mut Lcg, pick_mode: PickMode, filter_threshold: f64) -> u8 {
     let legal_slice = legal.as_slice();
     let survivors: Vec<(u8, f64)> = {
         let best = aggregated.iter().filter(|(a, _)| legal_slice.contains(a)).map(|x| x.1).fold(0.0, f64::max);
         aggregated.iter()
-            .filter(|(a, f)| legal_slice.contains(a) && *f >= 0.75 * best)
+            .filter(|(a, f)| legal_slice.contains(a) && *f >= filter_threshold * best)
             .cloned().collect()
     };
     if survivors.is_empty() { return legal_slice.first().copied().unwrap_or(ACTION_STRUGGLE); }
+    if pick_mode == PickMode::Argmax { return survivors[0].0; }
     // weighted-random among survivors, integer arithmetic over the rng seam
     let scale = 1_000_000.0;
     let total: u64 = survivors.iter().map(|(_, f)| (f * scale) as u64 + 1).sum();
@@ -91,8 +98,15 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
         };
         (r.side(obs.our_side).to_vec(), w.weight)
     }).collect();
+    if cfg.raw_root && cfg.num_worlds == 1 {
+        // un-aggregated: return the single world's root best-arm (max visits) directly
+        let (stats, _w) = &per_world[0];
+        if let Some(best) = stats.iter().max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action))) {
+            return best.action;
+        }
+    }
     let agg = aggregate(&per_world);
-    pick_from(&agg, &legal, &mut rng)
+    pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold)
 }
 
 #[cfg(test)]
@@ -134,7 +148,7 @@ mod tests {
         let agg = vec![(4u8, 0.45), (0u8, 0.40), (1u8, 0.15), (9u8, 0.44)];
         let mut rng = Lcg::new(1);
         let mut seen = std::collections::HashSet::new();
-        for _ in 0..200 { seen.insert(pick_from(&agg, &legal, &mut rng)); }
+        for _ in 0..200 { seen.insert(pick_from(&agg, &legal, &mut rng, PickMode::Weighted, 0.75)); }
         assert!(seen.contains(&4) && seen.contains(&0), "both >=75%-of-best survivors picked sometimes");
         assert!(!seen.contains(&1), "0.15 < 0.75*0.45 filtered");
         assert!(!seen.contains(&9), "illegal byte masked even with high fraction");
@@ -150,7 +164,7 @@ mod tests {
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
         // Iteration-bounded; the clock is only a safety ceiling.
-        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
@@ -166,7 +180,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop };
+        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert_eq!(a, b, "par_iter order preserved -> same seed -> same choice");
