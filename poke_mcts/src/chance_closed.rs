@@ -3,7 +3,7 @@ use crate::node::{child_key, CNode, NO_CHILD};
 use crate::rng::Lcg;
 use crate::search::{arm0, harvest_bandits, leaf, pick, SearchParams, SearchResult};
 use pkmn_engine::state::*;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
@@ -72,7 +72,7 @@ pub fn search_world_closed(
     let mut rng = Lcg::new(seed);
     MAX_OUTCOMES_PER_EDGE.store(0, Ordering::Relaxed);
     let mut tree: Vec<CNode> = vec![CNode::from_state(root_state)];
-    let mut edges: HashMap<(u32, u16), Edge> = HashMap::new();
+    let mut edges: FxHashMap<(u32, u16), Edge> = FxHashMap::default();
     if root_state.is_game_over() || (tree[0].s1.is_empty() && tree[0].s2.is_empty()) {
         return harvest_bandits(&tree[0].s1, &tree[0].s2, 0, 0, 0);
     }
