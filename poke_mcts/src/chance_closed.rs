@@ -10,6 +10,15 @@ use std::time::Instant;
 const K_SAMPLES: u32 = 12;
 
 const PER_EDGE_CAP: usize = 16;
+
+const WIDEN_C: f64 = 1.0;
+const WIDEN_ALPHA: f64 = 0.5;
+
+#[inline]
+pub fn should_widen(edge_visits: u32, current_outcomes: usize) -> bool {
+    let target = (WIDEN_C * (edge_visits as f64).powf(WIDEN_ALPHA)).ceil() as usize;
+    current_outcomes < target.max(1).min(PER_EDGE_CAP)
+}
 static MAX_OUTCOMES_PER_EDGE: AtomicU32 = AtomicU32::new(0);
 pub fn last_max_outcomes_per_edge() -> u32 { MAX_OUTCOMES_PER_EDGE.load(Ordering::Relaxed) }
 

@@ -1,6 +1,6 @@
 use poke_mcts::belief::Belief;
 use poke_mcts::chance::OpenLoop;
-use poke_mcts::chance_closed::{last_max_outcomes_per_edge, merge_centroid_hp, search_world_closed, signature};
+use poke_mcts::chance_closed::{last_max_outcomes_per_edge, merge_centroid_hp, search_world_closed, should_widen, signature};
 use poke_mcts::determinize::{Observation, RandomBattle};
 use poke_mcts::driver::{choose_action, PimcConfig};
 use poke_mcts::eval::Handcrafted;
@@ -130,4 +130,15 @@ fn closed_loop_depth_sum_is_nonzero() {
         max_nodes: closed_loop_max_nodes(1), ..Default::default() };
     let r = search_world_closed(&s, &t, &Handcrafted, &p, 7);
     assert!(r.depth_sum > 0, "closed-loop depth instrument still reports 0");
+}
+
+#[test]
+fn widening_schedule_is_sqrt_like_and_monotone() {
+    // ceil(C*n^alpha) with C=1, alpha=0.5: target outcomes grows ~sqrt(visits).
+    // should_widen(visits, current_outcomes) is true exactly when current < target.
+    assert!(should_widen(0, 0));        // first visit: want 1 outcome
+    assert!(!should_widen(1, 1));       // have 1, target 1
+    assert!(should_widen(4, 1));        // target ceil(sqrt(4))=2 > 1
+    assert!(!should_widen(4, 2));
+    assert!(should_widen(100, 9));      // target 10 > 9
 }
