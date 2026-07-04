@@ -18,7 +18,10 @@ fn best(arms: &[ArmStat]) -> &ArmStat {
 struct MonSpec { species: u16, level: u8, ability: u16, item: u16, moves: [u16;4],
     #[serde(default)] evs: [u8;6] }
 #[derive(serde::Deserialize, Default)]
-struct Overrides { #[serde(default)] side1_active_hp: Option<u16> }
+struct Overrides {
+    #[serde(default)] side1_active_hp: Option<u16>,
+    #[serde(default)] side0_active_hp: Option<u16>,
+}
 #[derive(serde::Deserialize)]
 struct SuiteCase {
     name: String, source: String,
@@ -55,6 +58,10 @@ fn build_case(c: &SuiteCase) -> (BattleState, TeamData) {
     if let Some(hp) = c.overrides.side1_active_hp {
         let ai = state.sides[1].active_index as usize;
         state.sides[1].team[ai].current_hp = hp; // active HP lives in team[active_index]; apply after switch_in
+    }
+    if let Some(hp) = c.overrides.side0_active_hp {
+        let ai = state.sides[0].active_index as usize;
+        state.sides[0].team[ai].current_hp = hp; // active HP lives in team[active_index]; apply after switch_in
     }
     (state, teams)
 }
