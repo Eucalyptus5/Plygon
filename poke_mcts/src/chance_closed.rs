@@ -7,8 +7,6 @@ use rustc_hash::FxHashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
-const K_SAMPLES: u32 = 12;
-
 const PER_EDGE_CAP: usize = 16;
 
 const WIDEN_C: f64 = 1.0;
@@ -69,7 +67,27 @@ pub fn signature(s: &BattleState) -> Signature {
 }
 
 struct Outcome { sig: Signature, state: BattleState, count: u32, child: u32 }
-struct Edge { outcomes: Vec<Outcome> }
+struct Edge { outcomes: Vec<Outcome>, visits: u32 }
+
+fn merge_or_push(outcomes: &mut Vec<Outcome>, s: BattleState) {
+    let sg = signature(&s);
+    match outcomes.iter().position(|o| o.sig == sg) {
+        Some(i) => {
+            let o = &mut outcomes[i];
+            for side in 0..2 {
+                let ai = o.state.sides[side].active_index as usize;
+                let nh = s.sides[side].team[ai].current_hp;
+                let ch = merge_centroid_hp(o.state.sides[side].team[ai].current_hp, o.count, nh);
+                o.state.sides[side].team[ai].current_hp = ch;
+            }
+            o.count += 1;
+        }
+        None if outcomes.len() < PER_EDGE_CAP =>
+            outcomes.push(Outcome { sig: sg, state: s, count: 1, child: NO_CHILD }),
+        None => {} // cap hit: discard the over-cap sample (no count increment)
+    }
+    MAX_OUTCOMES_PER_EDGE.fetch_max(outcomes.len() as u32, Ordering::Relaxed);
+}
 
 pub fn search_world_closed(
     root_state: &BattleState,
@@ -104,37 +122,30 @@ pub fn search_world_closed(
             let key = (idx as u32, child_key(arm0(a1), arm0(a2)) as u16);
             path.push((idx, a1, a2));
             let edge = edges.entry(key).or_insert_with(|| {
-                // first visit: empirically enumerate K sampled futures
+                // first visit: seed one sampled outcome; visits widen it up
                 let mut outcomes: Vec<Outcome> = Vec::new();
-                for _ in 0..K_SAMPLES {
-                    let mut s = tree[idx].state;
-                    match s.phase {
-                        PHASE_ACTIONS => execute_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
-                        PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH =>
-                            execute_switch_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
-                        _ => {}
-                    }
-                    let sg = signature(&s);
-                    match outcomes.iter().position(|o| o.sig == sg) {
-                        Some(i) => {
-                            let o = &mut outcomes[i];
-                            for side in 0..2 {
-                                let ai = o.state.sides[side].active_index as usize;
-                                let nh = s.sides[side].team[ai].current_hp;
-                                let ch = merge_centroid_hp(o.state.sides[side].team[ai].current_hp, o.count, nh);
-                                o.state.sides[side].team[ai].current_hp = ch;
-                            }
-                            o.count += 1;
-                        }
-                        None if outcomes.len() < PER_EDGE_CAP =>
-                            outcomes.push(Outcome { sig: sg, state: s, count: 1, child: NO_CHILD }),
-                        None => {} // cap hit: discard the over-cap sample (no count increment)
-                    }
+                let mut s = tree[idx].state;
+                match s.phase {
+                    PHASE_ACTIONS => execute_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
+                    PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH =>
+                        execute_switch_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
+                    _ => {}
                 }
-                let n = outcomes.len() as u32;
-                MAX_OUTCOMES_PER_EDGE.fetch_max(n, Ordering::Relaxed);
-                Edge { outcomes }
+                merge_or_push(&mut outcomes, s);
+                Edge { outcomes, visits: 0 }
             });
+            edge.visits += 1;
+            if should_widen(edge.visits, edge.outcomes.len()) {
+                // hot edges resolve fine chance structure: take a fresh deduped draw
+                let mut s = tree[idx].state;
+                match s.phase {
+                    PHASE_ACTIONS => execute_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
+                    PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH =>
+                        execute_switch_turn(&mut s, teams, b1, b2, &mut |m| rng.roll(m)),
+                    _ => {}
+                }
+                merge_or_push(&mut edge.outcomes, s);
+            }
             // weighted re-sample among persistent outcomes
             let total: u32 = edge.outcomes.iter().map(|o| o.count).sum();
             let mut r = rng.roll(total);

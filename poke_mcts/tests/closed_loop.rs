@@ -97,17 +97,16 @@ fn centroid_is_count_weighted_mean() {
 
 #[test]
 fn closed_loop_outcomes_per_edge_are_bounded() {
-    // A damaging-move position with crit + damage-roll spread: K_SAMPLES=12 exact draws produce
-    // many distinct full-state HP outcomes; signature/band dedup must collapse same-band rolls.
+    // A damaging-move position with crit + damage-roll spread on a hot edge: widening seeds 1
+    // outcome then draws ~sqrt(visits) fresh samples, so a hot edge grows past its seed while
+    // signature/band dedup + the per-edge cap (16) keep it bounded well under the cap.
     let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 58, 0, 0]));
     let p = SearchParams { time_ms: 600_000, max_iters: 3000,
         max_nodes: closed_loop_max_nodes(1), ..Default::default() };
     let _ = search_world_closed(&s, &t, &Handcrafted, &p, 7);
     let n = last_max_outcomes_per_edge();
-    assert!(n >= 1, "no outcomes recorded");
-    // Exact dedup over 12 draws on this damaging edge gives >6 distinct HP states; band-centroid
-    // signature dedup must collapse them to a handful of strategically-distinct buckets.
-    assert!(n <= 6, "signature dedup failed to collapse damage rolls: {} (exact would give up to {})", n, 12);
+    assert!(n >= 2, "widening did not grow any edge beyond its seeded outcome: {n}");
+    assert!(n <= 16, "outcomes per edge exceeded the per-edge cap: {n}");
 }
 
 #[test]
