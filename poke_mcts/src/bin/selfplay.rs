@@ -162,6 +162,16 @@ fn bench(fixture: &Fixture) {
     println!("mean depth: {:.2}", depths as f64 / total);
     println!("guard-fire %: {:.3}", 100.0 * guards as f64 / total);
 
+    let closed_p = SearchParams { time_ms: 100, max_nodes: poke_mcts::search::closed_loop_max_nodes(1), ..Default::default() };
+    let mut citers: Vec<f64> = Vec::new();
+    for seed in 0..10u64 {
+        let r = poke_mcts::chance_closed::search_world_closed(&state, &teams, &Handcrafted, &closed_p, seed);
+        citers.push(r.iterations as f64);
+    }
+    let (cmin, cmed, cmax) = stats(citers);
+    println!("search_world_closed iters/100ms: min {:.0} / median {:.0} / max {:.0}", cmin, cmed, cmax);
+    println!("closed/open iters ratio (median): {:.2}", cmed / med);
+
     let mut belief = poke_mcts::belief::Belief::default();
     let om = state.active_mon(1);
     belief.note_species(om.species_id, om.level);
