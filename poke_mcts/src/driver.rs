@@ -109,6 +109,80 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
     pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold)
 }
 
+// Diagnostic mirror of `choose_action` that surfaces the internals a live decision hides:
+// per-world effective iterations + determinized opponent, the aggregated root arm table,
+// the 0.75-filter survivors, and the final pick. Additive; production path is untouched.
+#[derive(Clone)]
+pub struct WorldTrace {
+    pub iterations: u64,
+    pub depth_sum: u64,
+    pub guard_hits: u64,
+    pub opp_species: u16,
+    pub opp_item: u16,
+    pub opp_ability: u16,
+    pub opp_hp: u16,
+    pub opp_max_hp: u16,
+    pub opp_status: u8,
+    pub arms: Vec<ArmStat>,
+}
+
+#[derive(Clone)]
+pub struct DecisionTrace {
+    pub per_world: Vec<WorldTrace>,
+    pub aggregate: Vec<(u8, f64)>,
+    pub survivors: Vec<(u8, f64)>,
+    pub legal: Vec<u8>,
+    pub picked: u8,
+}
+
+pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig) -> DecisionTrace {
+    let legal = legal_actions(obs.state, obs.our_side);
+    let legal_vec: Vec<u8> = legal.as_slice().to_vec();
+    if legal.count <= 1 {
+        let picked = if legal.count == 1 { legal.actions[0] } else { ACTION_STRUGGLE };
+        return DecisionTrace { per_world: vec![], aggregate: vec![], survivors: vec![], legal: legal_vec, picked };
+    }
+    let mut rng = Lcg::new(splitmix64(cfg.seed));
+    let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
+    let opp = 1 - obs.our_side;
+    let mut params = SearchParams {
+        time_ms: cfg.time_ms_per_world,
+        max_iters: cfg.max_iters_per_world,
+        ..Default::default()
+    };
+    if cfg.chance_mode == ChanceMode::ClosedLoop {
+        params.max_nodes = closed_loop_max_nodes(cfg.num_worlds);
+    }
+    let traced: Vec<WorldTrace> = worlds.par_iter().enumerate().map(|(k, w)| {
+        let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
+        let r = match cfg.chance_mode {
+            ChanceMode::OpenLoop =>
+                search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed),
+            ChanceMode::ClosedLoop =>
+                search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
+        };
+        let ai = w.state.sides[opp].active_index as usize;
+        let om = &w.state.sides[opp].team[ai];
+        WorldTrace {
+            iterations: r.iterations, depth_sum: r.depth_sum, guard_hits: r.guard_hits,
+            opp_species: om.species_id, opp_item: om.item_id, opp_ability: om.ability_id,
+            opp_hp: om.current_hp, opp_max_hp: om.max_hp, opp_status: om.status,
+            arms: r.side(obs.our_side).to_vec(),
+        }
+    }).collect();
+    let per_world_stats: Vec<(Vec<ArmStat>, f64)> =
+        traced.iter().zip(worlds.iter()).map(|(t, w)| (t.arms.clone(), w.weight)).collect();
+    let agg = aggregate(&per_world_stats);
+    let legal_slice = legal.as_slice();
+    let best = agg.iter().filter(|(a, _)| legal_slice.contains(a)).map(|x| x.1).fold(0.0, f64::max);
+    let survivors: Vec<(u8, f64)> = agg.iter()
+        .filter(|(a, f)| legal_slice.contains(a) && *f >= cfg.filter_threshold * best)
+        .cloned().collect();
+    // same `rng` (post-sample state) as choose_action, so the pick byte is reproduced exactly
+    let picked = pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold);
+    DecisionTrace { per_world: traced, aggregate: agg, survivors, legal: legal_vec, picked }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

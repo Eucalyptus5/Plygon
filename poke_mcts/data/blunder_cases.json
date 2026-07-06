@@ -1,0 +1,58 @@
+{
+  "_comment": "Reconstructed from ladder-20260615-081058.log blunder turns. Levels approximate (~randbats); our-side abilities/items left 0 (neutral for the move-ranking diagnostic). Opp ability/item/bench are determinized by RandomBattle from real randbats sets. our_boosts index order = [Atk,Def,SpA,SpD,Spe,Acc,Eva]. blunder/better_action are move-slot bytes (0-3).",
+  "cases": [
+    {
+      "name": "g04-t25-manaphy-capped-tailglow",
+      "note": "Manaphy already +6 SpA (Tail Glow used t4/t21/t23) keeps using Tail Glow (a no-op at +6) vs Ursaring 33%, instead of Ice Beam/Hydro Pump which KO. blunder=Tail Glow(no-op), better=Ice Beam.",
+      "our": [
+        { "species": 490, "level": 80, "moves": [294, 58, 56, 412] }
+      ],
+      "our_boosts": [0, 0, 6, 0, 0, 0, 0],
+      "opp": { "species": 217, "level": 84, "hp_num": 33, "hp_den": 100, "status": "none", "moves_revealed": [34, 156] },
+      "blunder_action": 0,
+      "better_action": 1
+    },
+    {
+      "name": "g04-CONTROL-manaphy-NO-boost",
+      "note": "CONTROL for state-fidelity hypothesis: same Manaphy/Ursaring position but with NO SpA boost in the state (boosts=0). If Tail Glow now clears the filter / is picked, the live blunder is explained by the +6 boost being ABSENT from the live search state, not by eval/pick.",
+      "our": [
+        { "species": 490, "level": 80, "moves": [294, 58, 56, 412] }
+      ],
+      "opp": { "species": 217, "level": 84, "hp_num": 33, "hp_den": 100, "status": "none", "moves_revealed": [34, 156] },
+      "blunder_action": 0,
+      "better_action": 1
+    },
+    {
+      "name": "g16-t20-granbull-twave-into-par",
+      "note": "Granbull uses Thunder Wave into Slowbro that is ALREADY paralyzed (opp belief shows 'slowbro 69% par'), a guaranteed no-op, instead of Play Rough/Earthquake which deal damage. blunder=Thunder Wave(no-op), better=Play Rough.",
+      "our": [
+        { "species": 210, "level": 84, "moves": [86, 583, 89, 242] }
+      ],
+      "opp": { "species": 80, "level": 84, "hp_num": 69, "hp_den": 100, "status": "par", "moves_revealed": [] },
+      "blunder_action": 0,
+      "better_action": 1
+    },
+    {
+      "name": "g16-t20-granbull-twave-WITH-BENCH",
+      "note": "Same Granbull-into-paralyzed-Slowbro turn but with our real game-16 bench (Kilowattrel, Klawf) so it is not an artificial 1-vs-6. Robustness check for the visit-vs-value pathology.",
+      "our": [
+        { "species": 210, "level": 84, "moves": [86, 583, 89, 242] },
+        { "species": 941, "level": 84, "moves": [435, 542, 355, 369] },
+        { "species": 950, "level": 84, "moves": [152, 667, 14, 89] }
+      ],
+      "opp": { "species": 80, "level": 84, "hp_num": 69, "hp_den": 100, "status": "par", "moves_revealed": [] },
+      "blunder_action": 0,
+      "better_action": 1
+    },
+    {
+      "name": "g14-t20-snorlax-rest-at-full-hp",
+      "note": "Snorlax at FULL HP uses Rest (heals 0, just sleeps itself) vs Minior 33%, instead of Body Slam. blunder=Rest(no-op heal), better=Body Slam.",
+      "our": [
+        { "species": 143, "level": 84, "moves": [156, 34, 174, 89] }
+      ],
+      "opp": { "species": 774, "level": 80, "hp_num": 33, "hp_den": 100, "status": "none", "moves_revealed": [] },
+      "blunder_action": 0,
+      "better_action": 1
+    }
+  ]
+}
