@@ -1,5 +1,6 @@
 use crate::belief::Belief;
 use crate::chance::OpenLoop;
+use crate::chance_analytic::AnalyticRoot;
 use crate::chance_closed::search_world_closed;
 use crate::determinize::{Determinizer, Observation};
 use crate::eval::Handcrafted;
@@ -30,7 +31,11 @@ pub fn aggregate(per_world: &[(Vec<ArmStat>, f64)]) -> Vec<(u8, f64)> {
         let total: u64 = stats.iter().map(|a| a.visits as u64).sum();
         if total == 0 { continue; }
         for a in stats {
-            *frac.entry(a.action).or_insert(0.0) += weight * a.visits as f64 / total as f64;
+            // A solved terminal-KO arm contributes its provable win probability (branch-chance);
+            // every other arm contributes its visit fraction as before. Off the analytic root no
+            // arm is solved (win_chance == 0.0), so this is identical to the visit-fraction rule.
+            let share = if a.win_chance > 0.0 { a.win_chance } else { a.visits as f64 / total as f64 };
+            *frac.entry(a.action).or_insert(0.0) += weight * share;
         }
     }
     let mut v: Vec<(u8, f64)> = frac.into_iter().collect();
@@ -149,6 +154,8 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
                 search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed),
             ChanceMode::ClosedLoop =>
                 search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
+            ChanceMode::AnalyticRoot =>
+                search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed),
         };
         (r.side(obs.our_side).to_vec(), w.weight)
     }).collect();
@@ -217,6 +224,8 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
                 search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed),
             ChanceMode::ClosedLoop =>
                 search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
+            ChanceMode::AnalyticRoot =>
+                search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed),
         };
         let ai = w.state.sides[opp].active_index as usize;
         let om = &w.state.sides[opp].team[ai];
@@ -259,7 +268,7 @@ mod tests {
     }
 
     fn arms(v: &[(u8, u32)]) -> Vec<ArmStat> {
-        v.iter().map(|&(a, n)| ArmStat { action: a, visits: n, avg_score: 0.5 }).collect()
+        v.iter().map(|&(a, n)| ArmStat { action: a, visits: n, avg_score: 0.5, win_chance: 0.0 }).collect()
     }
 
     #[test]
@@ -294,9 +303,9 @@ mod tests {
         // Measured Granbull case: the most-visited arm (byte 0) has the lower avg_score.
         let per_world = vec![(
             vec![
-                ArmStat { action: 0, visits: 620, avg_score: 0.074 },
-                ArmStat { action: 1, visits: 180, avg_score: 0.088 },
-                ArmStat { action: 2, visits: 150, avg_score: 0.025 },
+                ArmStat { action: 0, visits: 620, avg_score: 0.074, win_chance: 0.0 },
+                ArmStat { action: 1, visits: 180, avg_score: 0.088, win_chance: 0.0 },
+                ArmStat { action: 2, visits: 150, avg_score: 0.025, win_chance: 0.0 },
             ],
             1.0f64,
         )];
@@ -315,8 +324,8 @@ mod tests {
         // The no-op (byte 0) is the most-visited arm; the fix (byte 1) is lower-visited.
         let per_world = vec![(
             vec![
-                ArmStat { action: 0, visits: 620, avg_score: 0.074 },
-                ArmStat { action: 1, visits: 180, avg_score: 0.088 },
+                ArmStat { action: 0, visits: 620, avg_score: 0.074, win_chance: 0.0 },
+                ArmStat { action: 1, visits: 180, avg_score: 0.088, win_chance: 0.0 },
             ],
             1.0f64,
         )];

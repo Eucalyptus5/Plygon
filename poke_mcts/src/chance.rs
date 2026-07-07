@@ -1,3 +1,4 @@
+use crate::chance_analytic::RootChildren;
 use pkmn_engine::state::*;
 
 pub trait ChanceModel {
@@ -9,6 +10,19 @@ pub trait ChanceModel {
         a2: u8,
         rng: &mut impl FnMut(u32) -> u32,
     ) -> BattleState;
+
+    // Design-1 analytic root: a weighted multi-outcome child set resolved without dice, used at
+    // idx==0 only. Default None keeps the open-loop path byte-identical (it always descends via
+    // `transition`). AnalyticRoot overrides this for single-hit KO moves.
+    fn analytic_root_children(
+        &self,
+        _parent: &BattleState,
+        _teams: &TeamData,
+        _a1: u8,
+        _a2: u8,
+    ) -> Option<RootChildren> {
+        None
+    }
 }
 
 pub struct OpenLoop;

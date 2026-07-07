@@ -3,6 +3,7 @@ pub mod eval;
 pub mod node;
 pub mod select;
 pub mod chance;
+pub mod chance_analytic;
 pub mod search;
 pub mod policies;
 pub mod fixtures;

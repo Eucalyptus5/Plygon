@@ -1,4 +1,5 @@
 use poke_mcts::chance::OpenLoop;
+use poke_mcts::chance_analytic::AnalyticRoot;
 use poke_mcts::eval::{winner_value, Handcrafted};
 use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
@@ -171,6 +172,22 @@ fn bench(fixture: &Fixture) {
     let (cmin, cmed, cmax) = stats(citers);
     println!("search_world_closed iters/100ms: min {:.0} / median {:.0} / max {:.0}", cmin, cmed, cmax);
     println!("closed/open iters ratio (median): {:.2}", cmed / med);
+
+    // Design-1 analytic root (E2 G3' throughput twin): same search_world, AnalyticRoot model.
+    let mut aiters: Vec<f64> = Vec::new();
+    let (mut aguards, mut adepths) = (0u64, 0u64);
+    for seed in 0..10u64 {
+        let r = search_world(&state, &teams, &Handcrafted, &AnalyticRoot, &params, seed);
+        aiters.push(r.iterations as f64);
+        aguards += r.guard_hits;
+        adepths += r.depth_sum;
+    }
+    let atotal: f64 = aiters.iter().sum();
+    let (amin, amed, amax) = stats(aiters);
+    println!("search_world_analytic iters/100ms: min {:.0} / median {:.0} / max {:.0}", amin, amed, amax);
+    println!("analytic mean depth: {:.2}", adepths as f64 / atotal);
+    println!("analytic guard-fire %: {:.3}", 100.0 * aguards as f64 / atotal);
+    println!("analytic/open iters ratio (median): {:.2}", amed / med);
 
     let mut belief = poke_mcts::belief::Belief::default();
     let om = state.active_mon(1);

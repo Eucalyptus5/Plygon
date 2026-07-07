@@ -23,6 +23,7 @@ pub enum ChanceMode {
     #[default]
     OpenLoop,
     ClosedLoop,
+    AnalyticRoot,
 }
 
 // Closed-loop nodes own a BattleState + outcome states (~1.1KB/node amortized); peak RAM is
@@ -37,7 +38,15 @@ pub fn closed_loop_max_nodes(num_worlds: usize) -> u32 {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct ArmStat { pub action: u8, pub visits: u32, pub avg_score: f64 }
+pub struct ArmStat {
+    pub action: u8,
+    pub visits: u32,
+    pub avg_score: f64,
+    // Provable terminal-win branch-chance for this root arm under the analytic root (0.0 = not
+    // solved). The final-selection statistic reads this instead of the post-termination visit
+    // count, which collapses once a KO child is solved. Always 0.0 off the analytic root path.
+    pub win_chance: f64,
+}
 
 #[derive(Clone, Default)]
 pub struct SearchResult {
@@ -75,6 +84,9 @@ pub fn search_world(
     let mut guard_hits: u64 = 0;
     let mut depth_sum: u64 = 0;
     let mut path: Vec<PathStep> = Vec::with_capacity(64);
+    // Per-root-arm provable terminal-win branch-chance (analytic root only; stays 0.0 otherwise).
+    let mut win_s1 = [0.0f64; 10];
+    let mut win_s2 = [0.0f64; 10];
 
     'outer: while iters < params.max_iters {
         // clock check batched to amortize the read (design §5.6)
@@ -101,7 +113,32 @@ pub fn search_world(
                 value = leaf(&cur, evaluator, root_eval);
                 break;
             }
-            cur = chance.transition(&cur, teams, b1, b2, &mut |m| rng.roll(m));
+            // Design 1 (05 §2): at the root only, descend one analytic weighted child (KO-split)
+            // instead of a single live dice sample. Off-root and the non-single-hit fallback keep
+            // the open-loop `transition`. OpenLoop returns None here, so its path is unchanged.
+            cur = if idx == 0 {
+                if let Some(children) = chance.analytic_root_children(&cur, teams, b1, b2) {
+                    // The KO child (children[0]) carries branch-chance children[0].0. When it is a
+                    // terminal win, record that probability against the WINNING side's root arm so
+                    // the final pick credits a solved KO by its true win chance, not the visit count
+                    // that collapses once the terminal child stops being expanded.
+                    let ko = &children[0];
+                    if ko.1.is_game_over() {
+                        let wv = winner_value(&ko.1);
+                        if wv > 0.5 {
+                            if a1 != NO_ARM { win_s1[a1 as usize] = ko.0; }
+                        } else if wv < 0.5 {
+                            if a2 != NO_ARM { win_s2[a2 as usize] = ko.0; }
+                        }
+                    }
+                    let r = rng.roll(crate::chance_analytic::WEIGHT_SCALE);
+                    crate::chance_analytic::pick_weighted(&children, r)
+                } else {
+                    chance.transition(&cur, teams, b1, b2, &mut |m| rng.roll(m))
+                }
+            } else {
+                chance.transition(&cur, teams, b1, b2, &mut |m| rng.roll(m))
+            };
             path.push(PathStep { node: idx, a1, a2 });
 
             let key = child_key(arm0(a1), arm0(a2));
@@ -144,7 +181,10 @@ pub fn search_world(
         iters += 1;
     }
 
-    harvest(&tree[0], iters, guard_hits, depth_sum)
+    let mut res = harvest(&tree[0], iters, guard_hits, depth_sum);
+    for (i, a) in res.s1.iter_mut().enumerate() { a.win_chance = win_s1[i]; }
+    for (i, a) in res.s2.iter_mut().enumerate() { a.win_chance = win_s2[i]; }
+    res
 }
 
 #[inline]
@@ -182,6 +222,7 @@ pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit
                     action: a.action,
                     visits: a.visits,
                     avg_score: if a.visits > 0 { a.total_score / a.visits as f64 } else { 0.0 },
+                    win_chance: 0.0,
                 }
             })
             .collect()

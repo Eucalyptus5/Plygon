@@ -9,10 +9,44 @@
 // Env: PROBE_MS (per-world ms, default 4000 = live), PROBE_ITERS (default 100M),
 //      PROBE_WORLDS (default 8), PROBE_SEED (default 0xB1U), CHANCE=open|closed|both.
 use poke_mcts::belief::Belief;
-use poke_mcts::determinize::{Observation, RandomBattle};
+use poke_mcts::determinize::{Determinizer, Observation, RandomBattle, World};
 use poke_mcts::driver::{choose_action_traced, DecisionTrace, PickMode, PimcConfig};
+use poke_mcts::rng::Lcg;
 use poke_mcts::search::ChanceMode;
 use pkmn_engine::state::*;
+
+// Full-info control determinizer (E1 1-world control): one world that IS the fixture's actual
+// opponent (single mon, no bench reconstruction), so a KO of the active empties the opp team and is
+// terminal. Used to read the analytic root value against the true KO prob without belief sampling.
+struct TrueState;
+impl Determinizer for TrueState {
+    fn sample_worlds(&self, obs: &Observation, _belief: &Belief, _n: usize, _rng: &mut Lcg) -> Vec<World> {
+        vec![World { state: *obs.state, teams: obs.teams.clone(), weight: 1.0 }]
+    }
+}
+
+// Last-mon determinizer: sample the normal 8-world belief opponent via RandomBattle, then faint the
+// opp BENCH in each world so a root KO of the active empties the opp team (winner_value -> terminal).
+// Used only for fixtures flagged `last_mon`; the opp-active set sampling is preserved across seeds.
+// RandomBattle always fills the bench to 6 (determinize.rs), so the fixture's empty bench cannot
+// encode "last mon" by itself — this wrapper is the poke_mcts-only way to get a terminal root KO
+// under the belief-sampled path (FULLINFO=1 + TrueState is the alternative zero-code single-world path).
+struct LastMonRandomBattle;
+impl Determinizer for LastMonRandomBattle {
+    fn sample_worlds(&self, obs: &Observation, belief: &Belief, n: usize, rng: &mut Lcg) -> Vec<World> {
+        let mut worlds = RandomBattle.sample_worlds(obs, belief, n, rng);
+        let opp = 1 - obs.our_side;
+        for w in &mut worlds {
+            let ai = w.state.sides[opp].active_index as usize;
+            for slot in 0..6 {
+                if slot != ai {
+                    w.state.sides[opp].team[slot].current_hp = 0;
+                }
+            }
+        }
+        worlds
+    }
+}
 
 #[derive(serde::Deserialize)]
 struct MonSpec {
@@ -44,6 +78,7 @@ struct Case {
     opp: OppSpec,
     blunder_action: u8,
     better_action: u8,
+    #[serde(default)] last_mon: bool,
 }
 #[derive(serde::Deserialize)]
 struct Suite { cases: Vec<Case> }
@@ -130,7 +165,7 @@ fn mean_avg(tr: &DecisionTrace, byte: u8) -> f64 {
     if den == 0 { 0.0 } else { num / den as f64 }
 }
 
-fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed: u64, pick: &str) {
+fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed: u64, pick: &str, full_info: bool) {
     let (state, teams, belief) = build_case(c);
     let our_moves = state.sides[0].team[state.sides[0].active_index as usize].moves;
     let obs = Observation { state: &state, our_side: 0, teams: &teams };
@@ -143,9 +178,19 @@ fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed:
         num_worlds: worlds, time_ms_per_world: ms, max_iters_per_world: iters, seed,
         chance_mode: mode, pick_mode, filter_threshold: 0.75, raw_root: false,
     };
-    let tr = choose_action_traced(&obs, &belief, &RandomBattle, &cfg);
+    let tr = if full_info {
+        choose_action_traced(&obs, &belief, &TrueState, &cfg)
+    } else if c.last_mon {
+        choose_action_traced(&obs, &belief, &LastMonRandomBattle, &cfg)
+    } else {
+        choose_action_traced(&obs, &belief, &RandomBattle, &cfg)
+    };
 
-    let mode_s = if mode == ChanceMode::OpenLoop { "OPEN" } else { "CLOSED" };
+    let mode_s = match mode {
+        ChanceMode::OpenLoop => "OPEN",
+        ChanceMode::ClosedLoop => "CLOSED",
+        ChanceMode::AnalyticRoot => "ANALYTIC",
+    };
     let mean_iters: u64 = if tr.per_world.is_empty() { 0 } else { tr.per_world.iter().map(|w| w.iterations).sum::<u64>() / tr.per_world.len() as u64 };
     let mean_depth: f64 = if tr.per_world.is_empty() { 0.0 } else {
         tr.per_world.iter().map(|w| w.depth_sum as f64 / w.iterations.max(1) as f64).sum::<f64>() / tr.per_world.len() as f64 };
@@ -196,22 +241,25 @@ fn main() {
     let seed: u64 = std::env::var("PROBE_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0xB1);
     let chance = std::env::var("CHANCE").unwrap_or_else(|_| "open".into());
     let pick = std::env::var("PICK").unwrap_or_else(|_| "weighted".into());
+    let full_info = std::env::var("FULLINFO").map(|v| v == "1").unwrap_or(false);
 
     let path = "data/blunder_cases.json";
     let suite: Suite = serde_json::from_str(
         &std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path}: {e}"))).unwrap();
 
-    println!("blunder_probe: {} case(s), worlds={worlds} ms={ms} iters={iters} seed={seed} chance={chance}\n",
+    println!("blunder_probe: {} case(s), worlds={worlds} ms={ms} iters={iters} seed={seed} chance={chance} full_info={full_info}\n",
         suite.cases.len());
     for c in &suite.cases {
         if let Some(f) = &filter { if !c.name.contains(f.as_str()) { continue; } }
         println!("== {} ==\n   {}", c.name, c.note);
         let modes: Vec<ChanceMode> = match chance.as_str() {
             "closed" => vec![ChanceMode::ClosedLoop],
+            "analytic" => vec![ChanceMode::AnalyticRoot],
             "both" => vec![ChanceMode::OpenLoop, ChanceMode::ClosedLoop],
+            "openalytic" => vec![ChanceMode::OpenLoop, ChanceMode::AnalyticRoot],
             _ => vec![ChanceMode::OpenLoop],
         };
-        for m in modes { run_one(c, m, worlds, ms, iters, seed, pick.as_str()); }
+        for m in modes { run_one(c, m, worlds, ms, iters, seed, pick.as_str(), full_info); }
         println!();
     }
 }
