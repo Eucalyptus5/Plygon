@@ -28,7 +28,9 @@ impl Belief {
             self.mons[i].species_id = species_id;
             return i;
         }
-        let i = (0..6).find(|&i| self.mons[i].species_id == 0).expect("7th species revealed");
+        // When all slots are filled and no base-species match, an Illusion mon was
+        // masquerading as a different species — overwrite the last slot as a fallback.
+        let i = (0..6).find(|&i| self.mons[i].species_id == 0).unwrap_or(5);
         self.mons[i] = MonBelief { species_id, level, ..Default::default() };
         i
     }
