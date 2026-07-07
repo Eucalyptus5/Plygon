@@ -298,7 +298,20 @@ fn main() {
     let pick_mode = match get("--pick-mode", "weighted").as_str() {
         "weighted" => poke_mcts::driver::PickMode::Weighted,
         "argmax" => poke_mcts::driver::PickMode::Argmax,
+        "value" => poke_mcts::driver::PickMode::Value,
         other => panic!("unknown --pick-mode {other}"),
+    };
+    let p1_pick = match get("--p1-pick-mode", get("--pick-mode", "weighted").as_str()).as_str() {
+        "weighted" => poke_mcts::driver::PickMode::Weighted,
+        "argmax" => poke_mcts::driver::PickMode::Argmax,
+        "value" => poke_mcts::driver::PickMode::Value,
+        other => panic!("unknown --p1-pick-mode {other}"),
+    };
+    let p2_pick = match get("--p2-pick-mode", get("--pick-mode", "weighted").as_str()).as_str() {
+        "weighted" => poke_mcts::driver::PickMode::Weighted,
+        "argmax" => poke_mcts::driver::PickMode::Argmax,
+        "value" => poke_mcts::driver::PickMode::Value,
+        other => panic!("unknown --p2-pick-mode {other}"),
     };
     let filter_threshold = if get("--filter-relax", "off") == "on" { 0.0 } else { 0.75 };
     let raw_root = args.iter().any(|a| a == "--raw-root");
@@ -324,8 +337,8 @@ fn main() {
         println!("== A-A null: closed vs closed =="); head_to_head(&fixture, closed, closed, games, seed);
         return;
     }
-    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive, chance_mode, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
-    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive, chance_mode, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
+    let e1 = Entrant { kind: p1, time_ms, worlds, max_iters, adaptive, chance_mode, pick_mode: p1_pick, filter_threshold: 0.75, raw_root: false };
+    let e2 = Entrant { kind: p2, time_ms, worlds, max_iters, adaptive, chance_mode, pick_mode: p2_pick, filter_threshold: 0.75, raw_root: false };
     let nt = fixture.teams.len() as u64;
     let mut score = 0.0f64;
     let (mut w, mut d, mut l) = (0u64, 0u64, 0u64);
