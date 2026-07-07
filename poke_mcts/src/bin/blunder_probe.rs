@@ -130,13 +130,18 @@ fn mean_avg(tr: &DecisionTrace, byte: u8) -> f64 {
     if den == 0 { 0.0 } else { num / den as f64 }
 }
 
-fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed: u64) {
+fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed: u64, pick: &str) {
     let (state, teams, belief) = build_case(c);
     let our_moves = state.sides[0].team[state.sides[0].active_index as usize].moves;
     let obs = Observation { state: &state, our_side: 0, teams: &teams };
+    let pick_mode = match pick {
+        "value" => PickMode::Value,
+        "argmax" => PickMode::Argmax,
+        _ => PickMode::Weighted,
+    };
     let cfg = PimcConfig {
         num_worlds: worlds, time_ms_per_world: ms, max_iters_per_world: iters, seed,
-        chance_mode: mode, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false,
+        chance_mode: mode, pick_mode, filter_threshold: 0.75, raw_root: false,
     };
     let tr = choose_action_traced(&obs, &belief, &RandomBattle, &cfg);
 
@@ -190,6 +195,7 @@ fn main() {
     let iters: u64 = std::env::var("PROBE_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(100_000_000);
     let seed: u64 = std::env::var("PROBE_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0xB1);
     let chance = std::env::var("CHANCE").unwrap_or_else(|_| "open".into());
+    let pick = std::env::var("PICK").unwrap_or_else(|_| "weighted".into());
 
     let path = "data/blunder_cases.json";
     let suite: Suite = serde_json::from_str(
@@ -205,7 +211,7 @@ fn main() {
             "both" => vec![ChanceMode::OpenLoop, ChanceMode::ClosedLoop],
             _ => vec![ChanceMode::OpenLoop],
         };
-        for m in modes { run_one(c, m, worlds, ms, iters, seed); }
+        for m in modes { run_one(c, m, worlds, ms, iters, seed, pick.as_str()); }
         println!();
     }
 }
