@@ -1,5 +1,10 @@
 use crate::gen_sets::{SetEntry, SpeciesSets, GEN9_SET_POOL};
 
+#[inline(always)]
+pub fn pm_get(m: &[u64; 4], i: usize) -> bool { (m[i >> 6] >> (i & 63)) & 1 != 0 }
+#[inline(always)]
+pub fn pm_set(m: &mut [u64; 4], i: usize) { m[i >> 6] |= 1u64 << (i & 63); }
+
 #[derive(Clone, Copy, Default)]
 pub struct MonBelief {
     pub species_id: u16,          // 0 = slot not yet revealed
@@ -10,6 +15,9 @@ pub struct MonBelief {
     pub tera_type: u8,            // valid only if tera_revealed
     pub tera_revealed: bool,
     pub level: u8,                // 0 = unknown
+    pub excluded_bits: u32,       // negative knowledge (#2/#6/#7): OR of curated bits this mon CANNOT be
+    pub pool_mask: [u64; 4],      // live candidate pool (#1), 256-bit: bit i = "set i of this species still possible"
+    pub pool_active: bool,        // false until species revealed / #1 prunes; mask ignored while false
 }
 
 #[derive(Clone, Copy, Default)]
@@ -60,12 +68,50 @@ pub fn species_sets(species_id: u16) -> Option<&'static SpeciesSets> {
     GEN9_SET_POOL.binary_search_by_key(&species_id, |s| s.species_id).ok().map(|i| &GEN9_SET_POOL[i])
 }
 
+// set slice for a species, falling back to the base species (battle formes are absent from the teambuilder-keyed pool)
+pub fn species_sets_with_base_fallback(species_id: u16) -> Option<&'static SpeciesSets> {
+    species_sets(species_id)
+        .or_else(|| species_sets(pkmn_engine::state::data_bridge::base_species(species_id)))
+}
+
+// Curated inferable item/ability bit positions (01 §1c). Single source of truth for the bit
+// MEANINGS lives in data/belief_curated_bits.json; these MUST match it (F2 adds a drift test).
+pub const BIT_CHOICEBAND: u32     = 1 << 0;
+pub const BIT_CHOICESCARF: u32    = 1 << 1;
+pub const BIT_CHOICESPECS: u32    = 1 << 2;
+pub const CHOICE_ITEMS_MASK: u32  = BIT_CHOICEBAND | BIT_CHOICESCARF | BIT_CHOICESPECS;
+pub const BIT_ASSAULTVEST: u32    = 1 << 3;
+pub const BIT_LIFEORB: u32        = 1 << 4;
+pub const BIT_LEFTOVERS: u32      = 1 << 5;
+pub const BIT_BLACKSLUDGE: u32    = 1 << 6;
+pub const BIT_HEAVYDUTYBOOTS: u32 = 1 << 7;
+pub const BIT_AIRBALLOON: u32     = 1 << 8;
+pub const BIT_BOOSTERENERGY: u32  = 1 << 9;
+pub const BIT_FLAMEORB: u32       = 1 << 10;
+pub const BIT_TOXICORB: u32       = 1 << 11;
+pub const BIT_LUMBERRY: u32       = 1 << 12;
+pub const BIT_INTIMIDATE: u32     = 1 << 13;
+pub const BIT_DROUGHT: u32        = 1 << 14;
+pub const BIT_DRIZZLE: u32        = 1 << 15;
+pub const BIT_SANDSTREAM: u32     = 1 << 16;
+pub const BIT_SNOWWARNING: u32    = 1 << 17;
+pub const BIT_PRESSURE: u32       = 1 << 18;
+pub const BIT_NEUTRALIZINGGAS: u32 = 1 << 19;
+// bits 20-31 reserved. No regenerator/gem bit (01 §1c).
+
 // Negative-knowledge set-rejection belief was implemented and washed (2026-06; see .decompose/mcts-exploration/findings-log.md). Preserved on dead-end branch mcts/chance-belief, not merged.
 pub fn set_consistent(set: &SetEntry, b: &MonBelief) -> bool {
     if b.tera_revealed && set.tera_type != b.tera_type { return false; }
     if b.ability_id != 0 && set.ability_id != b.ability_id { return false; }
     if b.item_id != 0 && set.item_id != b.item_id { return false; }
+    // negative knowledge: #2 choice-lock, #6 impossible-items, #7 impossible-abilities (01 §2a)
+    if set.infer_bits & b.excluded_bits != 0 { return false; }
     b.moves[..b.n_moves as usize].iter().all(|m| set.moves.contains(m))
+}
+
+// pool membership (when active) AND negative-knowledge consistency (01 §2)
+pub fn possible(set_idx: usize, set: &SetEntry, b: &MonBelief) -> bool {
+    (!b.pool_active || pm_get(&b.pool_mask, set_idx)) && set_consistent(set, b)
 }
 
 #[cfg(test)]
@@ -107,6 +153,7 @@ mod tests {
         let set = SetEntry {
             moves: [14, 89, 200, 328], item_id: 234, ability_id: 24,
             level: 78, tera_type: 9, is_female: false, evs: [85; 6], ivs: [31; 6], count: 5,
+            infer_bits: 0,
         };
         let mut mb = MonBelief { species_id: 445, ..Default::default() };
         assert!(set_consistent(&set, &mb), "no reveals: everything consistent");
@@ -134,5 +181,16 @@ mod tests {
     fn pool_lookup_finds_common_species() {
         assert!(species_sets(445).is_some(), "Garchomp is in gen9 randbats");
         assert!(species_sets(0).is_none());
+    }
+
+    #[test]
+    fn excluded_bits_reject_overlapping_set() {
+        let mut b = MonBelief::default();
+        b.excluded_bits = 1 << 3; // pretend "assaultvest" bit is excluded
+        let mut s = SetEntry::default();      // a set that carries assaultvest
+        s.infer_bits = 1 << 3;
+        assert!(!set_consistent(&s, &b), "set with an excluded bit must be rejected");
+        s.infer_bits = 1 << 4;                // carries a different inferable item
+        assert!(set_consistent(&s, &b), "non-overlapping set must remain consistent");
     }
 }

@@ -1,4 +1,4 @@
-use crate::belief::{set_consistent, species_sets, Belief, MonBelief};
+use crate::belief::{pm_get, set_consistent, species_sets, Belief, MonBelief};
 use crate::gen_sets::{SetEntry, SpeciesSets, GEN9_SET_POOL, GEN9_SET_POOL_TOTAL};
 use crate::rng::Lcg;
 use pkmn_engine::data::types::Type;
@@ -43,7 +43,12 @@ fn pool_for(species_id: u16) -> Option<&'static SpeciesSets> {
 pub fn sample_set(species_id: u16, b: &MonBelief, rng: &mut Lcg) -> MonBuildInput {
     let pool = pool_for(species_id)
         .unwrap_or_else(|| panic!("species {species_id} not in set pool — regenerate gen_sets (stale table)"));
-    let consistent: Vec<&SetEntry> = pool.sets.iter().filter(|s| set_consistent(s, b)).collect();
+    // live candidate pool (#1): when active, only sampled-in static indices survive (01 §2b)
+    let consistent: Vec<&SetEntry> = pool.sets.iter().enumerate()
+        .filter(|(i, _)| !(b.pool_active && !pm_get(&b.pool_mask, *i)))
+        .map(|(_, s)| s)
+        .filter(|s| set_consistent(s, b))
+        .collect();
     let mut input = if !consistent.is_empty() {
         let total: u32 = consistent.iter().map(|s| s.count).sum();
         let mut r = rng.roll(total.max(1));
