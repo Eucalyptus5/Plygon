@@ -60,6 +60,7 @@ pub fn species_sets(species_id: u16) -> Option<&'static SpeciesSets> {
     GEN9_SET_POOL.binary_search_by_key(&species_id, |s| s.species_id).ok().map(|i| &GEN9_SET_POOL[i])
 }
 
+// Negative-knowledge set-rejection belief was implemented and washed (2026-06; see .decompose/mcts-exploration/findings-log.md). Preserved on dead-end branch mcts/chance-belief, not merged.
 pub fn set_consistent(set: &SetEntry, b: &MonBelief) -> bool {
     if b.tera_revealed && set.tera_type != b.tera_type { return false; }
     if b.ability_id != 0 && set.ability_id != b.ability_id { return false; }
