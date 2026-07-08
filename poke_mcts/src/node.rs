@@ -1,13 +1,16 @@
 use pkmn_engine::state::{legal_actions, BattleState};
 
 pub const NO_CHILD: u32 = u32::MAX;
+// arm ceiling = the engine's ActionList capacity (4 moves + 5 switches + 4 tera)
+pub const ARM_CAP: usize = 13;
+pub const CHILD_CAP: usize = ARM_CAP * ARM_CAP;
 
 pub struct Node {
     pub phase: u8,
     pub visits: u32,
     pub s1: Bandit,
     pub s2: Bandit,
-    pub children: [u32; 100],
+    pub children: [u32; CHILD_CAP],
 }
 
 impl Node {
@@ -17,7 +20,7 @@ impl Node {
             visits: 0,
             s1: Bandit::from_actions(&legal_actions(state, 0)),
             s2: Bandit::from_actions(&legal_actions(state, 1)),
-            children: [NO_CHILD; 100],
+            children: [NO_CHILD; CHILD_CAP],
         }
     }
 }
@@ -43,7 +46,7 @@ impl CNode {
 }
 
 #[inline(always)]
-pub fn child_key(a1_arm: usize, a2_arm: usize) -> usize { a1_arm * 10 + a2_arm }
+pub fn child_key(a1_arm: usize, a2_arm: usize) -> usize { a1_arm * ARM_CAP + a2_arm }
 
 #[derive(Clone, Copy, Default)]
 pub struct MoveNode {
@@ -54,12 +57,12 @@ pub struct MoveNode {
 
 #[derive(Clone, Copy)]
 pub struct Bandit {
-    pub arms: [MoveNode; 10],
+    pub arms: [MoveNode; ARM_CAP],
     pub len: u8,
 }
 
 impl Default for Bandit {
-    fn default() -> Self { Bandit { arms: [MoveNode::default(); 10], len: 0 } }
+    fn default() -> Self { Bandit { arms: [MoveNode::default(); ARM_CAP], len: 0 } }
 }
 
 impl Bandit {
@@ -101,8 +104,28 @@ mod tests {
 
     #[test]
     fn child_key_stride() {
-        assert_eq!(child_key(3, 7), 37);
+        assert_eq!(child_key(3, 7), 3 * ARM_CAP + 7);
         assert_eq!(child_key(0, 0), 0);
-        assert_eq!(child_key(9, 9), 99);
+        assert_eq!(child_key(ARM_CAP - 1, ARM_CAP - 1), CHILD_CAP - 1);
+        // injective + in-bounds over every arm pair (max index 168 < 169)
+        let mut seen = [false; CHILD_CAP];
+        for a in 0..ARM_CAP {
+            for b in 0..ARM_CAP {
+                let k = child_key(a, b);
+                assert!(k < CHILD_CAP, "child_key({a},{b})={k} out of bounds");
+                assert!(!seen[k], "child_key collision at ({a},{b})");
+                seen[k] = true;
+            }
+        }
+    }
+
+    #[test]
+    fn bandit_holds_full_action_ceiling() {
+        let mut list = ActionList::new();
+        for a in 0..ARM_CAP as u8 { list.actions[a as usize] = a; }
+        list.count = ARM_CAP as u8;
+        let b = Bandit::from_actions(&list);
+        assert_eq!(b.len as usize, ARM_CAP, "all arms stored without overrun");
+        for i in 0..ARM_CAP { assert_eq!(b.arms[i].action, i as u8); }
     }
 }

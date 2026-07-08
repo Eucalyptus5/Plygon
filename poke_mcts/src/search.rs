@@ -85,8 +85,8 @@ pub fn search_world(
     let mut depth_sum: u64 = 0;
     let mut path: Vec<PathStep> = Vec::with_capacity(64);
     // Per-root-arm provable terminal-win branch-chance (analytic root only; stays 0.0 otherwise).
-    let mut win_s1 = [0.0f64; 10];
-    let mut win_s2 = [0.0f64; 10];
+    let mut win_s1 = [0.0f64; crate::node::ARM_CAP];
+    let mut win_s2 = [0.0f64; crate::node::ARM_CAP];
 
     'outer: while iters < params.max_iters {
         // clock check batched to amortize the read (design §5.6)
