@@ -239,3 +239,45 @@ fn e6_lifeorb_precision_and_soundness() {
         "lifeorb true set survives when its damaging move dealt 0 damage (no hit, no recoil window)"
     );
 }
+
+#[test]
+fn e2_choice_lock_precision_and_soundness() {
+    // True set is NON-choice: two distinct moves => the 3 choice sets of that species drop out.
+    let (sid, true_non_choice) = sample_set_with_item(b"!choice"); // item not in {band,scarf,specs}
+    let mut b = MonBelief { species_id: sid, ..Default::default() };
+    let before = count_consistent(sid, &b);
+    b.excluded_bits |= CHOICE_ITEMS_MASK; // what the two-distinct-moves hook ORs
+    let after = count_consistent(sid, &b);
+    assert!(after < before, "choice-lock must drop the choice sets"); // B1
+    assert!(set_consistent(true_non_choice, &b), "non-choice true set survives"); // B0
+
+    // True set IS a choice set: same move twice / single move => no exclusion (model: do NOT OR).
+    let (sid2, true_choice) = sample_set_with_item(b"choicescarf");
+    let b2 = MonBelief { species_id: sid2, ..Default::default() };
+    assert!(
+        set_consistent(true_choice, &b2),
+        "choice true set survives when no second distinct move"
+    );
+}
+
+#[test]
+fn e2_utility_move_path_precision_and_soundness() {
+    // A SINGLE curated utility/setup move (Substitute / Roost / a stat-boosting status move) is
+    // enough: a choice holder would be locked into it and self-defeated, so it implies non-choice.
+    let (sid, true_non_choice) = sample_set_with_item(b"!choice");
+    let mut b = MonBelief { species_id: sid, ..Default::default() };
+    let before = count_consistent(sid, &b);
+    b.excluded_bits |= CHOICE_ITEMS_MASK; // what the utility-move hook ORs on a whitelisted move
+    let after = count_consistent(sid, &b);
+    assert!(after < before, "utility-move path must drop the choice sets"); // B1
+    assert!(set_consistent(true_non_choice, &b), "non-choice true set survives"); // B0
+
+    // SOUNDNESS trap: a genuine choice set must survive when no whitelisted move has been seen
+    // (model: do NOT OR the mask on a damaging/non-whitelisted move).
+    let (sid2, true_choice) = sample_set_with_item(b"choiceband");
+    let b2 = MonBelief { species_id: sid2, ..Default::default() };
+    assert!(
+        set_consistent(true_choice, &b2),
+        "choice true set survives when no whitelisted utility move has been observed"
+    );
+}
