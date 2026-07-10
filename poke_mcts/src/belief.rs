@@ -26,6 +26,14 @@ pub struct Belief { pub mons: [MonBelief; 6] }
 impl Belief {
     /// Returns the slot index for this species, claiming a fresh slot on first sight.
     pub fn note_species(&mut self, species_id: u16, level: u8) -> usize {
+        self.note_species_tracked(species_id, level).0
+    }
+
+    /// Like `note_species`, but also reports whether the resolved slot was OVERWRITTEN by a different
+    /// mon: `overwrote == true` on a fresh claim or a distinct-base full-slot overwrite (Illusion),
+    /// `false` on a same-base re-entry. The caller uses this to drop the prior occupant's per-slot
+    /// Tracker state (e.g. #8's leave-HP) so a switched-in mon is never compared against a stranger.
+    pub fn note_species_tracked(&mut self, species_id: u16, level: u8) -> (usize, bool) {
         // forme changes (Shields Down, Tera Shift, ...) rewrite the team slot's
         // species_id mid-battle; one belief slot per base species, tracking the latest forme
         let base = pkmn_engine::state::data_bridge::base_species(species_id);
@@ -34,13 +42,13 @@ impl Belief {
                 && pkmn_engine::state::data_bridge::base_species(self.mons[i].species_id) == base
         }) {
             self.mons[i].species_id = species_id;
-            return i;
+            return (i, false);
         }
         // When all slots are filled and no base-species match, an Illusion mon was
         // masquerading as a different species — overwrite the last slot as a fallback.
         let i = (0..6).find(|&i| self.mons[i].species_id == 0).unwrap_or(5);
         self.mons[i] = MonBelief { species_id, level, ..Default::default() };
-        i
+        (i, true)
     }
     pub fn note_move(&mut self, slot: usize, move_id: u16) {
         let m = &mut self.mons[slot];
@@ -91,6 +99,15 @@ pub fn species_can_have_ability(species_id: u16, ability_id: u16) -> bool {
         Some(ss) => ss.sets.iter().any(|s| s.ability_id == ability_id),
         None => true,
     }
+}
+
+// First ability id any pooled set of this species carries (for the D8 Layer-1 non-regen oracle).
+// Conservative-0 if the species has no pool.
+pub fn first_pooled_ability_for_species(species_id: u16) -> u16 {
+    species_sets(species_id)
+        .and_then(|ss| ss.sets.first())
+        .map(|s| s.ability_id)
+        .unwrap_or(0)
 }
 
 // Flying is the only type that negates grounded hazards (Spikes) by typing.

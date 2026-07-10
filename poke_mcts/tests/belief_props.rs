@@ -1,4 +1,7 @@
-use poke_mcts::belief::{item_id_for_bit, pm_set, possible, set_consistent, species_sets, MonBelief};
+use poke_mcts::belief::{
+    first_pooled_ability_for_species, item_id_for_bit, pm_set, possible, set_consistent,
+    species_sets, MonBelief,
+};
 use poke_mcts::belief::{
     BIT_AIRBALLOON, BIT_ASSAULTVEST, BIT_BLACKSLUDGE, BIT_CHOICEBAND, BIT_CHOICESCARF,
     BIT_CHOICESPECS, BIT_HEAVYDUTYBOOTS, BIT_LEFTOVERS, BIT_LIFEORB, BIT_LUMBERRY, CHOICE_ITEMS_MASK,
@@ -363,6 +366,35 @@ fn d4_boots_positive_pin_keeps_only_boots_sets() {
     s_lefto.infer_bits = BIT_LEFTOVERS;
     assert!(set_consistent(&s_boots, &b), "true boots set survives a boots pin");
     assert!(!set_consistent(&s_lefto, &b), "a non-boots set is filtered by the positive pin");
+}
+
+// Regenerator's id in the SetEntry.ability_id space (same id_maps source as the other id helpers).
+fn ability_id_for_regen() -> u16 {
+    id_maps().1["regenerator"]
+}
+
+#[test]
+fn d8_regenerator_pin_keeps_only_regen_sets() {
+    let regen = ability_id_for_regen();
+    let mut b = MonBelief::default();
+    b.ability_id = regen; // the #8 effect
+    let mut s_regen = SetEntry::default();
+    s_regen.ability_id = regen;
+    let mut s_other = SetEntry::default();
+    s_other.ability_id = first_pooled_ability_for_species(445); // Garchomp: Rough Skin, non-regen
+    assert!(s_other.ability_id != regen, "fixture sanity: chosen non-regen id differs");
+    assert!(set_consistent(&s_regen, &b), "true regenerator set survives");
+    assert!(!set_consistent(&s_other, &b), "non-regen set filtered by the ability pin");
+}
+
+#[test]
+fn d8_species_gate_abstains_when_species_cannot_have_regen() {
+    // Garchomp 445's pool has no regenerator set -> the hook must abstain on an off-field gain.
+    let regen = ability_id_for_regen();
+    assert!(
+        !poke_mcts::belief::species_can_have_ability(445, regen),
+        "Garchomp cannot roll Regenerator -> the hook must abstain on an off-field gain"
+    );
 }
 
 #[test]
