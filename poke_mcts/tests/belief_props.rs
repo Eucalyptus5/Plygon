@@ -194,6 +194,44 @@ fn sample_set_with_item_paired(item_spec: &[u8], ability_spec: &[u8]) -> (u16, &
     panic!("no set pairs item {iid} with ability {aid}");
 }
 
+// curated bit for an on-entry-announcing ability spec name
+fn ability_bit(name: &str) -> u32 {
+    use poke_mcts::belief::{
+        BIT_DRIZZLE, BIT_DROUGHT, BIT_INTIMIDATE, BIT_NEUTRALIZINGGAS, BIT_PRESSURE, BIT_SANDSTREAM,
+        BIT_SNOWWARNING,
+    };
+    match name {
+        "intimidate" => BIT_INTIMIDATE,
+        "drought" => BIT_DROUGHT,
+        "drizzle" => BIT_DRIZZLE,
+        "sandstream" => BIT_SANDSTREAM,
+        "snowwarning" => BIT_SNOWWARNING,
+        "pressure" => BIT_PRESSURE,
+        "neutralizinggas" => BIT_NEUTRALIZINGGAS,
+        other => panic!("unknown ability spec {other}"),
+    }
+}
+
+// (species, true_set): the species carries the ability spec's curated bit on >=1 set (mirrors
+// sample_set_with_item over the ability curated bits, which live in infer_bits the same as items).
+fn sample_set_with_ability(spec: &[u8]) -> (u16, &'static SetEntry) {
+    let (neg, name) = parse_spec(spec);
+    let bit = ability_bit(name);
+    for ss in GEN9_SET_POOL {
+        let has_carrier = ss.sets.iter().any(|s| s.infer_bits & bit != 0);
+        if neg {
+            if has_carrier {
+                if let Some(s) = ss.sets.iter().find(|s| s.infer_bits & bit == 0) {
+                    return (ss.species_id, s);
+                }
+            }
+        } else if let Some(s) = ss.sets.iter().find(|s| s.infer_bits & bit != 0) {
+            return (ss.species_id, s);
+        }
+    }
+    panic!("no species satisfies ability spec {}", String::from_utf8_lossy(spec));
+}
+
 #[test]
 fn e6_av_and_leftovers_precision_and_soundness() {
     // AV: a status-move user cannot hold Assault Vest.
@@ -279,5 +317,32 @@ fn e2_utility_move_path_precision_and_soundness() {
     assert!(
         set_consistent(true_choice, &b2),
         "choice true set survives when no whitelisted utility move has been observed"
+    );
+}
+
+#[test]
+fn e7_impossible_abilities_precision_and_soundness() {
+    // True set does NOT carry Intimidate: a switch-in with no Intimidate announce excludes the set.
+    let (sid, true_non_intim) = sample_set_with_ability(b"!intimidate");
+    let mut b = MonBelief { species_id: sid, ..Default::default() };
+    let before = count_consistent(sid, &b);
+    b.excluded_bits |= poke_mcts::belief::BIT_INTIMIDATE; // what the non-announce switch-in hook ORs
+    let after = count_consistent(sid, &b);
+    assert!(after < before, "intimidate exclusion drops the intimidate set"); // B1
+    assert!(set_consistent(true_non_intim, &b), "non-intimidate true set survives"); // B0
+
+    // Weather guard: a true Drought set under PRE-EXISTING sun emits no -weather line; do NOT exclude
+    // it (model the guard as: do not OR BIT_DROUGHT).
+    let (sid2, true_drought) = sample_set_with_ability(b"drought");
+    let b2 = MonBelief { species_id: sid2, ..Default::default() };
+    assert!(set_consistent(true_drought, &b2), "drought true set survives under pre-existing sun");
+
+    // Live-target trap: a true Intimidate holder switching into an empty field (our active fainted)
+    // emits no -ability line, so the no-live-foe guard must NOT arm BIT_INTIMIDATE (model: do not OR).
+    let (sid3, true_intim) = sample_set_with_ability(b"intimidate");
+    let b3 = MonBelief { species_id: sid3, ..Default::default() };
+    assert!(
+        set_consistent(true_intim, &b3),
+        "intimidate true set survives when no live opposing active existed at switch-in"
     );
 }
