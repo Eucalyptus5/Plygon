@@ -74,6 +74,33 @@ pub fn species_sets_with_base_fallback(species_id: u16) -> Option<&'static Speci
         .or_else(|| species_sets(pkmn_engine::state::data_bridge::base_species(species_id)))
 }
 
+// First item_id any pooled set carries the given curated bit on (boots=bit 7, leftovers=bit 5).
+// Stays in the exact SetEntry.item_id space; conservative-0 if no pooled set carries it.
+pub fn item_id_for_bit(bit: u32) -> u16 {
+    GEN9_SET_POOL
+        .iter()
+        .flat_map(|ss| ss.sets.iter())
+        .find(|s| s.infer_bits & bit != 0)
+        .map(|s| s.item_id)
+        .unwrap_or(0)
+}
+
+// Conservative-true on an unrevealed species (no pool) so the caller abstains rather than pin.
+pub fn species_can_have_ability(species_id: u16, ability_id: u16) -> bool {
+    match species_sets(species_id) {
+        Some(ss) => ss.sets.iter().any(|s| s.ability_id == ability_id),
+        None => true,
+    }
+}
+
+// Flying is the only type that negates grounded hazards (Spikes) by typing.
+pub fn species_is_flying(species_id: u16) -> bool {
+    use pkmn_engine::state::team_builder::showdown_type_to_engine;
+    let sp = pkmn_engine::state::data_bridge::species(species_id);
+    let flying = showdown_type_to_engine(2); // Flying showdown index = 2 (maps.rs)
+    sp.type1 as u8 == flying || sp.type2 as u8 == flying
+}
+
 // Curated inferable item/ability bit positions (01 §1c). Single source of truth for the bit
 // MEANINGS lives in data/belief_curated_bits.json; these MUST match it (F2 adds a drift test).
 pub const BIT_CHOICEBAND: u32     = 1 << 0;

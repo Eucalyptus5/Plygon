@@ -1,7 +1,7 @@
-use poke_mcts::belief::{pm_set, possible, set_consistent, species_sets, MonBelief};
+use poke_mcts::belief::{item_id_for_bit, pm_set, possible, set_consistent, species_sets, MonBelief};
 use poke_mcts::belief::{
     BIT_AIRBALLOON, BIT_ASSAULTVEST, BIT_BLACKSLUDGE, BIT_CHOICEBAND, BIT_CHOICESCARF,
-    BIT_CHOICESPECS, BIT_LEFTOVERS, BIT_LIFEORB, BIT_LUMBERRY, CHOICE_ITEMS_MASK,
+    BIT_CHOICESPECS, BIT_HEAVYDUTYBOOTS, BIT_LEFTOVERS, BIT_LIFEORB, BIT_LUMBERRY, CHOICE_ITEMS_MASK,
 };
 use poke_mcts::gen_sets::{SetEntry, GEN9_SET_POOL};
 use std::collections::HashMap;
@@ -345,4 +345,36 @@ fn e7_impossible_abilities_precision_and_soundness() {
         set_consistent(true_intim, &b3),
         "intimidate true set survives when no live opposing active existed at switch-in"
     );
+}
+
+// ---- Phase-2 positive-deduction Layer-1 oracles (D4 boots) ----
+
+#[test]
+fn d4_boots_positive_pin_keeps_only_boots_sets() {
+    let boots = item_id_for_bit(BIT_HEAVYDUTYBOOTS); // pool-read id, exact SetEntry.item_id space
+    let leftovers = item_id_for_bit(BIT_LEFTOVERS);
+    assert!(boots != 0 && leftovers != 0, "pool carries boots and leftovers items");
+    let mut b = MonBelief::default();
+    b.item_id = boots; // positive pin (the #4-positive effect)
+    let mut s_boots = SetEntry::default();
+    s_boots.item_id = boots;
+    let mut s_lefto = SetEntry::default();
+    s_lefto.item_id = leftovers;
+    s_lefto.infer_bits = BIT_LEFTOVERS;
+    assert!(set_consistent(&s_boots, &b), "true boots set survives a boots pin");
+    assert!(!set_consistent(&s_lefto, &b), "a non-boots set is filtered by the positive pin");
+}
+
+#[test]
+fn d4_boots_negative_bit_excludes_boots_sets_only() {
+    let boots = item_id_for_bit(BIT_HEAVYDUTYBOOTS);
+    let mut b = MonBelief::default();
+    b.excluded_bits = BIT_HEAVYDUTYBOOTS; // negative half (took hazard damage)
+    let mut s_boots = SetEntry::default();
+    s_boots.item_id = boots;
+    s_boots.infer_bits = BIT_HEAVYDUTYBOOTS;
+    let mut s_other = SetEntry::default();
+    s_other.item_id = item_id_for_bit(BIT_LEFTOVERS);
+    assert!(!set_consistent(&s_boots, &b), "boots set rejected by bit 7 (soundness OK: mon took damage)");
+    assert!(set_consistent(&s_other, &b), "non-boots set survives");
 }
