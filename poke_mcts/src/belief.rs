@@ -118,6 +118,36 @@ pub fn species_is_flying(species_id: u16) -> bool {
     sp.type1 as u8 == flying || sp.type2 as u8 == flying
 }
 
+// #3 choice-scarf. gen9 randbats fixes the speed spread to 85 EV / 31 IV (verified: distinct pool
+// spe-EV {0,85}, spe-IV {0,31}); the 85 EV is load-bearing for precision (252 over-estimates the max
+// non-scarf speed by ~37-43 points, soundness-safe but it silently misses every scarf user a defender
+// in that band explains).
+pub const RANDBATS_SPE_EV: u32 = 85;
+pub const RANDBATS_SPE_IV: u32 = 31;
+
+// True IFF the opp's max non-scarf effective speed (caller folds in para/Tailwind/boost via
+// mult_num/mult_den) is below ours, i.e. the observed "opp first at equal priority" is impossible
+// without a 1.5x item. The integer-floor order mirrors team_builder::calc_stat fed the same EV.
+pub fn scarf_forced(opp_sid: u16, opp_level: u8, mult_num: u32, mult_den: u32, our_eff_speed: u32) -> bool {
+    let base = pkmn_engine::state::data_bridge::species(opp_sid).spe as u32;
+    let raw = (2 * base + RANDBATS_SPE_IV + RANDBATS_SPE_EV / 4) * opp_level as u32 / 100 + 5;
+    let max_spe = raw * 11 / 10; // +speed nature
+    let opp_eff = max_spe * mult_num / mult_den;
+    opp_eff < our_eff_speed
+}
+
+// Runtime +1 priority sources absent from the static move_hot().priority field. Without this guard a slow Prankster status-move lead reads as
+// equal-priority-opp-first and false-pins choice-scarf. Takes the move the species used; the live
+// terrain and the engine's Grassy Glide move id are supplied by the caller (no engine const exists for
+// Grassy Glide, and only the caller knows the field).
+pub fn can_have_priority_modified(species_id: u16, move_id: u16, grassy_glide_id: u16, terrain_is_grassy: bool) -> bool {
+    use pkmn_engine::state::data_bridge;
+    if species_can_have_ability(species_id, data_bridge::ABILITY_PRANKSTER) { return true; }
+    if move_id == grassy_glide_id && terrain_is_grassy { return true; }
+    data_bridge::move_hot(move_id).category == data_bridge::MoveCategory::Status
+        && species_can_have_ability(species_id, data_bridge::ABILITY_MYCELIUM_MIGHT)
+}
+
 // Curated inferable item/ability bit positions (01 §1c). Single source of truth for the bit
 // MEANINGS lives in data/belief_curated_bits.json; these MUST match it (F2 adds a drift test).
 pub const BIT_CHOICEBAND: u32     = 1 << 0;

@@ -102,6 +102,12 @@ fn id_maps() -> (HashMap<String, u16>, HashMap<String, u16>) {
     )
 }
 
+// move name->id from the SAME map the tracker resolves move ids through (no hand-numbered ids).
+fn move_ids() -> HashMap<String, u16> {
+    static MOVE_MAP_JSON: &str = include_str!("../../testing_plan/id_maps/move_map.json");
+    serde_json::from_str(MOVE_MAP_JSON).unwrap()
+}
+
 // a spec is a normalized item/ability id, optionally `!`-prefixed to mean "NOT this group"
 fn parse_spec(spec: &[u8]) -> (bool, &str) {
     let s = std::str::from_utf8(spec).unwrap();
@@ -409,4 +415,72 @@ fn d4_boots_negative_bit_excludes_boots_sets_only() {
     s_other.item_id = item_id_for_bit(BIT_LEFTOVERS);
     assert!(!set_consistent(&s_boots, &b), "boots set rejected by bit 7 (soundness OK: mon took damage)");
     assert!(set_consistent(&s_other, &b), "non-boots set survives");
+}
+
+// ---- Phase-2 positive-deduction Layer-1 oracles (D3 choice-scarf) ----
+// Concrete randbats ids (engine species id space; base spe via data_bridge::species(sid).spe):
+//   Slowbro    80  (base spe 30,  ability {Regenerator}) = SLOW_SID / NON_PRANK_SID (non-Prankster/Mycelium)
+//   Dragapult  887 (base spe 142)                        = FAST_SID
+//   Whimsicott 547 (base spe 116)                        = MID_SID
+//   Altaria    334 (base spe 80)                         = BAND_SID (true-85 max 191, inflated-252 max 228)
+//   Sableye    302 (base spe 50,  ability {Prankster})   = PRANK_SID
+const SLOW_SID: u16 = 80;
+const NON_PRANK_SID: u16 = 80;
+const FAST_SID: u16 = 887;
+const MID_SID: u16 = 547;
+const BAND_SID: u16 = 334;
+const BAND_DEFENDER_SPE: u32 = 200; // sits between the true-85-EV max (191) and the inflated-252 max (228)
+const PRANK_SID: u16 = 302;
+const PRANK_DEFENDER_SPE: u32 = 200; // above Sableye's 85-EV max non-scarf speed (138)
+const ANY_SID: u16 = 80;
+
+#[test]
+fn d3_scarf_forced_when_max_spread_too_slow() {
+    // A slow-base opp (Slowbro, base 30) at L80 cannot outspeed a fast defender (eff 400) w/o a scarf.
+    assert!(poke_mcts::belief::scarf_forced(SLOW_SID, 80, 1, 1, 400));
+}
+#[test]
+fn d3_no_scarf_when_max_spread_already_outspeeds() {
+    // A fast-base opp (Dragapult, base 142) CAN outspeed naturally -> no inference.
+    assert!(!poke_mcts::belief::scarf_forced(FAST_SID, 80, 1, 1, 200));
+}
+#[test]
+fn d3_tailwind_explains_order_no_pin() {
+    // With opp Tailwind (x2), a mid-base opp (Whimsicott) outspeeds without a scarf -> abstain.
+    assert!(!poke_mcts::belief::scarf_forced(MID_SID, 80, 2, 1, 300));
+}
+#[test]
+fn d3_scarf_forced_in_precision_band_the_252ev_bound_loses() {
+    // BAND_SID's true 85-EV max (191) < this defender (200), but the inflated 252-EV bound (228)
+    // would read it as fast enough and wrongly abstain. FAILS under the old 252 constant.
+    assert!(poke_mcts::belief::scarf_forced(BAND_SID, 80, 1, 1, BAND_DEFENDER_SPE));
+}
+#[test]
+fn d3_false_pin_without_the_priority_abstain_is_real() {
+    // PRANK_SID is a slow Prankster lead (Sableye); the bare speed test reads it as impossibly fast.
+    assert!(poke_mcts::belief::scarf_forced(PRANK_SID, 80, 1, 1, PRANK_DEFENDER_SPE));
+}
+#[test]
+fn d3_priority_abstain_blocks_the_prankster_false_pin() {
+    // A status move under Prankster moves at effective +1; the abstain fires for any move.
+    let m = move_ids();
+    assert!(poke_mcts::belief::can_have_priority_modified(
+        PRANK_SID, m["thunderwave"], m["grassyglide"], false
+    ));
+}
+#[test]
+fn d3_grassy_glide_abstains_only_in_grassy_terrain() {
+    let m = move_ids();
+    let gg = m["grassyglide"];
+    assert!(poke_mcts::belief::can_have_priority_modified(ANY_SID, gg, gg, true));
+    assert!(!poke_mcts::belief::can_have_priority_modified(NON_PRANK_SID, gg, gg, false));
+}
+#[test]
+fn d3_genuine_scarf_still_pins_no_false_abstain() {
+    // A non-Prankster slow scarf user using a damaging move is NOT abstained -> precision held.
+    let m = move_ids();
+    assert!(!poke_mcts::belief::can_have_priority_modified(
+        NON_PRANK_SID, m["surf"], m["grassyglide"], false
+    ));
+    assert!(poke_mcts::belief::scarf_forced(NON_PRANK_SID, 80, 1, 1, 400));
 }
