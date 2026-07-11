@@ -188,9 +188,43 @@ pub fn possible(set_idx: usize, set: &SetEntry, b: &MonBelief) -> bool {
     (!b.pool_active || pm_get(&b.pool_mask, set_idx)) && set_consistent(set, b)
 }
 
+// #1 damage-elim re-exports so both harness layers reach the prune through one path.
+pub use crate::belief_calc::Conditions;
+pub use crate::belief_prune::{apply_prune, compute_survivors, mask_and, mask_is_empty, should_bail, ObservedHit};
+
+// Production seam: on species reveal, light every set bit over the species pool and activate the
+// mask. Without this the determinizer ignores pool_mask and the prune measures nothing.
+// Idempotent: note_species fires from two tracker sites (handle_switch AND handle_detailschange),
+// so a forme flip would re-seed and wipe the battle's accumulated prunes. Bail when already active.
+pub fn seed_pool(b: &mut MonBelief, species_id: u16) {
+    if b.pool_active {
+        return;
+    }
+    let Some(sets) = species_sets_with_base_fallback(species_id) else {
+        return;
+    };
+    b.pool_mask = [0u64; 4];
+    for i in 0..sets.sets.len() {
+        pm_set(&mut b.pool_mask, i);
+    }
+    b.pool_active = true;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn seed_pool_is_idempotent_and_preserves_prunes() {
+        const GARCHOMP: u16 = 445;
+        let mut b = MonBelief::default();
+        seed_pool(&mut b, GARCHOMP);
+        assert!(b.pool_active);
+        b.pool_mask[0] &= !1u64; // clear bit 0: simulate a prune this battle
+        let after_prune = b.pool_mask;
+        seed_pool(&mut b, GARCHOMP); // forme flip re-fires note_species
+        assert_eq!(b.pool_mask, after_prune, "an active pool must not be re-seeded — prunes preserved");
+    }
 
     #[test]
     fn note_species_claims_and_dedups_slots() {

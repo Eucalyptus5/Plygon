@@ -11,6 +11,7 @@ pub mod gen_sets;
 pub mod chance_closed;
 pub mod belief;
 pub mod belief_calc;
+pub mod belief_prune;
 pub mod determinize;
 pub mod driver;
 
