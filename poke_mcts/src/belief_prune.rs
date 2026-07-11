@@ -112,7 +112,7 @@ pub fn mask_is_empty(m: &[u64; 4]) -> bool {
 }
 
 // Compute the survivors mask over the LIVE pool only (off hot path; <= ~30 sets). Bails => the
-// current pool_mask unchanged. Does NOT write pool_mask (DE3's apply_prune owns the never-empty
+// current pool_mask unchanged. Does NOT write pool_mask (apply_prune owns the never-empty
 // write). Loops the FULL 0..pool.len() (never breaks at 64); addresses bits via pm_get/pm_set.
 pub fn compute_survivors(
     species_id: u16,
@@ -143,12 +143,23 @@ pub fn compute_survivors(
     survivors
 }
 
-// DE2 stub: unconditional word-wise intersection (can empty the pool). DE3 hardens this with the
-// never-empty escape + calc-divergence logging. Returns false (no divergence logged yet).
+// Apply the survivors to the live pool, refusing to empty it.
+// Returns true iff a calc-divergence candidate was logged (every live set rejected).
 pub fn apply_prune(b: &mut MonBelief, survivors: [u64; 4]) -> bool {
-    b.pool_mask = mask_and(b.pool_mask, survivors);
-    false
+    let keep = mask_and(b.pool_mask, survivors);
+    if mask_is_empty(&keep) {
+        // all-reject: skip rather than empty the pool; the true set survives by construction.
+        log_calc_divergence_candidate(b);
+        true
+    } else {
+        b.pool_mask = keep;
+        false
+    }
 }
+
+// records an all-reject for the attribution harness; production fills the collector.
+#[inline]
+fn log_calc_divergence_candidate(_b: &MonBelief) {}
 
 #[cfg(test)]
 mod tests {
@@ -257,6 +268,32 @@ mod tests {
         };
         let survivors = compute_survivors(GARCHOMP, &pool, &b, &defender(), &hit);
         assert!(pm_get(&survivors, 0), "a Slow Start candidate must be kept by the per-set bail — B0");
+    }
+
+    #[test]
+    fn never_empty_skips_an_all_reject_prune() {
+        let mut b = MonBelief::default();
+        b.pool_active = true;
+        pm_set(&mut b.pool_mask, 0);
+        pm_set(&mut b.pool_mask, 2);          // two live sets: bits 0 and 2
+        let before = b.pool_mask;
+        let survivors = [0u64; 4];            // every set rejected this hit
+        let logged = apply_prune(&mut b, survivors);
+        assert_eq!(b.pool_mask, before, "an all-reject prune must NOT empty the pool; mask unchanged");
+        assert!(logged, "an all-reject must log a calc-divergence candidate");
+    }
+
+    #[test]
+    fn normal_prune_intersects() {
+        let mut b = MonBelief::default();
+        b.pool_active = true;
+        for i in 0..3 { pm_set(&mut b.pool_mask, i); }
+        let mut survivors = [0u64; 4];
+        pm_set(&mut survivors, 1);            // only the middle set survived
+        let logged = apply_prune(&mut b, survivors);
+        let mut expected = [0u64; 4]; pm_set(&mut expected, 1);
+        assert_eq!(b.pool_mask, expected, "a non-empty survivors set intersects normally");
+        assert!(!logged, "a normal prune logs no divergence candidate");
     }
 
     #[test]
