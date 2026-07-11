@@ -19,6 +19,11 @@ pub trait Determinizer {
 
 pub struct RandomBattle;
 
+// Single SetEntry->MonBuildInput source of truth, exposed crate-wide for the calc bridge (#1).
+pub(crate) fn input_from_set_pub(species_id: u16, set: &SetEntry) -> MonBuildInput {
+    input_from_set(species_id, set)
+}
+
 fn input_from_set(species_id: u16, set: &SetEntry) -> MonBuildInput {
     MonBuildInput {
         species_id,
