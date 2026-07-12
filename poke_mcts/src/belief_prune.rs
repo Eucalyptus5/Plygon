@@ -1,7 +1,6 @@
 use crate::belief::{pm_get, pm_set, MonBelief};
 use crate::belief_calc::{damage_range, Conditions};
 use crate::gen_sets::SetEntry;
-use pkmn_engine::state::data_bridge::ABILITY_SLOW_START;
 use pkmn_engine::state::MonBuildInput;
 
 // One observed damaging hit, assembled by the tracker hook.
@@ -40,6 +39,30 @@ pub fn should_bail(hit: &ObservedHit) -> bool {
         && hit.move_id != FUTURE_SIGHT                // bp 120 effect:None slips the bp check
         && !is_transformed_or_forme_active(hit);      // ditto/forme: candidate build invalid
     !spread_dependent
+}
+
+// Attacker abilities whose damage effect the static synthetic state (full HP, turn 0, empty 2-mon
+// field) cannot reproduce, so the band would under/over-estimate and clear the true set. Bail them
+// per-set (precision loss, never a clear). Steely Spirit has no calc implementation so it is here too.
+const ABILITY_STEELY_SPIRIT: u16 = 252;
+#[inline]
+fn bail_ability(ability_id: u16) -> bool {
+    use pkmn_engine::state::data_bridge::*;
+    matches!(
+        ability_id,
+        ABILITY_SLOW_START          // halved Atk while turns_active < 5 (synthetic is turn 0)
+            | ABILITY_BLAZE         // pinch 1.5x at <=1/3 HP (synthetic is full HP)
+            | ABILITY_TORRENT
+            | ABILITY_OVERGROW
+            | ABILITY_SWARM
+            | ABILITY_LIBERO        // dynamic-type STAB (move type changes on use)
+            | ABILITY_PROTEAN
+            | ABILITY_SWORD_OF_RUIN // field-wide stat drop not reproduced by the 2-mon synthetic
+            | ABILITY_BEADS_OF_RUIN
+            | ABILITY_TABLETS_OF_RUIN
+            | ABILITY_VESSEL_OF_RUIN
+            | ABILITY_STEELY_SPIRIT // +50% Steel moves, unimplemented in calc_modifiers
+    )
 }
 
 // MoveEffect variants whose damage does not depend on the attacker's EV/item spread.
@@ -129,9 +152,9 @@ pub fn compute_survivors(
         if b.pool_active && !pm_get(&b.pool_mask, i) {
             continue; // already dead
         }
-        // Slow Start halves Atk while turns_active < 5; the synthetic is permanently turns_active==0
-        // and turns_active is not plumbed, so keep this candidate unconditionally (never a clear).
-        if set.ability_id == ABILITY_SLOW_START {
+        // Keep unconditionally any candidate whose ability the static synthetic cannot faithfully
+        // reproduce (full-HP, turn-0, 2-mon empty field): bailing loses precision, never a clear (B0).
+        if bail_ability(set.ability_id) {
             pm_set(&mut survivors, i);
             continue;
         }
@@ -160,6 +183,40 @@ pub fn apply_prune(b: &mut MonBelief, survivors: [u64; 4]) -> bool {
 // records an all-reject for the attribution harness; production fills the collector.
 #[inline]
 fn log_calc_divergence_candidate(_b: &MonBelief) {}
+
+pub enum DivergenceVerdict { CalcDivergence, InferenceLogic }
+
+// When a prune WOULD clear the true set's bit, classify before counting it against B0.
+// The independent question: does the ENGINE'S OWN pinned band for S (under the reconstructed
+// board) bracket Showdown's reported number?
+//  - Showdown's number OUTSIDE the engine's own [min,max]  -> CALC-DIVERGENCE (engine truly
+//    cannot reproduce it; an engine finding, NOT a B0 fail) -- ONLY when board_complete.
+//  - Showdown's number INSIDE the engine's band yet S still cleared -> INFERENCE-LOGIC: the
+//    divergence is in OUR reconstruction (unmodeled modifier / stale boost / parse error) ->
+//    B0 hard stop. The screen false-elim routes here, as it must.
+//  - board_complete=false (a modifier could not be confirmed) -> INFERENCE-LOGIC: an over-
+//    estimated band must not launder our forgotten modifier as an engine bug.
+pub fn attribute_false_elim(
+    species_id: u16,
+    s: &SetEntry,
+    our_known: &MonBuildInput,
+    move_id: u16,
+    atk_side: usize,
+    cond: &Conditions,
+    showdown_reported: u16,
+    board_complete: bool,
+) -> DivergenceVerdict {
+    if !board_complete {
+        return DivergenceVerdict::InferenceLogic; // unconfirmed board -> our reconstruction, not the engine
+    }
+    let (min_s, max_s) = damage_range(species_id, s, our_known, move_id, atk_side, cond);
+    let engine_brackets = showdown_reported >= min_s && showdown_reported <= max_s;
+    if engine_brackets {
+        DivergenceVerdict::InferenceLogic // engine CAN reach Showdown's number; our reconstruction is wrong
+    } else {
+        DivergenceVerdict::CalcDivergence // engine genuinely cannot reproduce Showdown's number for S
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -252,7 +309,7 @@ mod tests {
     #[test]
     fn slow_start_candidate_is_per_set_bailed() {
         let mut slow = base_eq_set();
-        slow.ability_id = ABILITY_SLOW_START; // 112
+        slow.ability_id = pkmn_engine::state::data_bridge::ABILITY_SLOW_START; // 112
         let pool = [slow, plain_set()]; // idx 0 = Slow Start, idx 1 = plain
         let mut b = MonBelief::default();
         b.species_id = GARCHOMP;
@@ -268,6 +325,65 @@ mod tests {
         };
         let survivors = compute_survivors(GARCHOMP, &pool, &b, &defender(), &hit);
         assert!(pm_get(&survivors, 0), "a Slow Start candidate must be kept by the per-set bail — B0");
+    }
+
+    // a candidate whose attacker ability the static band cannot model (pinch HP-gate, dynamic-type
+    // STAB, field-wide Ruin, unimplemented Steely Spirit) must be per-set bailed: its real boosted
+    // damage exceeds the static band max, so without the bail it would be cleared (a B0 violation).
+    fn bail_ability_keeps_candidate(ability_id: u16) {
+        let mut cand = base_eq_set();
+        cand.ability_id = ability_id;
+        let pool = [cand, plain_set()];
+        let mut b = MonBelief::default();
+        b.species_id = GARCHOMP;
+        b.pool_active = true;
+        b.pool_mask = live_mask(2);
+        let (_, cand_max) = damage_range(GARCHOMP, &pool[0], &defender(), 89, 1, &Default::default());
+        // an out-of-band observed the static band cannot reach (the real boost would lift it here).
+        let hit = ObservedHit {
+            move_id: 89,
+            atk_side: 1,
+            observed_abs: cand_max.saturating_mul(2),
+            defender_fainted: false,
+            cond: Default::default(),
+        };
+        let survivors = compute_survivors(GARCHOMP, &pool, &b, &defender(), &hit);
+        assert!(pm_get(&survivors, 0), "a bail-ability candidate ({ability_id}) must be kept (B0)");
+    }
+
+    #[test]
+    fn pinch_ability_candidate_is_per_set_bailed() {
+        for a in [
+            pkmn_engine::state::data_bridge::ABILITY_BLAZE,
+            pkmn_engine::state::data_bridge::ABILITY_TORRENT,
+            pkmn_engine::state::data_bridge::ABILITY_OVERGROW,
+            pkmn_engine::state::data_bridge::ABILITY_SWARM,
+        ] {
+            bail_ability_keeps_candidate(a);
+        }
+    }
+
+    #[test]
+    fn type_change_ability_candidate_is_per_set_bailed() {
+        bail_ability_keeps_candidate(pkmn_engine::state::data_bridge::ABILITY_LIBERO);
+        bail_ability_keeps_candidate(pkmn_engine::state::data_bridge::ABILITY_PROTEAN);
+    }
+
+    #[test]
+    fn ruin_ability_candidate_is_per_set_bailed() {
+        for a in [
+            pkmn_engine::state::data_bridge::ABILITY_SWORD_OF_RUIN,
+            pkmn_engine::state::data_bridge::ABILITY_BEADS_OF_RUIN,
+            pkmn_engine::state::data_bridge::ABILITY_TABLETS_OF_RUIN,
+            pkmn_engine::state::data_bridge::ABILITY_VESSEL_OF_RUIN,
+        ] {
+            bail_ability_keeps_candidate(a);
+        }
+    }
+
+    #[test]
+    fn steely_spirit_candidate_is_per_set_bailed() {
+        bail_ability_keeps_candidate(252); // Steely Spirit: unimplemented in calc_modifiers
     }
 
     #[test]
