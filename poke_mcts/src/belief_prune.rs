@@ -46,7 +46,7 @@ pub fn should_bail(hit: &ObservedHit) -> bool {
 // per-set (precision loss, never a clear). Steely Spirit has no calc implementation so it is here too.
 const ABILITY_STEELY_SPIRIT: u16 = 252;
 #[inline]
-fn bail_ability(ability_id: u16) -> bool {
+pub fn bail_ability(ability_id: u16) -> bool {
     use pkmn_engine::state::data_bridge::*;
     matches!(
         ability_id,
