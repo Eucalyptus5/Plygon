@@ -122,6 +122,22 @@ pub fn damage_range(
     (min_dmg, max_dmg)
 }
 
+// Damage at a single forced roll (0..15), independent of the [min,max] endpoints damage_range pins.
+// The cross-crate property harness uses this to source an observed number at a non-endpoint roll.
+pub fn damage_at_roll(
+    candidate_species: u16,
+    candidate: &SetEntry,
+    our_known: &MonBuildInput,
+    move_id: u16,
+    atk_side: usize,
+    cond: &Conditions,
+    roll: u32,
+) -> u16 {
+    let (synth, _teams) = synth_state(candidate_species, candidate, our_known, atk_side, cond);
+    let mut r = forced_roll(roll, false);
+    calc_damage(&synth, atk_side, move_id, 100, &mut r).damage
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

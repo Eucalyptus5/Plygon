@@ -37,6 +37,139 @@ fn sample_true_set(rng: &mut SplitMix64) -> &'static SetEntry {
     &pool.sets[pool.sets.len() - 1]
 }
 
+// like sample_true_set, but also returns the pool entry's species id and the chosen set's index.
+fn sample_true_set_indexed(rng: &mut SplitMix64) -> (u16, usize, &'static SetEntry) {
+    let pool = &GEN9_SET_POOL[(rng.next() as usize) % GEN9_SET_POOL.len()];
+    let total: u32 = pool.sets.iter().map(|s| s.count).sum();
+    let mut r = (rng.next() % total.max(1) as u64) as u32;
+    for (i, s) in pool.sets.iter().enumerate() {
+        if r < s.count {
+            return (pool.species_id, i, s);
+        }
+        r -= s.count;
+    }
+    let last = pool.sets.len() - 1;
+    (pool.species_id, last, &pool.sets[last])
+}
+
+// ---- Layer-1 #1 damage-elimination generators ----
+
+use pkmn_engine::state::MonBuildInput;
+use pkmn_engine::state::data_bridge::{move_hot, MoveCategory};
+use poke_mcts::belief::{should_bail as de_should_bail, ObservedHit as DeObservedHit};
+
+// shuffle the 4 move slots so the picked move is not biased to slot 0.
+fn shuffled_moves(s: &SetEntry, rng: &mut SplitMix64) -> [u16; 4] {
+    let mut m = s.moves;
+    for i in (1..4).rev() {
+        let j = (rng.next() as usize) % (i + 1);
+        m.swap(i, j);
+    }
+    m
+}
+
+// a move from the set that is NOT a bail-class move (so this only tests discriminating damage).
+fn sample_discriminating_move(s: &SetEntry, rng: &mut SplitMix64) -> Option<u16> {
+    for &move_id in shuffled_moves(s, rng).iter() {
+        if move_id == 0 { continue; }
+        let probe = DeObservedHit { move_id, atk_side: 1, observed_abs: 1, defender_fainted: false, cond: Default::default() };
+        if !de_should_bail(&probe) {
+            return Some(move_id);
+        }
+    }
+    None
+}
+
+// a non-bail damaging move whose type matches the set's tera_type (so a modeled Tera raises STAB).
+fn sample_same_type_stab_move(s: &SetEntry, rng: &mut SplitMix64) -> Option<u16> {
+    for &move_id in shuffled_moves(s, rng).iter() {
+        if move_id == 0 { continue; }
+        if move_hot(move_id).move_type as u8 != s.tera_type { continue; }
+        let probe = DeObservedHit { move_id, atk_side: 1, observed_abs: 1, defender_fainted: false, cond: Default::default() };
+        if !de_should_bail(&probe) {
+            return Some(move_id);
+        }
+    }
+    None
+}
+
+// a physical non-bail damaging move (so a modeled burn halves it).
+fn sample_physical_move(s: &SetEntry, rng: &mut SplitMix64) -> Option<u16> {
+    for &move_id in shuffled_moves(s, rng).iter() {
+        if move_id == 0 { continue; }
+        if move_hot(move_id).category != MoveCategory::Physical { continue; }
+        let probe = DeObservedHit { move_id, atk_side: 1, observed_abs: 1, defender_fainted: false, cond: Default::default() };
+        if !de_should_bail(&probe) {
+            return Some(move_id);
+        }
+    }
+    None
+}
+
+// a set that carries a non-bail damaging move whose type matches its tera_type (only ~17% of
+// sets do, so a single draw misses too often; re-sample like the paradox/slow-start samplers).
+fn sample_same_type_stab_set(rng: &mut SplitMix64) -> Option<(u16, usize, &'static SetEntry)> {
+    for _ in 0..200_000u64 {
+        let (sid, idx, s) = sample_true_set_indexed(rng);
+        if sample_same_type_stab_move(s, rng).is_some() {
+            return Some((sid, idx, s));
+        }
+    }
+    None
+}
+
+// a set whose ability is Protosynthesis (281) or Quark-Drive (282), with a physical non-bail move.
+fn sample_paradox_set(rng: &mut SplitMix64) -> Option<(u16, usize, &'static SetEntry)> {
+    for _ in 0..200_000u64 {
+        let (sid, idx, s) = sample_true_set_indexed(rng);
+        if (s.ability_id == 281 || s.ability_id == 282) && sample_physical_move(s, rng).is_some() {
+            return Some((sid, idx, s));
+        }
+    }
+    None
+}
+
+// a Slow Start set (ability 112) with a physical non-bail move.
+fn sample_slow_start_set(rng: &mut SplitMix64) -> Option<(u16, usize, &'static SetEntry)> {
+    for _ in 0..200_000u64 {
+        let (sid, idx, s) = sample_true_set_indexed(rng);
+        if s.ability_id == 112 && sample_physical_move(s, rng).is_some() {
+            return Some((sid, idx, s));
+        }
+    }
+    None
+}
+
+// a fixed, owned exact defender (mirrors belief_calc/belief_prune's our_known_defender).
+fn sample_our_defender(_rng: &mut SplitMix64) -> MonBuildInput {
+    MonBuildInput {
+        species_id: 25,
+        ability_id: 9,
+        item_id: 0,
+        moves: [85, 0, 0, 0],
+        ivs: [31; 6],
+        evs: [0; 6],
+        nature: 0,
+        level: 80,
+        tera_type: 0,
+        is_female: false,
+    }
+}
+
+// the observed number from an INDEPENDENT source: a hand-frozen mid-roll (roll 8), NOT the prune's
+// own damage_range endpoints, so "true set survives its own band" is not tautological.
+fn independent_observed(
+    sid: u16,
+    _idx_s: usize,
+    s: &SetEntry,
+    our_known: &MonBuildInput,
+    move_id: u16,
+    _rng: &mut SplitMix64,
+) -> u16 {
+    use poke_mcts::belief_calc::{damage_at_roll, Conditions};
+    damage_at_roll(sid, s, our_known, move_id, 1, &Conditions::default(), 8)
+}
+
 // a single curated bit (positions 0..20) that `infer_bits` does NOT carry
 fn a_bit_not_in(infer_bits: u32, rng: &mut SplitMix64) -> u32 {
     loop {
@@ -483,4 +616,142 @@ fn d3_genuine_scarf_still_pins_no_false_abstain() {
         NON_PRANK_SID, m["surf"], m["grassyglide"], false
     ));
     assert!(poke_mcts::belief::scarf_forced(NON_PRANK_SID, 80, 1, 1, 400));
+}
+
+// ---- Layer-1 #1 damage-elimination property + mutation guard ----
+
+#[test]
+fn de_soundness_never_prunes_true_set_and_precision_fires() {
+    use poke_mcts::belief::{MonBelief, species_sets, compute_survivors, apply_prune, ObservedHit, pm_get, pm_set};
+    let mut pruned_some = 0u64;
+    for case in 0..30_000u64 {
+        let mut rng = SplitMix64::new(0xDE1A ^ case);
+        let (sid, idx_s, s) = sample_true_set_indexed(&mut rng);
+        let pool = species_sets(sid).unwrap().sets;
+        let Some(move_id) = sample_discriminating_move(s, &mut rng) else { continue; };
+        let our_known = sample_our_defender(&mut rng);            // an exact, owned mon
+        // observed number from an INDEPENDENT source (fixture/omniscient or a hand-frozen roll
+        // pin), NOT the prune's own damage_range, so survival is not tautological.
+        let observed_abs = independent_observed(sid, idx_s, s, &our_known, move_id, &mut rng);
+
+        let mut b = MonBelief::default();
+        b.species_id = sid; b.pool_active = true;
+        for i in 0..pool.len() { pm_set(&mut b.pool_mask, i); }
+        let hit = ObservedHit { move_id, atk_side: 1, observed_abs, defender_fainted: false, cond: Default::default() };
+        let before = b.pool_mask;
+        let survivors = compute_survivors(sid, pool, &b, &our_known, &hit);
+        apply_prune(&mut b, survivors);
+
+        // SOUNDNESS (always-on): S's bit survives.
+        assert!(pm_get(&b.pool_mask, idx_s), "case {case}: true set {idx_s} wrongly pruned");
+        // NEVER-EMPTY:
+        assert!(b.pool_mask != [0u64; 4], "case {case}: pool emptied");
+        if b.pool_mask != before { pruned_some += 1; }
+    }
+    // PRECISION: across the corpus the prune fires (the pool shrinks) at least sometimes.
+    assert!(pruned_some > 0, "no discriminating fixture ever shrank the pool — precision dead");
+}
+
+#[test]
+fn de_gate_is_alive_wrong_observed_drops_the_set() {
+    use poke_mcts::belief::{MonBelief, species_sets, compute_survivors, ObservedHit, pm_get, pm_set};
+    use poke_mcts::belief_calc::damage_range;
+    // a deliberately out-of-band observed value (max x4) must DROP the true set from survivors,
+    // proving the band discriminates and the gate is not a tautology that always keeps S.
+    let mut rng = SplitMix64::new(0xA11E);
+    let (sid, idx_s, s) = sample_true_set_indexed(&mut rng);
+    let pool = species_sets(sid).unwrap().sets;
+    let move_id = sample_discriminating_move(s, &mut rng).expect("a discriminating move");
+    let our_known = sample_our_defender(&mut rng);
+    let (_, max_s) = damage_range(sid, s, &our_known, move_id, 1, &Default::default());
+    let mut b = MonBelief::default(); b.species_id = sid; b.pool_active = true;
+    for i in 0..pool.len() { pm_set(&mut b.pool_mask, i); }
+    let hit = ObservedHit { move_id, atk_side: 1, observed_abs: max_s.saturating_mul(4),
+                            defender_fainted: false, cond: Default::default() };
+    let survivors = compute_survivors(sid, pool, &b, &our_known, &hit);
+    assert!(!pm_get(&survivors, idx_s), "an impossible observed must drop the true set — the gate is alive");
+}
+
+#[test]
+fn de_tera_stab_hit_keeps_the_true_set() {
+    use poke_mcts::belief::{MonBelief, species_sets, compute_survivors, ObservedHit, pm_get, pm_set};
+    use poke_mcts::belief_calc::{damage_range, Conditions};
+    // an opp Tera-STAB hit: the true set's real (Tera-boosted) damage exceeds the no-Tera band, so a
+    // cond WITHOUT atk_terastallized would clear it; with the Tera modeled the true set must survive.
+    let mut rng = SplitMix64::new(0x7E2A);
+    let (sid, idx_s, s) = sample_same_type_stab_set(&mut rng).expect("a set with a same-type STAB move");
+    let pool = species_sets(sid).unwrap().sets;
+    let move_id = sample_same_type_stab_move(s, &mut rng).expect("a STAB move sharing the tera type");
+    let our_known = sample_our_defender(&mut rng);
+    let cond = Conditions { atk_terastallized: true, atk_tera_type: s.tera_type, ..Default::default() };
+    let (_, tera_max) = damage_range(sid, s, &our_known, move_id, 1, &cond);
+    let mut b = MonBelief::default(); b.species_id = sid; b.pool_active = true;
+    for i in 0..pool.len() { pm_set(&mut b.pool_mask, i); }
+    let hit = ObservedHit { move_id, atk_side: 1, observed_abs: tera_max, defender_fainted: false, cond };
+    let survivors = compute_survivors(sid, pool, &b, &our_known, &hit);
+    assert!(pm_get(&survivors, idx_s), "a modeled Tera-STAB hit must keep the true set — B0");
+}
+
+#[test]
+fn de_burned_hit_keeps_the_true_set() {
+    use poke_mcts::belief::{MonBelief, species_sets, compute_survivors, ObservedHit, pm_get, pm_set};
+    use poke_mcts::belief_calc::{damage_range, Conditions};
+    use pkmn_engine::state::STATUS_BURN;
+    // a burned opp PHYSICAL hit: the true set's real (halved) damage falls below the no-status band,
+    // so a cond WITHOUT atk_status would clear it; with the burn modeled the true set must survive.
+    let mut rng = SplitMix64::new(0xB041);
+    let (sid, idx_s, s) = sample_true_set_indexed(&mut rng);
+    let pool = species_sets(sid).unwrap().sets;
+    let move_id = sample_physical_move(s, &mut rng).expect("a physical damaging move");
+    let our_known = sample_our_defender(&mut rng);
+    let cond = Conditions { atk_status: STATUS_BURN, ..Default::default() };
+    let (_, burn_max) = damage_range(sid, s, &our_known, move_id, 1, &cond);
+    let mut b = MonBelief::default(); b.species_id = sid; b.pool_active = true;
+    for i in 0..pool.len() { pm_set(&mut b.pool_mask, i); }
+    let hit = ObservedHit { move_id, atk_side: 1, observed_abs: burn_max, defender_fainted: false, cond };
+    let survivors = compute_survivors(sid, pool, &b, &our_known, &hit);
+    assert!(pm_get(&survivors, idx_s), "a modeled burned physical hit must keep the true set — B0");
+}
+
+#[test]
+fn de_opp_paradox_sun_keeps_the_true_set() {
+    use poke_mcts::belief::{MonBelief, species_sets, compute_survivors, ObservedHit, pm_get, pm_set};
+    use poke_mcts::belief_calc::{damage_range, Conditions};
+    use pkmn_engine::state::WEATHER_SUN;
+    // an opp paradox attacker under sun: its real (1.3x boosted) damage exceeds the no-field band, so a
+    // cond WITHOUT weather (no paradox re-fire) would clear it; with sun set, apply_conditions's
+    // check_paradox_deactivation restores the boost and the true set survives.
+    let mut rng = SplitMix64::new(0x9A20);
+    let (sid, idx_s, s) = sample_paradox_set(&mut rng).expect("a Protosynthesis/Quark-Drive set");
+    let pool = species_sets(sid).unwrap().sets;
+    let move_id = sample_physical_move(s, &mut rng).expect("a physical damaging move");
+    let our_known = sample_our_defender(&mut rng);
+    let cond = Conditions { weather: WEATHER_SUN, ..Default::default() };
+    let (_, sun_max) = damage_range(sid, s, &our_known, move_id, 1, &cond);
+    let mut b = MonBelief::default(); b.species_id = sid; b.pool_active = true;
+    for i in 0..pool.len() { pm_set(&mut b.pool_mask, i); }
+    let hit = ObservedHit { move_id, atk_side: 1, observed_abs: sun_max, defender_fainted: false, cond };
+    let survivors = compute_survivors(sid, pool, &b, &our_known, &hit);
+    assert!(pm_get(&survivors, idx_s), "a modeled paradox-under-sun hit must keep the true set — B0");
+}
+
+#[test]
+fn de_slow_start_candidate_is_bailed() {
+    use poke_mcts::belief::{MonBelief, species_sets, compute_survivors, ObservedHit, pm_get, pm_set};
+    use poke_mcts::belief_calc::damage_range;
+    // a Slow Start set: its turn-0 synthetic band is halved, so a past-turn-5 hit cannot bracket it.
+    // The per-set bail must keep its bit regardless of the observed value.
+    let mut rng = SplitMix64::new(0x510B);
+    let (sid, idx_s, s) = sample_slow_start_set(&mut rng).expect("a Slow Start set (ability 112)");
+    let pool = species_sets(sid).unwrap().sets;
+    let move_id = sample_physical_move(s, &mut rng).expect("a physical damaging move");
+    let our_known = sample_our_defender(&mut rng);
+    let (_, half_max) = damage_range(sid, s, &our_known, move_id, 1, &Default::default());
+    let mut b = MonBelief::default(); b.species_id = sid; b.pool_active = true;
+    for i in 0..pool.len() { pm_set(&mut b.pool_mask, i); }
+    // an out-of-band observed (double the turn-0 halved max) the turn-0 band cannot reach.
+    let hit = ObservedHit { move_id, atk_side: 1, observed_abs: half_max.saturating_mul(2),
+                            defender_fainted: false, cond: Default::default() };
+    let survivors = compute_survivors(sid, pool, &b, &our_known, &hit);
+    assert!(pm_get(&survivors, idx_s), "a Slow Start candidate must be per-set bailed and kept — B0");
 }

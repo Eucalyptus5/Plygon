@@ -190,7 +190,10 @@ pub fn possible(set_idx: usize, set: &SetEntry, b: &MonBelief) -> bool {
 
 // #1 damage-elim re-exports so both harness layers reach the prune through one path.
 pub use crate::belief_calc::Conditions;
-pub use crate::belief_prune::{apply_prune, compute_survivors, mask_and, mask_is_empty, should_bail, ObservedHit};
+pub use crate::belief_prune::{
+    apply_prune, attribute_false_elim, compute_survivors, mask_and, mask_is_empty, should_bail,
+    DivergenceVerdict, ObservedHit,
+};
 
 // Production seam: on species reveal, light every set bit over the species pool and activate the
 // mask. Without this the determinizer ignores pool_mask and the prune measures nothing.
