@@ -122,7 +122,10 @@ fn sample_same_type_stab_set(rng: &mut SplitMix64) -> Option<(u16, usize, &'stat
 fn sample_paradox_set(rng: &mut SplitMix64) -> Option<(u16, usize, &'static SetEntry)> {
     for _ in 0..200_000u64 {
         let (sid, idx, s) = sample_true_set_indexed(rng);
-        if (s.ability_id == 281 || s.ability_id == 282) && sample_physical_move(s, rng).is_some() {
+        // Protosynthesis (281) only: it activates under sun and is NOT bailed, so the test drives the
+        // modeled check_paradox_deactivation band. Quark Drive (282) activates on electric terrain and
+        // is bailed, which would make the test pass via the bail instead of the modeled path.
+        if s.ability_id == 281 && sample_physical_move(s, rng).is_some() {
             return Some((sid, idx, s));
         }
     }

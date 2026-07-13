@@ -57,10 +57,11 @@ fn bail_ability(ability_id: u16) -> bool {
             | ABILITY_SWARM
             | ABILITY_LIBERO        // dynamic-type STAB (move type changes on use)
             | ABILITY_PROTEAN
-            | ABILITY_SWORD_OF_RUIN // field-wide stat drop not reproduced by the 2-mon synthetic
+            // field-wide stat drop not reproduced by the 2-mon synthetic. In SetEntry/ability-map
+            // space 284 covers Tablets/Vessel/Beads of Ruin (collapsed), 285 = Sword of Ruin; the
+            // 282/283 engine consts are Quark Drive / Good as Gold there, so they are NOT listed.
             | ABILITY_BEADS_OF_RUIN
-            | ABILITY_TABLETS_OF_RUIN
-            | ABILITY_VESSEL_OF_RUIN
+            | ABILITY_SWORD_OF_RUIN
             | ABILITY_STEELY_SPIRIT // +50% Steel moves, unimplemented in calc_modifiers
     )
 }
@@ -371,14 +372,13 @@ mod tests {
 
     #[test]
     fn ruin_ability_candidate_is_per_set_bailed() {
-        for a in [
-            pkmn_engine::state::data_bridge::ABILITY_SWORD_OF_RUIN,
-            pkmn_engine::state::data_bridge::ABILITY_BEADS_OF_RUIN,
-            pkmn_engine::state::data_bridge::ABILITY_TABLETS_OF_RUIN,
-            pkmn_engine::state::data_bridge::ABILITY_VESSEL_OF_RUIN,
-        ] {
-            bail_ability_keeps_candidate(a);
-        }
+        // SetEntry-space ids: 284 covers Tablets/Vessel/Beads of Ruin (collapsed in the ability map),
+        // 285 = Sword of Ruin. Quark Drive (282) and Good as Gold (283) must NOT be bailed (their
+        // boost is modeled / harmless), so the engine-space data_bridge ruin consts cannot be used here.
+        bail_ability_keeps_candidate(284);
+        bail_ability_keeps_candidate(285);
+        assert!(!bail_ability(282), "Quark Drive (SetEntry 282) must not be bailed");
+        assert!(!bail_ability(283), "Good as Gold (SetEntry 283) must not be bailed");
     }
 
     #[test]
