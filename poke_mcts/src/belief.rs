@@ -195,11 +195,21 @@ pub use crate::belief_prune::{
     should_bail, DivergenceVerdict, ObservedHit,
 };
 
+// Arena A/B switch: BRIDGE_NO_BELIEF_POOL=1 keeps pool_active false so the determinizer samples the
+// full set pool (the pre-pool baseline), isolating the pool-belief path. Default off (belief on).
+fn belief_pool_disabled() -> bool {
+    static D: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *D.get_or_init(|| std::env::var("BRIDGE_NO_BELIEF_POOL").as_deref() == Ok("1"))
+}
+
 // Production seam: on species reveal, light every set bit over the species pool and activate the
 // mask. Without this the determinizer ignores pool_mask and the prune measures nothing.
 // Idempotent: note_species fires from two tracker sites (handle_switch AND handle_detailschange),
 // so a forme flip would re-seed and wipe the battle's accumulated prunes. Bail when already active.
 pub fn seed_pool(b: &mut MonBelief, species_id: u16) {
+    if belief_pool_disabled() {
+        return;
+    }
     if b.pool_active {
         return;
     }
