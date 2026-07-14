@@ -16,3 +16,4 @@ pub mod determinize;
 pub mod driver;
 
 pub mod testutil;
+pub mod audit_snapshot;

@@ -5,7 +5,7 @@ pub fn pm_get(m: &[u64; 4], i: usize) -> bool { (m[i >> 6] >> (i & 63)) & 1 != 0
 #[inline(always)]
 pub fn pm_set(m: &mut [u64; 4], i: usize) { m[i >> 6] |= 1u64 << (i & 63); }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub struct MonBelief {
     pub species_id: u16,          // 0 = slot not yet revealed
     pub moves: [u16; 4],          // revealed moves (0-padded)
@@ -20,7 +20,7 @@ pub struct MonBelief {
     pub pool_active: bool,        // false until species revealed / #1 prunes; mask ignored while false
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Belief { pub mons: [MonBelief; 6] }
 
 impl Belief {
