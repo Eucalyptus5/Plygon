@@ -148,7 +148,7 @@ fn label(byte: u8, our_active_moves: &[u16; 4]) -> String {
     match byte {
         0..=3 => format!("move[{}]=#{}", byte, our_active_moves[byte as usize]),
         4..=9 => format!("switch->slot{}", byte - 4),
-        10 => "tera+move".to_string(),
+        ACTION_TERA_0..=ACTION_TERA_3 => format!("tera+move[{}]=#{}", byte - ACTION_TERA_0, our_active_moves[(byte - ACTION_TERA_0) as usize]),
         255 => "struggle".to_string(),
         _ => format!("byte{}", byte),
     }

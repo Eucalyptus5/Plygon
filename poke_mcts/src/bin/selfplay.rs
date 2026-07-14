@@ -109,8 +109,8 @@ fn play(p1: Entrant, p2: Entrant, t1: &[MonJson], t2: &[MonJson], game_seed: u64
                     let mv = effective_moves(&state, s)[a as usize];
                     beliefs[viewer].note_move(slot, mv);
                 }
-                ACTION_TERA => {
-                    let mv = effective_moves(&state, s)[0];
+                ACTION_TERA_0..=ACTION_TERA_3 => {
+                    let mv = effective_moves(&state, s)[(a - ACTION_TERA_0) as usize];
                     beliefs[viewer].note_move(slot, mv);
                     // MonBelief stores Showdown indices; inverse map handles the Stellar (18) identity.
                     let sd_tera = poke_mcts::belief::engine_type_to_showdown(state.active_mon(s).tera_type);
