@@ -1,6 +1,6 @@
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::chance_analytic::AnalyticRoot;
-use poke_mcts::eval::{winner_value, Handcrafted};
+use poke_mcts::eval::Handcrafted;
 use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
 use poke_mcts::rng::{splitmix64, Lcg};
@@ -80,54 +80,9 @@ fn play(p1: Entrant, p2: Entrant, t1: &[MonJson], t2: &[MonJson], game_seed: u64
     state.phase = PHASE_ACTIONS;
     switch::switch_in(&mut state, &teams, 0, 0);
     switch::switch_in(&mut state, &teams, 1, 0);
-
-    let mut beliefs = [poke_mcts::belief::Belief::default(); 2]; // beliefs[s] = what side s knows about its opponent
-    let note_active = |beliefs: &mut [poke_mcts::belief::Belief; 2], state: &BattleState| {
-        for s in 0..2 {
-            let om = state.active_mon(1 - s);
-            if om.species_id != 0 && om.current_hp > 0 {
-                beliefs[s].note_species(om.species_id, om.level);
-            }
-        }
-    };
-    note_active(&mut beliefs, &state);
-
-    let mut battle_rng = Lcg::new(splitmix64(game_seed));
-    let mut pol_rng = Lcg::new(splitmix64(game_seed ^ 0xA5A5));
-    for turn in 0..500u64 {
-        if state.is_game_over() { break; }
-        let s1 = splitmix64(game_seed ^ (turn << 1));
-        let s2 = splitmix64(game_seed ^ (turn << 1) ^ 1);
-        let a1 = if legal_actions(&state, 0).count > 0 { choose(p1, &state, &teams, 0, &mut pol_rng, s1, &beliefs) } else { ACTION_STRUGGLE };
-        let a2 = if legal_actions(&state, 1).count > 0 { choose(p2, &state, &teams, 1, &mut pol_rng, s2, &beliefs) } else { ACTION_STRUGGLE };
-        for (s, a) in [(0usize, a1), (1usize, a2)] {
-            if state.phase != PHASE_ACTIONS { continue; }
-            let viewer = 1 - s;
-            let slot = beliefs[viewer].note_species(state.active_mon(s).species_id, state.active_mon(s).level);
-            match a {
-                0..=3 => {
-                    let mv = effective_moves(&state, s)[a as usize];
-                    beliefs[viewer].note_move(slot, mv);
-                }
-                ACTION_TERA_0..=ACTION_TERA_3 => {
-                    let mv = effective_moves(&state, s)[(a - ACTION_TERA_0) as usize];
-                    beliefs[viewer].note_move(slot, mv);
-                    // MonBelief stores Showdown indices; inverse map handles the Stellar (18) identity.
-                    let sd_tera = poke_mcts::belief::engine_type_to_showdown(state.active_mon(s).tera_type);
-                    beliefs[viewer].note_tera(slot, sd_tera);
-                }
-                _ => {}
-            }
-        }
-        match state.phase {
-            PHASE_ACTIONS => execute_turn(&mut state, &teams, a1, a2, &mut |m| battle_rng.roll(m)),
-            PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH =>
-                execute_switch_turn(&mut state, &teams, a1, a2, &mut |m| battle_rng.roll(m)),
-            _ => break,
-        }
-        note_active(&mut beliefs, &state);
-    }
-    winner_value(&state)
+    let beliefs = [poke_mcts::belief::Belief::default(); 2];
+    poke_mcts::selfplay::play_to_terminal(state, &teams, beliefs, game_seed,
+        |side, st, tm, bel, seed, rng| choose(if side == 0 { p1 } else { p2 }, st, tm, side, rng, seed, bel))
 }
 
 fn stats(mut v: Vec<f64>) -> (f64, f64, f64) {

@@ -14,6 +14,7 @@ pub mod belief_calc;
 pub mod belief_prune;
 pub mod determinize;
 pub mod driver;
+pub mod selfplay;
 
 pub mod testutil;
 pub mod audit_snapshot;
