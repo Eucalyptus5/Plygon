@@ -19,6 +19,23 @@ const JUDGE_MAX_ITERS_PER_WORLD: u64 = 1000;
 const JUDGE_TIME_MS_PER_WORLD: u64 = 60_000;
 const JUDGE_FILTER_THRESHOLD: f64 = 0.75;
 
+#[derive(Clone, Copy, Debug)]
+pub struct JudgeBudget {
+    pub num_worlds: usize,
+    pub max_iters_per_world: u64,
+    pub time_ms_per_world: u64,
+}
+
+impl Default for JudgeBudget {
+    fn default() -> Self {
+        JudgeBudget {
+            num_worlds: JUDGE_NUM_WORLDS,
+            max_iters_per_world: JUDGE_MAX_ITERS_PER_WORLD,
+            time_ms_per_world: JUDGE_TIME_MS_PER_WORLD,
+        }
+    }
+}
+
 // Opponent's belief about us: only our active + fainted mons are unambiguously revealed
 // (engine has no per-mon revealed flag); living bench slots are left unknown.
 pub fn reconstruct_opp_belief(state: &BattleState, our_side: usize) -> Belief {
@@ -47,6 +64,7 @@ fn decide(
     side: usize,
     beliefs: &[Belief; 2],
     seed: u64,
+    budget: JudgeBudget,
     rng: &mut Lcg,
 ) -> u8 {
     match policy {
@@ -55,9 +73,9 @@ fn decide(
         Policy::Mcts => {
             let obs = Observation { state, teams, our_side: side };
             let cfg = PimcConfig {
-                num_worlds: JUDGE_NUM_WORLDS,
-                time_ms_per_world: JUDGE_TIME_MS_PER_WORLD,
-                max_iters_per_world: JUDGE_MAX_ITERS_PER_WORLD,
+                num_worlds: budget.num_worlds,
+                time_ms_per_world: budget.time_ms_per_world,
+                max_iters_per_world: budget.max_iters_per_world,
                 seed,
                 chance_mode: ChanceMode::OpenLoop,
                 pick_mode: PickMode::Weighted,
@@ -150,13 +168,27 @@ pub fn play_from(
     policy: Policy,
     game_seed: u64,
 ) -> f64 {
+    play_from_with_budget(state, teams, beliefs, our_side, forced_first, policy, game_seed, JudgeBudget::default())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn play_from_with_budget(
+    state: &BattleState,
+    teams: &TeamData,
+    beliefs: &[Belief; 2],
+    our_side: usize,
+    forced_first: u8,
+    policy: Policy,
+    game_seed: u64,
+    budget: JudgeBudget,
+) -> f64 {
     let mut forced_done = false;
     let v = play_to_terminal(*state, teams, *beliefs, game_seed, move |side, st, tm, bel, seed, rng| {
         if side == our_side && !forced_done && st.phase == PHASE_ACTIONS {
             forced_done = true;
             return forced_first;
         }
-        decide(policy, st, tm, side, bel, seed, rng)
+        decide(policy, st, tm, side, bel, seed, budget, rng)
     });
     if our_side == 0 { v } else { 1.0 - v }
 }
