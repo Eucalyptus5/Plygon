@@ -1,7 +1,7 @@
 // Deep-search "reference pick" over captured position snapshots: for each snapshot, re-run OUR
-// MCTS at a judge-grade budget (>=4x the live worlds/iters, with a high non-tripping time ceiling so
-// the finite iteration cap is always the termination cause) under a fixed seed, so the same snapshot
-// always yields the same reference best move. Prints one TSV line per snapshot: game_id\tturn\tref_byte.
+// MCTS at a judge-grade budget (4x the live worlds, per-world iterations clamped to a finite cap so
+// termination is the cap and never the clock) under a fixed seed, so the same snapshot always yields
+// the same reference best move. Prints one TSV line per snapshot: game_id\tturn\tref_byte.
 //
 // Fidelity caveat: this reference pick is produced by OUR engine, so it is blind to engine-fidelity
 // divergence from Showdown. It answers only "where does our live pick lose value versus our own best
@@ -10,7 +10,7 @@
 //
 // FULLINFO: default OFF uses the belief-sampled RandomBattle determinizer with the snapshot's belief.
 // Set FULLINFO=1 to instead search a single true-state world equal to the actual snapshot state
-// (belief ignored). Judge-grade budget = live budget * 4 (worlds and iters), time ceiling 60s.
+// (belief ignored). Budget = 4x live worlds; per-world iters = min(live_iters*4, REFERENCE_ITERS_PER_WORLD).
 use poke_mcts::audit_snapshot::PositionSnapshot;
 use poke_mcts::belief::Belief;
 use poke_mcts::determinize::{Determinizer, Observation, RandomBattle, World};
@@ -19,7 +19,13 @@ use poke_mcts::rng::Lcg;
 use poke_mcts::search::ChanceMode;
 
 const JUDGE_MULT: u64 = 4;
-const JUDGE_TIME_MS: u64 = 60_000;
+// Mode A is time-bound (live cap = 1e8, non-binding), so live_iters*4 never binds and the old 60s
+// time ceiling became the termination cause (~241 s/snapshot). Clamp the per-world iteration budget
+// to a finite, affordable cap so termination is the cap (reproducible: same seed -> same pick), not
+// the clock; the time ceiling is large and non-tripping. ~4x the live per-world depth (~131k @ 205 ms)
+// at 4x the live worlds keeps the comparison to a few seconds/snapshot.
+const REFERENCE_ITERS_PER_WORLD: u64 = 200_000;
+const JUDGE_TIME_MS: u64 = 600_000;
 const JUDGE_SEED: u64 = 0x5EED_5EED;
 
 struct TrueState;
@@ -34,7 +40,7 @@ fn judge_cfg(live_budget: (usize, u64, u64)) -> PimcConfig {
     PimcConfig {
         num_worlds: live_worlds * JUDGE_MULT as usize,
         time_ms_per_world: JUDGE_TIME_MS,
-        max_iters_per_world: live_iters.saturating_mul(JUDGE_MULT).max(JUDGE_MULT),
+        max_iters_per_world: live_iters.saturating_mul(JUDGE_MULT).min(REFERENCE_ITERS_PER_WORLD).max(JUDGE_MULT),
         seed: JUDGE_SEED,
         chance_mode: ChanceMode::OpenLoop,
         pick_mode: PickMode::Argmax,

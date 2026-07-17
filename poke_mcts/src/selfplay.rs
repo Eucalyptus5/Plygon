@@ -1,5 +1,5 @@
 use crate::belief::{engine_type_to_showdown, Belief};
-use crate::determinize::{Observation, RandomBattle};
+use crate::determinize::{Determinizer, Observation, RandomBattle};
 use crate::driver::{choose_action, PickMode, PimcConfig};
 use crate::eval::winner_value;
 use crate::policies::{greedy_action, random_action};
@@ -159,6 +159,28 @@ where
     winner_value(&state)
 }
 
+// Ground-truth world seed salt, kept distinct from play_to_terminal's battle/policy/per-turn seeds.
+const GROUND_TRUTH_WORLD_SALT: u64 = 0xC0DA_15E5_5EED_F00D;
+
+// Materialize ONE concrete battle world from our belief: our real side is preserved verbatim, the
+// opponent (and any unrevealed bench) is sampled via the SAME RandomBattle path the live search uses
+// (RandomBattle::sample_worlds), honoring the observed public facts — active species, HP-percent ->
+// real max-HP, status, revealed moves. Seeded off game_seed so both judge arms share the identical
+// sampled opponent per CRN repeat; only the forced first move differs between arms.
+pub fn determinize_ground_truth(
+    state: &BattleState,
+    teams: &TeamData,
+    belief: &Belief,
+    our_side: usize,
+    game_seed: u64,
+) -> (BattleState, TeamData) {
+    let obs = Observation { state, teams, our_side };
+    let mut rng = Lcg::new(splitmix64(game_seed ^ GROUND_TRUTH_WORLD_SALT));
+    let mut worlds = RandomBattle.sample_worlds(&obs, belief, 1, &mut rng);
+    let w = worlds.pop().expect("sample_worlds(n=1) yields one world");
+    (w.state, w.teams)
+}
+
 pub fn play_from(
     state: &BattleState,
     teams: &TeamData,
@@ -182,8 +204,9 @@ pub fn play_from_with_budget(
     game_seed: u64,
     budget: JudgeBudget,
 ) -> f64 {
+    let (gt_state, gt_teams) = determinize_ground_truth(state, teams, &beliefs[our_side], our_side, game_seed);
     let mut forced_done = false;
-    let v = play_to_terminal(*state, teams, *beliefs, game_seed, move |side, st, tm, bel, seed, rng| {
+    let v = play_to_terminal(gt_state, &gt_teams, *beliefs, game_seed, move |side, st, tm, bel, seed, rng| {
         if side == our_side && !forced_done && st.phase == PHASE_ACTIONS {
             forced_done = true;
             return forced_first;
@@ -200,20 +223,34 @@ mod tests {
     use crate::determinize::{Determinizer, Observation, RandomBattle};
     use crate::rng::Lcg;
     use crate::testutil::{build_state, mon};
+    use pkmn_engine::state::MonSlot;
+
+    // Make `opp_side`'s active a genuine last mon (1 HP) backed by 5 revealed-fainted teammates, and
+    // return our view of it. Since play_from re-determinizes the opponent from this belief, the bench
+    // must be present-and-fainted (not empty) so it stays fainted instead of being fabricated alive.
+    fn last_mon_opp(state: &mut BattleState, opp_side: usize) -> Belief {
+        state.sides[opp_side].team[0].current_hp = 1;
+        for (i, &sid) in [130u16, 248, 94, 6, 9].iter().enumerate() {
+            state.sides[opp_side].team[i + 1] =
+                MonSlot { species_id: sid, current_hp: 0, max_hp: 100, level: 80, ..Default::default() };
+        }
+        let mut b = Belief::default();
+        for i in 0..6 {
+            let m = &state.sides[opp_side].team[i];
+            b.note_species(m.species_id, m.level);
+        }
+        b
+    }
 
     #[test]
     fn forced_ko_wins_for_our_side() {
         // side 0 (us): healthy attacker with a damaging move in slot 0.
-        // side 1 (opp): a single last mon set to 1 HP so the forced move guarantees the KO.
+        // side 1 (opp): a last mon at 1 HP so the forced move guarantees the KO.
         let (mut state, teams) = build_state(
             vec![mon(445, 24, [89, 14, 0, 0])],
             vec![mon(143, 47, [34, 0, 0, 0])],
         );
-        state.sides[1].team[0].current_hp = 1;
-
-        let opp_active = state.active_mon(1);
-        let mut our_belief = Belief::default();
-        our_belief.note_species(opp_active.species_id, opp_active.level);
+        let our_belief = last_mon_opp(&mut state, 1);
         let beliefs = [our_belief, reconstruct_opp_belief(&state, 0)];
 
         let v1 = play_from(&state, &teams, &beliefs, 0, 0, Policy::Mcts, 7);
@@ -229,15 +266,45 @@ mod tests {
             vec![mon(143, 47, [34, 0, 0, 0])],
             vec![mon(445, 24, [89, 14, 0, 0])],
         );
-        state.sides[0].team[0].current_hp = 1;
-
-        let opp_active = state.active_mon(0);
-        let mut our_belief = Belief::default();
-        our_belief.note_species(opp_active.species_id, opp_active.level);
+        let our_belief = last_mon_opp(&mut state, 0);
         let beliefs = [reconstruct_opp_belief(&state, 1), our_belief];
 
         let v = play_from(&state, &teams, &beliefs, 1, 0, Policy::Mcts, 7);
         assert!(v > 0.99, "forced KO must win from side 1's perspective, got {v}");
+    }
+
+    #[test]
+    fn ground_truth_determinizes_real_opponent() {
+        // Observed placeholder: the opponent has 0 stats, 0 moves, max_hp=100 (percent scale).
+        let (mut state, teams) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0])],
+            vec![mon(143, 47, [34, 0, 0, 0])],
+        );
+        {
+            let m = &mut state.sides[1].team[0];
+            m.stats = [0; 5];
+            m.moves = [0; 4];
+            m.pp = [0; 4];
+            m.ability_id = 0;
+            m.item_id = 0;
+            m.max_hp = 100;
+            m.current_hp = 100;
+        }
+        let our_real_active = state.sides[0].team[0];
+        let opp = state.active_mon(1);
+        let mut belief = Belief::default();
+        belief.note_species(opp.species_id, opp.level);
+
+        let (gt, _) = determinize_ground_truth(&state, &teams, &belief, 0, 7);
+        let opp_after = gt.active_mon(1);
+        assert_ne!(opp_after.max_hp, 100, "opponent must get a real max-HP, not the percent placeholder");
+        assert_ne!(opp_after.moves, [0, 0, 0, 0], "opponent must get real moves, not placeholder zeros");
+        assert!(opp_after.stats.iter().any(|&s| s != 0), "opponent must get real stats");
+        assert_eq!(gt.sides[0].team[0], our_real_active, "our real side must be preserved verbatim");
+
+        // Same game_seed -> the same sampled opponent world (the load-bearing CRN pairing across arms).
+        let (gt2, _) = determinize_ground_truth(&state, &teams, &belief, 0, 7);
+        assert_eq!(gt.sides[1].team[0], gt2.sides[1].team[0], "same game_seed must sample the same opponent");
     }
 
     #[test]

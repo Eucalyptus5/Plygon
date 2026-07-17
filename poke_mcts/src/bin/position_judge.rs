@@ -353,7 +353,68 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pkmn_engine::state::MonSlot;
     use poke_mcts::testutil::{build_state, mon};
+
+    // A bridge-captured-STYLE snapshot: the opponent is the observed placeholder (0 stats, 0 moves,
+    // max_hp=100 percent scale), with a belief that names the active + 5 fainted teammates so it
+    // determinizes to a real last-mon opponent. our_pick = Swords Dance (loses: opp survives and KOs
+    // us); a_cmp = Earthquake (one-shots the last mon and wins). On today's code the judge battles the
+    // 0-stat placeholder, our side sweeps both arms, and cost is identically 0.
+    fn placeholder_last_mon_snapshot() -> PositionSnapshot {
+        const OPP_ACTIVE: u16 = 143; // Snorlax
+        const OPP_FAINTED: [u16; 5] = [130, 248, 94, 6, 9];
+        let (mut state, teams) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0])],
+            vec![mon(OPP_ACTIVE, 47, [34, 0, 0, 0])],
+        );
+        // our attacker low enough that a real opp KOs it, high enough to survive the inert placeholder.
+        state.sides[0].team[0].current_hp = 20;
+        // collapse the opp active into the observed placeholder shape.
+        {
+            let m = &mut state.sides[1].team[0];
+            m.stats = [0; 5];
+            m.moves = [0; 4];
+            m.pp = [0; 4];
+            m.ability_id = 0;
+            m.item_id = 0;
+            m.max_hp = 100;
+            m.current_hp = 1;
+        }
+        // fainted bench teammates (revealed + dead) so re-determinization yields a genuine last-mon.
+        for (i, &sid) in OPP_FAINTED.iter().enumerate() {
+            state.sides[1].team[i + 1] = MonSlot { species_id: sid, current_hp: 0, max_hp: 100, level: 80, ..Default::default() };
+        }
+        let mut belief = Belief::default();
+        for i in 0..6 {
+            let m = &state.sides[1].team[i];
+            belief.note_species(m.species_id, m.level);
+        }
+        PositionSnapshot {
+            game_id: "placeholder-last-mon".into(),
+            turn: 5,
+            our_side: 0,
+            our_pick: 1, // Swords Dance
+            live_budget: (8, 200, 1000),
+            request_kind: "move".into(),
+            state,
+            teams,
+            belief,
+            tags: vec![],
+        }
+    }
+
+    // FALSIFYING regression test: on a bridge-captured placeholder snapshot, a real divergence
+    // (Earthquake one-shots the last mon; Swords Dance throws the game) must score a large positive
+    // cost. Fails on the pre-fix judge (battles the 0-stat placeholder -> our side sweeps -> cost==0).
+    #[test]
+    fn divergence_on_placeholder_snapshot_costs_more_than_zero() {
+        let snap = placeholder_last_mon_snapshot();
+        let budget = iter_capped_budget(300);
+        // a_cmp = 0 (Earthquake) diverges from our_pick = 1 (Swords Dance).
+        let r = score_position(&snap, 0, Policy::Mcts, 12, 1, budget);
+        assert!(r.cost > 0.3, "real divergence must cost > 0 after the opponent is determinized, got cost={} (wr_ours={}, wr_cmp={})", r.cost, r.wr_ours, r.wr_cmp);
+    }
 
     fn iter_capped_budget(iters: u64) -> JudgeBudget {
         // A FINITE iteration cap (not the wall clock) fixes the per-world iteration count, so two runs
@@ -361,18 +422,24 @@ mod tests {
         JudgeBudget { num_worlds: 8, max_iters_per_world: iters, time_ms_per_world: 60_000 }
     }
 
-    // Fast 1-HP Garchomp vs slow 100-HP Snorlax. our_pick=Swords Dance loses turn 1 (opp survives and
-    // KOs our only mon); a_cmp=Earthquake one-shots the opp's only mon first and wins. Both terminal t1.
+    // Fast 1-HP Garchomp vs a last-mon Snorlax at 1 HP. our_pick=Swords Dance loses (opp survives and
+    // KOs our only mon); a_cmp=Earthquake one-shots the opp's last mon first and wins. The opp is
+    // re-determinized from the belief, so its 5 fainted teammates are revealed-and-dead (named below).
     fn forced_ko_vs_status() -> PositionSnapshot {
         let (mut state, teams) = build_state(
             vec![mon(445, 24, [89, 14, 0, 0])],
             vec![mon(143, 47, [34, 0, 0, 0])],
         );
         state.sides[0].team[0].current_hp = 1;
-        state.sides[1].team[0].current_hp = 100;
-        let opp_active = state.active_mon(1);
+        state.sides[1].team[0].current_hp = 1;
+        for (i, &sid) in [130u16, 248, 94, 6, 9].iter().enumerate() {
+            state.sides[1].team[i + 1] = MonSlot { species_id: sid, current_hp: 0, max_hp: 100, level: 80, ..Default::default() };
+        }
         let mut our_belief = Belief::default();
-        our_belief.note_species(opp_active.species_id, opp_active.level);
+        for i in 0..6 {
+            let m = &state.sides[1].team[i];
+            our_belief.note_species(m.species_id, m.level);
+        }
         PositionSnapshot {
             game_id: "ko-vs-status".into(),
             turn: 1,
@@ -428,11 +495,13 @@ mod tests {
     fn forced_ko_vs_status_is_large_positive_cost() {
         let snap = forced_ko_vs_status();
         let budget = iter_capped_budget(200);
-        // a_cmp = 0 (Earthquake, KO arm wins ~1.0); our_pick = 1 (Swords Dance, loses ~0.0).
-        let r = score_position(&snap, 0, Policy::Mcts, 8, 1, budget);
+        // a_cmp = 0 (Earthquake) reliably KOs the last mon; our_pick = 1 (Swords Dance) throws the turn
+        // and usually loses. The opponent is determinized per repeat, so the status arm carries real
+        // playout variance — the signal is a clearly large positive cost, not a deterministic 0/1.
+        let r = score_position(&snap, 0, Policy::Mcts, 12, 1, budget);
         assert!(r.wr_cmp > 0.9, "KO arm should win, got wr_cmp={}", r.wr_cmp);
-        assert!(r.wr_ours < 0.1, "status arm should lose, got wr_ours={}", r.wr_ours);
-        assert!(r.cost > 0.8, "cost must be large positive, got {}", r.cost);
+        assert!(r.wr_ours < r.wr_cmp, "status arm must do worse than the KO arm, got wr_ours={} wr_cmp={}", r.wr_ours, r.wr_cmp);
+        assert!(r.cost > 0.3, "forced-KO-vs-status divergence must score a large positive cost, got {}", r.cost);
     }
 
     #[test]
