@@ -10,11 +10,12 @@ pub struct SearchParams {
     pub time_ms: u64,
     pub max_iters: u64,   // sanity cap (design §5.5); u64::MAX in normal play
     pub max_nodes: u32,   // memory cap; stop expanding past it
+    pub explore_coeff: f64, // UCB sqrt coefficient (c²); 2.0 = textbook c=√2
 }
 
 impl Default for SearchParams {
     fn default() -> Self {
-        SearchParams { time_ms: 100, max_iters: u64::MAX, max_nodes: 2_000_000 }
+        SearchParams { time_ms: 100, max_iters: u64::MAX, max_nodes: 2_000_000, explore_coeff: 2.0 }
     }
 }
 
@@ -107,8 +108,8 @@ pub fn search_world(
                 break;
             }
             let node = &tree[idx];
-            let (a1, b1) = pick(&node.s1, node.visits);
-            let (a2, b2) = pick(&node.s2, node.visits);
+            let (a1, b1) = pick(&node.s1, node.visits, params.explore_coeff);
+            let (a2, b2) = pick(&node.s2, node.visits, params.explore_coeff);
             if a1 == NO_ARM && a2 == NO_ARM {
                 value = leaf(&cur, evaluator, root_eval);
                 break;
@@ -196,9 +197,9 @@ pub(crate) fn leaf(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32) 
 pub(crate) fn arm0(a: u8) -> usize { if a == NO_ARM { 0 } else { a as usize } }
 
 #[inline]
-pub(crate) fn pick(b: &crate::node::Bandit, parent_visits: u32) -> (u8, u8) {
+pub(crate) fn pick(b: &crate::node::Bandit, parent_visits: u32, explore_coeff: f64) -> (u8, u8) {
     if b.is_empty() { return (NO_ARM, 0); } // engine ignores the non-acting side's byte
-    let i = select_arm(b, parent_visits);
+    let i = select_arm(b, parent_visits, explore_coeff);
     (i as u8, b.arms[i].action)
 }
 

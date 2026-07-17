@@ -63,6 +63,7 @@ fn choose(e: Entrant, state: &BattleState, teams: &TeamData, side: usize, rng: &
                 num_worlds, time_ms_per_world, max_iters_per_world: e.max_iters, seed,
                 chance_mode: e.chance_mode,
                 pick_mode: e.pick_mode, filter_threshold: e.filter_threshold, raw_root: e.raw_root,
+                explore_coeff: 2.0,
             };
             poke_mcts::driver::choose_action(&obs, &beliefs[side], &poke_mcts::determinize::RandomBattle, &cfg)
         }
@@ -154,6 +155,7 @@ fn bench(fixture: &Fixture) {
             num_worlds: 16, time_ms_per_world: 100, max_iters_per_world: u64::MAX, seed,
             chance_mode: poke_mcts::search::ChanceMode::OpenLoop,
             pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false,
+            explore_coeff: 2.0,
         };
         let t0 = std::time::Instant::now();
         let _ = poke_mcts::driver::choose_action(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg);

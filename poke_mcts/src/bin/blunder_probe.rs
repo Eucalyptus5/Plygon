@@ -174,9 +174,12 @@ fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed:
         "argmax" => PickMode::Argmax,
         _ => PickMode::Weighted,
     };
+    let explore_coeff = std::env::var("BRIDGE_UCB_C").ok()
+        .and_then(|v| v.parse::<f64>().ok()).map(|c| c * c).unwrap_or(2.0);
     let cfg = PimcConfig {
         num_worlds: worlds, time_ms_per_world: ms, max_iters_per_world: iters, seed,
         chance_mode: mode, pick_mode, filter_threshold: 0.75, raw_root: false,
+        explore_coeff,
     };
     let tr = if full_info {
         choose_action_traced(&obs, &belief, &TrueState, &cfg)

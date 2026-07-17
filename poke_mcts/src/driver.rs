@@ -22,6 +22,7 @@ pub struct PimcConfig {
     pub pick_mode: PickMode,
     pub filter_threshold: f64,
     pub raw_root: bool,
+    pub explore_coeff: f64, // UCB sqrt coefficient (c²); 2.0 = textbook c=√2
 }
 
 /// (action_byte, aggregated visit fraction), sorted desc — exposed for tests/logging.
@@ -142,6 +143,7 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
     let mut params = SearchParams {
         time_ms: cfg.time_ms_per_world,
         max_iters: cfg.max_iters_per_world,
+        explore_coeff: cfg.explore_coeff,
         ..Default::default()
     };
     if cfg.chance_mode == ChanceMode::ClosedLoop {
@@ -212,6 +214,7 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
     let mut params = SearchParams {
         time_ms: cfg.time_ms_per_world,
         max_iters: cfg.max_iters_per_world,
+        explore_coeff: cfg.explore_coeff,
         ..Default::default()
     };
     if cfg.chance_mode == ChanceMode::ClosedLoop {
@@ -351,7 +354,7 @@ mod tests {
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
         // Iteration-bounded; the clock is only a safety ceiling.
-        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
@@ -367,7 +370,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
+        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert_eq!(a, b, "par_iter order preserved -> same seed -> same choice");

@@ -116,8 +116,8 @@ pub fn search_world_closed(
         let value: f64;
         loop {
             let node = &tree[idx];
-            let (a1, b1) = pick(&node.s1, node.visits);
-            let (a2, b2) = pick(&node.s2, node.visits);
+            let (a1, b1) = pick(&node.s1, node.visits, params.explore_coeff);
+            let (a2, b2) = pick(&node.s2, node.visits, params.explore_coeff);
             if a1 == 255 && a2 == 255 { value = leaf(&tree[idx].state, evaluator, root_eval); break; }
             let key = (idx as u32, child_key(arm0(a1), arm0(a2)) as u16);
             path.push((idx, a1, a2));

@@ -81,6 +81,7 @@ fn decide(
                 pick_mode: PickMode::Weighted,
                 filter_threshold: JUDGE_FILTER_THRESHOLD,
                 raw_root: false,
+                explore_coeff: 2.0,
             };
             choose_action(&obs, &beliefs[side], &RandomBattle, &cfg)
         }
