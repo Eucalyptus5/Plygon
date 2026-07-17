@@ -140,6 +140,7 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
     if legal.count == 1 { return legal.actions[0]; }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
+    crate::train_dump::maybe_dump_worlds(&worlds, obs.our_side, obs.state.field.turn);
     let mut params = SearchParams {
         time_ms: cfg.time_ms_per_world,
         max_iters: cfg.max_iters_per_world,

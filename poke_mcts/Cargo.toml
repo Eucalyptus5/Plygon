@@ -7,6 +7,7 @@ edition = "2021"
 name = "ab_chance"
 
 [dependencies]
+bincode = "1"
 pkmn-engine = { path = "../pkmn-engine" }
 rayon = "1"
 rustc-hash = "2"

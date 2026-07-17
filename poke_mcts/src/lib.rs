@@ -18,3 +18,5 @@ pub mod selfplay;
 
 pub mod testutil;
 pub mod audit_snapshot;
+pub mod train_dump;
+pub mod features;
