@@ -6,7 +6,7 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 // Output shard (little-endian): index.bin = u64 x (n+1) element offsets into
-// features.bin (u32 ids); labels/hand_eval f32 + held_out u8 per record; meta.json.
+// features.bin (u32 ids); labels/hand_eval f32 + held_out u8 + game_id u64 per record; meta.json.
 
 #[derive(Debug, PartialEq)]
 pub struct ConvertStats {
@@ -64,6 +64,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     let mut lb = BufWriter::new(File::create(out_dir.join("labels.bin"))?);
     let mut he = BufWriter::new(File::create(out_dir.join("hand_eval.bin"))?);
     let mut ho = BufWriter::new(File::create(out_dir.join("held_out.bin"))?);
+    let mut gi = BufWriter::new(File::create(out_dir.join("game_id.bin"))?);
 
     let mut stats = ConvertStats { games_joined: 0, games_dropped: 0, records: 0, features: 0 };
     ix.write_all(&0u64.to_le_bytes())?;
@@ -89,6 +90,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
                 lb.write_all(&label.to_le_bytes())?;
                 he.write_all(&Handcrafted.eval(state).to_le_bytes())?;
                 ho.write_all(&[held])?;
+                gi.write_all(&tag.to_le_bytes())?;
                 Ok(())
             };
             emit(&rec.state, z)?;
@@ -103,6 +105,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     lb.flush()?;
     he.flush()?;
     ho.flush()?;
+    gi.flush()?;
 
     let meta = serde_json::json!({
         "feature_spec_version": features::FEATURE_SPEC_VERSION,
@@ -216,6 +219,9 @@ mod tests {
         let held = std::fs::read(out.join("held_out.bin")).unwrap();
         assert_eq!(held, vec![1, 1, 1, 1, 0, 0, 0, 0]);
 
+        let gids = read_u64s(&out.join("game_id.bin"));
+        assert_eq!(gids, vec![0, 0, 1, 1, 2, 2, 3, 3]);
+
         let hand = read_f32s(&out.join("hand_eval.bin"));
         assert!(hand[0] > 0.0, "side0 ahead in fixture");
         for k in (0..8).step_by(2) {
@@ -259,6 +265,9 @@ mod tests {
         assert_eq!(stats.records, 4);
         let labels = read_f32s(&out.join("labels.bin"));
         assert_eq!(labels, vec![1.0, 0.0, 0.5, 1.0]);
+
+        let gids = read_u64s(&out.join("game_id.bin"));
+        assert_eq!(gids, vec![0, 1, 2, 3]);
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
