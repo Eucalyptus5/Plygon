@@ -2,7 +2,10 @@ use pkmn_engine::data::{GEN_ITEMS, GEN_MOVES, TOTAL_SPECIES};
 use pkmn_engine::state::*;
 use std::sync::OnceLock;
 
-pub const FEATURE_SPEC_VERSION: u32 = 1;
+pub const FEATURE_SPEC_VERSION: u32 = 2;
+
+// Dense material order: [s0 hp-sum, s1 hp-sum, s0 alive, s1 alive, hp diff, alive diff]
+pub const DENSE_DIM: usize = 6;
 
 // No public ability-count in the engine; codegen sizes its per-ability bit
 // table as [u64; 5], bounding ability ids at 320.
@@ -180,6 +183,39 @@ pub fn extract(state: &BattleState, out: &mut Vec<u32>) {
         out.push(l.f12 + 12);
     }
     out.push(l.f13 + (f.turn as u32 / 5).min(7));
+}
+
+pub fn extract_dense(state: &BattleState) -> [f32; DENSE_DIM] {
+    let hp_sum = |side: usize| -> f32 {
+        let mut sum = 0.0f32;
+        for slot in 0..6 {
+            let mon = &state.sides[side].team[slot];
+            if mon.species_id == 0 {
+                continue;
+            }
+            sum += if mon.max_hp == 0 {
+                0.0
+            } else {
+                mon.current_hp as f32 / mon.max_hp as f32
+            };
+        }
+        sum
+    };
+    let alive = |side: usize| -> f32 {
+        let mut n = 0u32;
+        for slot in 0..6 {
+            let mon = &state.sides[side].team[slot];
+            if mon.species_id != 0 && mon.current_hp > 0 {
+                n += 1;
+            }
+        }
+        n as f32
+    };
+    let d0 = hp_sum(0);
+    let d1 = hp_sum(1);
+    let d2 = alive(0);
+    let d3 = alive(1);
+    [d0, d1, d2, d3, d0 - d1, d2 - d3]
 }
 
 pub fn flip_side(id: u32) -> u32 {
@@ -367,5 +403,40 @@ mod tests {
         let doc: serde_json::Value =
             serde_json::from_str(include_str!("../tests/golden/lv0_golden_features.json")).unwrap();
         assert_eq!(vocab_size() as u64, doc["vocab_total"].as_u64().unwrap());
+        assert_eq!(doc["dense_dim"].as_u64().unwrap() as usize, DENSE_DIM);
+    }
+
+    #[test]
+    fn dense_golden_exact() {
+        let d = extract_dense(&golden_state());
+        let expected: [f32; DENSE_DIM] = [
+            0.28125 + 1.0,
+            1.0 + 3.0f32 / 150.0,
+            2.0,
+            2.0,
+            (0.28125f32 + 1.0) - (1.0 + 3.0f32 / 150.0),
+            0.0,
+        ];
+        assert_eq!(d, expected);
+    }
+
+    #[test]
+    fn dense_default_state_all_zero() {
+        assert_eq!(extract_dense(&BattleState::default()), [0.0f32; DENSE_DIM]);
+    }
+
+    #[test]
+    fn dense_mirror_is_swap_and_negate() {
+        let check = |s: &BattleState| -> [f32; DENSE_DIM] {
+            let d = extract_dense(s);
+            let m = extract_dense(&mirror(s));
+            assert_eq!(m, [d[1], d[0], d[3], d[2], -d[4], -d[5]]);
+            d
+        };
+        check(&golden_state());
+        let mut s2 = golden_state();
+        s2.sides[1].team[1].current_hp = 0;
+        let d2 = check(&s2);
+        assert_ne!(d2[5], 0.0, "modified clone must exercise d5 negation");
     }
 }

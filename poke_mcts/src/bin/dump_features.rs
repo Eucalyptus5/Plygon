@@ -65,6 +65,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     let mut he = BufWriter::new(File::create(out_dir.join("hand_eval.bin"))?);
     let mut ho = BufWriter::new(File::create(out_dir.join("held_out.bin"))?);
     let mut gi = BufWriter::new(File::create(out_dir.join("game_id.bin"))?);
+    let mut de = BufWriter::new(File::create(out_dir.join("dense.bin"))?);
 
     let mut stats = ConvertStats { games_joined: 0, games_dropped: 0, records: 0, features: 0 };
     ix.write_all(&0u64.to_le_bytes())?;
@@ -91,6 +92,9 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
                 he.write_all(&Handcrafted.eval(state).to_le_bytes())?;
                 ho.write_all(&[held])?;
                 gi.write_all(&tag.to_le_bytes())?;
+                for v in features::extract_dense(state) {
+                    de.write_all(&v.to_le_bytes())?;
+                }
                 Ok(())
             };
             emit(&rec.state, z)?;
@@ -106,10 +110,12 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     he.flush()?;
     ho.flush()?;
     gi.flush()?;
+    de.flush()?;
 
     let meta = serde_json::json!({
         "feature_spec_version": features::FEATURE_SPEC_VERSION,
         "vocab": features::vocab_size(),
+        "dense_dim": features::DENSE_DIM,
         "records": stats.records,
         "features": stats.features,
         "games_joined": stats.games_joined,
@@ -244,12 +250,32 @@ mod tests {
         mirrored_sorted.sort_unstable();
         assert_eq!(mirrored_sorted, flipped);
 
+        let dense = read_f32s(&out.join("dense.bin"));
+        assert_eq!(dense.len(), stats.records as usize * features::DENSE_DIM);
+        assert_eq!(
+            std::fs::metadata(out.join("dense.bin")).unwrap().len(),
+            stats.records * features::DENSE_DIM as u64 * 4
+        );
+        let d0: Vec<f32> = dense[0..features::DENSE_DIM].to_vec();
+        let expected0: Vec<f32> = vec![
+            1.0,
+            145.0f32 / 291.0,
+            1.0,
+            1.0,
+            1.0 - 145.0f32 / 291.0,
+            0.0,
+        ];
+        assert_eq!(d0, expected0);
+        let d1: Vec<f32> = dense[features::DENSE_DIM..2 * features::DENSE_DIM].to_vec();
+        assert_eq!(d1, vec![d0[1], d0[0], d0[3], d0[2], -d0[4], -d0[5]]);
+
         let meta: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(out.join("meta.json")).unwrap()).unwrap();
         assert_eq!(meta["feature_spec_version"], features::FEATURE_SPEC_VERSION);
         assert_eq!(meta["records"], 8);
         assert_eq!(meta["games_dropped"], 1);
         assert_eq!(meta["vocab"], features::vocab_size());
+        assert_eq!(meta["dense_dim"], features::DENSE_DIM);
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
