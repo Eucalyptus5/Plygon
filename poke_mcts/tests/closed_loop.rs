@@ -64,6 +64,7 @@ fn driver_runs_both_modes_and_is_reproducible() {
             num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 1500,
             seed: 9, chance_mode: mode,
             pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false,
+            explore_coeff: 2.0,
         };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
