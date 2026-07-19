@@ -5,7 +5,7 @@ use crate::chance_closed::search_world_closed;
 use crate::determinize::{Determinizer, Observation};
 use crate::eval::Handcrafted;
 use crate::rng::{splitmix64, Lcg};
-use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, SearchParams};
+use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, SearchParams, SearchResult};
 use pkmn_engine::state::*;
 use rayon::prelude::*;
 
@@ -140,6 +140,7 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
     if legal.count == 1 { return legal.actions[0]; }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
+    #[cfg(not(feature = "train_value"))]
     crate::train_dump::maybe_dump_worlds(&worlds, obs.our_side, obs.state.field.turn);
     let mut params = SearchParams {
         time_ms: cfg.time_ms_per_world,
@@ -150,7 +151,7 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
     if cfg.chance_mode == ChanceMode::ClosedLoop {
         params.max_nodes = closed_loop_max_nodes(cfg.num_worlds);
     }
-    let per_world: Vec<(Vec<ArmStat>, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
+    let searched: Vec<(SearchResult, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
         let r = match cfg.chance_mode {
             ChanceMode::OpenLoop =>
@@ -160,8 +161,14 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
             ChanceMode::AnalyticRoot =>
                 search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed),
         };
-        (r.side(obs.our_side).to_vec(), w.weight)
+        (r, w.weight)
     }).collect();
+    // Flushed only after every world's search returns, so the records carry the
+    // decision's pooled value; per-decision stream order is unchanged.
+    #[cfg(feature = "train_value")]
+    crate::train_dump::maybe_dump_worlds_valued(&worlds, obs.our_side, obs.state.field.turn, &searched);
+    let per_world: Vec<(Vec<ArmStat>, f64)> =
+        searched.iter().map(|(r, w)| (r.side(obs.our_side).to_vec(), *w)).collect();
     if cfg.raw_root && cfg.num_worlds == 1 {
         // un-aggregated: return the single world's root best-arm (max visits) directly
         let (stats, _w) = &per_world[0];

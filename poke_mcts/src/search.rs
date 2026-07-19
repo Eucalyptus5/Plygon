@@ -56,6 +56,10 @@ pub struct SearchResult {
     pub iterations: u64,
     pub guard_hits: u64,
     pub depth_sum: u64,
+    #[cfg(feature = "train_value")]
+    pub value_sum: f64,
+    #[cfg(feature = "train_value")]
+    pub value_count: u64,
 }
 
 impl SearchResult {
@@ -85,6 +89,8 @@ pub fn search_world(
     let mut guard_hits: u64 = 0;
     let mut depth_sum: u64 = 0;
     let mut path: Vec<PathStep> = Vec::with_capacity(64);
+    #[cfg(feature = "train_value")]
+    let (mut value_sum, mut value_count) = (0.0f64, 0u64);
     // Per-root-arm provable terminal-win branch-chance (analytic root only; stays 0.0 otherwise).
     let mut win_s1 = [0.0f64; crate::node::ARM_CAP];
     let mut win_s2 = [0.0f64; crate::node::ARM_CAP];
@@ -98,20 +104,40 @@ pub fn search_world(
         let mut cur = *root_state;
         let mut idx = 0usize;
         let value: f64;
+        #[cfg(feature = "train_value")]
+        let value_abs: f64;
 
         loop {
             // arm-mismatch guard: this sample diverged from the node's recorded shape
             // (provably never fires at the root, where cur is the untouched root state)
             if idx != 0 && (tree[idx].phase != cur.phase || !arms_match(&tree[idx], &cur)) {
                 guard_hits += 1;
-                value = leaf(&cur, evaluator, root_eval);
+                #[cfg(not(feature = "train_value"))]
+                {
+                    value = leaf(&cur, evaluator, root_eval);
+                }
+                #[cfg(feature = "train_value")]
+                {
+                    let (v, a) = leaf_vals(&cur, evaluator, root_eval);
+                    value = v;
+                    value_abs = a;
+                }
                 break;
             }
             let node = &tree[idx];
             let (a1, b1) = pick(&node.s1, node.visits, params.explore_coeff);
             let (a2, b2) = pick(&node.s2, node.visits, params.explore_coeff);
             if a1 == NO_ARM && a2 == NO_ARM {
-                value = leaf(&cur, evaluator, root_eval);
+                #[cfg(not(feature = "train_value"))]
+                {
+                    value = leaf(&cur, evaluator, root_eval);
+                }
+                #[cfg(feature = "train_value")]
+                {
+                    let (v, a) = leaf_vals(&cur, evaluator, root_eval);
+                    value = v;
+                    value_abs = a;
+                }
                 break;
             }
             // Design 1 (05 §2): at the root only, descend one analytic weighted child (KO-split)
@@ -145,11 +171,20 @@ pub fn search_world(
             let key = child_key(arm0(a1), arm0(a2));
             let child = tree[idx].children[key];
             if child == NO_CHILD {
-                value = if cur.is_game_over() {
-                    winner_value(&cur)
-                } else {
-                    leaf(&cur, evaluator, root_eval)
-                };
+                #[cfg(not(feature = "train_value"))]
+                {
+                    value = if cur.is_game_over() {
+                        winner_value(&cur)
+                    } else {
+                        leaf(&cur, evaluator, root_eval)
+                    };
+                }
+                #[cfg(feature = "train_value")]
+                {
+                    let (v, a) = leaf_vals(&cur, evaluator, root_eval);
+                    value = v;
+                    value_abs = a;
+                }
                 if (tree.len() as u32) < params.max_nodes && !cur.is_game_over() {
                     tree.push(Node::from_state(&cur));
                     let new_idx = (tree.len() - 1) as u32;
@@ -159,12 +194,21 @@ pub fn search_world(
             }
             if cur.is_game_over() {
                 value = winner_value(&cur);
+                #[cfg(feature = "train_value")]
+                {
+                    value_abs = value;
+                }
                 break;
             }
             idx = child as usize;
         }
 
         depth_sum += path.len() as u64;
+        #[cfg(feature = "train_value")]
+        {
+            value_sum += value_abs;
+            value_count += 1;
+        }
         for step in path.iter() {
             let n = &mut tree[step.node];
             n.visits += 1;
@@ -183,6 +227,11 @@ pub fn search_world(
     }
 
     let mut res = harvest(&tree[0], iters, guard_hits, depth_sum);
+    #[cfg(feature = "train_value")]
+    {
+        res.value_sum = value_sum;
+        res.value_count = value_count;
+    }
     for (i, a) in res.s1.iter_mut().enumerate() { a.win_chance = win_s1[i]; }
     for (i, a) in res.s2.iter_mut().enumerate() { a.win_chance = win_s2[i]; }
     res
@@ -191,6 +240,19 @@ pub fn search_world(
 #[inline]
 pub(crate) fn leaf(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32) -> f64 {
     if s.is_game_over() { winner_value(s) } else { sigmoid(evaluator.eval(s) - root_eval) }
+}
+
+// One eval per leaf: the root-relative sigmoid backprops, the absolute sigmoid only
+// feeds the value accumulator (never UCB, backprop, or the pick).
+#[cfg(feature = "train_value")]
+#[inline]
+fn leaf_vals(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32) -> (f64, f64) {
+    if s.is_game_over() {
+        let w = winner_value(s);
+        return (w, w);
+    }
+    let e = evaluator.eval(s);
+    (sigmoid(e - root_eval), sigmoid(e))
 }
 
 #[inline]
@@ -228,7 +290,17 @@ pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit
             })
             .collect()
     };
-    SearchResult { s1: stat(s1), s2: stat(s2), iterations, guard_hits, depth_sum }
+    SearchResult {
+        s1: stat(s1),
+        s2: stat(s2),
+        iterations,
+        guard_hits,
+        depth_sum,
+        #[cfg(feature = "train_value")]
+        value_sum: 0.0,
+        #[cfg(feature = "train_value")]
+        value_count: 0,
+    }
 }
 
 pub(crate) fn harvest(root: &Node, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
@@ -289,6 +361,16 @@ mod tests {
         assert_eq!(r.iterations, 500, "max_iters cap respected");
         let total: u64 = r.s1.iter().map(|a| a.visits as u64).sum();
         assert_eq!(total, 500, "every iteration credits exactly one root arm");
+    }
+
+    #[cfg(feature = "train_value")]
+    #[test]
+    fn accumulator_tracks_every_iteration_in_range() {
+        let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 0, 0, 0]));
+        let r = run(&s, &t, 10_000, 500, 1);
+        assert_eq!(r.value_count, r.iterations, "one absolute leaf value per iteration");
+        let mean = r.value_sum / r.value_count as f64;
+        assert!((0.0..=1.0).contains(&mean), "mean leaf value {mean} outside [0,1]");
     }
 
     #[test]

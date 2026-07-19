@@ -6,6 +6,9 @@ edition = "2021"
 [[bin]]
 name = "ab_chance"
 
+[features]
+train_value = []
+
 [dependencies]
 bincode = "1"
 pkmn-engine = { path = "../pkmn-engine" }

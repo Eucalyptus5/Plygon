@@ -198,7 +198,10 @@ mod tests {
         std::fs::create_dir_all(dir).unwrap();
         // pair (0,1) held out (pair key 0); pair (2,3) not (pair key 1); 40 has no outcome
         for tag in [0u64, 1, 2, 3, 40] {
+            #[cfg(not(feature = "train_value"))]
             train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, 0, 5).unwrap();
+            #[cfg(feature = "train_value")]
+            train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, 0, 5, 0.5).unwrap();
         }
         let outcomes = r#"{"game_tag":0,"winner_side0":1.0,"turns":30,"seed_quad":[1,2,3,4]}
 {"game_tag":1,"winner_side0":0.0,"turns":31,"seed_quad":[1,2,3,4]}
