@@ -6,7 +6,8 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 // Output shard (little-endian): index.bin = u64 x (n+1) element offsets into
-// features.bin (u32 ids); labels/hand_eval f32 + held_out u8 + game_id u64 per record; meta.json.
+// features.bin (u32 ids); labels/hand_eval f32 + dense 7xf32 + held_out u8 + game_id u64
+// per record; values.bin f32 per record under train_value; meta.json.
 
 #[derive(Debug, PartialEq)]
 pub struct ConvertStats {
@@ -35,6 +36,21 @@ fn read_outcomes(path: &Path) -> io::Result<HashMap<u64, f32>> {
         map.insert(tag, z as f32);
     }
     Ok(map)
+}
+
+fn fixed_record_size() -> u64 {
+    let rec = train_dump::TrainRecord {
+        #[cfg(feature = "train_value")]
+        record_version: 2,
+        game_tag: 0,
+        turn: 0,
+        side_of_decider: 0,
+        world_idx: 0,
+        #[cfg(feature = "train_value")]
+        root_value: 0.0,
+        state: pkmn_engine::state::BattleState::default(),
+    };
+    bincode::serialize(&rec).unwrap().len() as u64
 }
 
 fn shard_files(dir: &Path) -> io::Result<Vec<(u64, PathBuf)>> {
@@ -66,7 +82,10 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     let mut ho = BufWriter::new(File::create(out_dir.join("held_out.bin"))?);
     let mut gi = BufWriter::new(File::create(out_dir.join("game_id.bin"))?);
     let mut de = BufWriter::new(File::create(out_dir.join("dense.bin"))?);
+    #[cfg(feature = "train_value")]
+    let mut va = BufWriter::new(File::create(out_dir.join("values.bin"))?);
 
+    let rec_size = fixed_record_size();
     let mut stats = ConvertStats { games_joined: 0, games_dropped: 0, records: 0, features: 0 };
     ix.write_all(&0u64.to_le_bytes())?;
     let mut buf: Vec<u32> = Vec::with_capacity(256);
@@ -75,10 +94,24 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
             stats.games_dropped += 1;
             continue;
         };
+        let len = std::fs::metadata(&path)?.len();
+        if len % rec_size != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{}: {len} bytes not divisible by {rec_size}-byte records", path.display()),
+            ));
+        }
         // siblings of a CRN seat-swap pair share tag >> 1 (tag = game_index ^ C,
         // pair mates differ only in bit 0), so this keys the split on the PAIR
         let held = ((tag >> 1) % 10 == 0) as u8;
         for rec in train_dump::read_records(path.to_str().unwrap())? {
+            #[cfg(feature = "train_value")]
+            if rec.record_version != 2 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{}: record_version {} != 2", path.display(), rec.record_version),
+                ));
+            }
             let mut emit = |state: &pkmn_engine::state::BattleState, label: f32| -> io::Result<()> {
                 buf.clear();
                 features::extract(state, &mut buf);
@@ -98,8 +131,12 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
                 Ok(())
             };
             emit(&rec.state, z)?;
+            #[cfg(feature = "train_value")]
+            va.write_all(&rec.root_value.to_le_bytes())?;
             if mirror_on {
                 emit(&features::mirror(&rec.state), 1.0 - z)?;
+                #[cfg(feature = "train_value")]
+                va.write_all(&(1.0 - rec.root_value).to_le_bytes())?;
             }
         }
         stats.games_joined += 1;
@@ -111,6 +148,8 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     ho.flush()?;
     gi.flush()?;
     de.flush()?;
+    #[cfg(feature = "train_value")]
+    va.flush()?;
 
     let meta = serde_json::json!({
         "feature_spec_version": features::FEATURE_SPEC_VERSION,
@@ -121,6 +160,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
         "games_joined": stats.games_joined,
         "games_dropped": stats.games_dropped,
         "mirror": mirror_on,
+        "values": cfg!(feature = "train_value"),
     });
     std::fs::write(out_dir.join("meta.json"), serde_json::to_string_pretty(&meta)?)?;
     Ok(stats)
@@ -175,7 +215,7 @@ fn main() {
 mod tests {
     use super::*;
     use poke_mcts::determinize::World;
-    use poke_mcts::testutil::{duel, mon};
+    use poke_mcts::testutil::{build_state, duel, mon};
 
     fn tmp_dir(tag: &str) -> PathBuf {
         std::env::temp_dir().join(format!("poke_mcts_dumpf_{}_{}", tag, std::process::id()))
@@ -192,16 +232,32 @@ mod tests {
     }
 
     fn setup_dump(dir: &Path) {
-        let (mut state, teams) = duel(mon(445, 24, [89, 14, 0, 0]), mon(248, 45, [89, 242, 0, 0]));
-        state.sides[1].team[0].current_hp /= 2;
-        let worlds = vec![World { state, teams, weight: 1.0 }];
+        let (mut normal, teams) = duel(mon(445, 24, [89, 14, 0, 0]), mon(248, 45, [89, 242, 0, 0]));
+        normal.sides[1].team[0].current_hp /= 2;
+        let (mut fainted, fteams) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        fainted.sides[0].team[0].current_hp = 0;
+        fainted.sides[1].team[0].max_hp = 200;
+        fainted.sides[1].team[0].current_hp = 100;
+        let mut forced = fainted;
+        forced.sides[1].team[0].current_hp = 50;
+        forced.phase = pkmn_engine::state::PHASE_SWITCH_P1;
         std::fs::create_dir_all(dir).unwrap();
         // pair (0,1) held out (pair key 0); pair (2,3) not (pair key 1); 40 has no outcome
-        for tag in [0u64, 1, 2, 3, 40] {
+        for (tag, st, tm, _v) in [
+            (0u64, normal, &teams, 0.75f32),
+            (1, normal, &teams, 0.9),
+            (2, fainted, &fteams, 0.6),
+            (3, forced, &fteams, 0.8),
+            (40, normal, &teams, 0.5),
+        ] {
+            let worlds = vec![World { state: st, teams: tm.clone(), weight: 1.0 }];
             #[cfg(not(feature = "train_value"))]
             train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, 0, 5).unwrap();
             #[cfg(feature = "train_value")]
-            train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, 0, 5, 0.5).unwrap();
+            train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, 0, 5, _v).unwrap();
         }
         let outcomes = r#"{"game_tag":0,"winner_side0":1.0,"turns":30,"seed_quad":[1,2,3,4]}
 {"game_tag":1,"winner_side0":0.0,"turns":31,"seed_quad":[1,2,3,4]}
@@ -267,10 +323,34 @@ mod tests {
             1.0,
             1.0 - 145.0f32 / 291.0,
             0.0,
+            hand[0] * 0.0125,
         ];
         assert_eq!(d0, expected0);
+        assert!(d0[6] > 0.0, "eval float must be live in the fixture");
         let d1: Vec<f32> = dense[features::DENSE_DIM..2 * features::DENSE_DIM].to_vec();
-        assert_eq!(d1, vec![d0[1], d0[0], d0[3], d0[2], -d0[4], -d0[5]]);
+        assert_eq!(d1, vec![d0[1], d0[0], d0[3], d0[2], -d0[4], -d0[5], -d0[6]]);
+
+        let row = |k: usize| -> Vec<f32> {
+            dense[k * features::DENSE_DIM..(k + 1) * features::DENSE_DIM].to_vec()
+        };
+        assert_eq!(row(4), vec![1.0, 0.5, 1.0, 1.0, 0.5, 0.0, 0.625]);
+        assert_eq!(row(5), vec![0.5, 1.0, 1.0, 1.0, -0.5, 0.0, -0.625]);
+        assert_eq!(row(6), vec![1.0, 0.25, 1.0, 1.0, 0.75, 0.0, 0.9375]);
+        assert_eq!(row(7), vec![0.25, 1.0, 1.0, 1.0, -0.75, 0.0, -0.9375]);
+
+        #[cfg(feature = "train_value")]
+        {
+            let vals = read_f32s(&out.join("values.bin"));
+            assert_eq!(
+                vals,
+                vec![0.75, 1.0 - 0.75, 0.9, 1.0 - 0.9f32, 0.6, 1.0 - 0.6f32, 0.8, 1.0 - 0.8f32]
+            );
+            for k in (0..8).step_by(2) {
+                assert_eq!(vals[k + 1], 1.0 - vals[k], "mirror value must be the complement");
+            }
+        }
+        #[cfg(not(feature = "train_value"))]
+        assert!(!out.join("values.bin").exists());
 
         let meta: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(out.join("meta.json")).unwrap()).unwrap();
@@ -279,6 +359,7 @@ mod tests {
         assert_eq!(meta["games_dropped"], 1);
         assert_eq!(meta["vocab"], features::vocab_size());
         assert_eq!(meta["dense_dim"], features::DENSE_DIM);
+        assert_eq!(meta["values"], cfg!(feature = "train_value"));
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -298,6 +379,65 @@ mod tests {
         let gids = read_u64s(&out.join("game_id.bin"));
         assert_eq!(gids, vec![0, 1, 2, 3]);
 
+        #[cfg(feature = "train_value")]
+        {
+            let vals = read_f32s(&out.join("values.bin"));
+            assert_eq!(vals, vec![0.75, 0.9, 0.6, 0.8]);
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[test]
+    fn rejects_length_mismatched_shard() {
+        let dir = tmp_dir("badlen");
+        let out = tmp_dir("badlen_out");
+        setup_dump(&dir);
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(dir.join("0.records.bin"))
+            .unwrap();
+        f.write_all(&[0u8]).unwrap();
+        drop(f);
+        let err = convert(&dir, &out, true).unwrap_err();
+        assert!(err.to_string().contains("not divisible"), "{err}");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[cfg(feature = "train_value")]
+    #[test]
+    fn rejects_old_format_records() {
+        let dir = tmp_dir("oldfmt");
+        let out = tmp_dir("oldfmt_out");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (state, _teams) = duel(mon(445, 24, [89, 14, 0, 0]), mon(248, 45, [89, 242, 0, 0]));
+        // pre-version record layout: no leading version byte, no root_value
+        let old = bincode::serialize(&(0u64, 5u16, 0u8, 0u8, state)).unwrap();
+        let mut bytes = old.clone();
+        bytes.extend_from_slice(&old);
+        std::fs::write(dir.join("0.records.bin"), &bytes).unwrap();
+        std::fs::write(dir.join("outcomes.jsonl"), "{\"game_tag\":0,\"winner_side0\":1.0}\n")
+            .unwrap();
+        let err = convert(&dir, &out, true).unwrap_err();
+        assert!(err.to_string().contains("not divisible"), "{err}");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[cfg(feature = "train_value")]
+    #[test]
+    fn rejects_wrong_record_version() {
+        let dir = tmp_dir("badver");
+        let out = tmp_dir("badver_out");
+        setup_dump(&dir);
+        let p = dir.join("0.records.bin");
+        let mut bytes = std::fs::read(&p).unwrap();
+        bytes[0] = 1; // leading field of the first record is record_version
+        std::fs::write(&p, &bytes).unwrap();
+        let err = convert(&dir, &out, true).unwrap_err();
+        assert!(err.to_string().contains("record_version"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
     }

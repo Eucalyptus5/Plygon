@@ -1,11 +1,12 @@
+use crate::eval::{Evaluator, Handcrafted};
 use pkmn_engine::data::{GEN_ITEMS, GEN_MOVES, TOTAL_SPECIES};
 use pkmn_engine::state::*;
 use std::sync::OnceLock;
 
-pub const FEATURE_SPEC_VERSION: u32 = 2;
+pub const FEATURE_SPEC_VERSION: u32 = 3;
 
-// Dense material order: [s0 hp-sum, s1 hp-sum, s0 alive, s1 alive, hp diff, alive diff]
-pub const DENSE_DIM: usize = 6;
+// Dense order: [s0 hp-sum, s1 hp-sum, s0 alive, s1 alive, hp diff, alive diff, hand-eval logit]
+pub const DENSE_DIM: usize = 7;
 
 // No public ability-count in the engine; codegen sizes its per-ability bit
 // table as [u64; 5], bounding ability ids at 320.
@@ -215,7 +216,8 @@ pub fn extract_dense(state: &BattleState) -> [f32; DENSE_DIM] {
     let d1 = hp_sum(1);
     let d2 = alive(0);
     let d3 = alive(1);
-    [d0, d1, d2, d3, d0 - d1, d2 - d3]
+    // 0.0125 = the engine's own logit scale (eval::sigmoid)
+    [d0, d1, d2, d3, d0 - d1, d2 - d3, Handcrafted.eval(state) * 0.0125]
 }
 
 pub fn flip_side(id: u32) -> u32 {
@@ -339,6 +341,24 @@ mod tests {
         s
     }
 
+    fn fainted_active_state() -> BattleState {
+        let (mut s, _t) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        s.sides[0].team[0].current_hp = 0;
+        s.sides[1].team[0].max_hp = 200;
+        s.sides[1].team[0].current_hp = 100;
+        s
+    }
+
+    fn forced_switch_state() -> BattleState {
+        let mut s = fainted_active_state();
+        s.sides[1].team[0].current_hp = 50;
+        s.phase = PHASE_SWITCH_P1;
+        s
+    }
+
     fn sidecar_ids() -> Vec<u32> {
         let doc: serde_json::Value =
             serde_json::from_str(include_str!("../tests/golden/lv0_golden_features.json"))
@@ -416,6 +436,7 @@ mod tests {
             2.0,
             (0.28125f32 + 1.0) - (1.0 + 3.0f32 / 150.0),
             0.0,
+            -0.1484375,
         ];
         assert_eq!(d, expected);
     }
@@ -426,14 +447,29 @@ mod tests {
     }
 
     #[test]
+    fn dense_fainted_active_golden_exact() {
+        let d = extract_dense(&fainted_active_state());
+        assert_eq!(d, [1.0, 0.5, 1.0, 1.0, 0.5, 0.0, 0.625]);
+    }
+
+    #[test]
+    fn dense_forced_switch_golden_exact() {
+        let d = extract_dense(&forced_switch_state());
+        assert_eq!(d, [1.0, 0.25, 1.0, 1.0, 0.75, 0.0, 0.9375]);
+    }
+
+    #[test]
     fn dense_mirror_is_swap_and_negate() {
         let check = |s: &BattleState| -> [f32; DENSE_DIM] {
             let d = extract_dense(s);
             let m = extract_dense(&mirror(s));
-            assert_eq!(m, [d[1], d[0], d[3], d[2], -d[4], -d[5]]);
+            assert_eq!(m, [d[1], d[0], d[3], d[2], -d[4], -d[5], -d[6]]);
             d
         };
-        check(&golden_state());
+        let dg = check(&golden_state());
+        assert_ne!(dg[6], 0.0, "golden state must exercise d6 negation");
+        check(&fainted_active_state());
+        check(&forced_switch_state());
         let mut s2 = golden_state();
         s2.sides[1].team[1].current_hp = 0;
         let d2 = check(&s2);
