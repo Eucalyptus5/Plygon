@@ -1,5 +1,6 @@
 pub mod rng;
 pub mod eval;
+pub mod eval_learned;
 pub mod node;
 pub mod select;
 pub mod chance;

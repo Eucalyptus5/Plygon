@@ -1,6 +1,7 @@
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::chance_analytic::AnalyticRoot;
-use poke_mcts::eval::Handcrafted;
+use poke_mcts::eval::{Evaluator, Handcrafted};
+use poke_mcts::eval_learned::LearnedEval;
 use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
 use poke_mcts::rng::{splitmix64, Lcg};
@@ -93,7 +94,7 @@ fn stats(mut v: Vec<f64>) -> (f64, f64, f64) {
     (v[0], med, v[n - 1])
 }
 
-fn bench(fixture: &Fixture) {
+fn bench(fixture: &Fixture, eval: &impl Evaluator, label: &str) {
     let (team1, b1, l1) = build(&fixture.teams[0]);
     let (team2, b2, l2) = build(&fixture.teams[1]);
     let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
@@ -104,11 +105,29 @@ fn bench(fixture: &Fixture) {
     switch::switch_in(&mut state, &teams, 0, 0);
     switch::switch_in(&mut state, &teams, 1, 0);
 
+    let mut sink = 0f32;
+    for _ in 0..1_000 {
+        sink += std::hint::black_box(eval.eval(std::hint::black_box(&state)));
+    }
+    let t0 = std::time::Instant::now();
+    let mut n = 0u64;
+    loop {
+        for _ in 0..10_000 {
+            sink += std::hint::black_box(eval.eval(std::hint::black_box(&state)));
+        }
+        n += 10_000;
+        if t0.elapsed().as_secs_f64() >= 0.5 {
+            break;
+        }
+    }
+    std::hint::black_box(sink);
+    println!("eval[{}] µs/eval: {:.3}", label, t0.elapsed().as_secs_f64() * 1e6 / n as f64);
+
     let params = SearchParams { time_ms: 100, ..Default::default() };
     let mut iters: Vec<f64> = Vec::new();
     let (mut guards, mut depths) = (0u64, 0u64);
     for seed in 0..10u64 {
-        let r = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, seed);
+        let r = search_world(&state, &teams, eval, &OpenLoop, &params, seed);
         iters.push(r.iterations as f64);
         guards += r.guard_hits;
         depths += r.depth_sum;
@@ -122,7 +141,7 @@ fn bench(fixture: &Fixture) {
     let closed_p = SearchParams { time_ms: 100, max_nodes: poke_mcts::search::closed_loop_max_nodes(1), ..Default::default() };
     let mut citers: Vec<f64> = Vec::new();
     for seed in 0..10u64 {
-        let r = poke_mcts::chance_closed::search_world_closed(&state, &teams, &Handcrafted, &closed_p, seed);
+        let r = poke_mcts::chance_closed::search_world_closed(&state, &teams, eval, &closed_p, seed);
         citers.push(r.iterations as f64);
     }
     let (cmin, cmed, cmax) = stats(citers);
@@ -133,7 +152,7 @@ fn bench(fixture: &Fixture) {
     let mut aiters: Vec<f64> = Vec::new();
     let (mut aguards, mut adepths) = (0u64, 0u64);
     for seed in 0..10u64 {
-        let r = search_world(&state, &teams, &Handcrafted, &AnalyticRoot, &params, seed);
+        let r = search_world(&state, &teams, eval, &AnalyticRoot, &params, seed);
         aiters.push(r.iterations as f64);
         aguards += r.guard_hits;
         adepths += r.depth_sum;
@@ -145,6 +164,7 @@ fn bench(fixture: &Fixture) {
     println!("analytic guard-fire %: {:.3}", 100.0 * aguards as f64 / atotal);
     println!("analytic/open iters ratio (median): {:.2}", amed / med);
 
+    // choose_action's evaluator is fixed inside driver; this section measures Handcrafted regardless of --eval
     let mut belief = poke_mcts::belief::Belief::default();
     let om = state.active_mon(1);
     belief.note_species(om.species_id, om.level);
@@ -293,7 +313,11 @@ fn main() {
 
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
     if args.iter().any(|a| a == "--bench-search") {
-        bench(&fixture);
+        match get("--eval", "handcrafted").as_str() {
+            "handcrafted" => bench(&fixture, &Handcrafted, "handcrafted"),
+            "learned" => bench(&fixture, &LearnedEval::from_env(), "learned"),
+            other => panic!("unknown --eval {other}"),
+        }
         return;
     }
     if args.iter().any(|a| a == "--tournament") {
