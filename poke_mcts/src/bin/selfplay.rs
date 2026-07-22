@@ -94,7 +94,7 @@ fn stats(mut v: Vec<f64>) -> (f64, f64, f64) {
     (v[0], med, v[n - 1])
 }
 
-fn bench(fixture: &Fixture, eval: &impl Evaluator, label: &str) {
+fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::EvalKind<'_>, label: &str) {
     let (team1, b1, l1) = build(&fixture.teams[0]);
     let (team2, b2, l2) = build(&fixture.teams[1]);
     let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
@@ -164,7 +164,6 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, label: &str) {
     println!("analytic guard-fire %: {:.3}", 100.0 * aguards as f64 / atotal);
     println!("analytic/open iters ratio (median): {:.2}", amed / med);
 
-    // choose_action's evaluator is fixed inside driver; this section measures Handcrafted regardless of --eval
     let mut belief = poke_mcts::belief::Belief::default();
     let om = state.active_mon(1);
     belief.note_species(om.species_id, om.level);
@@ -178,7 +177,7 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, label: &str) {
             explore_coeff: 2.0,
         };
         let t0 = std::time::Instant::now();
-        let _ = poke_mcts::driver::choose_action(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg);
+        let _ = poke_mcts::driver::choose_action_eval(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg, kind);
         wall.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
     let (wmin, wmed, wmax) = stats(wall);
@@ -314,8 +313,11 @@ fn main() {
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
     if args.iter().any(|a| a == "--bench-search") {
         match get("--eval", "handcrafted").as_str() {
-            "handcrafted" => bench(&fixture, &Handcrafted, "handcrafted"),
-            "learned" => bench(&fixture, &LearnedEval::from_env(), "learned"),
+            "handcrafted" => bench(&fixture, &Handcrafted, poke_mcts::driver::EvalKind::Handcrafted, "handcrafted"),
+            "learned" => {
+                let le = LearnedEval::from_env();
+                bench(&fixture, &le, poke_mcts::driver::EvalKind::Learned(&le), "learned");
+            }
             other => panic!("unknown --eval {other}"),
         }
         return;

@@ -2,8 +2,9 @@ use crate::belief::Belief;
 use crate::chance::OpenLoop;
 use crate::chance_analytic::AnalyticRoot;
 use crate::chance_closed::search_world_closed;
-use crate::determinize::{Determinizer, Observation};
-use crate::eval::Handcrafted;
+use crate::determinize::{Determinizer, Observation, World};
+use crate::eval::{Evaluator, Handcrafted};
+use crate::eval_learned::LearnedEval;
 use crate::rng::{splitmix64, Lcg};
 use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, SearchParams, SearchResult};
 use pkmn_engine::state::*;
@@ -11,6 +12,21 @@ use rayon::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum PickMode { #[default] Weighted, Argmax, Value }
+
+/// Leaf evaluator for one decision. Carries a borrow of the once-constructed
+/// LearnedEval so every world's search shares the same weights.
+#[derive(Clone, Copy, Default)]
+pub enum EvalKind<'a> {
+    #[default]
+    Handcrafted,
+    Learned(&'a LearnedEval),
+}
+
+impl EvalKind<'_> {
+    pub fn name(self) -> &'static str {
+        match self { EvalKind::Handcrafted => "handcrafted", EvalKind::Learned(_) => "learned" }
+    }
+}
 
 pub struct PimcConfig {
     pub num_worlds: usize,
@@ -134,7 +150,22 @@ pub fn adaptive_budget(
     }
 }
 
+fn search_eval(w: &World, eval: &impl Evaluator, cfg: &PimcConfig, params: &SearchParams, seed: u64) -> SearchResult {
+    match cfg.chance_mode {
+        ChanceMode::OpenLoop =>
+            search_world(&w.state, &w.teams, eval, &OpenLoop, params, seed),
+        ChanceMode::ClosedLoop =>
+            search_world_closed(&w.state, &w.teams, eval, params, seed),
+        ChanceMode::AnalyticRoot =>
+            search_world(&w.state, &w.teams, eval, &AnalyticRoot, params, seed),
+    }
+}
+
 pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig) -> u8 {
+    choose_action_eval(obs, belief, det, cfg, EvalKind::Handcrafted)
+}
+
+pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>) -> u8 {
     let legal = legal_actions(obs.state, obs.our_side);
     if legal.count == 0 { return ACTION_STRUGGLE; }
     if legal.count == 1 { return legal.actions[0]; }
@@ -153,13 +184,9 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
     }
     let searched: Vec<(SearchResult, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
-        let r = match cfg.chance_mode {
-            ChanceMode::OpenLoop =>
-                search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed),
-            ChanceMode::ClosedLoop =>
-                search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
-            ChanceMode::AnalyticRoot =>
-                search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed),
+        let r = match eval {
+            EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed),
+            EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed),
         };
         (r, w.weight)
     }).collect();
@@ -367,6 +394,21 @@ mod tests {
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert_eq!(a, b, "same seed -> same choice (reproducibility, design §10)");
+    }
+
+    #[test]
+    fn eval_sibling_handcrafted_matches_default_form() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0]), mon(143, 47, [34, 0, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        let mut belief = Belief::default();
+        belief.note_species(445, s.sides[1].team[0].level);
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
+        let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
+        let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted);
+        assert_eq!(a, b, "4-arg form must delegate to the eval-carrying form unchanged");
     }
 
     #[test]
