@@ -205,41 +205,30 @@ mod tests {
     const FIXTURES: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lv1-db937c18c028.fixtures.json");
 
-    // weights/ is a gitignored per-net artifact dir; skip when absent
+    // weights/ is a gitignored per-net artifact dir; skip when absent or
+    // refused at the current spec (no spec-4 export exists yet)
     fn artifacts() -> Option<(LearnedEval, serde_json::Value)> {
         let bin = std::fs::read(WEIGHTS).ok()?;
         let fx = std::fs::read_to_string(FIXTURES).ok()?;
         Some((
-            LearnedEval::from_bytes(&bin).expect("weights must load"),
+            LearnedEval::from_bytes(&bin).ok()?,
             serde_json::from_str(&fx).expect("fixtures must parse"),
         ))
     }
 
     #[test]
-    fn parity_natural_logit_within_1e4() {
-        let Some((net, doc)) = artifacts() else {
-            eprintln!("SKIP parity: weights artifacts not present");
+    fn spec3_weights_refused_at_current_spec() {
+        let Ok(bin) = std::fs::read(WEIGHTS) else {
+            eprintln!("SKIP spec3 refusal: weights artifacts not present");
             return;
         };
-        assert_eq!(doc["feature_spec_version"].as_u64().unwrap() as u32, FEATURE_SPEC_VERSION);
-        let fixtures = doc["fixtures"].as_array().unwrap();
-        assert_eq!(fixtures.len(), 64);
-        let mut max_diff = 0f64;
-        for f in fixtures {
-            let ids: Vec<u32> =
-                f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
-            let dv = f["dense"].as_array().unwrap();
-            assert_eq!(dv.len(), DENSE_DIM);
-            let mut dense = [0f32; DENSE_DIM];
-            for (k, v) in dv.iter().enumerate() {
-                dense[k] = v.as_f64().unwrap() as f32;
-            }
-            let want = f["natural_logit"].as_f64().unwrap();
-            let got = net.natural_logit(&ids, &dense) as f64;
-            max_diff = max_diff.max((got - want).abs());
-        }
-        eprintln!("parity max abs diff = {max_diff:.3e}");
-        assert!(max_diff <= 1e-4, "parity max abs diff {max_diff:.3e} > 1e-4");
+        let err = match LearnedEval::from_bytes(&bin) {
+            Ok(_) => panic!("archived spec-3 weights must be refused at the current spec"),
+            Err(e) => e,
+        };
+        let want =
+            format!("FEATURE_SPEC_VERSION mismatch: weights 3, extractor {FEATURE_SPEC_VERSION}");
+        assert_eq!(err, want);
     }
 
     #[test]
@@ -293,7 +282,7 @@ mod tests {
     #[test]
     fn eval_is_scaled_forward_of_extracted_features() {
         let Some((net, _)) = artifacts() else {
-            eprintln!("SKIP eval wiring: weights artifacts not present");
+            eprintln!("SKIP eval wiring: weights artifacts not present or not loadable");
             return;
         };
         let (s, _t) = build_state(

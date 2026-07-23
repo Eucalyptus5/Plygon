@@ -6,8 +6,10 @@ use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 // Output shard (little-endian): index.bin = u64 x (n+1) element offsets into
-// features.bin (u32 ids); labels/hand_eval f32 + dense 7xf32 + held_out u8 + game_id u64
-// per record; values.bin f32 per record under train_value; meta.json.
+// features.bin (u32 ids); token_index.bin = 15 x u16 segment lengths per record;
+// labels/hand_eval f32 + dense 7xf32 + held_out u8 + game_id u64 per record;
+// values.bin f32 per record under train_value; visits.bin = 14 x f32 action
+// visits (bytes 0-13) per record, gated by meta "visits"; meta.json.
 
 #[derive(Debug, PartialEq)]
 pub struct ConvertStats {
@@ -77,6 +79,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     std::fs::create_dir_all(out_dir)?;
     let mut ix = BufWriter::new(File::create(out_dir.join("index.bin"))?);
     let mut fx = BufWriter::new(File::create(out_dir.join("features.bin"))?);
+    let mut tx = BufWriter::new(File::create(out_dir.join("token_index.bin"))?);
     let mut lb = BufWriter::new(File::create(out_dir.join("labels.bin"))?);
     let mut he = BufWriter::new(File::create(out_dir.join("hand_eval.bin"))?);
     let mut ho = BufWriter::new(File::create(out_dir.join("held_out.bin"))?);
@@ -114,9 +117,12 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
             }
             let mut emit = |state: &pkmn_engine::state::BattleState, label: f32| -> io::Result<()> {
                 buf.clear();
-                features::extract(state, &mut buf);
+                let seg_lens = features::extract_segmented(state, &mut buf);
                 for &id in &buf {
                     fx.write_all(&id.to_le_bytes())?;
+                }
+                for n in seg_lens {
+                    tx.write_all(&n.to_le_bytes())?;
                 }
                 stats.features += buf.len() as u64;
                 stats.records += 1;
@@ -143,6 +149,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     }
     ix.flush()?;
     fx.flush()?;
+    tx.flush()?;
     lb.flush()?;
     he.flush()?;
     ho.flush()?;
@@ -161,6 +168,8 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
         "games_dropped": stats.games_dropped,
         "mirror": mirror_on,
         "values": cfg!(feature = "train_value"),
+        "token_segments": features::NUM_SEGMENTS,
+        "visits": false,
     });
     std::fs::write(out_dir.join("meta.json"), serde_json::to_string_pretty(&meta)?)?;
     Ok(stats)
@@ -226,6 +235,9 @@ mod tests {
     }
     fn read_u32s(p: &Path) -> Vec<u32> {
         std::fs::read(p).unwrap().chunks(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect()
+    }
+    fn read_u16s(p: &Path) -> Vec<u16> {
+        std::fs::read(p).unwrap().chunks(2).map(|c| u16::from_le_bytes(c.try_into().unwrap())).collect()
     }
     fn read_f32s(p: &Path) -> Vec<f32> {
         std::fs::read(p).unwrap().chunks(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect()
@@ -301,6 +313,26 @@ mod tests {
         assert_eq!(ids.len() as u64, *index.last().unwrap());
         assert_eq!(ids.len() as u64, stats.features);
 
+        let tok = read_u16s(&out.join("token_index.bin"));
+        assert_eq!(tok.len(), stats.records as usize * features::NUM_SEGMENTS);
+        for r in 0..stats.records as usize {
+            let lens = &tok[r * features::NUM_SEGMENTS..(r + 1) * features::NUM_SEGMENTS];
+            let want = index[r + 1] - index[r];
+            assert_eq!(lens.iter().map(|&n| n as u64).sum::<u64>(), want, "record {r} lens");
+        }
+        for r in (0..stats.records as usize).step_by(2) {
+            let o = &tok[r * features::NUM_SEGMENTS..(r + 1) * features::NUM_SEGMENTS];
+            let m = &tok[(r + 1) * features::NUM_SEGMENTS..(r + 2) * features::NUM_SEGMENTS];
+            let mut want: Vec<u16> = Vec::with_capacity(features::NUM_SEGMENTS);
+            want.extend_from_slice(&o[6..12]);
+            want.extend_from_slice(&o[0..6]);
+            want.push(o[13]);
+            want.push(o[12]);
+            want.push(o[14]);
+            assert_eq!(m, want.as_slice(), "record {r} mirror lens must side-swap");
+        }
+        assert!(!out.join("visits.bin").exists());
+
         let orig: Vec<u32> = ids[index[0] as usize..index[1] as usize].to_vec();
         let mirrored: Vec<u32> = ids[index[1] as usize..index[2] as usize].to_vec();
         let mut flipped: Vec<u32> = orig.iter().map(|&i| features::flip_side(i)).collect();
@@ -360,6 +392,8 @@ mod tests {
         assert_eq!(meta["vocab"], features::vocab_size());
         assert_eq!(meta["dense_dim"], features::DENSE_DIM);
         assert_eq!(meta["values"], cfg!(feature = "train_value"));
+        assert_eq!(meta["token_segments"], features::NUM_SEGMENTS as u64);
+        assert_eq!(meta["visits"], false);
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();

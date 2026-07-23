@@ -3,7 +3,10 @@ use pkmn_engine::data::{GEN_ITEMS, GEN_MOVES, TOTAL_SPECIES};
 use pkmn_engine::state::*;
 use std::sync::OnceLock;
 
-pub const FEATURE_SPEC_VERSION: u32 = 3;
+pub const FEATURE_SPEC_VERSION: u32 = 4;
+
+// 12 mon tokens (side 0 slots 0-5, side 1 slots 0-5), 2 side tokens, 1 global
+pub const NUM_SEGMENTS: usize = 15;
 
 // Dense order: [s0 hp-sum, s1 hp-sum, s0 alive, s1 alive, hp diff, alive diff, hand-eval logit]
 pub const DENSE_DIM: usize = 7;
@@ -77,57 +80,75 @@ fn vol_rank(bit: u32) -> u32 {
 }
 
 pub fn extract(state: &BattleState, out: &mut Vec<u32>) {
+    extract_segmented(state, out);
+}
+
+pub fn extract_segmented(state: &BattleState, out: &mut Vec<u32>) -> [u16; NUM_SEGMENTS] {
     let l = layout();
+    let mut lens = [0u16; NUM_SEGMENTS];
     for side in 0..2usize {
         let sd = &state.sides[side];
         let s32 = side as u32;
         let active_idx = (sd.active_index as usize).min(5);
         for slot in 0..6 {
+            let start = out.len();
             let mon = &sd.team[slot];
-            if mon.species_id == 0 {
-                continue;
-            }
-            let act = (slot != active_idx) as u32;
-            let sp = mon.species_id as u32;
-            out.push(l.f1 + s32 * (2 * l.s) + act * l.s + sp);
-            let bucket = if mon.max_hp == 0 {
-                0
-            } else {
-                (16 * mon.current_hp as u32 + mon.max_hp as u32 - 1) / mon.max_hp as u32
-            };
-            out.push(l.f2 + s32 * (l.s * 17) + sp * 17 + bucket);
-            if mon.status != STATUS_NONE {
-                out.push(l.f3 + s32 * (l.s * 6) + sp * 6 + (mon.status as u32 - 1));
-            }
-            for &mv in &mon.moves {
-                if mv != 0 {
-                    out.push(l.f4 + s32 * (2 * l.m) + act * l.m + mv as u32);
+            if mon.species_id != 0 {
+                let act = (slot != active_idx) as u32;
+                let sp = mon.species_id as u32;
+                out.push(l.f1 + s32 * (2 * l.s) + act * l.s + sp);
+                let bucket = if mon.max_hp == 0 {
+                    0
+                } else {
+                    (16 * mon.current_hp as u32 + mon.max_hp as u32 - 1) / mon.max_hp as u32
+                };
+                out.push(l.f2 + s32 * (l.s * 17) + sp * 17 + bucket);
+                if mon.status != STATUS_NONE {
+                    out.push(l.f3 + s32 * (l.s * 6) + sp * 6 + (mon.status as u32 - 1));
+                }
+                for &mv in &mon.moves {
+                    if mv != 0 {
+                        out.push(l.f4 + s32 * (2 * l.m) + act * l.m + mv as u32);
+                    }
+                }
+                if mon.item_id != 0 {
+                    out.push(l.f5 + s32 * (2 * l.i) + act * l.i + mon.item_id as u32);
+                }
+                if mon.ability_id != 0 {
+                    out.push(l.f6 + s32 * (2 * l.a) + act * l.a + mon.ability_id as u32);
                 }
             }
-            if mon.item_id != 0 {
-                out.push(l.f5 + s32 * (2 * l.i) + act * l.i + mon.item_id as u32);
+            if slot == active_idx {
+                let a = &sd.active;
+                for stat in 0..5usize {
+                    let b = a.boosts[stat];
+                    if b != 0 {
+                        let idx = if b < 0 { (b + 6) as u32 } else { (b + 5) as u32 };
+                        out.push(l.f7 + s32 * 60 + stat as u32 * 12 + idx);
+                    }
+                }
+                let mut bits = a.volatile_flags & VOL_EMIT_MASK;
+                while bits != 0 {
+                    let bit = bits.trailing_zeros();
+                    out.push(l.f8 + s32 * VOL_KEPT + vol_rank(bit));
+                    bits &= bits - 1;
+                }
+                if a.confusion_turns > 0 {
+                    out.push(l.f8b + s32);
+                }
+                // gate on is_terastallized only: determinizer-installed guessed tera_type
+                // on non-tera'd mons must not leak through a value-based gate
+                if mon.is_terastallized() && (mon.tera_type as u32) < 19 {
+                    out.push(l.f11 + 2 + s32 * 19 + mon.tera_type as u32);
+                }
             }
-            if mon.ability_id != 0 {
-                out.push(l.f6 + s32 * (2 * l.a) + act * l.a + mon.ability_id as u32);
-            }
+            lens[side * 6 + slot] = (out.len() - start) as u16;
         }
-        let a = &sd.active;
-        for stat in 0..5usize {
-            let b = a.boosts[stat];
-            if b != 0 {
-                let idx = if b < 0 { (b + 6) as u32 } else { (b + 5) as u32 };
-                out.push(l.f7 + s32 * 60 + stat as u32 * 12 + idx);
-            }
-        }
-        let mut bits = a.volatile_flags & VOL_EMIT_MASK;
-        while bits != 0 {
-            let bit = bits.trailing_zeros();
-            out.push(l.f8 + s32 * VOL_KEPT + vol_rank(bit));
-            bits &= bits - 1;
-        }
-        if a.confusion_turns > 0 {
-            out.push(l.f8b + s32);
-        }
+    }
+    for side in 0..2usize {
+        let start = out.len();
+        let sd = &state.sides[side];
+        let s32 = side as u32;
         let sc = &sd.side_conditions;
         if sc.hazard_flags & HAZARD_STEALTH_ROCK != 0 {
             out.push(l.f9 + s32 * 7);
@@ -163,13 +184,9 @@ pub fn extract(state: &BattleState, out: &mut Vec<u32>) {
         if sd._padding[0] & 1 != 0 {
             out.push(l.f11 + s32);
         }
-        let active_mon = &sd.team[active_idx];
-        // gate on is_terastallized only: determinizer-installed guessed tera_type
-        // on non-tera'd mons must not leak through a value-based gate
-        if active_mon.is_terastallized() && (active_mon.tera_type as u32) < 19 {
-            out.push(l.f11 + 2 + s32 * 19 + active_mon.tera_type as u32);
-        }
+        lens[12 + side] = (out.len() - start) as u16;
     }
+    let start = out.len();
     let f = &state.field;
     if f.weather != WEATHER_NONE {
         out.push(l.f12 + f.weather as u32 - 1);
@@ -184,6 +201,8 @@ pub fn extract(state: &BattleState, out: &mut Vec<u32>) {
         out.push(l.f12 + 12);
     }
     out.push(l.f13 + (f.turn as u32 / 5).min(7));
+    lens[14] = (out.len() - start) as u16;
+    lens
 }
 
 pub fn extract_dense(state: &BattleState) -> [f32; DENSE_DIM] {
@@ -359,17 +378,69 @@ mod tests {
         s
     }
 
-    fn sidecar_ids() -> Vec<u32> {
+    fn sidecar_doc() -> serde_json::Value {
         let doc: serde_json::Value =
             serde_json::from_str(include_str!("../tests/golden/lv0_golden_features.json"))
                 .expect("sidecar must parse");
         assert_eq!(doc["feature_spec_version"].as_u64().unwrap() as u32, FEATURE_SPEC_VERSION);
-        doc["expected"]
+        doc
+    }
+
+    fn sidecar_ids() -> Vec<u32> {
+        sidecar_doc()["expected"]
             .as_array()
             .unwrap()
             .iter()
             .map(|e| e["id"].as_u64().unwrap() as u32)
             .collect()
+    }
+
+    fn sidecar_segments(name: &str) -> Vec<Vec<u32>> {
+        let doc = sidecar_doc();
+        let segs = doc["segments"][name].as_array().unwrap();
+        assert_eq!(segs.len(), NUM_SEGMENTS);
+        segs.iter()
+            .map(|s| s.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect())
+            .collect()
+    }
+
+    fn split_segments(ids: &[u32], lens: &[u16; NUM_SEGMENTS]) -> Vec<Vec<u32>> {
+        let mut segs = Vec::with_capacity(NUM_SEGMENTS);
+        let mut pos = 0usize;
+        for &n in lens {
+            segs.push(ids[pos..pos + n as usize].to_vec());
+            pos += n as usize;
+        }
+        assert_eq!(pos, ids.len(), "segment lengths must cover the emission");
+        segs
+    }
+
+    fn assert_fixture_segments(s: &BattleState, name: &str) {
+        let mut ids = Vec::new();
+        let lens = extract_segmented(s, &mut ids);
+        let got = split_segments(&ids, &lens);
+        let want = sidecar_segments(name);
+        for k in 0..NUM_SEGMENTS {
+            assert_eq!(got[k], want[k], "{name} segment {k}");
+        }
+        let mut flat = Vec::new();
+        extract(s, &mut flat);
+        assert_eq!(flat, ids, "extract must match the segmented emission");
+    }
+
+    #[test]
+    fn golden_fixture_segments_exact() {
+        assert_fixture_segments(&golden_state(), "golden");
+    }
+
+    #[test]
+    fn fainted_active_fixture_segments_exact() {
+        assert_fixture_segments(&fainted_active_state(), "fainted_active");
+    }
+
+    #[test]
+    fn forced_switch_fixture_segments_exact() {
+        assert_fixture_segments(&forced_switch_state(), "forced_switch");
     }
 
     #[test]
@@ -390,23 +461,37 @@ mod tests {
     fn negative_fixture_default_state_emits_only_turn_bucket() {
         let s = BattleState::default();
         let mut got = Vec::new();
-        extract(&s, &mut got);
+        let lens = extract_segmented(&s, &mut got);
+        let mut want_lens = [0u16; NUM_SEGMENTS];
+        want_lens[14] = 1;
+        assert_eq!(lens, want_lens);
         assert_eq!(got, vec![80965]);
+        assert_eq!(split_segments(&got, &lens), sidecar_segments("negative_default"));
     }
 
     #[test]
-    fn mirror_feature_set_is_side_flip() {
-        let s = golden_state();
-        let mut orig = Vec::new();
-        extract(&s, &mut orig);
-        let mut mirrored = Vec::new();
-        extract(&mirror(&s), &mut mirrored);
-        let mut flipped: Vec<u32> = orig.iter().map(|&id| flip_side(id)).collect();
-        flipped.sort_unstable();
-        mirrored.sort_unstable();
-        assert_eq!(mirrored, flipped);
-        for &id in &orig {
-            assert_eq!(flip_side(flip_side(id)), id);
+    fn mirror_segments_are_side_block_swap_of_flipped_ids() {
+        for s in [golden_state(), fainted_active_state(), forced_switch_state()] {
+            let mut orig = Vec::new();
+            let orig_lens = extract_segmented(&s, &mut orig);
+            let mut mirrored = Vec::new();
+            let mir_lens = extract_segmented(&mirror(&s), &mut mirrored);
+            let oseg = split_segments(&orig, &orig_lens);
+            let mseg = split_segments(&mirrored, &mir_lens);
+            let src = |k: usize| match k {
+                0..=5 => k + 6,
+                6..=11 => k - 6,
+                12 => 13,
+                13 => 12,
+                _ => 14,
+            };
+            for k in 0..NUM_SEGMENTS {
+                let want: Vec<u32> = oseg[src(k)].iter().map(|&id| flip_side(id)).collect();
+                assert_eq!(mseg[k], want, "mirrored segment {k}");
+            }
+            for &id in &orig {
+                assert_eq!(flip_side(flip_side(id)), id);
+            }
         }
     }
 
@@ -424,6 +509,7 @@ mod tests {
             serde_json::from_str(include_str!("../tests/golden/lv0_golden_features.json")).unwrap();
         assert_eq!(vocab_size() as u64, doc["vocab_total"].as_u64().unwrap());
         assert_eq!(doc["dense_dim"].as_u64().unwrap() as usize, DENSE_DIM);
+        assert_eq!(doc["segment_names"].as_array().unwrap().len(), NUM_SEGMENTS);
     }
 
     #[test]
