@@ -21,3 +21,4 @@ pub mod testutil;
 pub mod audit_snapshot;
 pub mod train_dump;
 pub mod features;
+pub mod policy_label;
