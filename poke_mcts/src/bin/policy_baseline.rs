@@ -89,12 +89,14 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut labels: Option<String> = None;
     let mut limit: Option<usize> = None;
+    let mut seed_base = BASELINE_SEED;
     let mut inputs: Vec<String> = Vec::new();
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--labels" => labels = it.next(),
             "--limit" => limit = it.next().and_then(|v| v.parse().ok()),
+            "--seed" => seed_base = it.next().and_then(|v| v.parse().ok()).unwrap_or(BASELINE_SEED),
             _ => inputs.push(a),
         }
     }
@@ -123,7 +125,7 @@ fn main() {
             let key = format!("{file_name}:{idx}");
             let decider = rec.side_of_decider as usize;
             let legal = pkmn_engine::state::legal_actions(&rec.state, decider);
-            let seed = splitmix64(BASELINE_SEED ^ rec.game_tag).wrapping_add(idx as u64);
+            let seed = splitmix64(seed_base ^ rec.game_tag).wrapping_add(idx as u64);
             let (pick, valued) = if legal.count <= 1 {
                 (legal.as_slice().first().copied().unwrap_or(pkmn_engine::state::ACTION_STRUGGLE), vec![])
             } else {
