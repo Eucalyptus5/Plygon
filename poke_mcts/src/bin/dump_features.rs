@@ -9,7 +9,11 @@ use std::path::{Path, PathBuf};
 // features.bin (u32 ids); token_index.bin = 15 x u16 segment lengths per record;
 // labels/hand_eval f32 + dense 7xf32 + held_out u8 + game_id u64 per record;
 // values.bin f32 per record under train_value; visits.bin = 14 x f32 action
-// visits (bytes 0-13) per record, gated by meta "visits"; meta.json.
+// visits (bytes 0-13) per record, gated by meta "visits", with u8-per-row
+// visits_mask.bin (1 = decider-perspective labeled row) and decider.bin
+// (the record's side_of_decider on both rows); meta.json.
+
+pub const VISIT_ACTIONS: usize = 14;
 
 #[derive(Debug, PartialEq)]
 pub struct ConvertStats {
@@ -17,6 +21,7 @@ pub struct ConvertStats {
     pub games_dropped: u64,
     pub records: u64,
     pub features: u64,
+    pub labels_attached: u64,
 }
 
 fn read_outcomes(path: &Path) -> io::Result<HashMap<u64, f32>> {
@@ -55,6 +60,46 @@ fn fixed_record_size() -> u64 {
     bincode::serialize(&rec).unwrap().len() as u64
 }
 
+// labels.jsonl rows keyed "<game_tag>.records.bin:<record_index>"; rows
+// carrying "invalid" are skipped (their records stay mask-0 on both rows).
+fn read_labels(path: &Path) -> io::Result<HashMap<String, [f32; VISIT_ACTIONS]>> {
+    let bad = |m: String| io::Error::new(io::ErrorKind::InvalidData, m);
+    let f = File::open(path)?;
+    let mut map = HashMap::new();
+    for line in BufReader::new(f).lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let v: serde_json::Value = serde_json::from_str(&line)
+            .map_err(|e| bad(format!("{}: {e}", path.display())))?;
+        if v.get("invalid").is_some() {
+            continue;
+        }
+        let key = v["key"]
+            .as_str()
+            .ok_or_else(|| bad(format!("{}: label row missing key", path.display())))?;
+        let mdist = v["mdist"]
+            .as_object()
+            .ok_or_else(|| bad(format!("{key}: label row missing mdist")))?;
+        let mut row = [0f32; VISIT_ACTIONS];
+        for (k, val) in mdist {
+            let b: usize = k
+                .parse()
+                .map_err(|_| bad(format!("{key}: non-numeric action byte {k}")))?;
+            if b >= VISIT_ACTIONS {
+                return Err(bad(format!("{key}: action byte {b} outside 0-13")));
+            }
+            row[b] = val
+                .as_f64()
+                .ok_or_else(|| bad(format!("{key}: non-numeric share for byte {b}")))?
+                as f32;
+        }
+        map.insert(key.to_string(), row);
+    }
+    Ok(map)
+}
+
 fn shard_files(dir: &Path) -> io::Result<Vec<(u64, PathBuf)>> {
     let mut shards = Vec::new();
     for entry in std::fs::read_dir(dir)? {
@@ -73,8 +118,14 @@ fn shard_files(dir: &Path) -> io::Result<Vec<(u64, PathBuf)>> {
     Ok(shards)
 }
 
-pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<ConvertStats> {
+pub fn convert(
+    dir: &Path,
+    out_dir: &Path,
+    mirror_on: bool,
+    visits: Option<&Path>,
+) -> io::Result<ConvertStats> {
     let outcomes = read_outcomes(&dir.join("outcomes.jsonl"))?;
+    let labels_map = visits.map(read_labels).transpose()?;
     let shards = shard_files(dir)?;
     std::fs::create_dir_all(out_dir)?;
     let mut ix = BufWriter::new(File::create(out_dir.join("index.bin"))?);
@@ -87,9 +138,19 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     let mut de = BufWriter::new(File::create(out_dir.join("dense.bin"))?);
     #[cfg(feature = "train_value")]
     let mut va = BufWriter::new(File::create(out_dir.join("values.bin"))?);
+    let mut vis_out = if labels_map.is_some() {
+        Some((
+            BufWriter::new(File::create(out_dir.join("visits.bin"))?),
+            BufWriter::new(File::create(out_dir.join("visits_mask.bin"))?),
+            BufWriter::new(File::create(out_dir.join("decider.bin"))?),
+        ))
+    } else {
+        None
+    };
 
     let rec_size = fixed_record_size();
-    let mut stats = ConvertStats { games_joined: 0, games_dropped: 0, records: 0, features: 0 };
+    let mut stats =
+        ConvertStats { games_joined: 0, games_dropped: 0, records: 0, features: 0, labels_attached: 0 };
     ix.write_all(&0u64.to_le_bytes())?;
     let mut buf: Vec<u32> = Vec::with_capacity(256);
     for (tag, path) in shards {
@@ -107,7 +168,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
         // siblings of a CRN seat-swap pair share tag >> 1 (tag = game_index ^ C,
         // pair mates differ only in bit 0), so this keys the split on the PAIR
         let held = ((tag >> 1) % 10 == 0) as u8;
-        for rec in train_dump::read_records(path.to_str().unwrap())? {
+        for (rec_idx, rec) in train_dump::read_records(path.to_str().unwrap())?.into_iter().enumerate() {
             #[cfg(feature = "train_value")]
             if rec.record_version != 2 {
                 return Err(io::Error::new(
@@ -115,7 +176,13 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
                     format!("{}: record_version {} != 2", path.display(), rec.record_version),
                 ));
             }
-            let mut emit = |state: &pkmn_engine::state::BattleState, label: f32| -> io::Result<()> {
+            let visit_row: Option<[f32; VISIT_ACTIONS]> = labels_map
+                .as_ref()
+                .and_then(|m| m.get(&format!("{tag}.records.bin:{rec_idx}")).copied());
+            let mut emit = |state: &pkmn_engine::state::BattleState,
+                            label: f32,
+                            vrow: Option<&[f32; VISIT_ACTIONS]>|
+             -> io::Result<()> {
                 buf.clear();
                 let seg_lens = features::extract_segmented(state, &mut buf);
                 for &id in &buf {
@@ -134,13 +201,33 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
                 for v in features::extract_dense(state) {
                     de.write_all(&v.to_le_bytes())?;
                 }
+                if let Some((vs, vm, dc)) = vis_out.as_mut() {
+                    match vrow {
+                        Some(row) => {
+                            for v in row {
+                                vs.write_all(&v.to_le_bytes())?;
+                            }
+                            vm.write_all(&[1])?;
+                            stats.labels_attached += 1;
+                        }
+                        None => {
+                            vs.write_all(&[0u8; VISIT_ACTIONS * 4])?;
+                            vm.write_all(&[0])?;
+                        }
+                    }
+                    dc.write_all(&[rec.side_of_decider])?;
+                }
                 Ok(())
             };
-            emit(&rec.state, z)?;
+            // the label lands on the decider-perspective row only: the original
+            // when side_of_decider==0, the mirror when ==1
+            let orig_row = if rec.side_of_decider == 0 { visit_row.as_ref() } else { None };
+            emit(&rec.state, z, orig_row)?;
             #[cfg(feature = "train_value")]
             va.write_all(&rec.root_value.to_le_bytes())?;
             if mirror_on {
-                emit(&features::mirror(&rec.state), 1.0 - z)?;
+                let mirror_row = if rec.side_of_decider == 1 { visit_row.as_ref() } else { None };
+                emit(&features::mirror(&rec.state), 1.0 - z, mirror_row)?;
                 #[cfg(feature = "train_value")]
                 va.write_all(&(1.0 - rec.root_value).to_le_bytes())?;
             }
@@ -157,6 +244,11 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
     de.flush()?;
     #[cfg(feature = "train_value")]
     va.flush()?;
+    if let Some((vs, vm, dc)) = vis_out.as_mut() {
+        vs.flush()?;
+        vm.flush()?;
+        dc.flush()?;
+    }
 
     let meta = serde_json::json!({
         "feature_spec_version": features::FEATURE_SPEC_VERSION,
@@ -169,7 +261,7 @@ pub fn convert(dir: &Path, out_dir: &Path, mirror_on: bool) -> io::Result<Conver
         "mirror": mirror_on,
         "values": cfg!(feature = "train_value"),
         "token_segments": features::NUM_SEGMENTS,
-        "visits": false,
+        "visits": labels_map.is_some(),
     });
     std::fs::write(out_dir.join("meta.json"), serde_json::to_string_pretty(&meta)?)?;
     Ok(stats)
@@ -191,11 +283,13 @@ fn main() {
     }
     let mut dir: Option<String> = None;
     let mut out: Option<String> = None;
+    let mut visits: Option<String> = None;
     let mut mirror_on = true;
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--out" => out = it.next(),
+            "--visits" => visits = it.next(),
             "--no-mirror" => mirror_on = false,
             _ if dir.is_none() => dir = Some(a),
             _ => {
@@ -205,13 +299,13 @@ fn main() {
         }
     }
     let (Some(dir), Some(out)) = (dir, out) else {
-        eprintln!("usage: dump_features <dir> --out <train_dir> [--no-mirror] | dump_features --spec");
+        eprintln!("usage: dump_features <dir> --out <train_dir> [--no-mirror] [--visits <labels.jsonl>] | dump_features --spec");
         std::process::exit(2);
     };
-    match convert(Path::new(&dir), Path::new(&out), mirror_on) {
+    match convert(Path::new(&dir), Path::new(&out), mirror_on, visits.as_deref().map(Path::new)) {
         Ok(s) => println!(
-            "games {} (dropped {})  records {}  features {}",
-            s.games_joined, s.games_dropped, s.records, s.features
+            "games {} (dropped {})  records {}  features {}  labels {}",
+            s.games_joined, s.games_dropped, s.records, s.features, s.labels_attached
         ),
         Err(e) => {
             eprintln!("dump_features: {e}");
@@ -285,7 +379,7 @@ mod tests {
         let out = tmp_dir("full_out");
         setup_dump(&dir);
 
-        let stats = convert(&dir, &out, true).unwrap();
+        let stats = convert(&dir, &out, true, None).unwrap();
         assert_eq!(stats.games_joined, 4);
         assert_eq!(stats.games_dropped, 1);
         assert_eq!(stats.records, 8);
@@ -405,7 +499,7 @@ mod tests {
         let out = tmp_dir("nomirror_out");
         setup_dump(&dir);
 
-        let stats = convert(&dir, &out, false).unwrap();
+        let stats = convert(&dir, &out, false, None).unwrap();
         assert_eq!(stats.records, 4);
         let labels = read_f32s(&out.join("labels.bin"));
         assert_eq!(labels, vec![1.0, 0.0, 0.5, 1.0]);
@@ -434,7 +528,7 @@ mod tests {
             .unwrap();
         f.write_all(&[0u8]).unwrap();
         drop(f);
-        let err = convert(&dir, &out, true).unwrap_err();
+        let err = convert(&dir, &out, true, None).unwrap_err();
         assert!(err.to_string().contains("not divisible"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -454,7 +548,7 @@ mod tests {
         std::fs::write(dir.join("0.records.bin"), &bytes).unwrap();
         std::fs::write(dir.join("outcomes.jsonl"), "{\"game_tag\":0,\"winner_side0\":1.0}\n")
             .unwrap();
-        let err = convert(&dir, &out, true).unwrap_err();
+        let err = convert(&dir, &out, true, None).unwrap_err();
         assert!(err.to_string().contains("not divisible"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -470,9 +564,125 @@ mod tests {
         let mut bytes = std::fs::read(&p).unwrap();
         bytes[0] = 1; // leading field of the first record is record_version
         std::fs::write(&p, &bytes).unwrap();
-        let err = convert(&dir, &out, true).unwrap_err();
+        let err = convert(&dir, &out, true, None).unwrap_err();
         assert!(err.to_string().contains("record_version"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
+    }
+
+    fn setup_visits_dump(dir: &Path) -> pkmn_engine::state::BattleState {
+        let (state, teams) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        std::fs::create_dir_all(dir).unwrap();
+        for (tag, side) in [(0u64, 0usize), (1, 1), (2, 0)] {
+            let worlds = vec![World { state, teams: teams.clone(), weight: 1.0 }];
+            #[cfg(not(feature = "train_value"))]
+            train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, side, 5).unwrap();
+            #[cfg(feature = "train_value")]
+            train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, side, 5, 0.5).unwrap();
+        }
+        let outcomes = "{\"game_tag\":0,\"winner_side0\":1.0}\n{\"game_tag\":1,\"winner_side0\":0.0}\n{\"game_tag\":2,\"winner_side0\":1.0}\n";
+        std::fs::write(dir.join("outcomes.jsonl"), outcomes).unwrap();
+        state
+    }
+
+    #[test]
+    fn visits_label_lands_on_decider_perspective_row_only() {
+        let dir = tmp_dir("visits");
+        let out = tmp_dir("visits_out");
+        let state = setup_visits_dump(&dir);
+        // game 0: decider side 0; game 1: decider side 1; game 2: invalid label row
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(
+            &labels,
+            "{\"key\":\"0.records.bin:0\",\"mdist\":{\"0\":0.625,\"5\":0.375},\"iterations\":1000,\"elapsed\":0.2,\"legal_match\":true}\n\
+             {\"key\":\"1.records.bin:0\",\"mdist\":{\"4\":1.0},\"iterations\":900,\"elapsed\":0.2,\"legal_match\":true}\n\
+             {\"key\":\"2.records.bin:0\",\"invalid\":\"struggle\"}\n",
+        )
+        .unwrap();
+
+        let stats = convert(&dir, &out, true, Some(&labels)).unwrap();
+        assert_eq!(stats.records, 6);
+        assert_eq!(stats.labels_attached, 2);
+
+        let vis = read_f32s(&out.join("visits.bin"));
+        assert_eq!(vis.len(), 6 * VISIT_ACTIONS);
+        let row = |k: usize| &vis[k * VISIT_ACTIONS..(k + 1) * VISIT_ACTIONS];
+        let mut want0 = [0f32; VISIT_ACTIONS];
+        want0[0] = 0.625;
+        want0[5] = 0.375;
+        let mut want1 = [0f32; VISIT_ACTIONS];
+        want1[4] = 1.0;
+        assert_eq!(row(0), want0, "decider 0: label on the original row");
+        assert_eq!(row(1), [0f32; VISIT_ACTIONS], "decider 0: mirror row all-zero");
+        assert_eq!(row(2), [0f32; VISIT_ACTIONS], "decider 1: original row all-zero");
+        assert_eq!(row(3), want1, "decider 1: label on the mirror row");
+        assert_eq!(row(4), [0f32; VISIT_ACTIONS], "invalid label: no row");
+        assert_eq!(row(5), [0f32; VISIT_ACTIONS], "invalid label: no row");
+
+        let mask = std::fs::read(out.join("visits_mask.bin")).unwrap();
+        assert_eq!(mask, vec![1, 0, 0, 1, 0, 0]);
+        let decider = std::fs::read(out.join("decider.bin")).unwrap();
+        assert_eq!(decider, vec![0, 0, 1, 1, 0, 0]);
+
+        // the labeled row's tokens are the decider's: row 3 must equal the
+        // mirrored state's emission, whose token side 0 is physical side 1
+        let index = read_u64s(&out.join("index.bin"));
+        let ids = read_u32s(&out.join("features.bin"));
+        let row3: Vec<u32> = ids[index[3] as usize..index[4] as usize].to_vec();
+        let mut buf: Vec<u32> = Vec::new();
+        features::extract_segmented(&features::mirror(&state), &mut buf);
+        assert_eq!(row3, buf, "labeled mirror row must carry the decider-as-side-0 tokens");
+
+        let meta: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(out.join("meta.json")).unwrap()).unwrap();
+        assert_eq!(meta["visits"], true);
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[test]
+    fn visits_sidecars_absent_without_labels_present_with() {
+        let dir = tmp_dir("vispair");
+        let out_off = tmp_dir("vispair_off");
+        let out_on = tmp_dir("vispair_on");
+        setup_visits_dump(&dir);
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(
+            &labels,
+            "{\"key\":\"0.records.bin:0\",\"mdist\":{\"0\":1.0},\"iterations\":1,\"elapsed\":0.1,\"legal_match\":true}\n",
+        )
+        .unwrap();
+
+        convert(&dir, &out_off, true, None).unwrap();
+        assert!(!out_off.join("visits.bin").exists());
+        assert!(!out_off.join("visits_mask.bin").exists());
+        assert!(!out_off.join("decider.bin").exists());
+        let meta_off: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(out_off.join("meta.json")).unwrap())
+                .unwrap();
+        assert_eq!(meta_off["visits"], false);
+
+        convert(&dir, &out_on, true, Some(&labels)).unwrap();
+        assert!(out_on.join("visits.bin").exists());
+        assert!(out_on.join("visits_mask.bin").exists());
+        assert!(out_on.join("decider.bin").exists());
+        assert_eq!(std::fs::metadata(out_on.join("visits_mask.bin")).unwrap().len(), 6);
+        assert_eq!(std::fs::metadata(out_on.join("decider.bin")).unwrap().len(), 6);
+        assert_eq!(
+            std::fs::metadata(out_on.join("visits.bin")).unwrap().len(),
+            6 * VISIT_ACTIONS as u64 * 4
+        );
+        let meta_on: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(out_on.join("meta.json")).unwrap())
+                .unwrap();
+        assert_eq!(meta_on["visits"], true);
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out_off).ok();
+        std::fs::remove_dir_all(&out_on).ok();
     }
 }

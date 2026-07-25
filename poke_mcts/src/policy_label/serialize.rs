@@ -448,6 +448,68 @@ HEADLONGRUSH;false;8,CLOSECOMBAT;false;8,RAPIDSPIN;false;64,KNOCKOFF;false;32,fa
         assert_eq!(hp as u16, mon.max_hp);
     }
 
+    // poke-engine's nature-blind 31-IV restat, the formula the labels live under
+    fn nature_blind(base: u8, ev: u8, level: u8) -> i32 {
+        ((2 * base as u32 + 31 + ev as u32 / 4) * level as u32 / 100 + 5) as i32
+    }
+
+    #[test]
+    fn form_change_stat_parity_stays_inside_bounds_and_beats_placeholder() {
+        use pkmn_engine::state::team_builder::recompute_override_stats;
+        let hero = data_bridge::species(1311);
+        let hero_bases = [hero.atk, hero.def, hero.spa, hero.spd, hero.spe];
+        for (level, bound) in [(100u8, 25i32), (77, 20)] {
+            let mut input = ids(
+                "palafin",
+                "zerotohero",
+                "leftovers",
+                ["jetpunch", "closecombat", "icepunch", "bulkup"],
+            );
+            input.nature = 2;
+            input.level = level;
+            let (mon, real_build) = build_mon(&input);
+            let e = back_solve_evs(&mon);
+            let truth = recompute_override_stats(hero, &real_build, level);
+            for i in 0..5usize {
+                let port = nature_blind(hero_bases[i], e[i + 1], level) - truth[i] as i32;
+                let placeholder = nature_blind(hero_bases[i], 85, level) - truth[i] as i32;
+                assert!(
+                    port.abs() <= bound,
+                    "L{level} stat {i}: port residual {port} outside bound {bound}"
+                );
+                if placeholder == 0 {
+                    assert_eq!(port, 0, "L{level} stat {i}: exact where the placeholder is exact");
+                } else {
+                    assert!(
+                        port.abs() < placeholder.abs(),
+                        "L{level} stat {i}: port {port} must strictly beat placeholder {placeholder}"
+                    );
+                }
+            }
+            if level == 100 {
+                assert_eq!(truth[0], 414);
+                assert_eq!(nature_blind(hero_bases[0], e[1], 100), 396);
+                assert_eq!(nature_blind(hero_bases[0], 85, 100), 377);
+            }
+        }
+
+        let noice = data_bridge::species(1191);
+        let noice_bases = [noice.atk, noice.def, noice.spa, noice.spd, noice.spe];
+        let mut ei = ids("eiscue", "iceface", "leftovers", ["surf", "icebeam", "freezedry", "bellydrum"]);
+        ei.nature = 24;
+        ei.level = 88;
+        let (mon, real_build) = build_mon(&ei);
+        let e = back_solve_evs(&mon);
+        let truth = recompute_override_stats(noice, &real_build, 88);
+        for i in 0..5usize {
+            assert_eq!(
+                nature_blind(noice_bases[i], e[i + 1], 88),
+                truth[i] as i32,
+                "neutral form-changer must restat exactly (stat {i})"
+            );
+        }
+    }
+
     #[test]
     fn weight_kg_matches_rust_float_fmt() {
         assert_eq!(weight_kg(3200), "320");
