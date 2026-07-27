@@ -8,12 +8,25 @@ use pkmn_engine::state::{
     PHASE_SWITCH_BOTH, PHASE_SWITCH_P1, PHASE_SWITCH_P2, STATUS_SLEEP, TERA_TYPE_NORMAL,
     VOL_AQUA_RING, VOL_BOUND, VOL_DESTINY_BOND, VOL_FLASH_FIRE, VOL_FOCUS_ENERGY, VOL_GRUDGE,
     VOL_IMPRISON, VOL_INGRAIN, VOL_LASER_FOCUS, VOL_LEECH_SEED, VOL_MAGNET_RISE, VOL_MINIMIZE,
-    VOL_PERISH_SONG, VOL_SMACKED_DOWN, VOL_SUBSTITUTE, VOL_TORMENT, VOL_UNBURDEN, VOL_YAWN,
+    VOL_PERISH_SONG, VOL_SMACKED_DOWN, VOL_SUBSTITUTE, VOL_TORMENT, VOL_TRAPPED, VOL_UNBURDEN,
+    VOL_YAWN,
 };
 
+// alias names can share one id; keep the lexicographically smallest so the
+// inversion does not depend on HashMap iteration order across processes
 fn inverted(json: &str) -> HashMap<u16, String> {
     let by_name: HashMap<String, u16> = serde_json::from_str(json).unwrap();
-    by_name.into_iter().map(|(k, v)| (v, k)).collect()
+    let mut out: HashMap<u16, String> = HashMap::new();
+    for (name, id) in by_name {
+        out.entry(id)
+            .and_modify(|cur| {
+                if name < *cur {
+                    *cur = name.clone();
+                }
+            })
+            .or_insert(name);
+    }
+    out
 }
 
 fn species_name_table() -> &'static HashMap<u16, String> {
@@ -206,9 +219,10 @@ fn pokemon(out: &mut String, mon: &MonSlot, active: Option<&ActiveMon>, tera_mar
     let _ = write!(out, "{},{}", terastallized, tera_token(mon.tera_type));
 }
 
-fn volatile_set(active: &ActiveMon) -> String {
+fn volatile_set(active: &ActiveMon, encore_resolved: bool, noretreat: bool) -> String {
     let mut toks: Vec<&str> = Vec::new();
     let f = active.volatile_flags;
+    if noretreat { toks.push("NORETREAT"); }
     if f & VOL_SUBSTITUTE != 0 { toks.push("SUBSTITUTE"); }
     if f & VOL_LEECH_SEED != 0 { toks.push("LEECHSEED"); }
     if f & VOL_FOCUS_ENERGY != 0 { toks.push("FOCUSENERGY"); }
@@ -228,7 +242,8 @@ fn volatile_set(active: &ActiveMon) -> String {
     if f & VOL_BOUND != 0 { toks.push("PARTIALLYTRAPPED"); }
     if active.confusion_turns > 0 { toks.push("CONFUSION"); }
     if active.taunt_turns > 0 { toks.push("TAUNT"); }
-    if active.encore_turns > 0 && active.encore_move != 0 { toks.push("ENCORE"); }
+    // poke-engine's search panics on ENCORE when last_used_move is not a resolvable move
+    if active.encore_turns > 0 && active.encore_move != 0 && encore_resolved { toks.push("ENCORE"); }
     if active.disable_turns > 0 { toks.push("DISABLE"); }
     if f & VOL_PERISH_SONG != 0 {
         match active.perish_count {
@@ -252,7 +267,7 @@ fn dur_elapsed(remaining: u8, total: u8) -> u8 {
     if remaining == 0 { 0 } else { total.saturating_sub(remaining) }
 }
 
-fn side(out: &mut String, side: &SideState, force_switch: bool) {
+fn side(out: &mut String, side: &SideState, force_switch: bool, noretreat: bool) {
     let ai = side.active_index as usize;
     // world reconstruction copies the tera flag hp-gated, so a fainted tera mon
     // loses it; the side-level tera-used bit is the surviving witness, carried
@@ -313,7 +328,8 @@ fn side(out: &mut String, side: &SideState, force_switch: bool) {
         0,
     );
 
-    let _ = write!(out, "={}", volatile_set(&side.active));
+    let last_used = last_used_move(side);
+    let _ = write!(out, "={}", volatile_set(&side.active, last_used != "move:none", noretreat));
 
     let a = &side.active;
     let _ = write!(
@@ -334,7 +350,7 @@ fn side(out: &mut String, side: &SideState, force_switch: bool) {
     let _ = write!(out, "={force_switch}");
     let _ = write!(out, "=NONE");
     let _ = write!(out, "=false=false=false");
-    let _ = write!(out, "={}", last_used_move(side));
+    let _ = write!(out, "={last_used}");
     let _ = write!(out, "=false");
 }
 
@@ -375,9 +391,16 @@ pub fn serialize_state(state: &BattleState, our_side: usize) -> String {
     let opp = 1 - our_side;
     let mut out = String::with_capacity(4096);
 
-    side(&mut out, &state.sides[our_side], forced(state.phase, our_side));
+    // poke-engine's trapped() honors NORETREAT before its own ghost/shed-shell
+    // immunity, so the emission must carry is_trapped's immunity gate itself
+    let noretreat = |s: usize| {
+        state.sides[s].active.volatile_flags & VOL_TRAPPED != 0
+            && !pkmn_engine::state::is_trap_immune(state, s)
+    };
+
+    side(&mut out, &state.sides[our_side], forced(state.phase, our_side), noretreat(our_side));
     out.push('/');
-    side(&mut out, &state.sides[opp], forced(state.phase, opp));
+    side(&mut out, &state.sides[opp], forced(state.phase, opp), noretreat(opp));
     out.push('/');
     field_tail(&mut out, &state.field);
 
@@ -510,12 +533,96 @@ HEADLONGRUSH;false;8,CLOSECOMBAT;false;8,RAPIDSPIN;false;64,KNOCKOFF;false;32,fa
         }
     }
 
+    fn side0_fields(state: &BattleState) -> Vec<String> {
+        let s = serialize_state(state, 0);
+        s.split('/').next().unwrap().split('=').map(str::to_string).collect()
+    }
+
+    #[test]
+    fn trapped_active_carries_noretreat_iff_switches_withheld() {
+        use crate::testutil::{build_state, mon};
+        let (mut state, _) = build_state(
+            vec![mon(445, 24, [89, 14, 200, 328]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        state.sides[0].active.volatile_flags |= pkmn_engine::state::VOL_TRAPPED;
+        let fields = side0_fields(&state);
+        assert_eq!(fields[8], "NORETREAT:");
+        let legal = pkmn_engine::state::legal_actions(&state, 0);
+        assert!(
+            legal.as_slice().iter().all(|&a| !(4..=9).contains(&a)),
+            "trapped active must have no switch bytes: {:?}",
+            legal.as_slice()
+        );
+
+        let ai = state.sides[0].active_index as usize;
+        state.sides[0].team[ai].item_id = 437;
+        let fields = side0_fields(&state);
+        assert!(
+            !fields[8].contains("NORETREAT"),
+            "trap-immune (Shed Shell) must not emit NORETREAT: {}",
+            fields[8]
+        );
+        let legal = pkmn_engine::state::legal_actions(&state, 0);
+        assert!(
+            legal.as_slice().iter().any(|&a| (4..=9).contains(&a)),
+            "trap-immune flagged mon keeps its switches: {:?}",
+            legal.as_slice()
+        );
+
+        state.sides[0].team[ai].item_id = 0;
+        state.sides[0].active.volatile_flags &= !pkmn_engine::state::VOL_TRAPPED;
+        let fields = side0_fields(&state);
+        assert!(!fields[8].contains("NORETREAT"));
+        let legal = pkmn_engine::state::legal_actions(&state, 0);
+        assert!(
+            legal.as_slice().iter().any(|&a| (4..=9).contains(&a)),
+            "untrapped control must offer switches: {:?}",
+            legal.as_slice()
+        );
+    }
+
+    #[test]
+    fn unresolvable_encore_omits_the_volatile() {
+        use crate::testutil::{build_state, mon};
+        let (mut state, _) = build_state(
+            vec![mon(445, 24, [89, 14, 200, 328]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        state.sides[0].active.encore_turns = 2;
+        state.sides[0].active.encore_move = 57;
+        state.sides[0].active.last_move = 57;
+        let fields = side0_fields(&state);
+        assert!(!fields[8].contains("ENCORE"), "volatiles: {}", fields[8]);
+        assert_eq!(fields[27], "move:none");
+
+        state.sides[0].active.encore_move = 89;
+        state.sides[0].active.last_move = 89;
+        let fields = side0_fields(&state);
+        assert!(fields[8].contains("ENCORE"), "volatiles: {}", fields[8]);
+        assert_eq!(fields[27], "move:0");
+    }
+
     #[test]
     fn weight_kg_matches_rust_float_fmt() {
         assert_eq!(weight_kg(3200), "320");
         assert_eq!(weight_kg(3807), "380.7");
         assert_eq!(weight_kg(51), "5.1");
         assert_eq!(weight_kg(795), "79.5");
+    }
+
+    #[test]
+    fn alias_ids_resolve_to_the_smallest_name_deterministically() {
+        let by_name: HashMap<String, u16> =
+            serde_json::from_str(include_str!("../../../testing_plan/id_maps/species_map.json"))
+                .unwrap();
+        assert_eq!(species_token(by_name["gastrodoneast"]), "GASTRODON");
+        assert_eq!(species_token(by_name["vivillonicysnow"]), "VIVILLON");
+        assert_eq!(species_token(by_name["alcremierubycream"]), "ALCREMIE");
+        let abilities: HashMap<String, u16> =
+            serde_json::from_str(include_str!("../../../testing_plan/id_maps/ability_map.json"))
+                .unwrap();
+        assert_eq!(ability_token(abilities["vesselofruin"]), "BEADSOFRUIN");
     }
 
     #[test]
