@@ -554,8 +554,12 @@ mod tests {
         ))
     }
 
+    // LVP1_WEIGHTS/LVP1_FIXTURES point the parity gate at another export
+    // (e.g. a freshly trained arm) without touching the pinned artifacts
     fn artifacts() -> Option<(LearnedPolicy, serde_json::Value)> {
-        artifacts_from(WEIGHTS, FIXTURES)
+        let w = std::env::var("LVP1_WEIGHTS").unwrap_or_else(|_| WEIGHTS.to_string());
+        let f = std::env::var("LVP1_FIXTURES").unwrap_or_else(|_| FIXTURES.to_string());
+        artifacts_from(&w, &f)
     }
 
     #[test]
