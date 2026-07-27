@@ -11,7 +11,10 @@ use std::path::{Path, PathBuf};
 // values.bin f32 per record under train_value; visits.bin = 14 x f32 action
 // visits (bytes 0-13) per record, gated by meta "visits", with u8-per-row
 // visits_mask.bin (1 = decider-perspective labeled row) and decider.bin
-// (the record's side_of_decider on both rows); meta.json.
+// (the record's side_of_decider on both rows); move_ids.bin = 4 x u16 (the
+// row's token-side-0 active mon's moveset ids) and legal_mask.bin = 14 x u8
+// (legal_actions of the row's token-side-0 side, byte 255 outside the
+// vector), both emitted with the visits sidecars; meta.json.
 
 pub const VISIT_ACTIONS: usize = 14;
 
@@ -22,6 +25,8 @@ pub struct ConvertStats {
     pub records: u64,
     pub features: u64,
     pub labels_attached: u64,
+    pub labels_invalid: u64,
+    pub labels_legal_mismatch: u64,
 }
 
 fn read_outcomes(path: &Path) -> io::Result<HashMap<u64, f32>> {
@@ -61,11 +66,14 @@ fn fixed_record_size() -> u64 {
 }
 
 // labels.jsonl rows keyed "<game_tag>.records.bin:<record_index>"; rows
-// carrying "invalid" are skipped (their records stay mask-0 on both rows).
-fn read_labels(path: &Path) -> io::Result<HashMap<String, [f32; VISIT_ACTIONS]>> {
+// carrying "invalid" or "legal_match": false are skipped (their records stay
+// mask-0 on both rows).
+fn read_labels(path: &Path) -> io::Result<(HashMap<String, [f32; VISIT_ACTIONS]>, u64, u64)> {
     let bad = |m: String| io::Error::new(io::ErrorKind::InvalidData, m);
     let f = File::open(path)?;
     let mut map = HashMap::new();
+    let mut invalid = 0u64;
+    let mut legal_mismatch = 0u64;
     for line in BufReader::new(f).lines() {
         let line = line?;
         if line.trim().is_empty() {
@@ -74,11 +82,20 @@ fn read_labels(path: &Path) -> io::Result<HashMap<String, [f32; VISIT_ACTIONS]>>
         let v: serde_json::Value = serde_json::from_str(&line)
             .map_err(|e| bad(format!("{}: {e}", path.display())))?;
         if v.get("invalid").is_some() {
+            invalid += 1;
             continue;
         }
         let key = v["key"]
             .as_str()
             .ok_or_else(|| bad(format!("{}: label row missing key", path.display())))?;
+        match v["legal_match"].as_bool() {
+            Some(true) => {}
+            Some(false) => {
+                legal_mismatch += 1;
+                continue;
+            }
+            None => return Err(bad(format!("{key}: label row missing legal_match"))),
+        }
         let mdist = v["mdist"]
             .as_object()
             .ok_or_else(|| bad(format!("{key}: label row missing mdist")))?;
@@ -97,7 +114,7 @@ fn read_labels(path: &Path) -> io::Result<HashMap<String, [f32; VISIT_ACTIONS]>>
         }
         map.insert(key.to_string(), row);
     }
-    Ok(map)
+    Ok((map, invalid, legal_mismatch))
 }
 
 fn shard_files(dir: &Path) -> io::Result<Vec<(u64, PathBuf)>> {
@@ -125,7 +142,17 @@ pub fn convert(
     visits: Option<&Path>,
 ) -> io::Result<ConvertStats> {
     let outcomes = read_outcomes(&dir.join("outcomes.jsonl"))?;
-    let labels_map = visits.map(read_labels).transpose()?;
+    let mut labels_invalid = 0u64;
+    let mut labels_legal_mismatch = 0u64;
+    let labels_map = match visits {
+        Some(p) => {
+            let (map, inv, mismatch) = read_labels(p)?;
+            labels_invalid = inv;
+            labels_legal_mismatch = mismatch;
+            Some(map)
+        }
+        None => None,
+    };
     let shards = shard_files(dir)?;
     std::fs::create_dir_all(out_dir)?;
     let mut ix = BufWriter::new(File::create(out_dir.join("index.bin"))?);
@@ -143,14 +170,23 @@ pub fn convert(
             BufWriter::new(File::create(out_dir.join("visits.bin"))?),
             BufWriter::new(File::create(out_dir.join("visits_mask.bin"))?),
             BufWriter::new(File::create(out_dir.join("decider.bin"))?),
+            BufWriter::new(File::create(out_dir.join("move_ids.bin"))?),
+            BufWriter::new(File::create(out_dir.join("legal_mask.bin"))?),
         ))
     } else {
         None
     };
 
     let rec_size = fixed_record_size();
-    let mut stats =
-        ConvertStats { games_joined: 0, games_dropped: 0, records: 0, features: 0, labels_attached: 0 };
+    let mut stats = ConvertStats {
+        games_joined: 0,
+        games_dropped: 0,
+        records: 0,
+        features: 0,
+        labels_attached: 0,
+        labels_invalid,
+        labels_legal_mismatch,
+    };
     ix.write_all(&0u64.to_le_bytes())?;
     let mut buf: Vec<u32> = Vec::with_capacity(256);
     for (tag, path) in shards {
@@ -179,9 +215,23 @@ pub fn convert(
             let visit_row: Option<[f32; VISIT_ACTIONS]> = labels_map
                 .as_ref()
                 .and_then(|m| m.get(&format!("{tag}.records.bin:{rec_idx}")).copied());
+            // per row: the token-side-0 side's active moveset + legal set,
+            // read from the source state (even row = side 0, mirror = side 1)
+            let side_inputs = |side: usize| -> ([u16; 4], [u8; VISIT_ACTIONS]) {
+                let s = &rec.state.sides[side];
+                let moves = s.team[s.active_index as usize].moves;
+                let mut mask = [0u8; VISIT_ACTIONS];
+                for &a in pkmn_engine::state::legal_actions(&rec.state, side).as_slice() {
+                    if (a as usize) < VISIT_ACTIONS {
+                        mask[a as usize] = 1;
+                    }
+                }
+                (moves, mask)
+            };
             let mut emit = |state: &pkmn_engine::state::BattleState,
                             label: f32,
-                            vrow: Option<&[f32; VISIT_ACTIONS]>|
+                            vrow: Option<&[f32; VISIT_ACTIONS]>,
+                            side0: (&[u16; 4], &[u8; VISIT_ACTIONS])|
              -> io::Result<()> {
                 buf.clear();
                 let seg_lens = features::extract_segmented(state, &mut buf);
@@ -201,7 +251,7 @@ pub fn convert(
                 for v in features::extract_dense(state) {
                     de.write_all(&v.to_le_bytes())?;
                 }
-                if let Some((vs, vm, dc)) = vis_out.as_mut() {
+                if let Some((vs, vm, dc, mv, lm)) = vis_out.as_mut() {
                     match vrow {
                         Some(row) => {
                             for v in row {
@@ -216,18 +266,37 @@ pub fn convert(
                         }
                     }
                     dc.write_all(&[rec.side_of_decider])?;
+                    for m in side0.0 {
+                        mv.write_all(&m.to_le_bytes())?;
+                    }
+                    lm.write_all(side0.1)?;
                 }
                 Ok(())
             };
+            let (moves0, legal0) = side_inputs(0);
+            let (moves1, legal1) = side_inputs(1);
+            if let Some(row) = visit_row.as_ref() {
+                let legal_d = if rec.side_of_decider == 0 { &legal0 } else { &legal1 };
+                for (b, &v) in row.iter().enumerate() {
+                    if v > 0.0 && legal_d[b] == 0 {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "{tag}.records.bin:{rec_idx}: labeled visit share on illegal action byte {b}"
+                            ),
+                        ));
+                    }
+                }
+            }
             // the label lands on the decider-perspective row only: the original
             // when side_of_decider==0, the mirror when ==1
             let orig_row = if rec.side_of_decider == 0 { visit_row.as_ref() } else { None };
-            emit(&rec.state, z, orig_row)?;
+            emit(&rec.state, z, orig_row, (&moves0, &legal0))?;
             #[cfg(feature = "train_value")]
             va.write_all(&rec.root_value.to_le_bytes())?;
             if mirror_on {
                 let mirror_row = if rec.side_of_decider == 1 { visit_row.as_ref() } else { None };
-                emit(&features::mirror(&rec.state), 1.0 - z, mirror_row)?;
+                emit(&features::mirror(&rec.state), 1.0 - z, mirror_row, (&moves1, &legal1))?;
                 #[cfg(feature = "train_value")]
                 va.write_all(&(1.0 - rec.root_value).to_le_bytes())?;
             }
@@ -244,10 +313,12 @@ pub fn convert(
     de.flush()?;
     #[cfg(feature = "train_value")]
     va.flush()?;
-    if let Some((vs, vm, dc)) = vis_out.as_mut() {
+    if let Some((vs, vm, dc, mv, lm)) = vis_out.as_mut() {
         vs.flush()?;
         vm.flush()?;
         dc.flush()?;
+        mv.flush()?;
+        lm.flush()?;
     }
 
     let meta = serde_json::json!({
@@ -262,6 +333,8 @@ pub fn convert(
         "values": cfg!(feature = "train_value"),
         "token_segments": features::NUM_SEGMENTS,
         "visits": labels_map.is_some(),
+        "move_ids": labels_map.is_some(),
+        "legal_mask": labels_map.is_some(),
     });
     std::fs::write(out_dir.join("meta.json"), serde_json::to_string_pretty(&meta)?)?;
     Ok(stats)
@@ -304,8 +377,14 @@ fn main() {
     };
     match convert(Path::new(&dir), Path::new(&out), mirror_on, visits.as_deref().map(Path::new)) {
         Ok(s) => println!(
-            "games {} (dropped {})  records {}  features {}  labels {}",
-            s.games_joined, s.games_dropped, s.records, s.features, s.labels_attached
+            "games {} (dropped {})  records {}  features {}  labels {}  label-rows-invalid {}  label-rows-legal-mismatch {}",
+            s.games_joined,
+            s.games_dropped,
+            s.records,
+            s.features,
+            s.labels_attached,
+            s.labels_invalid,
+            s.labels_legal_mismatch
         ),
         Err(e) => {
             eprintln!("dump_features: {e}");
@@ -426,6 +505,8 @@ mod tests {
             assert_eq!(m, want.as_slice(), "record {r} mirror lens must side-swap");
         }
         assert!(!out.join("visits.bin").exists());
+        assert!(!out.join("move_ids.bin").exists());
+        assert!(!out.join("legal_mask.bin").exists());
 
         let orig: Vec<u32> = ids[index[0] as usize..index[1] as usize].to_vec();
         let mirrored: Vec<u32> = ids[index[1] as usize..index[2] as usize].to_vec();
@@ -576,16 +657,26 @@ mod tests {
             vec![mon(248, 45, [89, 242, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
         );
         std::fs::create_dir_all(dir).unwrap();
-        for (tag, side) in [(0u64, 0usize), (1, 1), (2, 0)] {
+        for (tag, side) in [(0u64, 0usize), (1, 1), (2, 0), (3, 0)] {
             let worlds = vec![World { state, teams: teams.clone(), weight: 1.0 }];
             #[cfg(not(feature = "train_value"))]
             train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, side, 5).unwrap();
             #[cfg(feature = "train_value")]
             train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, side, 5, 0.5).unwrap();
         }
-        let outcomes = "{\"game_tag\":0,\"winner_side0\":1.0}\n{\"game_tag\":1,\"winner_side0\":0.0}\n{\"game_tag\":2,\"winner_side0\":1.0}\n";
+        let outcomes = "{\"game_tag\":0,\"winner_side0\":1.0}\n{\"game_tag\":1,\"winner_side0\":0.0}\n{\"game_tag\":2,\"winner_side0\":1.0}\n{\"game_tag\":3,\"winner_side0\":0.0}\n";
         std::fs::write(dir.join("outcomes.jsonl"), outcomes).unwrap();
         state
+    }
+
+    fn legal_row(state: &pkmn_engine::state::BattleState, side: usize) -> [u8; VISIT_ACTIONS] {
+        let mut mask = [0u8; VISIT_ACTIONS];
+        for &a in pkmn_engine::state::legal_actions(state, side).as_slice() {
+            if (a as usize) < VISIT_ACTIONS {
+                mask[a as usize] = 1;
+            }
+        }
+        mask
     }
 
     #[test]
@@ -593,39 +684,70 @@ mod tests {
         let dir = tmp_dir("visits");
         let out = tmp_dir("visits_out");
         let state = setup_visits_dump(&dir);
-        // game 0: decider side 0; game 1: decider side 1; game 2: invalid label row
+        // game 0: decider side 0; game 1: decider side 1; game 2: invalid
+        // label row; game 3: legal_match false (excluded, mask 0)
         let labels = dir.join("labels.jsonl");
         std::fs::write(
             &labels,
             "{\"key\":\"0.records.bin:0\",\"mdist\":{\"0\":0.625,\"5\":0.375},\"iterations\":1000,\"elapsed\":0.2,\"legal_match\":true}\n\
-             {\"key\":\"1.records.bin:0\",\"mdist\":{\"4\":1.0},\"iterations\":900,\"elapsed\":0.2,\"legal_match\":true}\n\
-             {\"key\":\"2.records.bin:0\",\"invalid\":\"struggle\"}\n",
+             {\"key\":\"1.records.bin:0\",\"mdist\":{\"5\":1.0},\"iterations\":900,\"elapsed\":0.2,\"legal_match\":true}\n\
+             {\"key\":\"2.records.bin:0\",\"invalid\":\"struggle\"}\n\
+             {\"key\":\"3.records.bin:0\",\"mdist\":{\"0\":1.0},\"iterations\":800,\"elapsed\":0.2,\"legal_match\":false}\n",
         )
         .unwrap();
 
         let stats = convert(&dir, &out, true, Some(&labels)).unwrap();
-        assert_eq!(stats.records, 6);
+        assert_eq!(stats.records, 8);
         assert_eq!(stats.labels_attached, 2);
+        assert_eq!(stats.labels_invalid, 1);
+        assert_eq!(stats.labels_legal_mismatch, 1);
 
         let vis = read_f32s(&out.join("visits.bin"));
-        assert_eq!(vis.len(), 6 * VISIT_ACTIONS);
+        assert_eq!(vis.len(), 8 * VISIT_ACTIONS);
         let row = |k: usize| &vis[k * VISIT_ACTIONS..(k + 1) * VISIT_ACTIONS];
         let mut want0 = [0f32; VISIT_ACTIONS];
         want0[0] = 0.625;
         want0[5] = 0.375;
         let mut want1 = [0f32; VISIT_ACTIONS];
-        want1[4] = 1.0;
+        want1[5] = 1.0;
         assert_eq!(row(0), want0, "decider 0: label on the original row");
         assert_eq!(row(1), [0f32; VISIT_ACTIONS], "decider 0: mirror row all-zero");
         assert_eq!(row(2), [0f32; VISIT_ACTIONS], "decider 1: original row all-zero");
         assert_eq!(row(3), want1, "decider 1: label on the mirror row");
         assert_eq!(row(4), [0f32; VISIT_ACTIONS], "invalid label: no row");
         assert_eq!(row(5), [0f32; VISIT_ACTIONS], "invalid label: no row");
+        assert_eq!(row(6), [0f32; VISIT_ACTIONS], "legal mismatch: no row");
+        assert_eq!(row(7), [0f32; VISIT_ACTIONS], "legal mismatch: no row");
 
         let mask = std::fs::read(out.join("visits_mask.bin")).unwrap();
-        assert_eq!(mask, vec![1, 0, 0, 1, 0, 0]);
+        assert_eq!(mask, vec![1, 0, 0, 1, 0, 0, 0, 0]);
         let decider = std::fs::read(out.join("decider.bin")).unwrap();
-        assert_eq!(decider, vec![0, 0, 1, 1, 0, 0]);
+        assert_eq!(decider, vec![0, 0, 1, 1, 0, 0, 0, 0]);
+
+        let mids = read_u16s(&out.join("move_ids.bin"));
+        assert_eq!(mids.len(), 8 * 4);
+        for r in 0..8 {
+            let got = &mids[r * 4..(r + 1) * 4];
+            let want: [u16; 4] = if r % 2 == 0 { [89, 14, 0, 0] } else { [89, 242, 0, 0] };
+            assert_eq!(got, want, "row {r}: token-side-0 active moveset");
+        }
+
+        let lmask = std::fs::read(out.join("legal_mask.bin")).unwrap();
+        assert_eq!(lmask.len(), 8 * VISIT_ACTIONS);
+        let want_l0 = legal_row(&state, 0);
+        let want_l1 = legal_row(&state, 1);
+        for r in 0..8 {
+            let got = &lmask[r * VISIT_ACTIONS..(r + 1) * VISIT_ACTIONS];
+            let want = if r % 2 == 0 { &want_l0 } else { &want_l1 };
+            assert_eq!(got, want, "row {r}: token-side-0 legal set");
+        }
+        // labeled rows carry visit mass only on legal bytes
+        for r in [0usize, 3] {
+            let lm = &lmask[r * VISIT_ACTIONS..(r + 1) * VISIT_ACTIONS];
+            for b in 0..VISIT_ACTIONS {
+                assert!(row(r)[b] == 0.0 || lm[b] == 1, "row {r} byte {b}: share on illegal");
+            }
+        }
 
         // the labeled row's tokens are the decider's: row 3 must equal the
         // mirrored state's emission, whose token side 0 is physical side 1
@@ -661,28 +783,74 @@ mod tests {
         assert!(!out_off.join("visits.bin").exists());
         assert!(!out_off.join("visits_mask.bin").exists());
         assert!(!out_off.join("decider.bin").exists());
+        assert!(!out_off.join("move_ids.bin").exists());
+        assert!(!out_off.join("legal_mask.bin").exists());
         let meta_off: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(out_off.join("meta.json")).unwrap())
                 .unwrap();
         assert_eq!(meta_off["visits"], false);
+        assert_eq!(meta_off["move_ids"], false);
+        assert_eq!(meta_off["legal_mask"], false);
 
         convert(&dir, &out_on, true, Some(&labels)).unwrap();
         assert!(out_on.join("visits.bin").exists());
         assert!(out_on.join("visits_mask.bin").exists());
         assert!(out_on.join("decider.bin").exists());
-        assert_eq!(std::fs::metadata(out_on.join("visits_mask.bin")).unwrap().len(), 6);
-        assert_eq!(std::fs::metadata(out_on.join("decider.bin")).unwrap().len(), 6);
+        assert_eq!(std::fs::metadata(out_on.join("visits_mask.bin")).unwrap().len(), 8);
+        assert_eq!(std::fs::metadata(out_on.join("decider.bin")).unwrap().len(), 8);
         assert_eq!(
             std::fs::metadata(out_on.join("visits.bin")).unwrap().len(),
-            6 * VISIT_ACTIONS as u64 * 4
+            8 * VISIT_ACTIONS as u64 * 4
+        );
+        assert_eq!(std::fs::metadata(out_on.join("move_ids.bin")).unwrap().len(), 8 * 4 * 2);
+        assert_eq!(
+            std::fs::metadata(out_on.join("legal_mask.bin")).unwrap().len(),
+            8 * VISIT_ACTIONS as u64
         );
         let meta_on: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(out_on.join("meta.json")).unwrap())
                 .unwrap();
         assert_eq!(meta_on["visits"], true);
+        assert_eq!(meta_on["move_ids"], true);
+        assert_eq!(meta_on["legal_mask"], true);
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out_off).ok();
         std::fs::remove_dir_all(&out_on).ok();
+    }
+
+    #[test]
+    fn label_row_missing_legal_match_refused() {
+        let dir = tmp_dir("nolm");
+        let out = tmp_dir("nolm_out");
+        setup_visits_dump(&dir);
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(
+            &labels,
+            "{\"key\":\"0.records.bin:0\",\"mdist\":{\"0\":1.0},\"iterations\":1,\"elapsed\":0.1}\n",
+        )
+        .unwrap();
+        let err = convert(&dir, &out, true, Some(&labels)).unwrap_err();
+        assert!(err.to_string().contains("legal_match"), "{err}");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[test]
+    fn label_share_on_illegal_byte_refused() {
+        let dir = tmp_dir("illb");
+        let out = tmp_dir("illb_out");
+        setup_visits_dump(&dir);
+        // move slot 2 is empty (move id 0) so byte 2 is not legal for side 0
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(
+            &labels,
+            "{\"key\":\"0.records.bin:0\",\"mdist\":{\"2\":1.0},\"iterations\":1,\"elapsed\":0.1,\"legal_match\":true}\n",
+        )
+        .unwrap();
+        let err = convert(&dir, &out, true, Some(&labels)).unwrap_err();
+        assert!(err.to_string().contains("illegal action byte 2"), "{err}");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
     }
 }
