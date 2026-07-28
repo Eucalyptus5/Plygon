@@ -8,8 +8,8 @@ use pkmn_engine::state::{
     PHASE_SWITCH_BOTH, PHASE_SWITCH_P1, PHASE_SWITCH_P2, STATUS_SLEEP, TERA_TYPE_NORMAL,
     VOL_AQUA_RING, VOL_BOUND, VOL_DESTINY_BOND, VOL_FLASH_FIRE, VOL_FOCUS_ENERGY, VOL_GRUDGE,
     VOL_IMPRISON, VOL_INGRAIN, VOL_LASER_FOCUS, VOL_LEECH_SEED, VOL_MAGNET_RISE, VOL_MINIMIZE,
-    VOL_PERISH_SONG, VOL_SMACKED_DOWN, VOL_SUBSTITUTE, VOL_TORMENT, VOL_TRAPPED, VOL_UNBURDEN,
-    VOL_YAWN,
+    VOL_PERISH_SONG, VOL_SMACKED_DOWN, VOL_SUBSTITUTE, VOL_TORMENT, VOL_TRANSFORMED, VOL_TRAPPED,
+    VOL_TYPES_OVERRIDDEN, VOL_UNBURDEN, VOL_YAWN,
 };
 
 // alias names can share one id; keep the lexicographically smallest so the
@@ -184,8 +184,18 @@ fn pokemon(out: &mut String, mon: &MonSlot, active: Option<&ActiveMon>, tera_mar
     let type2 = sp.type2 as u8;
     let type2_tok = if type2 == type1 { "TYPELESS" } else { type_token(type2) };
 
+    // battle types and stats follow effective_types/effective_stat's overlay mux;
+    // base types stay the dex pair (inert without a TYPECHANGE token)
+    let (bt1, bt2) = match active {
+        Some(a) if a.has_volatile(VOL_TYPES_OVERRIDDEN) || a.has_volatile(VOL_TRANSFORMED) => {
+            (a.override_types[0], a.override_types[1])
+        }
+        _ => (type1, type2),
+    };
+    let bt2_tok = if bt2 == bt1 { "TYPELESS" } else { type_token(bt2) };
+
     let _ = write!(out, "{},{},", species_token(mon.species_id), mon.level);
-    let _ = write!(out, "{},{},", type_token(type1), type2_tok);
+    let _ = write!(out, "{},{},", type_token(bt1), bt2_tok);
     let _ = write!(out, "{},{},", type_token(type1), type2_tok);
     let _ = write!(out, "{},{},", mon.current_hp, mon.max_hp);
     let _ = write!(out, "{},{},", ability_token(mon.ability_id), ability_token(mon.ability_id));
@@ -193,7 +203,13 @@ fn pokemon(out: &mut String, mon: &MonSlot, active: Option<&ActiveMon>, tera_mar
     let _ = write!(out, "SERIOUS,");
     let e = back_solve_evs(mon);
     let _ = write!(out, "{};{};{};{};{};{},", e[0], e[1], e[2], e[3], e[4], e[5]);
-    let s = mon.stats;
+    let s = match active {
+        Some(a)
+            if a.has_volatile(VOL_TRANSFORMED)
+                || a.override_stats[0] != 0
+                || a.stats_split_active() => a.override_stats,
+        _ => mon.stats,
+    };
     let _ = write!(out, "{},{},{},{},{},", s[0], s[1], s[2], s[3], s[4]);
     let _ = write!(out, "{},", status_token(mon.status));
     let sleep_turns = if mon.status == STATUS_SLEEP { mon.status_counter } else { 0 };
@@ -601,6 +617,95 @@ HEADLONGRUSH;false;8,CLOSECOMBAT;false;8,RAPIDSPIN;false;64,KNOCKOFF;false;32,fa
         let fields = side0_fields(&state);
         assert!(fields[8].contains("ENCORE"), "volatiles: {}", fields[8]);
         assert_eq!(fields[27], "move:0");
+    }
+
+    fn active_mon_fields(state: &BattleState) -> Vec<String> {
+        side0_fields(state)[0].split(',').map(str::to_string).collect()
+    }
+
+    #[test]
+    fn transformed_active_emits_overlay_types_and_stats() {
+        use crate::testutil::{build_state, mon};
+        let (mut state, _) = build_state(
+            vec![mon(132, 150, [85, 150, 89, 14]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(476, 42, [89, 242, 0, 0])],
+        );
+        state.sides[0].active.volatile_flags |= VOL_TRANSFORMED;
+        state.sides[0].active.override_types = [12, 16];
+        state.sides[0].active.override_stats = [211, 222, 233, 244, 255];
+
+        let f = active_mon_fields(&state);
+        assert_eq!(f[0], "DITTO");
+        assert_eq!((&f[2][..], &f[3][..]), ("ROCK", "STEEL"), "battle types must come from the overlay");
+        assert_eq!((&f[4][..], &f[5][..]), ("NORMAL", "TYPELESS"), "base types stay the dex pair");
+        assert_eq!(
+            &f[13..18],
+            ["211", "222", "233", "244", "255"],
+            "stats must come from override_stats"
+        );
+
+        let bench = side0_fields(&state)[1].split(',').map(str::to_string).collect::<Vec<_>>();
+        assert_eq!((&bench[2][..], &bench[3][..]), ("ELECTRIC", "TYPELESS"), "bench mons keep dex types");
+    }
+
+    #[test]
+    fn magnet_pull_traps_transformed_steel_and_string_carries_the_types() {
+        use crate::testutil::{build_state, mon};
+        let (mut state, _) = build_state(
+            vec![mon(132, 150, [85, 150, 89, 14]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(476, 42, [89, 242, 0, 0])],
+        );
+        state.sides[0].active.volatile_flags |= VOL_TRANSFORMED;
+        state.sides[0].active.override_types = [12, 16];
+        state.sides[0].active.override_stats = [211, 222, 233, 244, 255];
+
+        let legal = pkmn_engine::state::legal_actions(&state, 0);
+        assert!(
+            legal.as_slice().iter().all(|&a| !(4..=9).contains(&a)),
+            "transformed Steel vs Magnet Pull must be trapped: {:?}",
+            legal.as_slice()
+        );
+        let f = active_mon_fields(&state);
+        assert_eq!((&f[2][..], &f[3][..]), ("ROCK", "STEEL"));
+        // poke-engine recomputes Magnet Pull trapping from the emitted Steel type
+        let fields = side0_fields(&state);
+        assert!(!fields[8].contains("NORETREAT"), "volatiles: {}", fields[8]);
+
+        state.sides[0].active.volatile_flags &= !VOL_TRANSFORMED;
+        state.sides[0].active.override_types = [0, 0];
+        state.sides[0].active.override_stats = [0; 5];
+        let legal = pkmn_engine::state::legal_actions(&state, 0);
+        assert!(
+            legal.as_slice().iter().any(|&a| (4..=9).contains(&a)),
+            "untransformed Normal Ditto keeps its switches: {:?}",
+            legal.as_slice()
+        );
+        let f = active_mon_fields(&state);
+        assert_eq!((&f[2][..], &f[3][..]), ("NORMAL", "TYPELESS"));
+    }
+
+    #[test]
+    fn forme_and_split_overlays_emit_without_transform() {
+        use crate::testutil::{build_state, mon};
+        let (mut state, _) = build_state(
+            vec![mon(964, 0, [85, 150, 89, 14]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(476, 42, [89, 242, 0, 0])],
+        );
+        state.sides[0].active.volatile_flags |= pkmn_engine::state::VOL_TYPES_OVERRIDDEN;
+        state.sides[0].active.override_types = [16, 16];
+        state.sides[0].active.override_stats = [160, 97, 106, 87, 100];
+
+        let f = active_mon_fields(&state);
+        assert_eq!((&f[2][..], &f[3][..]), ("STEEL", "TYPELESS"), "same-type overlay collapses to TYPELESS");
+        assert_eq!(&f[13..18], ["160", "97", "106", "87", "100"], "forme override_stats emit without VOL_TRANSFORMED");
+
+        state.sides[0].active.volatile_flags &= !pkmn_engine::state::VOL_TYPES_OVERRIDDEN;
+        state.sides[0].active.override_types = [0, 0];
+        state.sides[0].active.override_stats = [50, 60, 70, 80, 90];
+        state.sides[0].active._padding[0] |= pkmn_engine::state::ACTIVE_PAD_STATS_SPLIT;
+        let f = active_mon_fields(&state);
+        assert_eq!((&f[2][..], &f[3][..]), ("WATER", "TYPELESS"), "split leaves types at dex");
+        assert_eq!(&f[13..18], ["50", "60", "70", "80", "90"], "stats-split overlay emits");
     }
 
     #[test]
