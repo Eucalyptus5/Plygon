@@ -10,7 +10,7 @@ pub fn random_action(state: &BattleState, side: usize, rng: &mut Lcg) -> u8 {
 
 // Median damage roll, no crit, guaranteed hit — same convention as the harness
 // calc_damage mode (run_scenario main.rs:1099-1178).
-fn median_roll(max: u32) -> u32 {
+pub fn median_roll(max: u32) -> u32 {
     match max { 16 => 7, 24 => 23, 100 => 0, _ => 0 }
 }
 
