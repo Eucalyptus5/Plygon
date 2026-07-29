@@ -1,3 +1,4 @@
+use poke_mcts::action_features::{action_features_with, ActionDenseMode, ACTION_DENSE_DIM};
 use poke_mcts::eval::{Evaluator, Handcrafted};
 use poke_mcts::{features, train_dump};
 use std::collections::HashMap;
@@ -14,7 +15,9 @@ use std::path::{Path, PathBuf};
 // (the record's side_of_decider on both rows); move_ids.bin = 4 x u16 (the
 // row's token-side-0 active mon's moveset ids) and legal_mask.bin = 14 x u8
 // (legal_actions of the row's token-side-0 side, byte 255 outside the
-// vector), both emitted with the visits sidecars; meta.json.
+// vector), both emitted with the visits sidecars; action_dense.bin = 14 x 8
+// f32 per row (the row's token-side-0 side's per-action block, always computed
+// on the unmirrored state), gated by meta "action_dense"; meta.json.
 
 pub const VISIT_ACTIONS: usize = 14;
 
@@ -27,6 +30,7 @@ pub struct ConvertStats {
     pub labels_attached: u64,
     pub labels_invalid: u64,
     pub labels_legal_mismatch: u64,
+    pub action_calls: u64,
 }
 
 fn read_outcomes(path: &Path) -> io::Result<HashMap<u64, f32>> {
@@ -140,6 +144,7 @@ pub fn convert(
     out_dir: &Path,
     mirror_on: bool,
     visits: Option<&Path>,
+    action_mode: Option<ActionDenseMode>,
 ) -> io::Result<ConvertStats> {
     let outcomes = read_outcomes(&dir.join("outcomes.jsonl"))?;
     let mut labels_invalid = 0u64;
@@ -176,6 +181,11 @@ pub fn convert(
     } else {
         None
     };
+    let mut ad_out = if action_mode == Some(ActionDenseMode::Full) {
+        Some(BufWriter::new(File::create(out_dir.join("action_dense.bin"))?))
+    } else {
+        None
+    };
 
     let rec_size = fixed_record_size();
     let mut stats = ConvertStats {
@@ -186,7 +196,9 @@ pub fn convert(
         labels_attached: 0,
         labels_invalid,
         labels_legal_mismatch,
+        action_calls: 0,
     };
+    let mut action_calls = 0u64;
     ix.write_all(&0u64.to_le_bytes())?;
     let mut buf: Vec<u32> = Vec::with_capacity(256);
     for (tag, path) in shards {
@@ -231,7 +243,11 @@ pub fn convert(
             let mut emit = |state: &pkmn_engine::state::BattleState,
                             label: f32,
                             vrow: Option<&[f32; VISIT_ACTIONS]>,
-                            side0: (&[u16; 4], &[u8; VISIT_ACTIONS])|
+                            side0: (
+                &[u16; 4],
+                &[u8; VISIT_ACTIONS],
+                Option<&[[f32; ACTION_DENSE_DIM]; VISIT_ACTIONS]>,
+            )|
              -> io::Result<()> {
                 buf.clear();
                 let seg_lens = features::extract_segmented(state, &mut buf);
@@ -271,10 +287,23 @@ pub fn convert(
                     }
                     lm.write_all(side0.1)?;
                 }
+                if let (Some(ad), Some(block)) = (ad_out.as_mut(), side0.2) {
+                    for row in block {
+                        for v in row {
+                            ad.write_all(&v.to_le_bytes())?;
+                        }
+                    }
+                }
                 Ok(())
             };
             let (moves0, legal0) = side_inputs(0);
             let (moves1, legal1) = side_inputs(1);
+            // never on a mirrored state: mirror() swaps sides but leaves phase
+            // and pending_actions side-specific
+            let act0 = action_mode.map(|m| {
+                action_calls += 1;
+                action_features_with(&rec.state, 0, m)
+            });
             if let Some(row) = visit_row.as_ref() {
                 let legal_d = if rec.side_of_decider == 0 { &legal0 } else { &legal1 };
                 for (b, &v) in row.iter().enumerate() {
@@ -291,18 +320,28 @@ pub fn convert(
             // the label lands on the decider-perspective row only: the original
             // when side_of_decider==0, the mirror when ==1
             let orig_row = if rec.side_of_decider == 0 { visit_row.as_ref() } else { None };
-            emit(&rec.state, z, orig_row, (&moves0, &legal0))?;
+            emit(&rec.state, z, orig_row, (&moves0, &legal0, act0.as_ref()))?;
             #[cfg(feature = "train_value")]
             va.write_all(&rec.root_value.to_le_bytes())?;
             if mirror_on {
                 let mirror_row = if rec.side_of_decider == 1 { visit_row.as_ref() } else { None };
-                emit(&features::mirror(&rec.state), 1.0 - z, mirror_row, (&moves1, &legal1))?;
+                let act1 = action_mode.map(|m| {
+                    action_calls += 1;
+                    action_features_with(&rec.state, 1, m)
+                });
+                emit(
+                    &features::mirror(&rec.state),
+                    1.0 - z,
+                    mirror_row,
+                    (&moves1, &legal1, act1.as_ref()),
+                )?;
                 #[cfg(feature = "train_value")]
                 va.write_all(&(1.0 - rec.root_value).to_le_bytes())?;
             }
         }
         stats.games_joined += 1;
     }
+    stats.action_calls = action_calls;
     ix.flush()?;
     fx.flush()?;
     tx.flush()?;
@@ -320,8 +359,11 @@ pub fn convert(
         mv.flush()?;
         lm.flush()?;
     }
+    if let Some(ad) = ad_out.as_mut() {
+        ad.flush()?;
+    }
 
-    let meta = serde_json::json!({
+    let mut meta = serde_json::json!({
         "feature_spec_version": features::FEATURE_SPEC_VERSION,
         "vocab": features::vocab_size(),
         "dense_dim": features::DENSE_DIM,
@@ -336,6 +378,11 @@ pub fn convert(
         "move_ids": labels_map.is_some(),
         "legal_mask": labels_map.is_some(),
     });
+    if ad_out.is_some() {
+        let m = meta.as_object_mut().unwrap();
+        m.insert("action_dense".to_string(), true.into());
+        m.insert("action_dense_dim".to_string(), (ACTION_DENSE_DIM as u64).into());
+    }
     std::fs::write(out_dir.join("meta.json"), serde_json::to_string_pretty(&meta)?)?;
     Ok(stats)
 }
@@ -358,12 +405,26 @@ fn main() {
     let mut out: Option<String> = None;
     let mut visits: Option<String> = None;
     let mut mirror_on = true;
+    let mut action_mode = Some(ActionDenseMode::Full);
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--out" => out = it.next(),
             "--visits" => visits = it.next(),
             "--no-mirror" => mirror_on = false,
+            "--no-action-dense" => action_mode = None,
+            "--action-dense-mode" => {
+                let v = it.next().unwrap_or_default();
+                action_mode = match v.as_str() {
+                    "off" => None,
+                    "priced" => Some(ActionDenseMode::Priced),
+                    "full" => Some(ActionDenseMode::Full),
+                    _ => {
+                        eprintln!("unexpected --action-dense-mode value: {v}");
+                        std::process::exit(2);
+                    }
+                };
+            }
             _ if dir.is_none() => dir = Some(a),
             _ => {
                 eprintln!("unexpected argument: {a}");
@@ -372,10 +433,16 @@ fn main() {
         }
     }
     let (Some(dir), Some(out)) = (dir, out) else {
-        eprintln!("usage: dump_features <dir> --out <train_dir> [--no-mirror] [--visits <labels.jsonl>] | dump_features --spec");
+        eprintln!("usage: dump_features <dir> --out <train_dir> [--no-mirror] [--visits <labels.jsonl>] [--action-dense-mode off|priced|full] | dump_features --spec");
         std::process::exit(2);
     };
-    match convert(Path::new(&dir), Path::new(&out), mirror_on, visits.as_deref().map(Path::new)) {
+    match convert(
+        Path::new(&dir),
+        Path::new(&out),
+        mirror_on,
+        visits.as_deref().map(Path::new),
+        action_mode,
+    ) {
         Ok(s) => println!(
             "games {} (dropped {})  records {}  features {}  labels {}  label-rows-invalid {}  label-rows-legal-mismatch {}",
             s.games_joined,
@@ -396,6 +463,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use poke_mcts::action_features::action_features;
     use poke_mcts::determinize::World;
     use poke_mcts::testutil::{build_state, duel, mon};
 
@@ -458,7 +526,7 @@ mod tests {
         let out = tmp_dir("full_out");
         setup_dump(&dir);
 
-        let stats = convert(&dir, &out, true, None).unwrap();
+        let stats = convert(&dir, &out, true, None, None).unwrap();
         assert_eq!(stats.games_joined, 4);
         assert_eq!(stats.games_dropped, 1);
         assert_eq!(stats.records, 8);
@@ -580,7 +648,7 @@ mod tests {
         let out = tmp_dir("nomirror_out");
         setup_dump(&dir);
 
-        let stats = convert(&dir, &out, false, None).unwrap();
+        let stats = convert(&dir, &out, false, None, None).unwrap();
         assert_eq!(stats.records, 4);
         let labels = read_f32s(&out.join("labels.bin"));
         assert_eq!(labels, vec![1.0, 0.0, 0.5, 1.0]);
@@ -609,7 +677,7 @@ mod tests {
             .unwrap();
         f.write_all(&[0u8]).unwrap();
         drop(f);
-        let err = convert(&dir, &out, true, None).unwrap_err();
+        let err = convert(&dir, &out, true, None, None).unwrap_err();
         assert!(err.to_string().contains("not divisible"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -629,7 +697,7 @@ mod tests {
         std::fs::write(dir.join("0.records.bin"), &bytes).unwrap();
         std::fs::write(dir.join("outcomes.jsonl"), "{\"game_tag\":0,\"winner_side0\":1.0}\n")
             .unwrap();
-        let err = convert(&dir, &out, true, None).unwrap_err();
+        let err = convert(&dir, &out, true, None, None).unwrap_err();
         assert!(err.to_string().contains("not divisible"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -645,7 +713,7 @@ mod tests {
         let mut bytes = std::fs::read(&p).unwrap();
         bytes[0] = 1; // leading field of the first record is record_version
         std::fs::write(&p, &bytes).unwrap();
-        let err = convert(&dir, &out, true, None).unwrap_err();
+        let err = convert(&dir, &out, true, None, None).unwrap_err();
         assert!(err.to_string().contains("record_version"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -696,7 +764,7 @@ mod tests {
         )
         .unwrap();
 
-        let stats = convert(&dir, &out, true, Some(&labels)).unwrap();
+        let stats = convert(&dir, &out, true, Some(&labels), None).unwrap();
         assert_eq!(stats.records, 8);
         assert_eq!(stats.labels_attached, 2);
         assert_eq!(stats.labels_invalid, 1);
@@ -779,7 +847,7 @@ mod tests {
         )
         .unwrap();
 
-        convert(&dir, &out_off, true, None).unwrap();
+        convert(&dir, &out_off, true, None, None).unwrap();
         assert!(!out_off.join("visits.bin").exists());
         assert!(!out_off.join("visits_mask.bin").exists());
         assert!(!out_off.join("decider.bin").exists());
@@ -792,7 +860,7 @@ mod tests {
         assert_eq!(meta_off["move_ids"], false);
         assert_eq!(meta_off["legal_mask"], false);
 
-        convert(&dir, &out_on, true, Some(&labels)).unwrap();
+        convert(&dir, &out_on, true, Some(&labels), None).unwrap();
         assert!(out_on.join("visits.bin").exists());
         assert!(out_on.join("visits_mask.bin").exists());
         assert!(out_on.join("decider.bin").exists());
@@ -830,7 +898,7 @@ mod tests {
             "{\"key\":\"0.records.bin:0\",\"mdist\":{\"0\":1.0},\"iterations\":1,\"elapsed\":0.1}\n",
         )
         .unwrap();
-        let err = convert(&dir, &out, true, Some(&labels)).unwrap_err();
+        let err = convert(&dir, &out, true, Some(&labels), None).unwrap_err();
         assert!(err.to_string().contains("legal_match"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
@@ -848,9 +916,169 @@ mod tests {
             "{\"key\":\"0.records.bin:0\",\"mdist\":{\"2\":1.0},\"iterations\":1,\"elapsed\":0.1,\"legal_match\":true}\n",
         )
         .unwrap();
-        let err = convert(&dir, &out, true, Some(&labels)).unwrap_err();
+        let err = convert(&dir, &out, true, Some(&labels), None).unwrap_err();
         assert!(err.to_string().contains("illegal action byte 2"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
     }
+
+    const ACTION_ROW: usize = VISIT_ACTIONS * ACTION_DENSE_DIM;
+
+    fn meta_of(out: &Path) -> serde_json::Value {
+        serde_json::from_str(&std::fs::read_to_string(out.join("meta.json")).unwrap()).unwrap()
+    }
+
+    fn assert_no_action_dense(out: &Path, what: &str) {
+        assert!(!out.join("action_dense.bin").exists(), "{what}: action_dense.bin must not exist");
+        let meta = meta_of(out);
+        assert!(meta.get("action_dense").is_none(), "{what}: meta must omit action_dense, got {:?}", meta.get("action_dense"));
+        assert!(
+            meta.get("action_dense_dim").is_none(),
+            "{what}: meta must omit action_dense_dim, got {:?}",
+            meta.get("action_dense_dim")
+        );
+    }
+
+    #[test]
+    fn action_dense_priced_writes_no_sidecar_or_meta_keys() {
+        let dir = tmp_dir("adpriced");
+        let out = tmp_dir("adpriced_out");
+        setup_dump(&dir);
+        let stats = convert(&dir, &out, true, None, Some(ActionDenseMode::Priced)).unwrap();
+        assert_eq!(stats.action_calls, stats.records, "priced must still price every row");
+        assert_no_action_dense(&out, "priced");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[test]
+    fn action_dense_full_writes_sidecar_and_meta_keys_without_visits() {
+        let dir = tmp_dir("adfull");
+        let out = tmp_dir("adfull_out");
+        setup_dump(&dir);
+        let stats = convert(&dir, &out, true, None, Some(ActionDenseMode::Full)).unwrap();
+        assert_eq!(stats.records, 8);
+        assert_eq!(
+            std::fs::metadata(out.join("action_dense.bin")).unwrap().len(),
+            stats.records * ACTION_ROW as u64 * 4,
+            "action_dense.bin must be 14x8 f32 per row"
+        );
+        let meta = meta_of(&out);
+        assert_eq!(meta["action_dense"], true);
+        assert_eq!(meta["action_dense_dim"], ACTION_DENSE_DIM as u64);
+        assert_eq!(meta["visits"], false, "the sidecar must not need --visits");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[test]
+    fn action_dense_mode_leaves_the_shared_shards_byte_identical() {
+        let dir = tmp_dir("adident");
+        setup_visits_dump(&dir);
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(
+            &labels,
+            "{\"key\":\"0.records.bin:0\",\"mdist\":{\"0\":0.625,\"5\":0.375},\"iterations\":1,\"elapsed\":0.1,\"legal_match\":true}\n",
+        )
+        .unwrap();
+        let outs = [tmp_dir("adident_off"), tmp_dir("adident_priced"), tmp_dir("adident_full")];
+        let modes = [None, Some(ActionDenseMode::Priced), Some(ActionDenseMode::Full)];
+        for (o, m) in outs.iter().zip(modes) {
+            convert(&dir, o, true, Some(&labels), m).unwrap();
+        }
+        for f in ["index.bin", "features.bin", "token_index.bin", "dense.bin", "legal_mask.bin"] {
+            let want = std::fs::read(outs[0].join(f)).unwrap();
+            assert!(!want.is_empty(), "{f} must be non-empty in the fixture");
+            for o in &outs[1..] {
+                assert_eq!(want, std::fs::read(o.join(f)).unwrap(), "{f} must not vary with the action-dense mode");
+            }
+        }
+        for o in &outs {
+            std::fs::remove_dir_all(o).ok();
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn action_calls_are_one_per_emitted_row_in_priced_and_full() {
+        let dir = tmp_dir("adcalls");
+        setup_dump(&dir);
+        for (mode, want) in [
+            (None, 0),
+            (Some(ActionDenseMode::Priced), 8),
+            (Some(ActionDenseMode::Full), 8),
+        ] {
+            let out = tmp_dir("adcalls_out");
+            let stats = convert(&dir, &out, true, None, mode).unwrap();
+            assert_eq!(stats.records, 8);
+            assert_eq!(stats.action_calls, want, "mode {mode:?} with mirror on");
+            std::fs::remove_dir_all(&out).ok();
+        }
+        let out = tmp_dir("adcalls_nomirror");
+        let stats = convert(&dir, &out, false, None, Some(ActionDenseMode::Priced)).unwrap();
+        assert_eq!(stats.records, 4);
+        assert_eq!(stats.action_calls, 4, "--no-mirror must cost one call per record");
+        std::fs::remove_dir_all(&out).ok();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn action_dense_mirror_row_holds_the_unmirrored_side_one_block() {
+        let dir = tmp_dir("adorient");
+        let out = tmp_dir("adorient_out");
+        let (base, teams) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        // under PHASE_ACTIONS mirror() IS a symmetry for this block, so the
+        // orientation only shows up in the side-specific switch phases; P1
+        // makes the original row non-degenerate, P2 the mirror row
+        let mut p1 = base;
+        p1.phase = pkmn_engine::state::PHASE_SWITCH_P1;
+        let mut p2 = base;
+        p2.phase = pkmn_engine::state::PHASE_SWITCH_P2;
+        std::fs::create_dir_all(&dir).unwrap();
+        let worlds = vec![
+            World { state: p1, teams: teams.clone(), weight: 1.0 },
+            World { state: p2, teams, weight: 1.0 },
+        ];
+        #[cfg(not(feature = "train_value"))]
+        train_dump::dump_worlds(dir.to_str().unwrap(), 0, &worlds, 0, 5).unwrap();
+        #[cfg(feature = "train_value")]
+        train_dump::dump_worlds(dir.to_str().unwrap(), 0, &worlds, 0, 5, 0.5).unwrap();
+        std::fs::write(dir.join("outcomes.jsonl"), "{\"game_tag\":0,\"winner_side0\":1.0}\n").unwrap();
+
+        let stats = convert(&dir, &out, true, None, Some(ActionDenseMode::Full)).unwrap();
+        assert_eq!(stats.records, 4);
+        let stored = read_f32s(&out.join("action_dense.bin"));
+        let block = |r: usize| stored[r * ACTION_ROW..(r + 1) * ACTION_ROW].to_vec();
+        let flat = |b: [[f32; ACTION_DENSE_DIM]; VISIT_ACTIONS]| {
+            b.iter().flatten().copied().collect::<Vec<f32>>()
+        };
+        let live = |v: &Vec<f32>| v.iter().any(|&x| x != 0.0);
+
+        let p1_side0 = flat(action_features(&p1, 0));
+        let p1_side1 = flat(action_features(&p1, 1));
+        let p2_side0 = flat(action_features(&p2, 0));
+        let p2_side1 = flat(action_features(&p2, 1));
+        assert!(live(&p1_side0), "P1 record: the original row's block must not be all-zero");
+        assert!(live(&p2_side1), "P2 record: the mirror row's block must not be all-zero");
+
+        assert_eq!(block(0), p1_side0, "P1 original row must be the unmirrored side-0 block");
+        assert_eq!(block(1), p1_side1, "P1 mirror row must be the unmirrored side-1 block");
+        assert_eq!(block(2), p2_side0, "P2 original row must be the unmirrored side-0 block");
+        assert_eq!(block(3), p2_side1, "P2 mirror row must be the unmirrored side-1 block");
+
+        let mirrored_at_0 = flat(action_features(&features::mirror(&p2), 0));
+        let mirrored_at_1 = flat(action_features(&features::mirror(&p2), 1));
+        assert_ne!(block(3), mirrored_at_0, "mirror row must not be mirror(state) read at side 0");
+        assert_ne!(block(3), mirrored_at_1, "mirror row must not be mirror(state) read at side 1");
+        let p1_mirrored_at_0 = flat(action_features(&features::mirror(&p1), 0));
+        let p1_mirrored_at_1 = flat(action_features(&features::mirror(&p1), 1));
+        assert_ne!(block(0), p1_mirrored_at_0, "original row must not be read off mirror(state)");
+        assert_ne!(block(0), p1_mirrored_at_1, "original row must not be read off mirror(state)");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
 }
