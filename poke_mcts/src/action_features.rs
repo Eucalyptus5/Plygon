@@ -105,7 +105,8 @@ fn move_row(state: &BattleState, side: usize, move_id: u16) -> [f32; ACTION_DENS
         eff_encode(eff),
         moves_first,
         (md.priority as f32 / 5.0).clamp(-1.0, 1.0),
-        md.accuracy as f32 / 100.0,
+        // accuracy 0 is the engine's always-hit sentinel, not a 0% move.
+        if md.accuracy == 0 { 1.0 } else { md.accuracy as f32 / 100.0 },
         if is_status { 1.0 } else { 0.0 },
         if is_pivot(move_id, md) { 1.0 } else { 0.0 },
     ]
@@ -305,7 +306,10 @@ fn priced_pass(state: &BattleState, side: usize) -> (u32, u32) {
 fn is_pivot(move_id: u16, md: &MoveData) -> bool {
     matches!(
         md.effect,
-        MoveEffect::ForceSwitch | MoveEffect::PartingShot | MoveEffect::Teleport
+        MoveEffect::ForceSwitch
+            | MoveEffect::PartingShot
+            | MoveEffect::Teleport
+            | MoveEffect::BatonPass
     ) || move_id == MOVE_SHED_TAIL
         || move_id == MOVE_CHILLY_RECEPTION
 }
@@ -321,12 +325,16 @@ fn eff_encode(code: u8) -> f32 {
     }
 }
 
+// A fainted target carries no magnitude; zero is the payload's no-information value.
 fn dmg_frac(damage: u16, hp: u16) -> f32 {
-    (damage as f32 / hp.max(1) as f32).clamp(0.0, 2.0)
+    if hp == 0 {
+        return 0.0;
+    }
+    (damage as f32 / hp as f32).clamp(0.0, 2.0)
 }
 
 fn ko_flag(damage: u16, hp: u16) -> f32 {
-    if damage >= hp.max(1) { 1.0 } else { 0.0 }
+    if hp > 0 && damage >= hp { 1.0 } else { 0.0 }
 }
 
 fn to_type(id: u8) -> Type {
@@ -351,6 +359,7 @@ mod tests {
     const M_QUICK_ATTACK: u16 = 98;
     const M_TELEPORT: u16 = 100;
     const M_SPLASH: u16 = 150;
+    const M_BATON_PASS: u16 = 226;
     const M_AERIAL_ACE: u16 = 332;
     const M_UTURN: u16 = 369;
     const M_FIRE_BLAST: u16 = 126;
@@ -445,6 +454,20 @@ mod tests {
         );
         let f = action_features(&s, 0);
         assert_eq!(f[move_byte(0)][7], 1.0, "m8 must be 1.0 for U-turn, got {}", f[move_byte(0)][7]);
+        assert_eq!(f[move_byte(1)][7], 0.0, "m8 must be 0.0 for Tackle, got {}", f[move_byte(1)][7]);
+    }
+
+    #[test]
+    fn baton_pass_flagged_as_pivot() {
+        let (s, _t) = build_state(
+            vec![
+                mon(S_SNORLAX, data_bridge::ABILITY_NONE, [M_BATON_PASS, M_TACKLE, 0, 0]),
+                mon(S_BLASTOISE, data_bridge::ABILITY_NONE, [M_SURF, 0, 0, 0]),
+            ],
+            vec![mon(S_GARCHOMP, data_bridge::ABILITY_NONE, [M_TACKLE, 0, 0, 0])],
+        );
+        let f = action_features(&s, 0);
+        assert_eq!(f[move_byte(0)][7], 1.0, "m8 must be 1.0 for Baton Pass, got {}", f[move_byte(0)][7]);
         assert_eq!(f[move_byte(1)][7], 0.0, "m8 must be 0.0 for Tackle, got {}", f[move_byte(1)][7]);
     }
 
@@ -857,8 +880,8 @@ mod tests {
         assert_eq!(f[move_byte(0)][5], 1.0, "m6 must be 1.0 at 100 accuracy, got {}", f[move_byte(0)][5]);
         assert_eq!(f[move_byte(3)][5], 0.85, "m6 must be 0.85 at 85 accuracy, got {}", f[move_byte(3)][5]);
         assert_eq!(
-            f[move_byte(2)][5], 0.0,
-            "m6 reads the raw accuracy field, so an always-hit move reads 0.0, got {}",
+            f[move_byte(2)][5], 1.0,
+            "accuracy 0 is the engine's always-hit sentinel, so m6 must be 1.0, got {}",
             f[move_byte(2)][5]
         );
         assert_eq!(f[move_byte(1)][6], 1.0, "m7 must be 1.0 for Teleport, got {}", f[move_byte(1)][6]);
@@ -890,6 +913,34 @@ mod tests {
         );
         assert_eq!(finishable[3], 1.0, "s4 must be 1.0 against a 1-HP target, got {}", finishable[3]);
         assert_eq!(finishable[2], 2.0, "s3 must clamp to 2.0 against a 1-HP target, got {}", finishable[2]);
+    }
+
+    #[test]
+    fn fainted_target_reads_no_outgoing_damage() {
+        let (mut s, _t) = build_state(
+            vec![
+                mon(S_SNORLAX, data_bridge::ABILITY_NONE, [M_TACKLE, 0, 0, 0]),
+                mon(S_BLASTOISE, data_bridge::ABILITY_NONE, [M_SURF, 0, 0, 0]),
+            ],
+            vec![
+                mon(S_GARCHOMP, data_bridge::ABILITY_NONE, [M_EARTHQUAKE, 0, 0, 0]),
+                mon(S_CHARIZARD, data_bridge::ABILITY_NONE, [M_FLAMETHROWER, 0, 0, 0]),
+            ],
+        );
+        s.phase = PHASE_SWITCH_BOTH;
+        s.sides[0].team[0].current_hp = 0;
+        s.sides[1].team[0].current_hp = 0;
+        let hypo = swap_in(&s, 0, 1);
+        assert!(best_damage(&hypo, 0) > 0, "fixture guard: the switch-in must have a damaging move");
+        assert_eq!(hypo.active_mon(1).current_hp, 0, "fixture guard: the target must be fainted");
+        let row = action_features(&s, 0)[switch_byte(1)];
+        assert_eq!(row[2], 0.0, "s3 must be 0.0 in the absent-denominator case, got {}", row[2]);
+        assert_eq!(row[3], 0.0, "s4 must be 0.0 in the absent-denominator case, got {}", row[3]);
+        assert_eq!(
+            row[6], 1.0,
+            "s7 must still read the live candidate, so only the absent-denominator fields were zeroed, got {}",
+            row[6]
+        );
     }
 
     #[test]
