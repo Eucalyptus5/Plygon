@@ -325,7 +325,7 @@ fn eff_encode(code: u8) -> f32 {
     }
 }
 
-// A fainted target carries no magnitude; zero is the payload's no-information value.
+// An absent denominator carries no magnitude; zero is the payload's no-information value.
 fn dmg_frac(damage: u16, hp: u16) -> f32 {
     if hp == 0 {
         return 0.0;
@@ -447,7 +447,7 @@ mod tests {
     fn pivot_move_flagged() {
         let (s, _t) = build_state(
             vec![
-                mon(S_GYARADOS, data_bridge::ABILITY_NONE, [M_UTURN, M_TACKLE, 0, 0]),
+                mon(S_GYARADOS, data_bridge::ABILITY_NONE, [M_UTURN, M_TACKLE, M_BATON_PASS, 0]),
                 mon(S_BLASTOISE, data_bridge::ABILITY_NONE, [M_TACKLE, 0, 0, 0]),
             ],
             vec![mon(S_GARCHOMP, data_bridge::ABILITY_NONE, [M_TACKLE, 0, 0, 0])],
@@ -455,20 +455,7 @@ mod tests {
         let f = action_features(&s, 0);
         assert_eq!(f[move_byte(0)][7], 1.0, "m8 must be 1.0 for U-turn, got {}", f[move_byte(0)][7]);
         assert_eq!(f[move_byte(1)][7], 0.0, "m8 must be 0.0 for Tackle, got {}", f[move_byte(1)][7]);
-    }
-
-    #[test]
-    fn baton_pass_flagged_as_pivot() {
-        let (s, _t) = build_state(
-            vec![
-                mon(S_SNORLAX, data_bridge::ABILITY_NONE, [M_BATON_PASS, M_TACKLE, 0, 0]),
-                mon(S_BLASTOISE, data_bridge::ABILITY_NONE, [M_SURF, 0, 0, 0]),
-            ],
-            vec![mon(S_GARCHOMP, data_bridge::ABILITY_NONE, [M_TACKLE, 0, 0, 0])],
-        );
-        let f = action_features(&s, 0);
-        assert_eq!(f[move_byte(0)][7], 1.0, "m8 must be 1.0 for Baton Pass, got {}", f[move_byte(0)][7]);
-        assert_eq!(f[move_byte(1)][7], 0.0, "m8 must be 0.0 for Tackle, got {}", f[move_byte(1)][7]);
+        assert_eq!(f[move_byte(2)][7], 1.0, "m8 must be 1.0 for Baton Pass, got {}", f[move_byte(2)][7]);
     }
 
     #[test]
@@ -879,6 +866,10 @@ mod tests {
         assert_eq!(f[move_byte(1)][4], -1.0, "m5 must clamp Teleport's -6 to -1.0, got {}", f[move_byte(1)][4]);
         assert_eq!(f[move_byte(0)][5], 1.0, "m6 must be 1.0 at 100 accuracy, got {}", f[move_byte(0)][5]);
         assert_eq!(f[move_byte(3)][5], 0.85, "m6 must be 0.85 at 85 accuracy, got {}", f[move_byte(3)][5]);
+        assert_eq!(
+            data_bridge::move_hot(M_AERIAL_ACE).accuracy, 0,
+            "fixture guard: Aerial Ace must carry the always-hit sentinel"
+        );
         assert_eq!(
             f[move_byte(2)][5], 1.0,
             "accuracy 0 is the engine's always-hit sentinel, so m6 must be 1.0, got {}",
