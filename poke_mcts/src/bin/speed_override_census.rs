@@ -16,6 +16,55 @@ const CATEGORIES: [(&str, u8); 5] = [
     ("lock_charge_encore", LOCKED),
 ];
 
+// the engine's top-level apply_switch_in_ability arms; the abilities those arms
+// react to (Clear Body, Guard Dog, Rattled, ...) are not entry abilities
+const ENTRY_ABILITIES: [(&str, u16); 25] = [
+    ("intimidate", data_bridge::ABILITY_INTIMIDATE),
+    ("drizzle", data_bridge::ABILITY_DRIZZLE),
+    ("drought", data_bridge::ABILITY_DROUGHT),
+    ("sand_stream", data_bridge::ABILITY_SAND_STREAM),
+    ("snow_warning", data_bridge::ABILITY_SNOW_WARNING),
+    ("air_lock", data_bridge::ABILITY_AIR_LOCK),
+    ("cloud_nine", data_bridge::ABILITY_CLOUD_NINE),
+    ("electric_surge", data_bridge::ABILITY_ELECTRIC_SURGE),
+    ("grassy_surge", data_bridge::ABILITY_GRASSY_SURGE),
+    ("misty_surge", data_bridge::ABILITY_MISTY_SURGE),
+    ("psychic_surge", data_bridge::ABILITY_PSYCHIC_SURGE),
+    ("download", data_bridge::ABILITY_DOWNLOAD),
+    ("trace", data_bridge::ABILITY_TRACE),
+    ("imposter", data_bridge::ABILITY_IMPOSTER),
+    ("neutralizing_gas", data_bridge::ABILITY_NEUTRALIZING_GAS),
+    ("intrepid_sword", data_bridge::ABILITY_INTREPID_SWORD),
+    ("dauntless_shield", data_bridge::ABILITY_DAUNTLESS_SHIELD),
+    ("hospitality", data_bridge::ABILITY_HOSPITALITY),
+    ("supersweet_syrup", data_bridge::ABILITY_SUPERSWEET_SYRUP),
+    ("schooling", data_bridge::ABILITY_SCHOOLING),
+    ("shields_down", data_bridge::ABILITY_SHIELDS_DOWN),
+    ("protosynthesis", data_bridge::ABILITY_PROTOSYNTHESIS),
+    ("quark_drive", data_bridge::ABILITY_QUARK_DRIVE),
+    ("orichalcum_pulse", data_bridge::ABILITY_ORICHALCUM_PULSE),
+    ("hadron_engine", data_bridge::ABILITY_HADRON_ENGINE),
+];
+
+fn entry_index(ability_id: u16) -> Option<usize> {
+    ENTRY_ABILITIES.iter().position(|&(_, id)| id == ability_id)
+}
+
+// the bench candidate carries no on-field override, so the stored id is the one
+// the real switch would bring in
+fn entry_switch_targets(state: &BattleState, side: usize) -> [bool; ENTRY_ABILITIES.len()] {
+    let mut seen = [false; ENTRY_ABILITIES.len()];
+    for &a in legal_actions(state, side).as_slice() {
+        if (ACTION_SWITCH_0..=ACTION_SWITCH_5).contains(&a) {
+            let slot = (a - ACTION_SWITCH_0) as usize;
+            if let Some(i) = entry_index(state.sides[side].team[slot].ability_id) {
+                seen[i] = true;
+            }
+        }
+    }
+    seen
+}
+
 fn categories(state: &BattleState, side: usize) -> u8 {
     let mut bits = 0u8;
     let mon = state.active_mon(side);
@@ -48,6 +97,9 @@ struct Census {
     either: [u64; CATEGORIES.len()],
     decider_union: u64,
     either_union: u64,
+    entry_switch: [u64; ENTRY_ABILITIES.len()],
+    entry_switch_union: u64,
+    entry_active_union: u64,
 }
 
 impl Census {
@@ -67,6 +119,20 @@ impl Census {
         }
         if either != 0 {
             self.either_union += 1;
+        }
+        let seen = entry_switch_targets(state, decider);
+        for (i, &s) in seen.iter().enumerate() {
+            if s {
+                self.entry_switch[i] += 1;
+            }
+        }
+        if seen.iter().any(|&s| s) {
+            self.entry_switch_union += 1;
+        }
+        if entry_index(effective_ability(state, decider)).is_some()
+            || entry_index(effective_ability(state, 1 - decider)).is_some()
+        {
+            self.entry_active_union += 1;
         }
         self.records += 1;
     }
@@ -129,6 +195,32 @@ fn print_table(c: &Census, dirs: usize, files: usize) {
         c.either_union,
         c.frac(c.either_union) * 100.0
     );
+
+    println!();
+    println!("entry ability (unmodelled by the switch-in hypothetical)  of {} records", c.records);
+    println!("{:<34}{:>12}{:>11}", "reading", "positions", "of records");
+    println!(
+        "{:<34}{:>12}{:>10.4}%",
+        "decider legal switch targets",
+        c.entry_switch_union,
+        c.frac(c.entry_switch_union) * 100.0
+    );
+    println!(
+        "{:<34}{:>12}{:>10.4}%",
+        "either active",
+        c.entry_active_union,
+        c.frac(c.entry_active_union) * 100.0
+    );
+    println!();
+    println!("{:<34}{:>12}{:>11}", "per ability (switch targets)", "positions", "of records");
+    for (i, (name, _)) in ENTRY_ABILITIES.iter().enumerate() {
+        println!(
+            "{:<34}{:>12}{:>10.4}%",
+            name,
+            c.entry_switch[i],
+            c.frac(c.entry_switch[i]) * 100.0
+        );
+    }
 }
 
 fn print_json(c: &Census, dirs: usize, files: usize) {
@@ -146,12 +238,31 @@ fn print_json(c: &Census, dirs: usize, files: usize) {
         );
         serde_json::Value::Object(m)
     };
+    let mut by_ability = serde_json::Map::new();
+    for (i, (name, _)) in ENTRY_ABILITIES.iter().enumerate() {
+        by_ability.insert(
+            name.to_string(),
+            serde_json::json!({ "count": c.entry_switch[i], "fraction": c.frac(c.entry_switch[i]) }),
+        );
+    }
     let out = serde_json::json!({
         "shard_dirs": dirs,
         "shard_files": files,
         "records": c.records,
         "decider": reading(&c.decider, c.decider_union),
         "either": reading(&c.either, c.either_union),
+        "entry_ability": {
+            "records": c.records,
+            "switch_targets": {
+                "count": c.entry_switch_union,
+                "fraction": c.frac(c.entry_switch_union),
+            },
+            "either_active": {
+                "count": c.entry_active_union,
+                "fraction": c.frac(c.entry_active_union),
+            },
+            "by_ability": serde_json::Value::Object(by_ability),
+        },
     });
     println!("{out}");
 }
@@ -202,7 +313,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use poke_mcts::testutil::{duel, mon};
+    use poke_mcts::testutil::{build_state, duel, mon};
 
     const ITEM_QUICK_CLAW: u16 = 373;
     const ITEM_CUSTAP_BERRY: u16 = 86;
@@ -285,6 +396,68 @@ mod tests {
         assert_eq!(c.decider[4], 1);
         assert_eq!(c.decider_union, 1);
         assert_eq!(c.either_union, 1);
+    }
+
+    fn bench_pair() -> (BattleState, TeamData) {
+        build_state(
+            vec![holder(0), mon(25, data_bridge::ABILITY_CLEAR_BODY, [85, 150, 0, 0])],
+            vec![foe(), mon(130, data_bridge::ABILITY_CLEAR_BODY, [57, 0, 0, 0])],
+        )
+    }
+
+    #[test]
+    fn bench_entry_ability_flags_the_switch_target_reading() {
+        let (mut state, _) = bench_pair();
+        assert!(!entry_switch_targets(&state, 0).iter().any(|&s| s));
+
+        state.sides[0].team[1].ability_id = data_bridge::ABILITY_INTIMIDATE;
+        let seen = entry_switch_targets(&state, 0);
+        assert_eq!(seen.iter().filter(|&&s| s).count(), 1);
+        assert!(seen[entry_index(data_bridge::ABILITY_INTIMIDATE).unwrap()]);
+        assert!(!entry_switch_targets(&state, 1).iter().any(|&s| s));
+
+        let mut c = Census::default();
+        c.tally(&state, 0);
+        assert_eq!(c.entry_switch_union, 1);
+        assert_eq!(c.entry_active_union, 0, "no active carries one");
+    }
+
+    #[test]
+    fn intimidate_reaction_abilities_are_not_entry_abilities() {
+        for id in [
+            data_bridge::ABILITY_CLEAR_BODY,
+            data_bridge::ABILITY_GUARD_DOG,
+            data_bridge::ABILITY_RATTLED,
+            data_bridge::ABILITY_HYPER_CUTTER,
+            data_bridge::ABILITY_OWN_TEMPO,
+            data_bridge::ABILITY_INNER_FOCUS,
+            data_bridge::ABILITY_OBLIVIOUS,
+            data_bridge::ABILITY_SCRAPPY,
+            data_bridge::ABILITY_WHITE_SMOKE,
+            data_bridge::ABILITY_FULL_METAL_BODY,
+        ] {
+            assert_eq!(entry_index(id), None, "ability {id} must not count");
+        }
+    }
+
+    #[test]
+    fn active_entry_ability_flags_only_the_context_reading() {
+        let (mut state, _) = bench_pair();
+        state.sides[1].team[0].ability_id = data_bridge::ABILITY_DROUGHT;
+        let mut c = Census::default();
+        c.tally(&state, 0);
+        assert_eq!(c.entry_switch_union, 0, "the opponent's active is not a switch target");
+        assert_eq!(c.entry_active_union, 1);
+        assert_eq!(c.records, 1);
+    }
+
+    #[test]
+    fn a_fainted_bench_carrier_is_not_a_legal_switch_target() {
+        let (mut state, _) = bench_pair();
+        state.sides[0].team[1].ability_id = data_bridge::ABILITY_INTIMIDATE;
+        assert!(entry_switch_targets(&state, 0).iter().any(|&s| s));
+        state.sides[0].team[1].current_hp = 0;
+        assert!(!entry_switch_targets(&state, 0).iter().any(|&s| s));
     }
 
     #[test]

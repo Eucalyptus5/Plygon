@@ -3,7 +3,7 @@ use poke_mcts::eval::{Evaluator, Handcrafted};
 use poke_mcts::{features, train_dump};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 // Output shard (little-endian): index.bin = u64 x (n+1) element offsets into
@@ -387,6 +387,153 @@ pub fn convert(
     Ok(stats)
 }
 
+const MIN_VERIFY_RECORDS: u64 = 64;
+const VERIFY_SAMPLES: usize = 5;
+
+#[derive(Debug, Default)]
+pub struct VerifyStats {
+    pub records: u64,
+    pub rows: u64,
+    pub mismatches: u64,
+    pub decider: [u64; 2],
+    pub neg_found: u64,
+    pub neg_differed: u64,
+    pub samples: Vec<String>,
+}
+
+impl VerifyStats {
+    pub fn passed(&self) -> bool {
+        self.mismatches == 0
+            && self.records >= MIN_VERIFY_RECORDS
+            && self.decider[0] > 0
+            && self.decider[1] > 0
+            && self.neg_found > 0
+            && self.neg_differed == self.neg_found
+    }
+}
+
+// same walk as convert(): shard_files order, outcome-join skip, then the
+// unmirrored state read at side 0 and (mirror on) side 1
+pub fn verify_action_dense(dir: &Path, conv: &Path, limit: Option<u64>) -> io::Result<VerifyStats> {
+    const BLOCK: usize = VISIT_ACTIONS * ACTION_DENSE_DIM * 4;
+    let bad = |m: String| io::Error::new(io::ErrorKind::InvalidData, m);
+    let meta_path = conv.join("meta.json");
+    let meta: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&meta_path)?)
+        .map_err(|e| bad(format!("{}: {e}", meta_path.display())))?;
+    if meta.get("action_dense") != Some(&serde_json::Value::Bool(true)) {
+        return Err(bad(format!(
+            "{}: action_dense is {:?}, want true",
+            meta_path.display(),
+            meta.get("action_dense")
+        )));
+    }
+    let dim = meta["action_dense_dim"].as_u64().unwrap_or(0);
+    if dim != ACTION_DENSE_DIM as u64 {
+        return Err(bad(format!(
+            "{}: action_dense_dim {dim} != {ACTION_DENSE_DIM}",
+            meta_path.display()
+        )));
+    }
+    let rows = meta["records"]
+        .as_u64()
+        .ok_or_else(|| bad(format!("{}: missing records", meta_path.display())))?;
+    let mirror_on = meta["mirror"]
+        .as_bool()
+        .ok_or_else(|| bad(format!("{}: missing mirror", meta_path.display())))?;
+    let ad_path = conv.join("action_dense.bin");
+    let ad_len = std::fs::metadata(&ad_path)?.len();
+    let want_len = rows * BLOCK as u64;
+    if ad_len != want_len {
+        return Err(bad(format!(
+            "{}: {ad_len} bytes, want {want_len} = {rows} rows x {VISIT_ACTIONS} x {ACTION_DENSE_DIM} x 4",
+            ad_path.display()
+        )));
+    }
+    let dc_path = conv.join("decider.bin");
+    let dc_len = std::fs::metadata(&dc_path)?.len();
+    if dc_len != rows {
+        return Err(bad(format!("{}: {dc_len} bytes, want {rows} rows", dc_path.display())));
+    }
+
+    let outcomes = read_outcomes(&dir.join("outcomes.jsonl"))?;
+    let shards = shard_files(dir)?;
+    let mut ad = BufReader::new(File::open(&ad_path)?);
+    let mut dc = BufReader::new(File::open(&dc_path)?);
+    let mut st = VerifyStats::default();
+    let mut buf = [0u8; BLOCK];
+    let sides: &[usize] = if mirror_on { &[0, 1] } else { &[0] };
+    let mut row = 0u64;
+    'walk: for (tag, path) in shards {
+        if !outcomes.contains_key(&tag) {
+            continue;
+        }
+        for (rec_idx, rec) in train_dump::read_records(path.to_str().unwrap())?.into_iter().enumerate() {
+            if limit.is_some_and(|n| st.records >= n) {
+                break 'walk;
+            }
+            for (k, &side) in sides.iter().enumerate() {
+                let live = action_features_with(&rec.state, side, ActionDenseMode::Full);
+                ad.read_exact(&mut buf)?;
+                for a in 0..VISIT_ACTIONS {
+                    for f in 0..ACTION_DENSE_DIM {
+                        let o = (a * ACTION_DENSE_DIM + f) * 4;
+                        let stored = u32::from_le_bytes(buf[o..o + 4].try_into().unwrap());
+                        let want = live[a][f].to_bits();
+                        if stored != want {
+                            st.mismatches += 1;
+                            if st.samples.len() < VERIFY_SAMPLES {
+                                st.samples.push(format!(
+                                    "row {row} tag {tag} rec {rec_idx} side {side} action {a} field {f}: stored {stored:#010x} live {want:#010x}"
+                                ));
+                            }
+                        }
+                    }
+                }
+                let mut db = [0u8; 1];
+                dc.read_exact(&mut db)?;
+                if k == 0 {
+                    match db[0] {
+                        0 => st.decider[0] += 1,
+                        1 => st.decider[1] += 1,
+                        v => return Err(bad(format!("{}: row {row} decider {v} outside 0/1", dc_path.display()))),
+                    }
+                }
+                row += 1;
+                st.rows += 1;
+            }
+            // mirror() leaves phase and pending_actions unswapped, so on a
+            // side-asymmetric state it is not a state symmetry
+            let s = &rec.state;
+            if s.phase == pkmn_engine::state::PHASE_SWITCH_P1
+                || s.phase == pkmn_engine::state::PHASE_SWITCH_P2
+                || s.pending_actions[0] != s.pending_actions[1]
+            {
+                st.neg_found += 1;
+                let mirrored = action_features_with(&features::mirror(s), 0, ActionDenseMode::Full);
+                if mirrored != action_features_with(s, 1, ActionDenseMode::Full) {
+                    st.neg_differed += 1;
+                }
+            }
+            st.records += 1;
+        }
+    }
+    Ok(st)
+}
+
+fn print_verify(st: &VerifyStats) {
+    for s in &st.samples {
+        println!("{s}");
+    }
+    println!("verify-action-dense");
+    println!("  records checked   {}", st.records);
+    println!("  rows compared     {}", st.rows);
+    println!("  mismatches        {}", st.mismatches);
+    println!("  decider split     side0 {}  side1 {}", st.decider[0], st.decider[1]);
+    println!("  negative control  found {}  differed {}", st.neg_found, st.neg_differed);
+    println!("  orientation       by construction: row 2k vs side 0, row 2k+1 vs side 1");
+    println!("  {}", if st.passed() { "PASS" } else { "FAIL" });
+}
+
 fn print_spec() {
     println!("FEATURE_SPEC_VERSION {}", features::FEATURE_SPEC_VERSION);
     for g in features::spec() {
@@ -404,6 +551,8 @@ fn main() {
     let mut dir: Option<String> = None;
     let mut out: Option<String> = None;
     let mut visits: Option<String> = None;
+    let mut verify: Option<String> = None;
+    let mut limit: Option<u64> = None;
     let mut mirror_on = true;
     let mut action_mode = Some(ActionDenseMode::Full);
     let mut it = args.into_iter();
@@ -411,6 +560,17 @@ fn main() {
         match a.as_str() {
             "--out" => out = it.next(),
             "--visits" => visits = it.next(),
+            "--verify-action-dense" => verify = it.next(),
+            "--limit" => {
+                let v = it.next().unwrap_or_default();
+                match v.parse::<u64>() {
+                    Ok(n) => limit = Some(n),
+                    Err(_) => {
+                        eprintln!("unexpected --limit value: {v}");
+                        std::process::exit(2);
+                    }
+                }
+            }
             "--no-mirror" => mirror_on = false,
             "--no-action-dense" => action_mode = None,
             "--action-dense-mode" => {
@@ -432,8 +592,27 @@ fn main() {
             }
         }
     }
+    if let Some(conv) = verify {
+        let Some(dir) = dir else {
+            eprintln!("usage: dump_features <dir> --verify-action-dense <converted dir> [--limit N]");
+            std::process::exit(2);
+        };
+        match verify_action_dense(Path::new(&dir), Path::new(&conv), limit) {
+            Ok(st) => {
+                print_verify(&st);
+                if !st.passed() {
+                    std::process::exit(1);
+                }
+            }
+            Err(e) => {
+                eprintln!("dump_features: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     let (Some(dir), Some(out)) = (dir, out) else {
-        eprintln!("usage: dump_features <dir> --out <train_dir> [--no-mirror] [--visits <labels.jsonl>] [--action-dense-mode off|priced|full] | dump_features --spec");
+        eprintln!("usage: dump_features <dir> --out <train_dir> [--no-mirror] [--visits <labels.jsonl>] [--action-dense-mode off|priced|full] | dump_features <dir> --verify-action-dense <converted dir> [--limit N] | dump_features --spec");
         std::process::exit(2);
     };
     match convert(
@@ -1081,4 +1260,76 @@ mod tests {
         std::fs::remove_dir_all(&out).ok();
     }
 
+    fn setup_verify_dump(dir: &Path) {
+        let (base, teams) = build_state(
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        let mut p1 = base;
+        p1.phase = pkmn_engine::state::PHASE_SWITCH_P1;
+        let mut p2 = base;
+        p2.phase = pkmn_engine::state::PHASE_SWITCH_P2;
+        std::fs::create_dir_all(dir).unwrap();
+        let mut outcomes = String::new();
+        // dump_worlds writes at most two records per call, so each shard takes two
+        for tag in 0..16u64 {
+            let side = (tag % 2) as usize;
+            for second in [p1, p2] {
+                let worlds: Vec<World> = [base, second]
+                    .into_iter()
+                    .map(|state| World { state, teams: teams.clone(), weight: 1.0 })
+                    .collect();
+                #[cfg(not(feature = "train_value"))]
+                train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, side, 5).unwrap();
+                #[cfg(feature = "train_value")]
+                train_dump::dump_worlds(dir.to_str().unwrap(), tag, &worlds, side, 5, 0.5).unwrap();
+            }
+            outcomes.push_str(&format!("{{\"game_tag\":{tag},\"winner_side0\":1.0}}\n"));
+        }
+        std::fs::write(dir.join("outcomes.jsonl"), outcomes).unwrap();
+    }
+
+    #[test]
+    fn verify_action_dense_passes_a_clean_conversion_and_names_the_corrupted_row() {
+        let dir = tmp_dir("verifyad");
+        let out = tmp_dir("verifyad_out");
+        setup_verify_dump(&dir);
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(&labels, "").unwrap();
+        let stats = convert(&dir, &out, true, Some(&labels), Some(ActionDenseMode::Full)).unwrap();
+        assert_eq!(stats.records, 128);
+
+        let st = verify_action_dense(&dir, &out, None).unwrap();
+        assert!(st.passed(), "clean conversion must pass: {st:?}");
+        assert_eq!(st.records, 64);
+        assert_eq!(st.rows, 128);
+        assert_eq!(st.mismatches, 0);
+        assert_eq!(st.decider, [32, 32]);
+        assert_eq!(st.neg_found, 32, "P1 and P2 records are the negative control");
+        assert_eq!(st.neg_differed, 32);
+        assert!(st.samples.is_empty());
+
+        let capped = verify_action_dense(&dir, &out, Some(8)).unwrap();
+        assert_eq!(capped.records, 8);
+        assert_eq!(capped.rows, 16);
+        assert_eq!(capped.mismatches, 0);
+        assert!(!capped.passed(), "8 records is under the floor");
+
+        let p = out.join("action_dense.bin");
+        let mut bytes = std::fs::read(&p).unwrap();
+        bytes[5 * ACTION_ROW * 4] ^= 1;
+        std::fs::write(&p, &bytes).unwrap();
+        let st = verify_action_dense(&dir, &out, None).unwrap();
+        assert!(!st.passed(), "a corrupted block must fail");
+        assert_eq!(st.mismatches, 1);
+        assert_eq!(st.samples.len(), 1);
+        assert!(
+            st.samples[0].starts_with("row 5 tag 0 rec 2 side 1 action 0 field 0:"),
+            "{:?}",
+            st.samples
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
 }
