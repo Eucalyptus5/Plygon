@@ -1020,6 +1020,116 @@ mod tests {
         eprintln!("wrote {out}: 64 fixtures from {total} records / {} files", files.len());
     }
 
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn dump_policy_fixture_inputs_v2() {
+        use crate::action_features::{action_features, ACTION_DENSE_DIM};
+        use crate::policy_label::read_records_guarded;
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../full_cp07_vlabel/s0");
+        let mut files: Vec<String> = std::fs::read_dir(dir)
+            .expect("full_cp07_vlabel/s0 must be present")
+            .filter_map(|e| {
+                let name = e.unwrap().file_name().into_string().unwrap();
+                name.ends_with(".records.bin").then_some(name)
+            })
+            .collect();
+        files.sort();
+        files.truncate(8);
+        let mut recs = Vec::new();
+        for name in &files {
+            let path = format!("{dir}/{name}");
+            for (i, r) in read_records_guarded(&path).expect("guarded read").into_iter().enumerate() {
+                recs.push((name.clone(), i, r));
+            }
+        }
+        let total = recs.len();
+        assert!(total >= 64, "need >= 64 records, got {total}");
+        let mut fixtures = Vec::new();
+        let mut nonzero = 0usize;
+        for k in 0..64 {
+            let (name, idx, rec) = &recs[k * total / 64];
+            let mut ids = Vec::new();
+            let lens = features::extract_segmented(&rec.state, &mut ids);
+            let dense = features::extract_dense(&rec.state);
+            let side = &rec.state.sides[0];
+            let move_ids = side.team[side.active_index as usize].moves;
+            let block = action_features(&rec.state, 0);
+            if block.iter().flatten().any(|v| *v != 0.0) {
+                nonzero += 1;
+            }
+            let action_dense: Vec<Vec<f32>> = block.iter().map(|row| row.to_vec()).collect();
+            fixtures.push(serde_json::json!({
+                "file": name,
+                "index": idx,
+                "ids": ids,
+                "seg_lens": lens.to_vec(),
+                "dense": dense.to_vec(),
+                "move_ids": move_ids.to_vec(),
+                "action_dense": action_dense,
+            }));
+        }
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        for (k, f) in fixtures.iter().enumerate() {
+            let rows = f["action_dense"].as_array().expect("action_dense array");
+            assert_eq!(rows.len(), NUM_ACTIONS, "fixture {k}: action_dense rows");
+            for (r, row) in rows.iter().enumerate() {
+                let cols = row.as_array().expect("action_dense row");
+                assert_eq!(cols.len(), ACTION_DENSE_DIM, "fixture {k} row {r}: width");
+                for c in cols {
+                    assert!(c.is_f64(), "fixture {k} row {r}: non-float entry {c}");
+                }
+            }
+        }
+
+        let v1_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../learned-eval/weights/policy-fixture-inputs.json"
+        );
+        let v1: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(v1_path).expect("v1 fixture inputs must be present"),
+        )
+        .expect("v1 fixture inputs must parse");
+        let v1_fixtures = v1["fixtures"].as_array().expect("v1 fixtures array");
+        assert_eq!(v1_fixtures.len(), 64, "v1 fixture inputs must carry 64 fixtures");
+        for (k, (new, old)) in fixtures.iter().zip(v1_fixtures).enumerate() {
+            for key in ["file", "index", "ids", "seg_lens", "move_ids"] {
+                assert_eq!(
+                    serde_json::to_string(&new[key]).unwrap(),
+                    serde_json::to_string(&old[key]).unwrap(),
+                    "fixture {k}: {key} diverges from the v1 selection"
+                );
+            }
+            // serde_json's parser is not correctly rounded, so the f32 payload
+            // is compared at f32 width rather than through the parsed f64.
+            let want = old["dense"].as_array().expect("v1 dense array");
+            let got = new["dense"].as_array().expect("dense array");
+            assert_eq!(got.len(), want.len(), "fixture {k}: dense width");
+            for (i, (g, w)) in got.iter().zip(want).enumerate() {
+                assert_eq!(
+                    g.as_f64().unwrap() as f32,
+                    w.as_f64().unwrap() as f32,
+                    "fixture {k}: dense[{i}] diverges from the v1 selection"
+                );
+            }
+        }
+
+        let doc = serde_json::json!({
+            "source_dir": dir,
+            "files": files,
+            "selection": format!("stride 64 over {total} records"),
+            "fixtures": fixtures,
+        });
+        let out = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../learned-eval/weights/policy-fixture-inputs-v2.json"
+        );
+        std::fs::create_dir_all(std::path::Path::new(out).parent().unwrap()).unwrap();
+        std::fs::write(out, serde_json::to_string(&doc).unwrap()).unwrap();
+        eprintln!("wrote {out}: 64 fixtures from {total} records / {} files", files.len());
+        eprintln!("action_dense non-zero fraction: {nonzero}/64 = {:.4}", nonzero as f64 / 64.0);
+    }
+
     #[test]
     fn side_table_matches_frozen_v1_routing() {
         let vocab = features::vocab_size() as usize;
