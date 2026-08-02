@@ -396,9 +396,14 @@ pub struct VerifyStats {
     pub rows: u64,
     pub mismatches: u64,
     pub decider: [u64; 2],
-    pub neg_found: u64,
-    pub neg_differed: u64,
+    pub phase_found: u64,
+    pub phase_differed: u64,
+    pub phase_degenerate: u64,
+    pub phase_failed: u64,
+    pub pending_found: u64,
+    pub pending_differed: u64,
     pub samples: Vec<String>,
+    pub phase_failures: Vec<String>,
 }
 
 impl VerifyStats {
@@ -407,9 +412,14 @@ impl VerifyStats {
             && self.records >= MIN_VERIFY_RECORDS
             && self.decider[0] > 0
             && self.decider[1] > 0
-            && self.neg_found > 0
-            && self.neg_differed == self.neg_found
+            && self.phase_found + self.pending_found > 0
+            && self.phase_differed + self.pending_differed > 0
+            && self.phase_failed == 0
     }
+}
+
+fn block_is_zero(b: &[[f32; ACTION_DENSE_DIM]; VISIT_ACTIONS]) -> bool {
+    b.iter().flatten().all(|&v| v == 0.0)
 }
 
 // same walk as convert(): shard_files order, outcome-join skip, then the
@@ -504,14 +514,32 @@ pub fn verify_action_dense(dir: &Path, conv: &Path, limit: Option<u64>) -> io::R
             // mirror() leaves phase and pending_actions unswapped, so on a
             // side-asymmetric state it is not a state symmetry
             let s = &rec.state;
-            if s.phase == pkmn_engine::state::PHASE_SWITCH_P1
-                || s.phase == pkmn_engine::state::PHASE_SWITCH_P2
-                || s.pending_actions[0] != s.pending_actions[1]
-            {
-                st.neg_found += 1;
+            let phase_asym = s.phase == pkmn_engine::state::PHASE_SWITCH_P1
+                || s.phase == pkmn_engine::state::PHASE_SWITCH_P2;
+            if phase_asym || s.pending_actions[0] != s.pending_actions[1] {
                 let mirrored = action_features_with(&features::mirror(s), 0, ActionDenseMode::Full);
-                if mirrored != action_features_with(s, 1, ActionDenseMode::Full) {
-                    st.neg_differed += 1;
+                let differed = mirrored != action_features_with(s, 1, ActionDenseMode::Full);
+                if !phase_asym {
+                    st.pending_found += 1;
+                    st.pending_differed += differed as u64;
+                } else {
+                    st.phase_found += 1;
+                    if differed {
+                        st.phase_differed += 1;
+                    } else if block_is_zero(&mirrored) {
+                        // the phase gate empties the read on both sides when the
+                        // mirrored-in side has no legal switch, so equality here
+                        // carries no orientation signal
+                        st.phase_degenerate += 1;
+                    } else {
+                        st.phase_failed += 1;
+                        if st.phase_failures.len() < VERIFY_SAMPLES {
+                            st.phase_failures.push(format!(
+                                "PHASE-ASYM ORIENTATION FAILURE tag {tag} rec {rec_idx} phase {}: mirror(s) at side 0 equals s at side 1 on a populated block",
+                                s.phase
+                            ));
+                        }
+                    }
                 }
             }
             st.records += 1;
@@ -521,7 +549,7 @@ pub fn verify_action_dense(dir: &Path, conv: &Path, limit: Option<u64>) -> io::R
 }
 
 fn print_verify(st: &VerifyStats) {
-    for s in &st.samples {
+    for s in st.samples.iter().chain(&st.phase_failures) {
         println!("{s}");
     }
     println!("verify-action-dense");
@@ -529,7 +557,14 @@ fn print_verify(st: &VerifyStats) {
     println!("  rows compared     {}", st.rows);
     println!("  mismatches        {}", st.mismatches);
     println!("  decider split     side0 {}  side1 {}", st.decider[0], st.decider[1]);
-    println!("  negative control  found {}  differed {}", st.neg_found, st.neg_differed);
+    println!(
+        "  negative control  phase-asym found {} differed {} degenerate {} FAILED {}",
+        st.phase_found, st.phase_differed, st.phase_degenerate, st.phase_failed
+    );
+    println!(
+        "                    pending-asym found {} differed {} (does not gate)",
+        st.pending_found, st.pending_differed
+    );
     println!("  orientation       by construction: row 2k vs side 0, row 2k+1 vs side 1");
     println!("  {}", if st.passed() { "PASS" } else { "FAIL" });
 }
@@ -1260,22 +1295,22 @@ mod tests {
         std::fs::remove_dir_all(&out).ok();
     }
 
-    fn setup_verify_dump(dir: &Path) {
-        let (base, teams) = build_state(
+    fn verify_base() -> (pkmn_engine::state::BattleState, pkmn_engine::state::TeamData) {
+        build_state(
             vec![mon(445, 24, [89, 14, 0, 0]), mon(25, 9, [85, 150, 0, 0])],
             vec![mon(248, 45, [89, 242, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
-        );
-        let mut p1 = base;
-        p1.phase = pkmn_engine::state::PHASE_SWITCH_P1;
-        let mut p2 = base;
-        p2.phase = pkmn_engine::state::PHASE_SWITCH_P2;
+        )
+    }
+
+    // 16 shards x 2 calls x 2 records; dump_worlds writes at most two per call
+    fn dump_verify_shards(dir: &Path, first: [pkmn_engine::state::BattleState; 2], second: [pkmn_engine::state::BattleState; 2]) {
+        let (_, teams) = verify_base();
         std::fs::create_dir_all(dir).unwrap();
         let mut outcomes = String::new();
-        // dump_worlds writes at most two records per call, so each shard takes two
         for tag in 0..16u64 {
             let side = (tag % 2) as usize;
-            for second in [p1, p2] {
-                let worlds: Vec<World> = [base, second]
+            for pair in [first, second] {
+                let worlds: Vec<World> = pair
                     .into_iter()
                     .map(|state| World { state, teams: teams.clone(), weight: 1.0 })
                     .collect();
@@ -1289,14 +1324,31 @@ mod tests {
         std::fs::write(dir.join("outcomes.jsonl"), outcomes).unwrap();
     }
 
+    fn setup_verify_dump(dir: &Path) {
+        let (base, _) = verify_base();
+        let mut p1 = base;
+        p1.phase = pkmn_engine::state::PHASE_SWITCH_P1;
+        let mut p2 = base;
+        p2.phase = pkmn_engine::state::PHASE_SWITCH_P2;
+        // side 1 has already resolved, side 0 has not: reachable only through the
+        // Analytic read, and no fixture mon has it
+        let mut pending = base;
+        pending.pending_actions = [0, pkmn_engine::state::ACTION_RESOLVED];
+        dump_verify_shards(dir, [base, p1], [pending, p2]);
+    }
+
+    fn convert_for_verify(dir: &Path, out: &Path) -> ConvertStats {
+        let labels = dir.join("labels.jsonl");
+        std::fs::write(&labels, "").unwrap();
+        convert(dir, out, true, Some(&labels), Some(ActionDenseMode::Full)).unwrap()
+    }
+
     #[test]
     fn verify_action_dense_passes_a_clean_conversion_and_names_the_corrupted_row() {
         let dir = tmp_dir("verifyad");
         let out = tmp_dir("verifyad_out");
         setup_verify_dump(&dir);
-        let labels = dir.join("labels.jsonl");
-        std::fs::write(&labels, "").unwrap();
-        let stats = convert(&dir, &out, true, Some(&labels), Some(ActionDenseMode::Full)).unwrap();
+        let stats = convert_for_verify(&dir, &out);
         assert_eq!(stats.records, 128);
 
         let st = verify_action_dense(&dir, &out, None).unwrap();
@@ -1305,8 +1357,14 @@ mod tests {
         assert_eq!(st.rows, 128);
         assert_eq!(st.mismatches, 0);
         assert_eq!(st.decider, [32, 32]);
-        assert_eq!(st.neg_found, 32, "P1 and P2 records are the negative control");
-        assert_eq!(st.neg_differed, 32);
+        assert_eq!(st.phase_found, 32, "the P1 and P2 records");
+        assert_eq!(st.phase_differed, 32, "every phase-asymmetric record must differ");
+        assert_eq!(st.phase_degenerate, 0);
+        assert_eq!(st.phase_failed, 0);
+        assert!(st.phase_failures.is_empty());
+        // a pending-asym record that does not differ must not gate
+        assert_eq!(st.pending_found, 16);
+        assert_eq!(st.pending_differed, 0);
         assert!(st.samples.is_empty());
 
         let capped = verify_action_dense(&dir, &out, Some(8)).unwrap();
@@ -1328,6 +1386,42 @@ mod tests {
             "{:?}",
             st.samples
         );
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&out).ok();
+    }
+
+    #[test]
+    fn a_phase_asym_record_whose_mirrored_side_cannot_switch_is_degenerate_not_a_failure() {
+        let (base, _) = verify_base();
+        let mut p1 = base;
+        p1.phase = pkmn_engine::state::PHASE_SWITCH_P1;
+        let mut degen = p1;
+        degen.sides[1].team[1].current_hp = 0;
+
+        // side 1 is off-turn under P1 and side 1's bench is gone, so both reads
+        // are the empty legal set and equality is forced by the phase gate
+        let direct = action_features(&degen, 1);
+        let mirrored = action_features(&features::mirror(&degen), 0);
+        assert_eq!(mirrored, direct, "the degenerate pair must not differ");
+        assert!(mirrored.iter().flatten().all(|&v| v == 0.0), "and must be all-zero");
+        assert_ne!(
+            action_features(&features::mirror(&p1), 0),
+            action_features(&p1, 1),
+            "with a live bench the same phase does differ"
+        );
+
+        let dir = tmp_dir("verifydegen");
+        let out = tmp_dir("verifydegen_out");
+        dump_verify_shards(&dir, [base, p1], [base, degen]);
+        convert_for_verify(&dir, &out);
+        let st = verify_action_dense(&dir, &out, None).unwrap();
+        assert_eq!(st.phase_found, 32);
+        assert_eq!(st.phase_differed, 16);
+        assert_eq!(st.phase_degenerate, 16);
+        assert_eq!(st.phase_failed, 0, "a forced-empty pair is not an orientation failure");
+        assert!(st.phase_failures.is_empty());
+        assert!(st.passed(), "degenerate phase-asym records must not fail the run: {st:?}");
 
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
