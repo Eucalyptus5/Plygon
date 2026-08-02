@@ -540,6 +540,14 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../learned-eval/weights/lvp1-ff8e8651f6b5.fixtures.json"
     );
+    #[allow(dead_code)]
+    const WEIGHTS_V2: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin");
+    #[allow(dead_code)]
+    const FIXTURES_V2: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../learned-eval/weights/lvp2-6f1e0facfcc4.fixtures.json"
+    );
     const SPEC3_WEIGHTS: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lv1-db937c18c028.bin");
 
@@ -557,9 +565,133 @@ mod tests {
     // LVP1_WEIGHTS/LVP1_FIXTURES point the parity gate at another export
     // (e.g. a freshly trained arm) without touching the pinned artifacts
     fn artifacts() -> Option<(LearnedPolicy, serde_json::Value)> {
-        let w = std::env::var("LVP1_WEIGHTS").unwrap_or_else(|_| WEIGHTS.to_string());
-        let f = std::env::var("LVP1_FIXTURES").unwrap_or_else(|_| FIXTURES.to_string());
-        artifacts_from(&w, &f)
+        let (bin, fx) = resolve_artifact_paths(
+            "LVP1",
+            std::env::var("LVP1_WEIGHTS").ok(),
+            std::env::var("LVP1_FIXTURES").ok(),
+            WEIGHTS,
+            FIXTURES,
+        )?;
+        Some((
+            LearnedPolicy::from_bytes(&bin).expect("LVP1 weights must load"),
+            serde_json::from_str(&fx).expect("LVP1 fixtures must parse"),
+        ))
+    }
+
+    // either override set means an operator named a specific export, so a path
+    // that will not read is a typo to surface, never an absent artifact to skip
+    fn resolve_artifact_paths(
+        magic: &str,
+        w_override: Option<String>,
+        f_override: Option<String>,
+        w_default: &str,
+        f_default: &str,
+    ) -> Option<(Vec<u8>, String)> {
+        let strict = w_override.is_some() || f_override.is_some();
+        let w = w_override.unwrap_or_else(|| w_default.to_string());
+        let f = f_override.unwrap_or_else(|| f_default.to_string());
+        if !strict {
+            return Some((std::fs::read(&w).ok()?, std::fs::read_to_string(&f).ok()?));
+        }
+        let bin =
+            std::fs::read(&w).unwrap_or_else(|e| panic!("{magic}_WEIGHTS resolved to {w}: {e}"));
+        let fx = std::fs::read_to_string(&f)
+            .unwrap_or_else(|e| panic!("{magic}_FIXTURES resolved to {f}: {e}"));
+        Some((bin, fx))
+    }
+
+    fn readable_tmp(tag: &str) -> String {
+        let dir = std::env::temp_dir().join(format!("poke_mcts_resolve_{tag}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("present");
+        std::fs::write(&p, b"present").unwrap();
+        p.to_str().unwrap().to_string()
+    }
+
+    fn resolve_panic(
+        magic: &'static str,
+        w_override: Option<String>,
+        f_override: Option<String>,
+        w_default: String,
+        f_default: String,
+    ) -> String {
+        let err = std::panic::catch_unwind(move || {
+            resolve_artifact_paths(magic, w_override, f_override, &w_default, &f_default)
+        })
+        .expect_err("a set override pointing at a missing path must fail, not skip");
+        err.downcast_ref::<String>().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn lvp1_weights_override_missing_fails() {
+        let msg = resolve_panic(
+            "LVP1",
+            Some("/nonexistent/lvp1-w.bin".to_string()),
+            None,
+            readable_tmp("lvp1_w"),
+            readable_tmp("lvp1_w"),
+        );
+        assert!(msg.contains("LVP1"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp1_fixtures_override_missing_fails_with_weights_unset() {
+        let msg = resolve_panic(
+            "LVP1",
+            None,
+            Some("/nonexistent/lvp1-f.json".to_string()),
+            readable_tmp("lvp1_f"),
+            readable_tmp("lvp1_f"),
+        );
+        assert!(msg.contains("LVP1"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp1_defaults_absent_skips() {
+        assert!(resolve_artifact_paths(
+            "LVP1",
+            None,
+            None,
+            "/nonexistent/lvp1-w.bin",
+            "/nonexistent/lvp1-f.json"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn lvp2_weights_override_missing_fails() {
+        let msg = resolve_panic(
+            "LVP2",
+            Some("/nonexistent/lvp2-w.bin".to_string()),
+            None,
+            readable_tmp("lvp2_w"),
+            readable_tmp("lvp2_w"),
+        );
+        assert!(msg.contains("LVP2"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp2_fixtures_override_missing_fails_with_weights_unset() {
+        let msg = resolve_panic(
+            "LVP2",
+            None,
+            Some("/nonexistent/lvp2-f.json".to_string()),
+            readable_tmp("lvp2_f"),
+            readable_tmp("lvp2_f"),
+        );
+        assert!(msg.contains("LVP2"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp2_defaults_absent_skips() {
+        assert!(resolve_artifact_paths(
+            "LVP2",
+            None,
+            None,
+            "/nonexistent/lvp2-w.bin",
+            "/nonexistent/lvp2-f.json"
+        )
+        .is_none());
     }
 
     #[test]
