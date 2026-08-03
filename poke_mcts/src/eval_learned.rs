@@ -1,10 +1,13 @@
 use crate::action_features::ACTION_DENSE_DIM;
 use crate::eval::Evaluator;
 use crate::features::{self, DENSE_DIM, FEATURE_SPEC_VERSION, NUM_SEGMENTS};
+use pkmn_engine::data::base_stats::species as species_row;
 use pkmn_engine::data::{GEN_MOVES, TOTAL_SPECIES};
 use pkmn_engine::state::BattleState;
 
 const SIDE_BOTH: u8 = 2;
+
+const NUM_TYPES: usize = 18;
 
 pub const NUM_ACTIONS: usize = 14;
 
@@ -46,6 +49,28 @@ fn run_head(layers: &[Fc], x: Vec<f32>) -> Vec<f32> {
         cur = fc.apply(&cur, i < last);
     }
     cur
+}
+
+// single-output head chain over a borrowed input, so one buffer serves every slot
+fn head_scalar(layers: &[Fc], x: &[f32]) -> f32 {
+    let last = layers.len() - 1;
+    let mut cur = layers[0].apply(x, last > 0);
+    for (i, fc) in layers.iter().enumerate().skip(1) {
+        cur = fc.apply(&cur, i < last);
+    }
+    cur[0]
+}
+
+#[inline(always)]
+fn dot(w: &[f32], x: &[f32]) -> f32 {
+    debug_assert_eq!(w.len(), x.len());
+    w.iter().zip(x).map(|(a, b)| a * b).sum()
+}
+
+#[inline(always)]
+fn species_types(id: usize) -> (usize, usize) {
+    let s = species_row(id);
+    (s.type1 as usize, s.type2 as usize)
 }
 
 // Mirrors learned-eval/model.py build_side_table: F1..F10 half-split on the
@@ -495,7 +520,6 @@ impl LearnedPolicy {
     }
 }
 
-#[allow(dead_code)]
 pub struct LearnedPolicyV2 {
     acc_width: usize,
     web_rank: usize,
@@ -675,6 +699,276 @@ impl LearnedPolicyV2 {
             mv,
         })
     }
+
+    fn attend(&self, tokens: &[f32]) -> Vec<f32> {
+        let aw = self.acc_width;
+        let dk = self.attn_dk;
+        let mut present = [false; NUM_SEGMENTS];
+        for (s, flag) in present.iter_mut().enumerate() {
+            *flag = tokens[s * aw..(s + 1) * aw].iter().map(|v| v.abs()).sum::<f32>() > 0.0;
+        }
+        let mut q = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut key = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut val = vec![0.0f32; NUM_SEGMENTS * dk];
+        for s in 0..NUM_SEGMENTS {
+            let t = &tokens[s * aw..(s + 1) * aw];
+            for o in 0..dk {
+                let w = o * aw..(o + 1) * aw;
+                q[s * dk + o] = dot(&self.attn_q[w.clone()], t);
+                key[s * dk + o] = dot(&self.attn_k[w.clone()], t);
+                val[s * dk + o] = dot(&self.attn_v[w], t);
+            }
+        }
+        let scale = (dk as f32).sqrt();
+        let mut out = tokens.to_vec();
+        let mut w = [0.0f32; NUM_SEGMENTS];
+        let mut mix = vec![0.0f32; dk];
+        for i in 0..NUM_SEGMENTS {
+            if !present[i] {
+                continue;
+            }
+            let qi = &q[i * dk..(i + 1) * dk];
+            let mut mx = f32::NEG_INFINITY;
+            for j in 0..NUM_SEGMENTS {
+                if present[j] {
+                    w[j] = dot(qi, &key[j * dk..(j + 1) * dk]) / scale;
+                    if w[j] > mx {
+                        mx = w[j];
+                    }
+                }
+            }
+            let mut sum = 0.0f32;
+            for j in 0..NUM_SEGMENTS {
+                w[j] = if present[j] { (w[j] - mx).exp() } else { 0.0 };
+                sum += w[j];
+            }
+            for v in mix.iter_mut() {
+                *v = 0.0;
+            }
+            for j in 0..NUM_SEGMENTS {
+                if !present[j] {
+                    continue;
+                }
+                let wj = w[j] / sum;
+                for o in 0..dk {
+                    mix[o] += wj * val[j * dk + o];
+                }
+            }
+            for o in 0..aw {
+                out[i * aw + o] += dot(&self.attn_out[o * dk..(o + 1) * dk], &mix);
+            }
+        }
+        out
+    }
+
+    fn cell_bias(&self, si: i32, sj: i32, low: &mut [f32], out: &mut [f32]) {
+        if si < 0 || sj < 0 {
+            out.fill(0.0);
+            return;
+        }
+        let tr = self.table_rank;
+        let (si, sj) = (si as usize, sj as usize);
+        let pair = si * TOTAL_SPECIES + sj;
+        debug_assert!(pair < self.pair_rows, "pair row {pair} beyond {}", self.pair_rows);
+        let pv = &self.pair_tab[pair * tr..(pair + 1) * tr];
+        let (t1a, t2a) = species_types(si);
+        let (t1b, t2b) = species_types(sj);
+        let rows = [
+            t1a * NUM_TYPES + t1b,
+            t1a * NUM_TYPES + t2b,
+            t2a * NUM_TYPES + t1b,
+            t2a * NUM_TYPES + t2b,
+        ];
+        debug_assert!(rows.iter().all(|&t| t < self.type_rows), "type row beyond {}", self.type_rows);
+        for o in 0..tr {
+            let mut s = 0.0f32;
+            for &row in &rows {
+                s += self.type_tab[row * tr + o];
+            }
+            low[o] = pv[o] + s / 4.0;
+        }
+        for o in 0..self.web_rank {
+            out[o] = dot(&self.w_tab[o * tr..(o + 1) * tr], low);
+        }
+    }
+
+    // Raw natural logits over bytes 0-13 as [plain, switch, tera]; masking and
+    // softmax live outside. The block is an argument because at seat 1 the
+    // caller's ids are mirrored while the block must come from the unmirrored root.
+    pub fn forward(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        move_ids: &[u16; 4],
+        action_dense: Option<&[[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>,
+    ) -> [f32; NUM_ACTIONS] {
+        let ad = self.action_dense_dim;
+        assert_eq!(
+            ad != 0,
+            action_dense.is_some(),
+            "the per-action block must be given exactly when the header sets action_dense"
+        );
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        let mut species = [-1i32; 12];
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        let f1_vocab = 4 * TOTAL_SPECIES;
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let tok_off = seg * aw;
+            for &id in &ids[pos..pos + len as usize] {
+                let idu = id as usize;
+                let row = &self.emb[idu * aw..(idu + 1) * aw];
+                for k in 0..aw {
+                    tokens[tok_off + k] += row[k];
+                }
+                if seg < 12 && idu < f1_vocab {
+                    species[seg] = (idu % TOTAL_SPECIES) as i32;
+                    if (idu / TOTAL_SPECIES) % 2 == 0 {
+                        if seg < 6 {
+                            active0 = seg as i32;
+                        } else {
+                            active1 = (seg - 6) as i32;
+                        }
+                    }
+                }
+            }
+            pos += len as usize;
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        if self.attn_dk != 0 {
+            tokens = self.attend(&tokens);
+        }
+
+        // the v2 accumulators reach the context MLP raw, unlike the v1 tail's ReLU
+        let mut ctx_in = vec![0.0f32; 2 * aw + 2 * r + DENSE_DIM];
+        for s in 0..6 {
+            for k in 0..aw {
+                ctx_in[k] += tokens[s * aw + k];
+                ctx_in[aw + k] += tokens[(6 + s) * aw + k];
+            }
+        }
+        for k in 0..aw {
+            ctx_in[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
+            ctx_in[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
+        }
+
+        let mut a = vec![0.0f32; 6 * r];
+        let mut b = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            let ti = &tokens[i * aw..(i + 1) * aw];
+            let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+            for o in 0..r {
+                a[i * r + o] = dot(&self.web_a[o * aw..(o + 1) * aw], ti);
+                b[i * r + o] = dot(&self.web_b[o * aw..(o + 1) * aw], tj);
+            }
+        }
+        let mut p = vec![0.0f32; 36 * r];
+        let mut bias = vec![0.0f32; if self.table_rank != 0 { r } else { 0 }];
+        let mut low = vec![0.0f32; self.table_rank];
+        for i in 0..6 {
+            for j in 0..6 {
+                let cell = &mut p[(i * 6 + j) * r..(i * 6 + j + 1) * r];
+                for o in 0..r {
+                    cell[o] = a[i * r + o] * b[j * r + o];
+                }
+                if self.table_rank != 0 {
+                    self.cell_bias(species[i], species[6 + j], &mut low, &mut bias);
+                    for o in 0..r {
+                        cell[o] += bias[o];
+                    }
+                }
+                for v in cell.iter_mut() {
+                    if *v < 0.0 {
+                        *v = 0.0;
+                    }
+                }
+            }
+        }
+        let mut h_sum = vec![0.0f32; 6 * r];
+        let mut h_max = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            for j in 0..6 {
+                let cell = &p[(i * 6 + j) * r..(i * 6 + j + 1) * r];
+                for o in 0..r {
+                    h_sum[i * r + o] += cell[o];
+                    ctx_in[2 * aw + o] += cell[o];
+                    if cell[o] > h_max[i * r + o] {
+                        h_max[i * r + o] = cell[o];
+                    }
+                }
+            }
+        }
+        if active0 >= 0 && active1 >= 0 {
+            let idx = (active0 as usize * 6 + active1 as usize) * r;
+            ctx_in[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&p[idx..idx + r]);
+        }
+        ctx_in[2 * aw + 2 * r..].copy_from_slice(dense);
+        let mut g = ctx_in;
+        for fc in &self.ctx {
+            g = fc.apply(&g, true);
+        }
+        let mut logits = [0.0f32; NUM_ACTIONS];
+        let mut sin = Vec::with_capacity(self.sw[0].inp);
+        for k in 0..6 {
+            sin.clear();
+            sin.extend_from_slice(&tokens[k * aw..(k + 1) * aw]);
+            sin.extend_from_slice(&h_sum[k * r..(k + 1) * r]);
+            sin.extend_from_slice(&h_max[k * r..(k + 1) * r]);
+            if active1 >= 0 {
+                let a1 = active1 as usize;
+                let idx = (k * 6 + a1) * r;
+                sin.extend_from_slice(&p[idx..idx + r]);
+                sin.extend_from_slice(&tokens[(6 + a1) * aw..(7 + a1) * aw]);
+            } else {
+                sin.resize(sin.len() + r + aw, 0.0);
+            }
+            sin.extend_from_slice(&g);
+            if ad != 0 {
+                sin.extend_from_slice(&action_dense.unwrap()[4 + k]);
+            }
+            logits[4 + k] = head_scalar(&self.sw, &sin);
+        }
+
+        if active0 >= 0 {
+            let a0 = active0 as usize;
+            let ed = self.move_emb_dim;
+            let base_len = aw + 2 * r + ed + self.ctx_dim;
+            let mut min = Vec::with_capacity(base_len + ad);
+            for (j, &mid) in move_ids.iter().enumerate() {
+                let mid = mid as usize;
+                min.clear();
+                min.extend_from_slice(&tokens[a0 * aw..(a0 + 1) * aw]);
+                min.extend_from_slice(&h_sum[a0 * r..(a0 + 1) * r]);
+                if active1 >= 0 {
+                    let idx = (a0 * 6 + active1 as usize) * r;
+                    min.extend_from_slice(&p[idx..idx + r]);
+                } else {
+                    min.resize(min.len() + r, 0.0);
+                }
+                min.extend_from_slice(&self.move_emb[mid * ed..(mid + 1) * ed]);
+                min.extend_from_slice(&g);
+                match action_dense {
+                    None => {
+                        let plain = head_scalar(&self.mv, &min);
+                        logits[j] = plain;
+                        logits[10 + j] = plain;
+                    }
+                    Some(block) => {
+                        min.extend_from_slice(&block[j]);
+                        logits[j] = head_scalar(&self.mv, &min);
+                        min.truncate(base_len);
+                        min.extend_from_slice(&block[10 + j]);
+                        logits[10 + j] = head_scalar(&self.mv, &min);
+                    }
+                }
+            }
+        }
+        logits
+    }
 }
 
 // -inf on illegal actions then a stable softmax; all-illegal returns zeros.
@@ -723,10 +1017,8 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../learned-eval/weights/lvp1-ff8e8651f6b5.fixtures.json"
     );
-    #[allow(dead_code)]
     const WEIGHTS_V2: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin");
-    #[allow(dead_code)]
     const FIXTURES_V2: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../learned-eval/weights/lvp2-6f1e0facfcc4.fixtures.json"
@@ -759,6 +1051,24 @@ mod tests {
             LearnedPolicy::from_bytes(&bin).expect("LVP1 weights must load"),
             serde_json::from_str(&fx).expect("LVP1 fixtures must parse"),
         ))
+    }
+
+    // the resolved paths ride along so the ledger row shows which export was
+    // read, including on the skip path
+    fn artifacts_v2() -> (Option<(LearnedPolicyV2, serde_json::Value)>, String, String) {
+        let w_env = std::env::var("LVP2_WEIGHTS").ok();
+        let f_env = std::env::var("LVP2_FIXTURES").ok();
+        let wp = w_env.clone().unwrap_or_else(|| WEIGHTS_V2.to_string());
+        let fp = f_env.clone().unwrap_or_else(|| FIXTURES_V2.to_string());
+        let loaded = resolve_artifact_paths("LVP2", w_env, f_env, WEIGHTS_V2, FIXTURES_V2).map(
+            |(bin, fx)| {
+                (
+                    LearnedPolicyV2::from_bytes(&bin).expect("LVP2 weights must load"),
+                    serde_json::from_str(&fx).expect("LVP2 fixtures must parse"),
+                )
+            },
+        );
+        (loaded, wp, fp)
     }
 
     // either override set means an operator named a specific export, so a path
@@ -1604,6 +1914,133 @@ mod tests {
             move_ids[k] = v.as_u64().unwrap() as u16;
         }
         (ids, lens, dense, move_ids)
+    }
+
+    type BlockOf = Option<[[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>;
+
+    // sibling of fixture_inputs: same four inputs plus the per-action block,
+    // which LVP1's pinned gate has no reader for
+    fn fixture_inputs_v2(
+        f: &serde_json::Value,
+    ) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], BlockOf) {
+        let (ids, lens, dense, move_ids) = fixture_inputs(f);
+        let block = f.get("action_dense").map(|rows| {
+            let rows = rows.as_array().expect("action_dense array");
+            assert_eq!(rows.len(), NUM_ACTIONS, "action_dense rows");
+            let mut out = [[0.0f32; ACTION_DENSE_DIM]; NUM_ACTIONS];
+            for (r, row) in rows.iter().enumerate() {
+                let cols = row.as_array().expect("action_dense row");
+                assert_eq!(cols.len(), ACTION_DENSE_DIM, "action_dense row {r} width");
+                for (c, v) in cols.iter().enumerate() {
+                    out[r][c] = v.as_f64().expect("action_dense float") as f32;
+                }
+            }
+            out
+        });
+        (ids, lens, dense, move_ids, block)
+    }
+
+    #[test]
+    fn policy_v2_parity_64_fixtures() {
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP policy v2 parity: fixtures_compared=0 max_abs_diff=inf \
+                 action_dense_field=0/0 action_dense_nonzero=0/0 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        let mut present = 0usize;
+        let mut nonzero = 0usize;
+        for (k, f) in fixtures.iter().enumerate() {
+            let (ids, lens, dense, move_ids, block) = fixture_inputs_v2(f);
+            assert!(
+                net.action_dense_dim == 0 || block.is_some(),
+                "fixture {k}: the header consumes a per-action block but the fixtures carry none"
+            );
+            if let Some(b) = &block {
+                present += 1;
+                if b.iter().flatten().any(|v| *v != 0.0) {
+                    nonzero += 1;
+                }
+            }
+            let arg = if net.action_dense_dim == 0 { None } else { block.as_ref() };
+            let logits = net.forward(&ids, &lens, &dense, &move_ids, arg);
+            let want = f["logits"].as_array().expect("14 logits");
+            assert_eq!(want.len(), NUM_ACTIONS);
+            for (i, w) in want.iter().enumerate() {
+                let d = (logits[i] as f64 - w.as_f64().unwrap()).abs();
+                if d > max_diff {
+                    max_diff = d;
+                }
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "policy v2 parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             action_dense_field={present}/{compared} action_dense_nonzero={nonzero}/{compared}={:.4} \
+             weights={wpath} fixtures={fpath}",
+            nonzero as f64 / compared as f64
+        );
+        assert!(max_diff <= 1e-4, "v2 logit parity {max_diff:e} exceeds 1e-4");
+    }
+
+    // Measurement only: the per-action block's two denominators, over fixtures
+    // and over legal action bytes, plus the cause of every zero block.
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn action_dense_block_census() {
+        use crate::policy_label::read_records_guarded;
+        use pkmn_engine::state::legal_actions;
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((_net, fx)) = loaded else {
+            eprintln!("SKIP action_dense census: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let dir = fx["source"]["source_dir"].as_str().expect("source_dir");
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let (mut legal_bytes, mut legal_nonzero, mut fixture_nonzero) = (0usize, 0usize, 0usize);
+        for (k, f) in fixtures.iter().enumerate() {
+            let block = fixture_inputs_v2(f).4.expect("census needs the per-action block");
+            let name = f["file"].as_str().unwrap();
+            let idx = f["index"].as_u64().unwrap() as usize;
+            let recs = read_records_guarded(&format!("{dir}/{name}")).expect("guarded read");
+            let state = &recs[idx].state;
+            let legal: Vec<usize> = legal_actions(state, 0)
+                .as_slice()
+                .iter()
+                .map(|&a| a as usize)
+                .filter(|&a| a < NUM_ACTIONS)
+                .collect();
+            let mut zero_legal = Vec::new();
+            for &a in &legal {
+                legal_bytes += 1;
+                if block[a].iter().any(|v| *v != 0.0) {
+                    legal_nonzero += 1;
+                } else {
+                    zero_legal.push(a);
+                }
+            }
+            if block.iter().flatten().any(|v| *v != 0.0) {
+                fixture_nonzero += 1;
+            } else {
+                eprintln!("census zero block: fixture {k} {name} #{idx} phase {} legal {legal:?}", state.phase);
+            }
+            if !zero_legal.is_empty() {
+                eprintln!("census zero legal bytes: fixture {k} {zero_legal:?}");
+            }
+        }
+        let n = fixtures.len();
+        eprintln!(
+            "action_dense census: fixture_level={fixture_nonzero}/{n}={:.4} legal_byte_level={legal_nonzero}/{legal_bytes}={:.4} fixtures={fpath}",
+            fixture_nonzero as f64 / n as f64,
+            legal_nonzero as f64 / legal_bytes as f64
+        );
     }
 
     #[test]
