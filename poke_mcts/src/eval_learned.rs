@@ -51,6 +51,56 @@ fn run_head(layers: &[Fc], x: Vec<f32>) -> Vec<f32> {
     cur
 }
 
+fn transpose(src: &[f32], rows: usize, cols: usize) -> Vec<f32> {
+    debug_assert_eq!(src.len(), rows * cols);
+    let mut out = vec![0.0f32; rows * cols];
+    for r in 0..rows {
+        for c in 0..cols {
+            out[c * rows + r] = src[r * cols + c];
+        }
+    }
+    out
+}
+
+// One weight row serves the whole batch before the next is touched, and the batch
+// index is the innermost axis so the lanes are independent accumulators. Each
+// element still sums over k in `Fc::apply`'s order, so it is bit-identical.
+fn apply_batch_t(fc: &Fc, xt: &[f32], n: usize, relu: bool) -> Vec<f32> {
+    let inp = fc.inp;
+    debug_assert_eq!(xt.len(), n * inp);
+    let mut y = vec![0.0f32; fc.out * n];
+    for o in 0..fc.out {
+        let w = &fc.w[o * inp..(o + 1) * inp];
+        let yo = &mut y[o * n..(o + 1) * n];
+        yo.fill(fc.b[o]);
+        for k in 0..inp {
+            let wk = w[k];
+            let xk = &xt[k * n..(k + 1) * n];
+            for m in 0..n {
+                yo[m] += xk[m] * wk;
+            }
+        }
+        if relu {
+            for v in yo.iter_mut() {
+                if *v < 0.0 {
+                    *v = 0.0;
+                }
+            }
+        }
+    }
+    y
+}
+
+fn head_scalar_batch(layers: &[Fc], xs: &[f32], n: usize, inp: usize) -> Vec<f32> {
+    let last = layers.len() - 1;
+    let mut cur = transpose(xs, n, inp);
+    for (i, fc) in layers.iter().enumerate() {
+        cur = apply_batch_t(fc, &cur, n, i < last);
+    }
+    debug_assert_eq!(cur.len(), n);
+    cur
+}
+
 // single-output head chain over a borrowed input, so one buffer serves every slot
 fn head_scalar(layers: &[Fc], x: &[f32]) -> f32 {
     let last = layers.len() - 1;
@@ -520,6 +570,25 @@ impl LearnedPolicy {
     }
 }
 
+struct Prep {
+    tokens: Vec<f32>,
+    p: Vec<f32>,
+    h_sum: Vec<f32>,
+    h_max: Vec<f32>,
+    ctx_in: Vec<f32>,
+    active0: i32,
+    active1: i32,
+}
+
+/// One member of a batched policy forward; the fields are `forward`'s arguments.
+pub struct ForwardInput<'a> {
+    pub ids: &'a [u32],
+    pub seg_lens: &'a [u16; NUM_SEGMENTS],
+    pub dense: &'a [f32; DENSE_DIM],
+    pub move_ids: &'a [u16; 4],
+    pub action_dense: Option<&'a [[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>,
+}
+
 pub struct LearnedPolicyV2 {
     acc_width: usize,
     web_rank: usize,
@@ -792,23 +861,130 @@ impl LearnedPolicyV2 {
         }
     }
 
-    // Raw natural logits over bytes 0-13 as [plain, switch, tera]; masking and
-    // softmax live outside. The block is an argument because at seat 1 the
-    // caller's ids are mirrored while the block must come from the unmirrored root.
-    pub fn forward(
+    // Batched sibling of `forward`: the ctx trunk and both heads stream their weights
+    // once across the whole batch while every output element keeps the single-forward
+    // accumulation order, so each row is bit-identical to `forward` on that input.
+    pub fn forward_batch(&self, batch: &[ForwardInput<'_>]) -> Vec<[f32; NUM_ACTIONS]> {
+        let ad = self.action_dense_dim;
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let n = batch.len();
+        let mut out = vec![[0.0f32; NUM_ACTIONS]; n];
+        if n == 0 {
+            return out;
+        }
+        let preps: Vec<Prep> = batch
+            .iter()
+            .map(|it| {
+                assert_eq!(
+                    ad != 0,
+                    it.action_dense.is_some(),
+                    "the per-action block must be given exactly when the header sets action_dense"
+                );
+                self.prep(it.ids, it.seg_lens, it.dense)
+            })
+            .collect();
+
+        let mut rows = Vec::with_capacity(n * self.ctx[0].inp);
+        for pr in &preps {
+            rows.extend_from_slice(&pr.ctx_in);
+        }
+        let mut cur = transpose(&rows, n, self.ctx[0].inp);
+        for fc in &self.ctx {
+            cur = apply_batch_t(fc, &cur, n, true);
+        }
+        let gd = self.ctx_dim;
+        let g = transpose(&cur, gd, n);
+
+        let sw_in = self.sw[0].inp;
+        let mut srows = Vec::with_capacity(n * 6 * sw_in);
+        for (m, pr) in preps.iter().enumerate() {
+            for k in 0..6 {
+                srows.extend_from_slice(&pr.tokens[k * aw..(k + 1) * aw]);
+                srows.extend_from_slice(&pr.h_sum[k * r..(k + 1) * r]);
+                srows.extend_from_slice(&pr.h_max[k * r..(k + 1) * r]);
+                if pr.active1 >= 0 {
+                    let a1 = pr.active1 as usize;
+                    let idx = (k * 6 + a1) * r;
+                    srows.extend_from_slice(&pr.p[idx..idx + r]);
+                    srows.extend_from_slice(&pr.tokens[(6 + a1) * aw..(7 + a1) * aw]);
+                } else {
+                    srows.resize(srows.len() + r + aw, 0.0);
+                }
+                srows.extend_from_slice(&g[m * gd..(m + 1) * gd]);
+                if ad != 0 {
+                    srows.extend_from_slice(&batch[m].action_dense.unwrap()[4 + k]);
+                }
+            }
+        }
+        let sout = head_scalar_batch(&self.sw, &srows, n * 6, sw_in);
+        for (m, row) in out.iter_mut().enumerate() {
+            for k in 0..6 {
+                row[4 + k] = sout[m * 6 + k];
+            }
+        }
+
+        let mv_in = self.mv[0].inp;
+        let mut mrows: Vec<f32> = Vec::new();
+        let mut slots: Vec<(usize, usize)> = Vec::new();
+        for (m, pr) in preps.iter().enumerate() {
+            if pr.active0 < 0 {
+                continue;
+            }
+            for (j, &mid) in batch[m].move_ids.iter().enumerate() {
+                let mid = mid as usize;
+                match batch[m].action_dense {
+                    None => {
+                        self.push_move_row(&mut mrows, pr, mid, &g[m * gd..(m + 1) * gd]);
+                        slots.push((m, j));
+                    }
+                    Some(block) => {
+                        self.push_move_row(&mut mrows, pr, mid, &g[m * gd..(m + 1) * gd]);
+                        mrows.extend_from_slice(&block[j]);
+                        slots.push((m, j));
+                        self.push_move_row(&mut mrows, pr, mid, &g[m * gd..(m + 1) * gd]);
+                        mrows.extend_from_slice(&block[10 + j]);
+                        slots.push((m, 10 + j));
+                    }
+                }
+            }
+        }
+        if !slots.is_empty() {
+            let mout = head_scalar_batch(&self.mv, &mrows, slots.len(), mv_in);
+            for (i, &(m, slot)) in slots.iter().enumerate() {
+                out[m][slot] = mout[i];
+                if ad == 0 {
+                    out[m][10 + slot] = mout[i];
+                }
+            }
+        }
+        out
+    }
+
+    fn push_move_row(&self, rows: &mut Vec<f32>, pr: &Prep, mid: usize, g_row: &[f32]) {
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let ed = self.move_emb_dim;
+        let a0 = pr.active0 as usize;
+        rows.extend_from_slice(&pr.tokens[a0 * aw..(a0 + 1) * aw]);
+        rows.extend_from_slice(&pr.h_sum[a0 * r..(a0 + 1) * r]);
+        if pr.active1 >= 0 {
+            let idx = (a0 * 6 + pr.active1 as usize) * r;
+            rows.extend_from_slice(&pr.p[idx..idx + r]);
+        } else {
+            rows.resize(rows.len() + r, 0.0);
+        }
+        rows.extend_from_slice(&self.move_emb[mid * ed..(mid + 1) * ed]);
+        rows.extend_from_slice(g_row);
+    }
+
+    // Everything both forward paths share, up to the context MLP's input.
+    fn prep(
         &self,
         ids: &[u32],
         seg_lens: &[u16; NUM_SEGMENTS],
         dense: &[f32; DENSE_DIM],
-        move_ids: &[u16; 4],
-        action_dense: Option<&[[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>,
-    ) -> [f32; NUM_ACTIONS] {
-        let ad = self.action_dense_dim;
-        assert_eq!(
-            ad != 0,
-            action_dense.is_some(),
-            "the per-action block must be given exactly when the header sets action_dense"
-        );
+    ) -> Prep {
         let aw = self.acc_width;
         let r = self.web_rank;
         let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
@@ -907,6 +1083,30 @@ impl LearnedPolicyV2 {
             ctx_in[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&p[idx..idx + r]);
         }
         ctx_in[2 * aw + 2 * r..].copy_from_slice(dense);
+        Prep { tokens, p, h_sum, h_max, ctx_in, active0, active1 }
+    }
+
+    // Raw natural logits over bytes 0-13 as [plain, switch, tera]; masking and
+    // softmax live outside. The block is an argument because at seat 1 the
+    // caller's ids are mirrored while the block must come from the unmirrored root.
+    pub fn forward(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        move_ids: &[u16; 4],
+        action_dense: Option<&[[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>,
+    ) -> [f32; NUM_ACTIONS] {
+        let ad = self.action_dense_dim;
+        assert_eq!(
+            ad != 0,
+            action_dense.is_some(),
+            "the per-action block must be given exactly when the header sets action_dense"
+        );
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let Prep { tokens, p, h_sum, h_max, ctx_in, active0, active1 } =
+            self.prep(ids, seg_lens, dense);
         let mut g = ctx_in;
         for fc in &self.ctx {
             g = fc.apply(&g, true);
@@ -1989,6 +2189,160 @@ mod tests {
         assert!(max_diff <= 1e-4, "v2 logit parity {max_diff:e} exceeds 1e-4");
     }
 
+    // eight varied roots, both orientations, so the batch exercises the
+    // active0/active1 branches rather than one repeated position
+    fn batch_states() -> Vec<BattleState> {
+        let specs: [(u16, u16, [u16; 4]); 4] = [
+            (25, 9, [85, 150, 33, 34]),
+            (445, 24, [89, 14, 33, 0]),
+            (130, 22, [57, 85, 0, 0]),
+            (143, 47, [34, 89, 0, 0]),
+        ];
+        let mut out = Vec::new();
+        for k in 0..4 {
+            let (a, b, c) = specs[k];
+            let (d, e, f) = specs[(k + 1) % 4];
+            let (s, _t) = build_state(vec![mon(a, b, c)], vec![mon(d, e, f)]);
+            out.push(s);
+            out.push(features::mirror(&s));
+        }
+        out
+    }
+
+    fn single_inputs(
+        state: &BattleState,
+    ) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], [[f32; ACTION_DENSE_DIM]; NUM_ACTIONS])
+    {
+        let mut ids = Vec::new();
+        let lens = features::extract_segmented(state, &mut ids);
+        let dense = features::extract_dense(state);
+        let side = &state.sides[0];
+        let move_ids = side.team[side.active_index as usize].moves;
+        let block = crate::action_features::action_features(state, 0);
+        (ids, lens, dense, move_ids, block)
+    }
+
+    fn assert_batch_matches_single(
+        net: &LearnedPolicyV2,
+        rows: &[(Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], BlockOf)],
+        tag: &str,
+    ) {
+        let items: Vec<ForwardInput> = rows
+            .iter()
+            .map(|(ids, lens, dense, move_ids, block)| ForwardInput {
+                ids,
+                seg_lens: lens,
+                dense,
+                move_ids,
+                action_dense: if net.action_dense_dim == 0 { None } else { block.as_ref() },
+            })
+            .collect();
+        let batched = net.forward_batch(&items);
+        assert_eq!(batched.len(), items.len(), "{tag}: one output row per input");
+        for (k, it) in items.iter().enumerate() {
+            let single =
+                net.forward(it.ids, it.seg_lens, it.dense, it.move_ids, it.action_dense);
+            for i in 0..NUM_ACTIONS {
+                assert_eq!(
+                    batched[k][i].to_bits(),
+                    single[i].to_bits(),
+                    "{tag}: batch row {k} logit {i} is not bit-identical to the single forward"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn policy_v2_batched_forward_matches_single_synthetic() {
+        let f = PolicyFileV2::small();
+        let net = LearnedPolicyV2::from_bytes(&f.bytes()).expect("synthetic LVP2 must load");
+        let states = batch_states();
+        let rows: Vec<_> = states
+            .iter()
+            .map(|s| {
+                let (ids, lens, dense, move_ids, block) = single_inputs(s);
+                (ids, lens, dense, move_ids, Some(block))
+            })
+            .collect();
+        assert_eq!(rows.len(), 8, "batch is the eight-world serve shape");
+        assert_batch_matches_single(&net, &rows, "synthetic");
+    }
+
+    #[test]
+    fn policy_v2_batched_forward_matches_single_on_fixtures() {
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP policy v2 batched forward: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        for (c, chunk) in fixtures.chunks(8).enumerate() {
+            let rows: Vec<_> = chunk.iter().map(fixture_inputs_v2).collect();
+            assert_batch_matches_single(&net, &rows, &format!("fixtures chunk {c}"));
+        }
+    }
+
+    // Measurement only: the eight-world per-turn cost as one batched call against
+    // eight single calls. Release build; the ratio is a reported fact, not a gate.
+    #[test]
+    #[ignore]
+    fn policy_v2_batch_speedup() {
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP policy v2 batch speedup: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let rows: Vec<_> = fixtures[..8].iter().map(fixture_inputs_v2).collect();
+        let items: Vec<ForwardInput> = rows
+            .iter()
+            .map(|(ids, lens, dense, move_ids, block)| ForwardInput {
+                ids,
+                seg_lens: lens,
+                dense,
+                move_ids,
+                action_dense: if net.action_dense_dim == 0 { None } else { block.as_ref() },
+            })
+            .collect();
+        let reps = 5usize;
+        let iters = 100u32;
+        let mut single = Vec::with_capacity(reps);
+        let mut batched = Vec::with_capacity(reps);
+        for _ in 0..5 {
+            std::hint::black_box(net.forward_batch(&items));
+        }
+        for _ in 0..reps {
+            let t0 = std::time::Instant::now();
+            for _ in 0..iters {
+                for it in &items {
+                    std::hint::black_box(net.forward(
+                        it.ids,
+                        it.seg_lens,
+                        it.dense,
+                        it.move_ids,
+                        it.action_dense,
+                    ));
+                }
+            }
+            single.push(t0.elapsed().as_secs_f64() * 1e6 / iters as f64);
+            let t1 = std::time::Instant::now();
+            for _ in 0..iters {
+                std::hint::black_box(net.forward_batch(&items));
+            }
+            batched.push(t1.elapsed().as_secs_f64() * 1e6 / iters as f64);
+        }
+        let raw = |v: &[f64]| v.iter().map(|t| format!("{t:.1}")).collect::<Vec<_>>().join(", ");
+        let (sr, br) = (raw(&single), raw(&batched));
+        let s = median_us(single);
+        let b = median_us(batched);
+        eprintln!(
+            "policy v2 batch: worlds=8 single={s:.1} us batched={b:.1} us factor={:.3}x \
+             single_raw=[{sr}] batched_raw=[{br}] weights={wpath}",
+            s / b
+        );
+    }
+
     // Measurement only: the per-action block's two denominators, over fixtures
     // and over legal action bytes, plus the cause of every zero block.
     #[cfg(feature = "train_value")]
@@ -2097,7 +2451,6 @@ mod tests {
         eprintln!("policy forward: {:.3} us/forward ({} iters, sink {sink})", el.as_secs_f64() * 1e6 / iters as f64, iters);
     }
 
-    #[cfg(feature = "train_value")]
     fn median_us(mut v: Vec<f64>) -> f64 {
         v.sort_by(|a, b| a.partial_cmp(b).unwrap());
         v[v.len() / 2]
