@@ -130,7 +130,7 @@ fn main() {
                 (legal.as_slice().first().copied().unwrap_or(pkmn_engine::state::ACTION_STRUGGLE), vec![])
             } else {
                 let teams = reconstruct_teams(&rec.state);
-                let r = search_world(&rec.state, &teams, &Handcrafted, &OpenLoop, &params, seed);
+                let r = search_world(&rec.state, &teams, &Handcrafted, &OpenLoop, &params, seed, 0, None);
                 let stats = r.side(decider);
                 let pick = baseline_pick(stats, &legal, seed);
                 (pick, aggregate_value(&[(stats.to_vec(), 1.0)]))
@@ -188,10 +188,10 @@ mod tests {
             ..Default::default()
         };
         let legal = pkmn_engine::state::legal_actions(&state, 0);
-        let r = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, 7);
+        let r = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, 7, 0, None);
         let pick = baseline_pick(r.side(0), &legal, 7);
         assert_eq!(pick, 0, "forced-KO baseline pick must be the KO move in slot 0");
-        let r2 = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, 7);
+        let r2 = search_world(&state, &teams, &Handcrafted, &OpenLoop, &params, 7, 0, None);
         let pick2 = baseline_pick(r2.side(0), &legal, 7);
         assert_eq!(pick, pick2, "same seed -> same pick");
     }

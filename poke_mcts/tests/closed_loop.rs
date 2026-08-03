@@ -15,7 +15,7 @@ use pkmn_engine::state::*;
 fn open_loop_parity_snapshot() {
     let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 58, 0, 0]));
     let p = SearchParams { time_ms: 600_000, max_iters: 5000, ..Default::default() };
-    let r = search_world(&s, &t, &Handcrafted, &OpenLoop, &p, 7);
+    let r = search_world(&s, &t, &Handcrafted, &OpenLoop, &p, 7, 0, None);
     let got: Vec<(u8, u32, f64)> = r.s1.iter().map(|a| (a.action, a.visits, a.avg_score)).collect();
     let expected: Vec<(u8, u32, f64)> = vec![
         (0, 2500, 0.00035909845679492325),

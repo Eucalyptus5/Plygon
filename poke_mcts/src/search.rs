@@ -76,6 +76,8 @@ pub fn search_world(
     chance: &impl ChanceModel,
     params: &SearchParams,
     seed: u64,
+    decider_side: usize,
+    prior: Option<&[f32]>,
 ) -> SearchResult {
     let mut rng = Lcg::new(seed);
     let mut tree: Vec<Node> = Vec::with_capacity(4096);
@@ -125,8 +127,9 @@ pub fn search_world(
                 break;
             }
             let node = &tree[idx];
-            let (a1, b1) = pick(&node.s1, node.visits, params.explore_coeff);
-            let (a2, b2) = pick(&node.s2, node.visits, params.explore_coeff);
+            let (p1, p2) = bandit_priors(idx, decider_side, prior);
+            let (a1, b1) = pick_with(&node.s1, node.visits, params.explore_coeff, p1);
+            let (a2, b2) = pick_with(&node.s2, node.visits, params.explore_coeff, p2);
             if a1 == NO_ARM && a2 == NO_ARM {
                 #[cfg(not(feature = "train_value"))]
                 {
@@ -258,10 +261,30 @@ fn leaf_vals(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32) -> (f6
 #[inline]
 pub(crate) fn arm0(a: u8) -> usize { if a == NO_ARM { 0 } else { a as usize } }
 
+// The prior reaches the root node's decider bandit and nothing else: a prior on the
+// opponent's bandit would model it as choosing by our policy.
+#[inline]
+fn bandit_priors<'a>(
+    idx: usize,
+    decider_side: usize,
+    prior: Option<&'a [f32]>,
+) -> (Option<&'a [f32]>, Option<&'a [f32]>) {
+    match (idx, decider_side) {
+        (0, 0) => (prior, None),
+        (0, _) => (None, prior),
+        _ => (None, None),
+    }
+}
+
 #[inline]
 pub(crate) fn pick(b: &crate::node::Bandit, parent_visits: u32, explore_coeff: f64) -> (u8, u8) {
+    pick_with(b, parent_visits, explore_coeff, None)
+}
+
+#[inline]
+pub(crate) fn pick_with(b: &crate::node::Bandit, parent_visits: u32, explore_coeff: f64, prior: Option<&[f32]>) -> (u8, u8) {
     if b.is_empty() { return (NO_ARM, 0); } // engine ignores the non-acting side's byte
-    let i = select_arm(b, parent_visits, explore_coeff);
+    let i = select_arm(b, parent_visits, explore_coeff, prior);
     (i as u8, b.arms[i].action)
 }
 
@@ -315,8 +338,92 @@ mod tests {
     use crate::testutil::*;
 
     fn run(s: &BattleState, t: &TeamData, ms: u64, iters: u64, seed: u64) -> SearchResult {
+        run_prior(s, t, ms, iters, seed, 0, None)
+    }
+
+    fn run_prior(
+        s: &BattleState,
+        t: &TeamData,
+        ms: u64,
+        iters: u64,
+        seed: u64,
+        decider_side: usize,
+        prior: Option<&[f32]>,
+    ) -> SearchResult {
         let p = SearchParams { time_ms: ms, max_iters: iters, ..Default::default() };
-        search_world(s, t, &Handcrafted, &OpenLoop, &p, seed)
+        search_world(s, t, &Handcrafted, &OpenLoop, &p, seed, decider_side, prior)
+    }
+
+    // side 0 holds one mon with one move (exactly one legal action); side 1 holds
+    // three moves plus a live bench slot
+    fn one_action_side0() -> (BattleState, TeamData) {
+        build_state(
+            vec![mon(25, 9, [85, 0, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 0, 0, 0])],
+        )
+    }
+
+    #[test]
+    fn bandit_priors_reach_the_root_decider_only() {
+        let p = [0.25f32; 14];
+        let some = Some(&p[..]);
+        let at = |idx, side| {
+            let (a, b) = bandit_priors(idx, side, some);
+            (a.is_some(), b.is_some())
+        };
+        assert_eq!(at(0, 0), (true, false), "root, decider side 0 -> s1 only");
+        assert_eq!(at(0, 1), (false, true), "root, decider side 1 -> s2 only");
+        assert_eq!(at(1, 0), (false, false), "non-root -> neither");
+        assert_eq!(at(1, 1), (false, false), "non-root -> neither");
+        assert_eq!(at(7, 0), (false, false), "non-root -> neither");
+        let (a, b) = bandit_priors(0, 0, None);
+        assert!(a.is_none() && b.is_none(), "no prior -> neither");
+    }
+
+    #[test]
+    fn zero_prior_collapses_the_root_decider_bandit_to_greedy() {
+        // an all-zero prior kills the exploration term at the root, so PUCT scores Q
+        // alone and every iteration re-picks the first arm; UCB1 must still spread
+        let (s, t) = duel(mon(25, 9, [85, 150, 33, 34]), mon(445, 24, [89, 0, 0, 0]));
+        let zero = [0.0f32; 14];
+        let r = run_prior(&s, &t, 10_000, 1200, 5, 0, Some(&zero));
+        let a0 = r.s1.iter().find(|a| a.action == 0).expect("byte 0 must be legal");
+        assert_eq!(a0.visits as u64, r.iterations, "zero prior -> Q-greedy root bandit");
+        let spread = run_prior(&s, &t, 10_000, 1200, 5, 0, None);
+        assert!(
+            spread.s1.iter().filter(|a| a.visits > 0).count() > 1,
+            "UCB1 control must visit more than one root arm"
+        );
+    }
+
+    #[test]
+    fn root_prior_routes_to_the_deciders_bandit_only() {
+        let (s, t) = one_action_side0();
+        assert_eq!(legal_actions(&s, 0).count, 1, "fixture: side 0 has one legal action");
+        assert!(legal_actions(&s, 1).count >= 2, "fixture: side 1 branches");
+        let zero = [0.0f32; 14];
+        let base = run_prior(&s, &t, 10_000, 1500, 11, 1, None);
+        let steered = run_prior(&s, &t, 10_000, 1500, 11, 1, Some(&zero));
+        assert_eq!(
+            steered.s2[0].visits as u64, steered.iterations,
+            "naming side 1 the decider must put PUCT on its root bandit"
+        );
+        assert!(
+            base.s2.iter().filter(|a| a.visits > 0).count() > 1,
+            "UCB1 control must spread side 1's root bandit"
+        );
+        // the same prior with side 0 named decider must not reach side 1's bandit
+        let other = run_prior(&s, &t, 10_000, 1500, 11, 0, Some(&zero));
+        assert_eq!(base.iterations, other.iterations);
+        for (a, b) in base.s2.iter().zip(other.s2.iter()) {
+            assert_eq!(a.action, b.action);
+            assert_eq!(a.visits, b.visits, "opponent root arm visits must not move");
+            assert_eq!(
+                a.avg_score.to_bits(),
+                b.avg_score.to_bits(),
+                "opponent root arm value must not move"
+            );
+        }
     }
 
     #[test]

@@ -150,14 +150,23 @@ pub fn adaptive_budget(
     }
 }
 
-fn search_eval(w: &World, eval: &impl Evaluator, cfg: &PimcConfig, params: &SearchParams, seed: u64) -> SearchResult {
+#[allow(clippy::too_many_arguments)]
+fn search_eval(
+    w: &World,
+    eval: &impl Evaluator,
+    cfg: &PimcConfig,
+    params: &SearchParams,
+    seed: u64,
+    decider_side: usize,
+    prior: Option<&[f32]>,
+) -> SearchResult {
     match cfg.chance_mode {
         ChanceMode::OpenLoop =>
-            search_world(&w.state, &w.teams, eval, &OpenLoop, params, seed),
+            search_world(&w.state, &w.teams, eval, &OpenLoop, params, seed, decider_side, prior),
         ChanceMode::ClosedLoop =>
             search_world_closed(&w.state, &w.teams, eval, params, seed),
         ChanceMode::AnalyticRoot =>
-            search_world(&w.state, &w.teams, eval, &AnalyticRoot, params, seed),
+            search_world(&w.state, &w.teams, eval, &AnalyticRoot, params, seed, decider_side, prior),
     }
 }
 
@@ -185,8 +194,8 @@ pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determi
     let searched: Vec<(SearchResult, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
         let r = match eval {
-            EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed),
-            EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed),
+            EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed, obs.our_side, None),
+            EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed, obs.our_side, None),
         };
         (r, w.weight)
     }).collect();
@@ -259,11 +268,11 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
         let r = match cfg.chance_mode {
             ChanceMode::OpenLoop =>
-                search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed),
+                search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed, obs.our_side, None),
             ChanceMode::ClosedLoop =>
                 search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
             ChanceMode::AnalyticRoot =>
-                search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed),
+                search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed, obs.our_side, None),
         };
         let ai = w.state.sides[opp].active_index as usize;
         let om = &w.state.sides[opp].team[ai];

@@ -33,7 +33,7 @@ fn mcts_choose(state: &BattleState, teams: &TeamData, side: usize, time_ms: u64,
     if legal.count == 0 { return ACTION_STRUGGLE; }
     if legal.count == 1 { return legal.actions[0]; }
     let params = SearchParams { time_ms, ..Default::default() };
-    let r = search_world(state, teams, &Handcrafted, &OpenLoop, &params, seed);
+    let r = search_world(state, teams, &Handcrafted, &OpenLoop, &params, seed, 0, None);
     r.side(side).iter().max_by_key(|a| a.visits).map(|a| a.action).unwrap_or(legal.actions[0])
 }
 
@@ -127,7 +127,7 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
     let mut iters: Vec<f64> = Vec::new();
     let (mut guards, mut depths) = (0u64, 0u64);
     for seed in 0..10u64 {
-        let r = search_world(&state, &teams, eval, &OpenLoop, &params, seed);
+        let r = search_world(&state, &teams, eval, &OpenLoop, &params, seed, 0, None);
         iters.push(r.iterations as f64);
         guards += r.guard_hits;
         depths += r.depth_sum;
@@ -152,7 +152,7 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
     let mut aiters: Vec<f64> = Vec::new();
     let (mut aguards, mut adepths) = (0u64, 0u64);
     for seed in 0..10u64 {
-        let r = search_world(&state, &teams, eval, &AnalyticRoot, &params, seed);
+        let r = search_world(&state, &teams, eval, &AnalyticRoot, &params, seed, 0, None);
         aiters.push(r.iterations as f64);
         aguards += r.guard_hits;
         adepths += r.depth_sum;

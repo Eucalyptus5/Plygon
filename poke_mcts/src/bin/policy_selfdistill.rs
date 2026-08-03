@@ -185,7 +185,7 @@ fn main() {
                 } else {
                     let teams = reconstruct_teams(&rec.state);
                     let t0 = Instant::now();
-                    let r = search_world(&rec.state, &teams, &Handcrafted, &OpenLoop, &params, seed);
+                    let r = search_world(&rec.state, &teams, &Handcrafted, &OpenLoop, &params, seed, 0, None);
                     let el = t0.elapsed().as_secs_f64();
                     let stats = r.side(decider);
                     let total: u64 = stats.iter().filter(|s| s.action != strug).map(|s| s.visits as u64).sum();

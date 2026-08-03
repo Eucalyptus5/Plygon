@@ -73,7 +73,7 @@ fn run_suite() {
         let (state, teams) = build_case(c);
         let open_p = SearchParams { time_ms: 200, max_iters: u64::MAX, max_nodes: 2_000_000, explore_coeff: 2.0 };
         let closed_p = SearchParams { time_ms: 200, max_iters: u64::MAX, max_nodes: poke_mcts::search::closed_loop_max_nodes(1), explore_coeff: 2.0 };
-        let o = search_world(&state, &teams, &Handcrafted, &OpenLoop, &open_p, 7);
+        let o = search_world(&state, &teams, &Handcrafted, &OpenLoop, &open_p, 7, 0, None);
         let c2 = search_world_closed(&state, &teams, &Handcrafted, &closed_p, 7);
         let ob = best(&o.s1).action; let cb = best(&c2.s1).action;
         if ob == c.correct_action { open_ok += 1; }
@@ -127,7 +127,7 @@ fn main() {
         let open_params = SearchParams { time_ms: 100, max_iters: u64::MAX, ..Default::default() };
         let closed_params = SearchParams { time_ms: 100, max_iters: u64::MAX, max_nodes: poke_mcts::search::closed_loop_max_nodes(1), ..Default::default() };
         let seed = splitmix64(i as u64 ^ 0x5EED);
-        let open = search_world(&state, &teams, &Handcrafted, &OpenLoop, &open_params, seed);
+        let open = search_world(&state, &teams, &Handcrafted, &OpenLoop, &open_params, seed, 0, None);
         let closed = search_world_closed(&state, &teams, &Handcrafted, &closed_params, seed);
         let (ob, cb) = (best(&open.s1), best(&closed.s1));
         let m = ob.action == cb.action;
