@@ -2098,6 +2098,113 @@ mod tests {
     }
 
     #[cfg(feature = "train_value")]
+    fn median_us(mut v: Vec<f64>) -> f64 {
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v[v.len() / 2]
+    }
+
+    #[cfg(feature = "train_value")]
+    fn timed_us(label: &str, reps: usize, iters: u32, mut body: impl FnMut()) -> f64 {
+        let mut takes = Vec::with_capacity(reps);
+        for _ in 0..reps {
+            let t0 = std::time::Instant::now();
+            for _ in 0..iters {
+                body();
+            }
+            takes.push(t0.elapsed().as_secs_f64() * 1e6 / iters as f64);
+        }
+        let raw: Vec<String> = takes.iter().map(|t| format!("{t:.3}")).collect();
+        let med = median_us(takes);
+        eprintln!("  {label}: median={med:.3} us raw=[{}]", raw.join(", "));
+        med
+    }
+
+    // The wall-fairness quantity is everything the serve path runs per world,
+    // so the extractors are inside the measured region, not beside it.
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn policy_v2_serve_path_per_forward() {
+        use crate::action_features::action_features;
+        use crate::policy_label::read_records_guarded;
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP policy v2 serve path: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let dir = fx["source"]["source_dir"].as_str().expect("source_dir");
+        let f = &fx["fixtures"].as_array().expect("fixtures array")[0];
+        let name = f["file"].as_str().unwrap();
+        let idx = f["index"].as_u64().unwrap() as usize;
+        let recs = read_records_guarded(&format!("{dir}/{name}")).expect("guarded read");
+        let state = recs[idx].state;
+
+        let reps = 5usize;
+        let iters = 100_000u32;
+        let mut ids = Vec::with_capacity(512);
+        let mut sink = 0f32;
+
+        let serve = |ids: &mut Vec<u32>| -> f32 {
+            ids.clear();
+            let lens = features::extract_segmented(&state, ids);
+            let dense = features::extract_dense(&state);
+            let block = action_features(&state, 0);
+            let side = &state.sides[0];
+            let move_ids = side.team[side.active_index as usize].moves;
+            let arg = if net.action_dense_dim == 0 { None } else { Some(&block) };
+            let logits = net.forward(ids, &lens, &dense, &move_ids, arg);
+            std::hint::black_box(logits)[0]
+        };
+        for _ in 0..1_000 {
+            sink += serve(&mut ids);
+        }
+
+        eprintln!("policy v2 serve path: reps={reps} iters={iters} weights={wpath}");
+        let mut whole = Vec::with_capacity(reps);
+        for _ in 0..reps {
+            let t0 = std::time::Instant::now();
+            for _ in 0..iters {
+                sink += serve(&mut ids);
+            }
+            let us = t0.elapsed().as_secs_f64() * 1e6 / iters as f64;
+            eprintln!("  serve rep: {us:.3} us");
+            whole.push(us);
+        }
+        let raw: Vec<String> = whole.iter().map(|t| format!("{t:.3}")).collect();
+        let whole_med = median_us(whole);
+
+        let seg = timed_us("extract_segmented", reps, iters, || {
+            ids.clear();
+            std::hint::black_box(features::extract_segmented(&state, &mut ids));
+        });
+        let dn = timed_us("extract_dense", reps, iters, || {
+            std::hint::black_box(features::extract_dense(&state));
+        });
+        let af = timed_us("action_features", reps, iters, || {
+            std::hint::black_box(action_features(&state, 0));
+        });
+
+        ids.clear();
+        let lens = features::extract_segmented(&state, &mut ids);
+        let dense = features::extract_dense(&state);
+        let block = action_features(&state, 0);
+        let side = &state.sides[0];
+        let move_ids = side.team[side.active_index as usize].moves;
+        let arg = if net.action_dense_dim == 0 { None } else { Some(&block) };
+        let fwd = timed_us("net_forward", reps, iters, || {
+            std::hint::black_box(net.forward(&ids, &lens, &dense, &move_ids, arg));
+        });
+
+        eprintln!(
+            "policy v2 serve path: median={whole_med:.3} us raw=[{}] \
+             extract_segmented={seg:.3} extract_dense={dn:.3} action_features={af:.3} \
+             net_forward={fwd:.3} parts_sum={:.3} sink={sink} weights={wpath} fixtures={fpath}",
+            raw.join(", "),
+            seg + dn + af + fwd
+        );
+    }
+
+    #[cfg(feature = "train_value")]
     #[test]
     #[ignore]
     fn dump_policy_fixture_inputs() {
