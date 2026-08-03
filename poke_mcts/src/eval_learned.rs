@@ -1,3 +1,4 @@
+use crate::action_features::ACTION_DENSE_DIM;
 use crate::eval::Evaluator;
 use crate::features::{self, DENSE_DIM, FEATURE_SPEC_VERSION, NUM_SEGMENTS};
 use pkmn_engine::data::{GEN_MOVES, TOTAL_SPECIES};
@@ -491,6 +492,188 @@ impl LearnedPolicy {
             }
         }
         (logits, value)
+    }
+}
+
+#[allow(dead_code)]
+pub struct LearnedPolicyV2 {
+    acc_width: usize,
+    web_rank: usize,
+    ctx_dim: usize,
+    move_emb_dim: usize,
+    pair_rows: usize,
+    type_rows: usize,
+    table_rank: usize,
+    attn_dk: usize,
+    action_dense_dim: usize,
+    emb: Vec<f32>,
+    web_a: Vec<f32>,
+    web_b: Vec<f32>,
+    pair_tab: Vec<f32>,
+    type_tab: Vec<f32>,
+    w_tab: Vec<f32>,
+    attn_q: Vec<f32>,
+    attn_k: Vec<f32>,
+    attn_v: Vec<f32>,
+    attn_out: Vec<f32>,
+    ctx: Vec<Fc>,
+    sw: Vec<Fc>,
+    move_emb: Vec<f32>,
+    mv: Vec<Fc>,
+}
+
+impl LearnedPolicyV2 {
+    pub fn load(path: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let mut c = Cursor { buf: bytes, pos: 0 };
+        if c.take(4)? != b"LVP2" {
+            return Err("bad magic (want LVP2)".into());
+        }
+        let spec = c.u32()?;
+        if spec != FEATURE_SPEC_VERSION {
+            return Err(format!(
+                "FEATURE_SPEC_VERSION mismatch: weights {spec}, extractor {FEATURE_SPEC_VERSION}"
+            ));
+        }
+        let vocab = c.u32()? as usize;
+        if vocab != features::vocab_size() as usize {
+            return Err(format!("vocab mismatch: weights {vocab}, extractor {}", features::vocab_size()));
+        }
+        let acc_width = c.u32()? as usize;
+        let segments = c.u32()? as usize;
+        if segments != NUM_SEGMENTS {
+            return Err(format!("segment count mismatch: weights {segments}, extractor {NUM_SEGMENTS}"));
+        }
+        let web_rank = c.u32()? as usize;
+        let tables = c.u32()?;
+        let pair_rows = c.u32()? as usize;
+        let type_rows = c.u32()? as usize;
+        let table_rank = c.u32()? as usize;
+        if tables != 0 && (pair_rows == 0 || type_rows == 0 || table_rank == 0) {
+            return Err(format!(
+                "table dims incomplete with tables on: pair {pair_rows}, type {type_rows}, rank {table_rank}"
+            ));
+        }
+        if tables == 0 && (pair_rows != 0 || type_rows != 0 || table_rank != 0) {
+            return Err(format!(
+                "table dims present with tables off: pair {pair_rows}, type {type_rows}, rank {table_rank}"
+            ));
+        }
+        let attn = c.u32()?;
+        let attn_dk = c.u32()? as usize;
+        if attn != 0 && attn_dk == 0 {
+            return Err("attn on with attn_dk 0".into());
+        }
+        if attn == 0 && attn_dk != 0 {
+            return Err(format!("attn_dk present with attn off: {attn_dk}"));
+        }
+        let action_dense = c.u32()?;
+        let action_dense_dim = c.u32()? as usize;
+        if action_dense != 0 && action_dense_dim != ACTION_DENSE_DIM {
+            return Err(format!(
+                "action_dense_dim mismatch: weights {action_dense_dim}, engine {ACTION_DENSE_DIM}"
+            ));
+        }
+        if action_dense == 0 && action_dense_dim != 0 {
+            return Err(format!(
+                "action_dense_dim present with action_dense off: {action_dense_dim}"
+            ));
+        }
+        let ctx_dim = c.u32()? as usize;
+        let n_ctx = c.u32()? as usize;
+        let ctx_dims = read_dims(&mut c, n_ctx)?;
+        let want_ctx = 2 * acc_width + 2 * web_rank + DENSE_DIM;
+        if ctx_dims.first().map(|d| d.0) != Some(want_ctx) {
+            return Err(format!("ctx input dim: want {want_ctx}, got {:?}", ctx_dims.first()));
+        }
+        check_chain(&ctx_dims, "ctx")?;
+        if ctx_dims.last().map(|d| d.1) != Some(ctx_dim) {
+            return Err(format!("ctx output dim: want ctx_dim {ctx_dim}, got {:?}", ctx_dims.last()));
+        }
+        let sw_n = c.u32()? as usize;
+        let sw_dims = read_dims(&mut c, sw_n)?;
+        let want_sw = 2 * acc_width + 3 * web_rank + ctx_dim + action_dense_dim;
+        if sw_dims.first().map(|d| d.0) != Some(want_sw) {
+            return Err(format!("switch head input dim: want {want_sw}, got {:?}", sw_dims.first()));
+        }
+        if sw_dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("switch head output dim: want 1, got {:?}", sw_dims.last()));
+        }
+        check_chain(&sw_dims, "switch head")?;
+        let move_vocab = c.u32()? as usize;
+        if move_vocab != GEN_MOVES.len() {
+            return Err(format!("move vocab mismatch: weights {move_vocab}, engine {}", GEN_MOVES.len()));
+        }
+        let move_emb_dim = c.u32()? as usize;
+        let mv_n = c.u32()? as usize;
+        let mv_dims = read_dims(&mut c, mv_n)?;
+        let want_mv = acc_width + 2 * web_rank + move_emb_dim + ctx_dim + action_dense_dim;
+        if mv_dims.first().map(|d| d.0) != Some(want_mv) {
+            return Err(format!("move head input dim: want {want_mv}, got {:?}", mv_dims.first()));
+        }
+        // plain and tera are two evaluations of one output here, not LVP1's one evaluation with two
+        if mv_dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("move head output dim: want 1, got {:?}", mv_dims.last()));
+        }
+        check_chain(&mv_dims, "move head")?;
+        let emb = c.f32_vec(vocab * acc_width)?;
+        let web_a = c.f32_vec(web_rank * acc_width)?;
+        let web_b = c.f32_vec(web_rank * acc_width)?;
+        let (pair_tab, type_tab, w_tab) = if tables != 0 {
+            (
+                c.f32_vec(pair_rows * table_rank)?,
+                c.f32_vec(type_rows * table_rank)?,
+                c.f32_vec(web_rank * table_rank)?,
+            )
+        } else {
+            (Vec::new(), Vec::new(), Vec::new())
+        };
+        let (attn_q, attn_k, attn_v, attn_out) = if attn_dk != 0 {
+            (
+                c.f32_vec(attn_dk * acc_width)?,
+                c.f32_vec(attn_dk * acc_width)?,
+                c.f32_vec(attn_dk * acc_width)?,
+                c.f32_vec(acc_width * attn_dk)?,
+            )
+        } else {
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+        };
+        let ctx = read_layers(&mut c, &ctx_dims)?;
+        let sw = read_layers(&mut c, &sw_dims)?;
+        let move_emb = c.f32_vec(move_vocab * move_emb_dim)?;
+        let mv = read_layers(&mut c, &mv_dims)?;
+        if c.pos != bytes.len() {
+            return Err(format!("{} trailing bytes after tensors", bytes.len() - c.pos));
+        }
+        Ok(Self {
+            acc_width,
+            web_rank,
+            ctx_dim,
+            move_emb_dim,
+            pair_rows,
+            type_rows,
+            table_rank,
+            attn_dk,
+            action_dense_dim,
+            emb,
+            web_a,
+            web_b,
+            pair_tab,
+            type_tab,
+            w_tab,
+            attn_q,
+            attn_k,
+            attn_v,
+            attn_out,
+            ctx,
+            sw,
+            move_emb,
+            mv,
+        })
     }
 }
 
@@ -1022,6 +1205,387 @@ mod tests {
         let mut f = PolicyFile::small();
         f.trailing = 4;
         assert!(f.err().contains("trailing bytes"), "{}", f.err());
+    }
+
+    struct PolicyFileV2 {
+        magic: [u8; 4],
+        spec: u32,
+        vocab: u32,
+        acc: u32,
+        segments: u32,
+        web_rank: u32,
+        tables: u32,
+        pair_rows: u32,
+        type_rows: u32,
+        table_rank: u32,
+        attn: u32,
+        attn_dk: u32,
+        action_dense: u32,
+        action_dense_dim: u32,
+        ctx_dim: u32,
+        ctx: Vec<(u32, u32)>,
+        sw: Vec<(u32, u32)>,
+        move_vocab: u32,
+        move_emb_dim: u32,
+        mv: Vec<(u32, u32)>,
+        truncate: usize,
+        trailing: usize,
+    }
+
+    impl PolicyFileV2 {
+        fn small() -> Self {
+            let acc = 1u32;
+            let r = 1u32;
+            let ctx_dim = 2u32;
+            let ad = ACTION_DENSE_DIM as u32;
+            let med = 1u32;
+            PolicyFileV2 {
+                magic: *b"LVP2",
+                spec: FEATURE_SPEC_VERSION,
+                vocab: features::vocab_size(),
+                acc,
+                segments: NUM_SEGMENTS as u32,
+                web_rank: r,
+                tables: 0,
+                pair_rows: 0,
+                type_rows: 0,
+                table_rank: 0,
+                attn: 0,
+                attn_dk: 0,
+                action_dense: 1,
+                action_dense_dim: ad,
+                ctx_dim,
+                ctx: vec![(2 * acc + 2 * r + DENSE_DIM as u32, ctx_dim), (ctx_dim, ctx_dim)],
+                sw: vec![(2 * acc + 3 * r + ctx_dim + ad, 2), (2, 1)],
+                move_vocab: GEN_MOVES.len() as u32,
+                move_emb_dim: med,
+                mv: vec![(acc + 2 * r + med + ctx_dim + ad, 2), (2, 1)],
+                truncate: 0,
+                trailing: 0,
+            }
+        }
+
+        fn bytes(&self) -> Vec<u8> {
+            let mut v = Vec::new();
+            v.extend_from_slice(&self.magic);
+            for u in [
+                self.spec,
+                self.vocab,
+                self.acc,
+                self.segments,
+                self.web_rank,
+                self.tables,
+                self.pair_rows,
+                self.type_rows,
+                self.table_rank,
+                self.attn,
+                self.attn_dk,
+                self.action_dense,
+                self.action_dense_dim,
+                self.ctx_dim,
+                self.ctx.len() as u32,
+            ] {
+                v.extend_from_slice(&u.to_le_bytes());
+            }
+            for &(i, o) in &self.ctx {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&(self.sw.len() as u32).to_le_bytes());
+            for &(i, o) in &self.sw {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&self.move_vocab.to_le_bytes());
+            v.extend_from_slice(&self.move_emb_dim.to_le_bytes());
+            v.extend_from_slice(&(self.mv.len() as u32).to_le_bytes());
+            for &(i, o) in &self.mv {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            let mut n_f32 = (self.vocab * self.acc + 2 * self.web_rank * self.acc) as usize;
+            if self.tables != 0 {
+                n_f32 += ((self.pair_rows + self.type_rows + self.web_rank) * self.table_rank) as usize;
+            }
+            if self.attn != 0 {
+                n_f32 += 4 * (self.attn_dk * self.acc) as usize;
+            }
+            n_f32 += self.move_vocab as usize * self.move_emb_dim as usize;
+            for dims in [&self.ctx, &self.sw, &self.mv] {
+                for &(i, o) in dims.iter() {
+                    n_f32 += (i * o + o) as usize;
+                }
+            }
+            for k in 0..n_f32 {
+                let val = ((k % 13) as f32 - 6.0) * 0.01;
+                v.extend_from_slice(&val.to_le_bytes());
+            }
+            if self.truncate > 0 {
+                v.truncate(v.len() - self.truncate);
+            }
+            for _ in 0..self.trailing {
+                v.push(0);
+            }
+            v
+        }
+
+        fn err(&self) -> String {
+            match LearnedPolicyV2::from_bytes(&self.bytes()) {
+                Ok(_) => panic!("malformed v2 policy weights must be refused"),
+                Err(e) => e,
+            }
+        }
+    }
+
+    #[test]
+    fn policy_v2_valid_synthetic_loads() {
+        let f = PolicyFileV2::small();
+        let net = LearnedPolicyV2::from_bytes(&f.bytes()).expect("synthetic LVP2 must load");
+        assert_eq!(net.acc_width, f.acc as usize);
+        assert_eq!(net.web_rank, f.web_rank as usize);
+        assert_eq!(net.ctx_dim, f.ctx_dim as usize);
+        assert_eq!(net.action_dense_dim, ACTION_DENSE_DIM);
+        assert_eq!(net.ctx.len(), f.ctx.len());
+        assert_eq!(net.sw.len(), f.sw.len());
+        assert_eq!(net.mv.len(), f.mv.len());
+    }
+
+    #[test]
+    fn policy_v2_bad_magic_refused() {
+        let mut f = PolicyFileV2::small();
+        f.magic = *b"LVP1";
+        assert_eq!(f.err(), "bad magic (want LVP2)");
+    }
+
+    #[test]
+    fn policy_v2_spec_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.spec = 3;
+        assert!(f.err().contains("FEATURE_SPEC_VERSION mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_vocab_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.vocab += 1;
+        assert!(f.err().contains("vocab mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_segment_count_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.segments = NUM_SEGMENTS as u32 - 1;
+        assert!(f.err().contains("segment count mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_tables_without_pair_rows_refused() {
+        let mut f = PolicyFileV2::small();
+        f.tables = 1;
+        f.pair_rows = 0;
+        f.type_rows = 3;
+        f.table_rank = 2;
+        assert!(f.err().contains("table dims incomplete with tables on"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_tables_without_type_rows_refused() {
+        let mut f = PolicyFileV2::small();
+        f.tables = 1;
+        f.pair_rows = 4;
+        f.type_rows = 0;
+        f.table_rank = 2;
+        assert!(f.err().contains("table dims incomplete with tables on"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_tables_without_table_rank_refused() {
+        let mut f = PolicyFileV2::small();
+        f.tables = 1;
+        f.pair_rows = 4;
+        f.type_rows = 3;
+        f.table_rank = 0;
+        assert!(f.err().contains("table dims incomplete with tables on"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_table_dims_without_tables_refused() {
+        let mut f = PolicyFileV2::small();
+        f.pair_rows = 4;
+        assert!(f.err().contains("table dims present with tables off"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_attn_without_dk_refused() {
+        let mut f = PolicyFileV2::small();
+        f.attn = 1;
+        assert!(f.err().contains("attn on with attn_dk 0"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_attn_dk_without_attn_refused() {
+        let mut f = PolicyFileV2::small();
+        f.attn_dk = 4;
+        assert!(f.err().contains("attn_dk present with attn off"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_action_dense_dim_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.action_dense_dim += 1;
+        assert!(f.err().contains("action_dense_dim mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_action_dense_dim_without_flag_refused() {
+        let mut f = PolicyFileV2::small();
+        f.action_dense = 0;
+        assert!(
+            f.err().contains("action_dense_dim present with action_dense off"),
+            "{}",
+            f.err()
+        );
+    }
+
+    #[test]
+    fn policy_v2_ctx_input_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.ctx[0].0 += 1;
+        assert!(f.err().contains("ctx input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_ctx_chain_break_refused() {
+        let mut f = PolicyFileV2::small();
+        f.ctx[0].1 += 1;
+        assert!(f.err().contains("ctx dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_ctx_output_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.ctx.last_mut().unwrap().1 += 1;
+        assert!(f.err().contains("ctx output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_switch_head_input_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.sw[0].0 += 1;
+        assert!(f.err().contains("switch head input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_switch_head_output_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.sw.last_mut().unwrap().1 = 2;
+        assert!(f.err().contains("switch head output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_switch_head_chain_break_refused() {
+        let mut f = PolicyFileV2::small();
+        f.sw[0].1 += 1;
+        assert!(f.err().contains("switch head dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_vocab_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.move_vocab -= 1;
+        assert!(f.err().contains("move vocab mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_head_input_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.mv[0].0 += 1;
+        assert!(f.err().contains("move head input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_head_output_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.mv.last_mut().unwrap().1 = 2;
+        assert!(f.err().contains("move head output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_head_chain_break_refused() {
+        let mut f = PolicyFileV2::small();
+        f.mv[0].1 += 1;
+        assert!(f.err().contains("move head dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_truncated_refused() {
+        let mut f = PolicyFileV2::small();
+        f.truncate = 4;
+        assert!(f.err().contains("truncated weights file"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_trailing_bytes_refused() {
+        let mut f = PolicyFileV2::small();
+        f.trailing = 4;
+        assert!(f.err().contains("trailing bytes"), "{}", f.err());
+    }
+
+    // run id, web_rank, ctx_dim, head hidden, action_dense_dim, pair_rows,
+    // type_rows, table_rank, attn_dk
+    const V2_ARTIFACTS: [(&str, usize, usize, &[usize], usize, usize, usize, usize, usize); 6] = [
+        ("6f1e0facfcc4", 128, 256, &[256, 128], 8, 0, 0, 0, 32),
+        ("0beb036c5111", 128, 256, &[256, 128], 0, 0, 0, 0, 0),
+        ("f397e133cee9", 32, 64, &[64], 8, 0, 0, 0, 0),
+        ("bd3341316553", 128, 256, &[256, 128], 8, 0, 0, 0, 0),
+        ("0b7a57e97325", 128, 256, &[256, 128], 8, 2114116, 324, 16, 0),
+        ("0ccd9c8c3288", 128, 256, &[256, 128], 8, 0, 0, 0, 32),
+    ];
+
+    fn hidden(layers: &[Fc]) -> Vec<usize> {
+        layers[..layers.len() - 1].iter().map(|l| l.out).collect()
+    }
+
+    #[test]
+    fn policy_v2_real_artifacts_load() {
+        for (id, web_rank, ctx_dim, head, ad, pair_rows, type_rows, table_rank, attn_dk) in
+            V2_ARTIFACTS
+        {
+            let path = format!(
+                "{}/../learned-eval/weights/lvp2-{id}.bin",
+                env!("CARGO_MANIFEST_DIR")
+            );
+            let Ok(bin) = std::fs::read(&path) else {
+                eprintln!("SKIP lvp2 load {id}: weights artifact not present");
+                continue;
+            };
+            let net = LearnedPolicyV2::from_bytes(&bin)
+                .unwrap_or_else(|e| panic!("lvp2-{id}.bin must load: {e}"));
+            assert_eq!(net.web_rank, web_rank, "{id}: web_rank");
+            assert_eq!(net.ctx_dim, ctx_dim, "{id}: ctx_dim");
+            assert_eq!(hidden(&net.sw), head, "{id}: switch head hidden");
+            assert_eq!(hidden(&net.mv), head, "{id}: move head hidden");
+            assert_eq!(net.action_dense_dim, ad, "{id}: action_dense_dim");
+            assert_eq!(net.pair_rows, pair_rows, "{id}: pair_rows");
+            assert_eq!(net.type_rows, type_rows, "{id}: type_rows");
+            assert_eq!(net.table_rank, table_rank, "{id}: table_rank");
+            assert_eq!(net.attn_dk, attn_dk, "{id}: attn_dk");
+            eprintln!(
+                "lvp2 {id}: acc {} web_rank {} ctx_dim {} move_emb {} ad {} tables {}/{}/{} attn_dk {} ctx_in {} sw_in {} mv_in {}",
+                net.acc_width,
+                net.web_rank,
+                net.ctx_dim,
+                net.move_emb_dim,
+                net.action_dense_dim,
+                net.pair_rows,
+                net.type_rows,
+                net.table_rank,
+                net.attn_dk,
+                net.ctx[0].inp,
+                net.sw[0].inp,
+                net.mv[0].inp
+            );
+        }
     }
 
     fn fixture_inputs(f: &serde_json::Value) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4]) {
