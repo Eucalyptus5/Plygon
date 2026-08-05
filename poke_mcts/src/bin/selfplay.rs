@@ -177,7 +177,7 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
             explore_coeff: 2.0,
         };
         let t0 = std::time::Instant::now();
-        let _ = poke_mcts::driver::choose_action_eval(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg, kind);
+        let _ = poke_mcts::driver::choose_action_eval(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg, kind, None);
         wall.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
     let (wmin, wmed, wmax) = stats(wall);

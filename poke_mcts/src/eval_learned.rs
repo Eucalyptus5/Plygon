@@ -769,6 +769,10 @@ impl LearnedPolicyV2 {
         })
     }
 
+    pub fn action_dense_dim(&self) -> usize {
+        self.action_dense_dim
+    }
+
     fn attend(&self, tokens: &[f32]) -> Vec<f32> {
         let aw = self.acc_width;
         let dk = self.attn_dk;

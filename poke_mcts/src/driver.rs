@@ -4,7 +4,9 @@ use crate::chance_analytic::AnalyticRoot;
 use crate::chance_closed::search_world_closed;
 use crate::determinize::{Determinizer, Observation, World};
 use crate::eval::{Evaluator, Handcrafted};
-use crate::eval_learned::LearnedEval;
+use crate::action_features::{action_features, ACTION_DENSE_DIM};
+use crate::eval_learned::{masked_softmax, ForwardInput, LearnedEval, LearnedPolicyV2, NUM_ACTIONS};
+use crate::features::{self, DENSE_DIM, NUM_SEGMENTS};
 use crate::rng::{splitmix64, Lcg};
 use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, SearchParams, SearchResult};
 use pkmn_engine::state::*;
@@ -150,6 +152,62 @@ pub fn adaptive_budget(
     }
 }
 
+/// Everything one world's root-prior forward consumes. The single place the
+/// per-action block handed to the forward is computed.
+pub struct PriorInputs {
+    pub ids: Vec<u32>,
+    pub seg_lens: [u16; NUM_SEGMENTS],
+    pub dense: [f32; DENSE_DIM],
+    pub move_ids: [u16; 4],
+    pub action_dense: [[f32; ACTION_DENSE_DIM]; NUM_ACTIONS],
+    pub legal: [bool; NUM_ACTIONS],
+}
+
+/// The token stream is decider-oriented (mirrored at seat 1) because the extractor's
+/// emission is side-keyed; the per-action block is NOT, because `mirror` leaves phase
+/// and pending_actions side-specific, so it reads the unmirrored state at our real side.
+pub fn prior_inputs(state: &BattleState, our_side: usize) -> PriorInputs {
+    let oriented = if our_side == 1 { features::mirror(state) } else { *state };
+    let mut ids = Vec::with_capacity(192);
+    let seg_lens = features::extract_segmented(&oriented, &mut ids);
+    let dense = features::extract_dense(&oriented);
+    let side = &oriented.sides[0];
+    let move_ids = side.team[side.active_index as usize].moves;
+    let action_dense = action_features(state, our_side);
+    let mut legal = [false; NUM_ACTIONS];
+    for &a in legal_actions(state, our_side).as_slice() {
+        if (a as usize) < NUM_ACTIONS {
+            legal[a as usize] = true;
+        }
+    }
+    PriorInputs { ids, seg_lens, dense, move_ids, action_dense, legal }
+}
+
+/// One batched forward per turn over every world, masked to each world's legal set.
+pub fn root_priors(
+    net: &LearnedPolicyV2,
+    worlds: &[World],
+    our_side: usize,
+) -> Vec<[f32; NUM_ACTIONS]> {
+    let inputs: Vec<PriorInputs> =
+        worlds.iter().map(|w| prior_inputs(&w.state, our_side)).collect();
+    let items: Vec<ForwardInput> = inputs
+        .iter()
+        .map(|p| ForwardInput {
+            ids: &p.ids,
+            seg_lens: &p.seg_lens,
+            dense: &p.dense,
+            move_ids: &p.move_ids,
+            action_dense: if net.action_dense_dim() == 0 { None } else { Some(&p.action_dense) },
+        })
+        .collect();
+    net.forward_batch(&items)
+        .iter()
+        .zip(inputs.iter())
+        .map(|(logits, p)| masked_softmax(logits, &p.legal))
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn search_eval(
     w: &World,
@@ -163,18 +221,20 @@ fn search_eval(
     match cfg.chance_mode {
         ChanceMode::OpenLoop =>
             search_world(&w.state, &w.teams, eval, &OpenLoop, params, seed, decider_side, prior),
-        ChanceMode::ClosedLoop =>
-            search_world_closed(&w.state, &w.teams, eval, params, seed),
+        ChanceMode::ClosedLoop => {
+            assert!(prior.is_none(), "the closed-loop search takes no root prior");
+            search_world_closed(&w.state, &w.teams, eval, params, seed)
+        }
         ChanceMode::AnalyticRoot =>
             search_world(&w.state, &w.teams, eval, &AnalyticRoot, params, seed, decider_side, prior),
     }
 }
 
 pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig) -> u8 {
-    choose_action_eval(obs, belief, det, cfg, EvalKind::Handcrafted)
+    choose_action_eval(obs, belief, det, cfg, EvalKind::Handcrafted, None)
 }
 
-pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>) -> u8 {
+pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> u8 {
     let legal = legal_actions(obs.state, obs.our_side);
     if legal.count == 0 { return ACTION_STRUGGLE; }
     if legal.count == 1 { return legal.actions[0]; }
@@ -191,11 +251,14 @@ pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determi
     if cfg.chance_mode == ChanceMode::ClosedLoop {
         params.max_nodes = closed_loop_max_nodes(cfg.num_worlds);
     }
+    // one forward per turn over every world, ahead of the parallel searches
+    let priors = prior.map(|net| root_priors(net, &worlds, obs.our_side));
     let searched: Vec<(SearchResult, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
+        let p = priors.as_ref().map(|v| &v[k][..]);
         let r = match eval {
-            EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed, obs.our_side, None),
-            EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed, obs.our_side, None),
+            EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed, obs.our_side, p),
+            EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed, obs.our_side, p),
         };
         (r, w.weight)
     }).collect();
@@ -305,6 +368,115 @@ mod tests {
     use super::*;
     use crate::determinize::RandomBattle;
     use crate::testutil::*;
+
+    fn asymmetric_root() -> (BattleState, TeamData) {
+        let (mut s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        );
+        let ai = s.sides[1].active_index as usize;
+        s.sides[1].team[ai].current_hp = 0;
+        s.phase = PHASE_SWITCH_P2;
+        (s, t)
+    }
+
+    #[test]
+    fn prior_inputs_block_is_the_unmirrored_side_block() {
+        use crate::action_features::action_features;
+        let (s, _t) = asymmetric_root();
+        let got = prior_inputs(&s, 1);
+        assert_eq!(
+            got.action_dense,
+            action_features(&s, 1),
+            "the block must come from the unmirrored state at the decider's real side"
+        );
+        assert_ne!(
+            got.action_dense,
+            action_features(&crate::features::mirror(&s), 0),
+            "fixture must be side-asymmetric, so the mirrored call is the wrong answer"
+        );
+    }
+
+    #[test]
+    fn prior_inputs_tokens_come_from_the_decider_oriented_state() {
+        let (s, _t) = asymmetric_root();
+        let m = crate::features::mirror(&s);
+        let mut want_ids = Vec::new();
+        let want_lens = crate::features::extract_segmented(&m, &mut want_ids);
+        let got = prior_inputs(&s, 1);
+        assert_eq!(got.ids, want_ids, "seat 1 tokens must come from the mirrored state");
+        assert_eq!(got.seg_lens, want_lens);
+        assert_eq!(got.dense, crate::features::extract_dense(&m));
+        let side = &m.sides[0];
+        assert_eq!(
+            got.move_ids,
+            side.team[side.active_index as usize].moves,
+            "move ids follow the oriented token-side-0 active mon"
+        );
+        let mut want_legal = [false; crate::eval_learned::NUM_ACTIONS];
+        for &a in legal_actions(&s, 1).as_slice() {
+            if (a as usize) < want_legal.len() {
+                want_legal[a as usize] = true;
+            }
+        }
+        assert_eq!(got.legal, want_legal, "mask reads the unmirrored state at our side");
+    }
+
+    #[test]
+    fn prior_inputs_at_seat_zero_reads_the_state_as_given() {
+        let (s, _t) = asymmetric_root();
+        let got = prior_inputs(&s, 0);
+        let mut want_ids = Vec::new();
+        let want_lens = crate::features::extract_segmented(&s, &mut want_ids);
+        assert_eq!(got.ids, want_ids);
+        assert_eq!(got.seg_lens, want_lens);
+        assert_eq!(got.action_dense, crate::action_features::action_features(&s, 0));
+    }
+
+    fn one_world(s: BattleState, t: TeamData) -> World {
+        World { state: s, teams: t, weight: 1.0 }
+    }
+
+    fn prior_cfg(chance_mode: ChanceMode) -> PimcConfig {
+        PimcConfig {
+            num_worlds: 1,
+            time_ms_per_world: 1000,
+            max_iters_per_world: 200,
+            seed: 3,
+            chance_mode,
+            pick_mode: PickMode::Argmax,
+            filter_threshold: 0.75,
+            raw_root: false,
+            explore_coeff: 2.0,
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "closed-loop search takes no root prior")]
+    fn closed_loop_refuses_a_prior() {
+        let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 14, 0, 0]));
+        let cfg = prior_cfg(ChanceMode::ClosedLoop);
+        let params = SearchParams { time_ms: 1000, max_iters: 200, ..Default::default() };
+        let p = [0.5f32; crate::eval_learned::NUM_ACTIONS];
+        search_eval(&one_world(s, t), &Handcrafted, &cfg, &params, 3, 0, Some(&p));
+    }
+
+    #[test]
+    fn prior_carrying_modes_search_without_panic() {
+        let (s, t) = duel(mon(25, 9, [85, 150, 0, 0]), mon(445, 24, [89, 14, 0, 0]));
+        let params = SearchParams { time_ms: 1000, max_iters: 200, ..Default::default() };
+        let p = [0.5f32; crate::eval_learned::NUM_ACTIONS];
+        for mode in [ChanceMode::OpenLoop, ChanceMode::AnalyticRoot] {
+            let cfg = prior_cfg(mode);
+            let w = one_world(s, t.clone());
+            let r = search_eval(&w, &Handcrafted, &cfg, &params, 3, 0, Some(&p));
+            assert_eq!(r.iterations, 200, "{mode:?} must run with a prior");
+        }
+        let cfg = prior_cfg(ChanceMode::ClosedLoop);
+        let w = one_world(s, t);
+        let r = search_eval(&w, &Handcrafted, &cfg, &params, 3, 0, None);
+        assert!(r.iterations > 0, "closed loop still runs without a prior");
+    }
 
     #[test]
     fn adaptive_budget_rule() {
@@ -416,8 +588,33 @@ mod tests {
         let obs = Observation { state: &s, our_side: 0, teams: &t };
         let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
-        let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted);
+        let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
         assert_eq!(a, b, "4-arg form must delegate to the eval-carrying form unchanged");
+    }
+
+    #[test]
+    fn choose_action_with_a_prior_is_legal_and_reproducible() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin"
+        );
+        let Ok(bin) = std::fs::read(path) else {
+            eprintln!("SKIP prior end-to-end: {path} absent");
+            return;
+        };
+        let net = LearnedPolicyV2::from_bytes(&bin).expect("weights must load");
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0]), mon(143, 47, [34, 0, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        let mut belief = Belief::default();
+        belief.note_species(445, s.sides[1].team[0].level);
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = PimcConfig { num_worlds: 2, time_ms_per_world: 1000, max_iters_per_world: 200, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
+        let a = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, Some(&net));
+        assert!(legal_actions(&s, 0).as_slice().contains(&a));
+        let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, Some(&net));
+        assert_eq!(a, b, "same seed -> same choice with a prior");
     }
 
     #[test]
