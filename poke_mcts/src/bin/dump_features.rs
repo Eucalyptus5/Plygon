@@ -1410,4 +1410,179 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
         std::fs::remove_dir_all(&out).ok();
     }
+
+    #[cfg(feature = "train_value")]
+    const SERVE_CORPUS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../full_cp07_vlabel/s0");
+
+    #[cfg(feature = "train_value")]
+    fn side_asymmetric(s: &pkmn_engine::state::BattleState) -> bool {
+        s.phase == pkmn_engine::state::PHASE_SWITCH_P1
+            || s.phase == pkmn_engine::state::PHASE_SWITCH_P2
+            || s.pending_actions[0] != s.pending_actions[1]
+    }
+
+    #[cfg(feature = "train_value")]
+    struct ServeFixtures {
+        staging: PathBuf,
+        out: PathBuf,
+        rows: Vec<(usize, pkmn_engine::state::BattleState)>,
+        total_rows: usize,
+        scanned: u64,
+        shards: usize,
+    }
+
+    // Re-walks in convert order so row 2k+1 is the record's decider-perspective row.
+    #[cfg(feature = "train_value")]
+    fn mint_seat_one_fixtures(tag: &str) -> Option<ServeFixtures> {
+        use poke_mcts::policy_label::read_records_guarded;
+        let src = Path::new(SERVE_CORPUS);
+        if !src.exists() {
+            return None;
+        }
+        let outcomes = read_outcomes(&src.join("outcomes.jsonl")).unwrap();
+        let staging = tmp_dir(tag);
+        let out = tmp_dir(&format!("{tag}_out"));
+        std::fs::remove_dir_all(&staging).ok();
+        std::fs::remove_dir_all(&out).ok();
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::copy(src.join("outcomes.jsonl"), staging.join("outcomes.jsonl")).unwrap();
+        let mut shards = 0usize;
+        let mut scanned = 0u64;
+        let mut seat1 = 0usize;
+        let mut asym = 0usize;
+        for (id, path) in shard_files(src).unwrap() {
+            if !outcomes.contains_key(&id) {
+                continue;
+            }
+            if shards >= 64 || (shards >= 4 && seat1 >= 16 && asym >= 1) {
+                break;
+            }
+            let recs = read_records_guarded(path.to_str().unwrap()).unwrap();
+            scanned += recs.len() as u64;
+            for rec in &recs {
+                if rec.side_of_decider == 1 {
+                    seat1 += 1;
+                    asym += side_asymmetric(&rec.state) as usize;
+                }
+            }
+            let name = path.file_name().unwrap().to_str().unwrap().to_string();
+            std::fs::copy(&path, staging.join(&name)).unwrap();
+            shards += 1;
+        }
+        convert(&staging, &out, true, None, Some(ActionDenseMode::Full)).unwrap();
+        let mut rows = Vec::new();
+        let mut row = 0usize;
+        for (id, path) in shard_files(&staging).unwrap() {
+            if !outcomes.contains_key(&id) {
+                continue;
+            }
+            for rec in read_records_guarded(path.to_str().unwrap()).unwrap() {
+                if rec.side_of_decider == 1 {
+                    rows.push((row + 1, rec.state));
+                }
+                row += 2;
+            }
+        }
+        Some(ServeFixtures { staging, out, rows, total_rows: row, scanned, shards })
+    }
+
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn serve_path_block_is_bit_identical_to_the_sidecar_at_seat_one() {
+        use poke_mcts::driver::prior_inputs;
+        let Some(fx) = mint_seat_one_fixtures("servead") else {
+            println!(
+                "serve-identity fixtures_compared=0 mismatches=0 floats_compared=0 \
+                 records_scanned=0 shards=0 tokens_ok=0 block_ok=0 asym_found=0 \
+                 asym_differed=0 both_empty=0 corpus=absent status=FAIL"
+            );
+            panic!("{SERVE_CORPUS} must be present: a skipped run of this gate is a failed one");
+        };
+        let stored = std::fs::read(fx.out.join("action_dense.bin")).unwrap();
+        assert_eq!(stored.len(), fx.total_rows * ACTION_ROW * 4, "sidecar length vs walked rows");
+
+        let mut mismatches = 0u64;
+        let mut floats = 0u64;
+        let mut tokens_ok = 0usize;
+        let mut block_ok = 0usize;
+        let mut asym_found = 0usize;
+        let mut asym_differed = 0usize;
+        let mut both_empty = 0usize;
+        let mut samples: Vec<String> = Vec::new();
+        for (row, s) in &fx.rows {
+            let got = prior_inputs(s, 1);
+            for a in 0..VISIT_ACTIONS {
+                for f in 0..ACTION_DENSE_DIM {
+                    let o = (row * ACTION_ROW + a * ACTION_DENSE_DIM + f) * 4;
+                    let disk = u32::from_le_bytes(stored[o..o + 4].try_into().unwrap());
+                    let want = got.action_dense[a][f].to_bits();
+                    if disk != want {
+                        mismatches += 1;
+                        if samples.len() < 5 {
+                            samples.push(format!(
+                                "row {row} action {a} field {f}: sidecar {disk:#010x} served {want:#010x}"
+                            ));
+                        }
+                    }
+                    floats += 1;
+                }
+            }
+            let m = features::mirror(s);
+            let mut want_ids = Vec::new();
+            let want_lens = features::extract_segmented(&m, &mut want_ids);
+            if got.ids == want_ids
+                && got.seg_lens == want_lens
+                && got.dense == features::extract_dense(&m)
+            {
+                tokens_ok += 1;
+            }
+            if got.action_dense == action_features(s, 1) {
+                block_ok += 1;
+            }
+            if side_asymmetric(s) {
+                asym_found += 1;
+                let mirrored = action_features(&features::mirror(s), 0);
+                if mirrored != action_features(s, 1) {
+                    asym_differed += 1;
+                } else if block_is_zero(&mirrored) {
+                    both_empty += 1;
+                }
+            }
+        }
+        for s in &samples {
+            println!("{s}");
+        }
+        println!(
+            "serve-identity fixtures_compared={} mismatches={} floats_compared={} \
+             records_scanned={} shards={} tokens_ok={} block_ok={} asym_found={} \
+             asym_differed={} both_empty={} status={}",
+            fx.rows.len(),
+            mismatches,
+            floats,
+            fx.scanned,
+            fx.shards,
+            tokens_ok,
+            block_ok,
+            asym_found,
+            asym_differed,
+            both_empty,
+            if mismatches == 0 && fx.rows.len() >= 16 { "PASS" } else { "FAIL" }
+        );
+        std::fs::remove_dir_all(&fx.staging).ok();
+        std::fs::remove_dir_all(&fx.out).ok();
+
+        assert!(fx.rows.len() >= 16, "need >= 16 seat-1 fixtures, got {}", fx.rows.len());
+        assert_eq!(mismatches, 0, "the served block must be bit-identical to the sidecar row");
+        assert_eq!(floats, fx.rows.len() as u64 * ACTION_ROW as u64);
+        assert_eq!(tokens_ok, fx.rows.len(), "seat-1 tokens must come from the mirrored state");
+        assert_eq!(block_ok, fx.rows.len(), "the block must come from the unmirrored state");
+        assert!(asym_found >= 1, "no side-asymmetric fixture: the control cannot fire");
+        assert!(asym_differed >= 1, "the mirrored read must differ on an asymmetric fixture");
+        assert_eq!(
+            asym_found - asym_differed,
+            both_empty,
+            "every non-differing asymmetric fixture must be the both-sides-empty corner"
+        );
+    }
 }
