@@ -1315,6 +1315,161 @@ impl LearnedValueV2 {
     pub fn fc1_input(&self) -> usize {
         self.fc[0].inp
     }
+
+    fn attend(&self, tokens: &[f32]) -> Vec<f32> {
+        let aw = self.acc_width;
+        let dk = self.attn_dk;
+        let mut present = [false; NUM_SEGMENTS];
+        for (s, flag) in present.iter_mut().enumerate() {
+            *flag = tokens[s * aw..(s + 1) * aw].iter().map(|v| v.abs()).sum::<f32>() > 0.0;
+        }
+        let mut q = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut key = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut val = vec![0.0f32; NUM_SEGMENTS * dk];
+        for s in 0..NUM_SEGMENTS {
+            let t = &tokens[s * aw..(s + 1) * aw];
+            for o in 0..dk {
+                let w = o * aw..(o + 1) * aw;
+                q[s * dk + o] = dot(&self.attn_q[w.clone()], t);
+                key[s * dk + o] = dot(&self.attn_k[w.clone()], t);
+                val[s * dk + o] = dot(&self.attn_v[w], t);
+            }
+        }
+        let scale = (dk as f32).sqrt();
+        let mut out = tokens.to_vec();
+        let mut w = [0.0f32; NUM_SEGMENTS];
+        let mut mix = vec![0.0f32; dk];
+        for i in 0..NUM_SEGMENTS {
+            if !present[i] {
+                continue;
+            }
+            let qi = &q[i * dk..(i + 1) * dk];
+            let mut mx = f32::NEG_INFINITY;
+            for j in 0..NUM_SEGMENTS {
+                if present[j] {
+                    w[j] = dot(qi, &key[j * dk..(j + 1) * dk]) / scale;
+                    if w[j] > mx {
+                        mx = w[j];
+                    }
+                }
+            }
+            let mut sum = 0.0f32;
+            for j in 0..NUM_SEGMENTS {
+                w[j] = if present[j] { (w[j] - mx).exp() } else { 0.0 };
+                sum += w[j];
+            }
+            for v in mix.iter_mut() {
+                *v = 0.0;
+            }
+            for j in 0..NUM_SEGMENTS {
+                if !present[j] {
+                    continue;
+                }
+                let wj = w[j] / sum;
+                for o in 0..dk {
+                    mix[o] += wj * val[j * dk + o];
+                }
+            }
+            for o in 0..aw {
+                out[i * aw + o] += dot(&self.attn_out[o * dk..(o + 1) * dk], &mix);
+            }
+        }
+        out
+    }
+
+    fn value_input(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> (Vec<f32>, i32, i32) {
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        let f1_vocab = 4 * TOTAL_SPECIES;
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let tok_off = seg * aw;
+            for &id in &ids[pos..pos + len as usize] {
+                let idu = id as usize;
+                let row = &self.emb[idu * aw..(idu + 1) * aw];
+                for k in 0..aw {
+                    tokens[tok_off + k] += row[k];
+                }
+                if seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0 {
+                    if seg < 6 {
+                        active0 = seg as i32;
+                    } else {
+                        active1 = (seg - 6) as i32;
+                    }
+                }
+            }
+            pos += len as usize;
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        if self.attn_dk != 0 {
+            tokens = self.attend(&tokens);
+        }
+
+        let mut acc = vec![0.0f32; 2 * aw];
+        for s in 0..6 {
+            for k in 0..aw {
+                acc[k] += tokens[s * aw + k];
+                acc[aw + k] += tokens[(6 + s) * aw + k];
+            }
+        }
+        for k in 0..aw {
+            acc[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
+            acc[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
+        }
+
+        let mut a = vec![0.0f32; 6 * r];
+        let mut b = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            let ti = &tokens[i * aw..(i + 1) * aw];
+            let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+            for o in 0..r {
+                a[i * r + o] = dot(&self.web_a[o * aw..(o + 1) * aw], ti);
+                b[i * r + o] = dot(&self.web_b[o * aw..(o + 1) * aw], tj);
+            }
+        }
+        let mut web_total = vec![0.0f32; r];
+        let mut active_cell = vec![0.0f32; r];
+        let mut cell = vec![0.0f32; r];
+        for i in 0..6 {
+            for j in 0..6 {
+                for o in 0..r {
+                    cell[o] = (a[i * r + o] * b[j * r + o]).max(0.0);
+                    web_total[o] += cell[o];
+                }
+                if active0 == i as i32 && active1 == j as i32 {
+                    active_cell.copy_from_slice(&cell);
+                }
+            }
+        }
+
+        // the value tail ReLUs the accumulators; the v2 policy trunk feeds them raw
+        let mut x = vec![0.0f32; value_v2_input_len(aw, r)];
+        for k in 0..2 * aw {
+            x[k] = acc[k].max(0.0);
+        }
+        x[2 * aw..2 * aw + r].copy_from_slice(&web_total);
+        x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&active_cell);
+        x[2 * aw + 2 * r..].copy_from_slice(dense);
+        (x, active0, active1)
+    }
+
+    pub fn natural_logit(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> f32 {
+        let (x, _, _) = self.value_input(ids, seg_lens, dense);
+        head_scalar(&self.fc, &x)
+    }
 }
 
 #[cfg(test)]
@@ -1336,6 +1491,16 @@ mod tests {
     );
     const SPEC3_WEIGHTS: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lv1-db937c18c028.bin");
+    const LVV2_WEIGHTS_PATH: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.bin");
+    const LVV2_FIXTURES_PATH: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.fixtures.json");
+    const LVV2_ATTN_WEIGHTS_PATH: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0-attn.bin");
+    const LVV2_ATTN_FIXTURES_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../learned-eval/weights/lvv2-phase0-attn.fixtures.json"
+    );
 
     // weights/ is a gitignored per-net artifact dir: absence skips, a
     // present-but-unloadable file fails
@@ -1379,6 +1544,27 @@ mod tests {
                 )
             },
         );
+        (loaded, wp, fp)
+    }
+
+    // sibling of artifacts_v2 for the value net; the magic doubles as the env
+    // prefix so the bare and attention arms share one resolver
+    fn artifacts_v2_value(
+        magic: &str,
+        w_default: &str,
+        f_default: &str,
+    ) -> (Option<(LearnedValueV2, serde_json::Value)>, String, String) {
+        let w_env = std::env::var(format!("{magic}_WEIGHTS")).ok();
+        let f_env = std::env::var(format!("{magic}_FIXTURES")).ok();
+        let wp = w_env.clone().unwrap_or_else(|| w_default.to_string());
+        let fp = f_env.clone().unwrap_or_else(|| f_default.to_string());
+        let loaded =
+            resolve_artifact_paths(magic, w_env, f_env, w_default, f_default).map(|(bin, fx)| {
+                (
+                    LearnedValueV2::from_bytes(&bin).expect("LVV2 weights must load"),
+                    serde_json::from_str(&fx).expect("LVV2 fixtures must parse"),
+                )
+            });
         (loaded, wp, fp)
     }
 
@@ -2298,6 +2484,84 @@ mod tests {
             nonzero as f64 / compared as f64
         );
         assert!(max_diff <= 1e-4, "v2 logit parity {max_diff:e} exceeds 1e-4");
+    }
+
+    fn value_v2_parity(label: &str, magic: &str, w_default: &str, f_default: &str) {
+        let (loaded, wpath, fpath) = artifacts_v2_value(magic, w_default, f_default);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP {label} parity: fixtures_compared=0 max_abs_diff=inf distinct=0 \
+                 active0_ok=0 active1_ok=0 web_total_nz=0 active_cell_nz=0 \
+                 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let aw = net.acc_width;
+        let r = net.web_rank;
+        let mut seen: Vec<Vec<u32>> = Vec::new();
+        let mut active0_ok = 0usize;
+        let mut active1_ok = 0usize;
+        let mut web_total_nz = 0usize;
+        let mut active_cell_nz = 0usize;
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        for f in fixtures {
+            let ids: Vec<u32> =
+                f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+            let mut seg = [0u16; NUM_SEGMENTS];
+            for (i, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+                seg[i] = v.as_u64().unwrap() as u16;
+            }
+            let mut dense = [0f32; DENSE_DIM];
+            for (i, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+                dense[i] = v.as_f64().unwrap() as f32;
+            }
+            let (x, active0, active1) = net.value_input(&ids, &seg, &dense);
+            if !seen.contains(&ids) {
+                seen.push(ids.clone());
+            }
+            active0_ok += usize::from(active0 >= 0);
+            active1_ok += usize::from(active1 >= 0);
+            web_total_nz += usize::from(x[2 * aw..2 * aw + r].iter().any(|v| *v != 0.0));
+            active_cell_nz += usize::from(x[2 * aw + r..2 * aw + 2 * r].iter().any(|v| *v != 0.0));
+            let got = net.natural_logit(&ids, &seg, &dense);
+            let d = (got as f64 - f["logit"].as_f64().unwrap()).abs();
+            if d > max_diff {
+                max_diff = d;
+            }
+            compared += 1;
+        }
+        let distinct = seen.len();
+        eprintln!(
+            "{label} parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             distinct={distinct} active0_ok={active0_ok} active1_ok={active1_ok} \
+             web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} \
+             weights={wpath} fixtures={fpath}"
+        );
+        assert_eq!(distinct, 64, "{label}: fixtures must be 64 distinct positions");
+        assert_eq!(active0_ok, 64, "{label}: every fixture needs an active seat 0");
+        assert_eq!(active1_ok, 64, "{label}: every fixture needs an active seat 1");
+        assert_eq!(web_total_nz, 64, "{label}: every fixture needs a nonzero web total");
+        assert!(active_cell_nz >= 32, "{label}: active cell nonzero on {active_cell_nz} < 32");
+        assert_eq!(compared, 64, "{label}: 64 fixtures compared");
+        assert!(max_diff <= 1e-4, "{label} parity {max_diff:e} > 1e-4");
+    }
+
+    #[test]
+    fn value_v2_parity_64_fixtures() {
+        value_v2_parity("value v2", "LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+    }
+
+    #[test]
+    fn value_v2_parity_64_fixtures_attn() {
+        value_v2_parity(
+            "value v2 attn",
+            "LVV2_ATTN",
+            LVV2_ATTN_WEIGHTS_PATH,
+            LVV2_ATTN_FIXTURES_PATH,
+        );
     }
 
     // eight varied roots, both orientations, so the batch exercises the
