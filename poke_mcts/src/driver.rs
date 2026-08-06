@@ -617,6 +617,114 @@ mod tests {
         assert_eq!(a, b, "same seed -> same choice with a prior");
     }
 
+    const SEAT_PAIR_WEIGHTS: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin"
+    );
+
+    // Two different teams under a side-symmetric phase with symmetric pending_actions,
+    // so `mirror` is a true seat swap here and scoring the wrong side is detectable.
+    fn seat_pair_root() -> BattleState {
+        build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        )
+        .0
+    }
+
+    fn forward_prior(net: &LearnedPolicyV2, p: &PriorInputs) -> [f32; NUM_ACTIONS] {
+        let block = if net.action_dense_dim() == 0 { None } else { Some(&p.action_dense) };
+        masked_softmax(&net.forward(&p.ids, &p.seg_lens, &p.dense, &p.move_ids, block), &p.legal)
+    }
+
+    // What a forward that skipped the decider-perspective mirror would produce: the token
+    // stream comes off the root as given, so at seat 1 the head scores the opponent.
+    fn unmirrored_prior_inputs(state: &BattleState, our_side: usize) -> PriorInputs {
+        let mut ids = Vec::new();
+        let seg_lens = features::extract_segmented(state, &mut ids);
+        let dense = features::extract_dense(state);
+        let side = &state.sides[0];
+        let move_ids = side.team[side.active_index as usize].moves;
+        let action_dense = action_features(state, our_side);
+        let mut legal = [false; NUM_ACTIONS];
+        for &a in legal_actions(state, our_side).as_slice() {
+            if (a as usize) < NUM_ACTIONS {
+                legal[a as usize] = true;
+            }
+        }
+        PriorInputs { ids, seg_lens, dense, move_ids, action_dense, legal }
+    }
+
+    fn max_abs_delta(a: &[f32; NUM_ACTIONS], b: &[f32; NUM_ACTIONS]) -> f32 {
+        a.iter().zip(b.iter()).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max)
+    }
+
+    #[test]
+    #[ignore]
+    fn seat_swapped_pair_yields_the_identical_decider_prior() {
+        let path = std::env::var("LVP2_WEIGHTS").unwrap_or_else(|_| SEAT_PAIR_WEIGHTS.to_string());
+        let Ok(bin) = std::fs::read(&path) else {
+            println!(
+                "seat-orientation weights={path} bytes_compared=0 bits_identical=0 \
+                 max_abs_delta=0 misoriented_max_abs_delta=0 status=FAIL"
+            );
+            panic!("{path} must be present: a skipped run of this gate is a failed one");
+        };
+        let net = LearnedPolicyV2::from_bytes(&bin).expect("LVP2 weights must load");
+        let s = seat_pair_root();
+        let m = features::mirror(&s);
+
+        assert_eq!(s.phase, PHASE_ACTIONS, "fixture must sit under a side-symmetric phase");
+        assert_eq!(
+            s.pending_actions[0], s.pending_actions[1],
+            "fixture must carry symmetric pending_actions, else mirror is not a seat swap"
+        );
+        assert_eq!(
+            legal_actions(&m, 1).as_slice(),
+            legal_actions(&s, 0).as_slice(),
+            "mirror must be a true seat swap for the decider's legal set"
+        );
+        assert_eq!(
+            action_features(&m, 1),
+            action_features(&s, 0),
+            "mirror must be a true seat swap for the decider's per-action block"
+        );
+        let mut m_ids = Vec::new();
+        features::extract_segmented(&m, &mut m_ids);
+        let mut s_ids = Vec::new();
+        features::extract_segmented(&s, &mut s_ids);
+        assert_ne!(m_ids, s_ids, "fixture must be content-asymmetric, else the test is vacuous");
+
+        let at_seat0 = forward_prior(&net, &prior_inputs(&s, 0));
+        let at_seat1 = forward_prior(&net, &prior_inputs(&m, 1));
+        let misoriented = forward_prior(&net, &unmirrored_prior_inputs(&m, 1));
+
+        let identical = at_seat0
+            .iter()
+            .zip(at_seat1.iter())
+            .all(|(a, b)| a.to_bits() == b.to_bits());
+        println!(
+            "seat-orientation weights={path} bytes_compared={NUM_ACTIONS} \
+             bits_identical={identical} max_abs_delta={:.9} misoriented_max_abs_delta={:.9} \
+             seat0={at_seat0:?} status={}",
+            max_abs_delta(&at_seat0, &at_seat1),
+            max_abs_delta(&at_seat0, &misoriented),
+            if identical { "PASS" } else { "FAIL" }
+        );
+
+        for a in 0..NUM_ACTIONS {
+            assert_eq!(
+                at_seat0[a].to_bits(),
+                at_seat1[a].to_bits(),
+                "action byte {a}: the decider's prior must not depend on its seat"
+            );
+        }
+        assert!(
+            max_abs_delta(&at_seat0, &misoriented) > 0.0,
+            "a seat-1 forward that skipped the mirror must be detectable on this fixture"
+        );
+    }
+
     #[test]
     fn parallel_choice_is_deterministic() {
         let (s, t) = build_state(

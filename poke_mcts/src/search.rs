@@ -427,6 +427,62 @@ mod tests {
     }
 
     #[test]
+    fn opponent_root_bandit_is_byte_identical_prior_on_vs_off() {
+        use crate::node::{Bandit, MoveNode};
+        let (s, t) = one_action_side0();
+        let decider = 0usize;
+        assert_eq!(legal_actions(&s, decider).count, 1, "fixture: the decider has one legal action");
+        assert!(legal_actions(&s, 1 - decider).count >= 2, "fixture: the opponent has two or more");
+        // peaked on an opponent-legal byte: a uniform prior would score every arm alike and
+        // a leak onto both root bandits would leave no trace
+        let mut p = [0.001f32; 14];
+        p[2] = 0.95;
+        let off = run_prior(&s, &t, 10_000, 1500, 11, decider, None);
+        let on = run_prior(&s, &t, 10_000, 1500, 11, decider, Some(&p));
+        assert_eq!(off.iterations, on.iterations);
+        assert_eq!(off.side(1 - decider).len(), on.side(1 - decider).len(), "opponent arm count");
+        assert!(off.side(1 - decider).len() >= 2);
+        for (a, b) in off.side(1 - decider).iter().zip(on.side(1 - decider).iter()) {
+            assert_eq!(a.action, b.action, "opponent root arm byte");
+            assert_eq!(a.visits, b.visits, "opponent root arm visits");
+            assert_eq!(a.avg_score.to_bits(), b.avg_score.to_bits(), "opponent root arm score");
+        }
+        for (a, b) in off.side(decider).iter().zip(on.side(decider).iter()) {
+            assert_eq!(a.visits, b.visits, "the single decider arm cannot move either");
+            assert_eq!(a.avg_score.to_bits(), b.avg_score.to_bits());
+        }
+        // A one-arm bandit returns index 0 under either rule, so the decider's slot is inert
+        // here and routing the prior to the opponent alone reproduces a both-bandit leak.
+        for pv in [1u32, 2, 37, 1500] {
+            for v in [0u32, 1, 900] {
+                let mut b = Bandit::default();
+                b.arms[0] = MoveNode { action: 0, total_score: 0.3 * v as f64, visits: v };
+                b.len = 1;
+                assert_eq!(select_arm(&b, pv, 2.0, Some(&p[..])), 0);
+                assert_eq!(select_arm(&b, pv, 2.0, None), 0);
+            }
+        }
+        let leak = run_prior(&s, &t, 10_000, 1500, 11, 1 - decider, Some(&p));
+        let moved = off
+            .side(1 - decider)
+            .iter()
+            .zip(leak.side(1 - decider).iter())
+            .filter(|(a, b)| a.visits != b.visits || a.avg_score.to_bits() != b.avg_score.to_bits())
+            .count();
+        println!(
+            "opponent-invariance decider_legal={} opponent_arms={} iterations={} \
+             opponent_visits_off={:?} opponent_visits_on={:?} leak_visits={:?} leak_arms_moved={moved}",
+            legal_actions(&s, decider).count,
+            off.side(1 - decider).len(),
+            off.iterations,
+            off.side(1 - decider).iter().map(|a| a.visits).collect::<Vec<_>>(),
+            on.side(1 - decider).iter().map(|a| a.visits).collect::<Vec<_>>(),
+            leak.side(1 - decider).iter().map(|a| a.visits).collect::<Vec<_>>(),
+        );
+        assert!(moved > 0, "a prior reaching the opponent's root bandit must break the stream");
+    }
+
+    #[test]
     fn finds_the_kill() {
         // Opponent at 1 HP: Thunderbolt (slot 0) always KOs; Splash (slot 1) never does.
         // Gyarados (Water/Flying) is 4x weak to Electric; a Ground-type target would be immune.
