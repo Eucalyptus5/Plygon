@@ -1210,6 +1210,113 @@ impl Evaluator for LearnedEval {
     }
 }
 
+pub fn value_v2_input_len(acc_width: usize, web_rank: usize) -> usize {
+    2 * acc_width + 2 * web_rank + DENSE_DIM
+}
+
+#[allow(dead_code)]
+pub struct LearnedValueV2 {
+    acc_width: usize,
+    web_rank: usize,
+    attn_dk: usize,
+    multiplier: f32,
+    emb: Vec<f32>,
+    web_a: Vec<f32>,
+    web_b: Vec<f32>,
+    attn_q: Vec<f32>,
+    attn_k: Vec<f32>,
+    attn_v: Vec<f32>,
+    attn_out: Vec<f32>,
+    fc: Vec<Fc>,
+}
+
+impl LearnedValueV2 {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let mut c = Cursor { buf: bytes, pos: 0 };
+        if c.take(4)? != b"LVV2" {
+            return Err("bad magic: not an LVV2 file".into());
+        }
+        let spec = c.u32()?;
+        if spec != FEATURE_SPEC_VERSION {
+            return Err(format!("LVV2 spec {spec} != compiled {FEATURE_SPEC_VERSION}"));
+        }
+        let vocab = c.u32()? as usize;
+        if vocab != features::vocab_size() as usize {
+            return Err(format!("vocab mismatch: weights {vocab}, extractor {}", features::vocab_size()));
+        }
+        let (aw, seg, r) = (c.u32()? as usize, c.u32()? as usize, c.u32()? as usize);
+        if seg != NUM_SEGMENTS {
+            return Err(format!("LVV2 token_segments {seg} != {NUM_SEGMENTS}"));
+        }
+        let tables = c.u32()?;
+        let (prow, trow, trank) = (c.u32()?, c.u32()?, c.u32()?);
+        if tables != 0 {
+            return Err("LVV2 carries no pair table; tables flag must be 0".into());
+        }
+        if prow != 0 || trow != 0 || trank != 0 {
+            return Err(format!(
+                "LVV2 table dims present with tables off: pair {prow}, type {trow}, rank {trank}"
+            ));
+        }
+        let attn = c.u32()?;
+        let dk = c.u32()? as usize;
+        if (attn != 0) != (dk != 0) {
+            return Err("LVV2 attn flag and attn_dk disagree".into());
+        }
+        let vdim = c.u32()? as usize;
+        // no serving-side extractor exists for the sidecar width
+        if vdim != 0 {
+            return Err(format!("LVV2 value_dense_dim {vdim} != 0; the value forward has no sidecar input"));
+        }
+        let n_fc = c.u32()? as usize;
+        if n_fc < 2 {
+            return Err(format!("LVV2 fc chain needs >= 2 layers, got {n_fc}"));
+        }
+        let dims = read_dims(&mut c, n_fc)?;
+        check_chain(&dims, "LVV2 fc")?;
+        let want = value_v2_input_len(aw, r);
+        if dims[0].0 != want {
+            return Err(format!("LVV2 fc1 in {} != {want}", dims[0].0));
+        }
+        if dims[dims.len() - 1].1 != 1 {
+            return Err("LVV2 fc chain must end in 1 output".into());
+        }
+        let multiplier = c.f32()?;
+        let emb = c.f32_vec(vocab * aw)?;
+        let web_a = c.f32_vec(r * aw)?;
+        let web_b = c.f32_vec(r * aw)?;
+        let (mut q, mut k, mut v, mut o) = (vec![], vec![], vec![], vec![]);
+        if attn != 0 {
+            q = c.f32_vec(dk * aw)?;
+            k = c.f32_vec(dk * aw)?;
+            v = c.f32_vec(dk * aw)?;
+            o = c.f32_vec(aw * dk)?;
+        }
+        let fc = read_layers(&mut c, &dims)?;
+        if c.pos != bytes.len() {
+            return Err("LVV2 trailing bytes after the last tensor".into());
+        }
+        Ok(Self {
+            acc_width: aw,
+            web_rank: r,
+            attn_dk: dk,
+            multiplier,
+            emb,
+            web_a,
+            web_b,
+            attn_q: q,
+            attn_k: k,
+            attn_v: v,
+            attn_out: o,
+            fc,
+        })
+    }
+
+    pub fn fc1_input(&self) -> usize {
+        self.fc[0].inp
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2788,5 +2895,375 @@ mod tests {
         assert!(want.is_finite());
         assert_ne!(want, 0.0, "forward must produce a real logit on a live state");
         assert_eq!(net.eval(&s), want);
+    }
+
+    struct ValueFileV2 {
+        magic: [u8; 4],
+        spec: u32,
+        vocab: u32,
+        acc: u32,
+        segments: u32,
+        web_rank: u32,
+        tables: u32,
+        pair_rows: u32,
+        type_rows: u32,
+        table_rank: u32,
+        attn: u32,
+        attn_dk: u32,
+        value_dense_dim: u32,
+        fc: Vec<(u32, u32)>,
+        multiplier: f32,
+        truncate: usize,
+        trailing: usize,
+    }
+
+    impl ValueFileV2 {
+        fn small() -> Self {
+            let acc = 3u32;
+            let r = 2u32;
+            let want = 2 * acc + 2 * r + DENSE_DIM as u32;
+            ValueFileV2 {
+                magic: *b"LVV2",
+                spec: FEATURE_SPEC_VERSION,
+                vocab: features::vocab_size(),
+                acc,
+                segments: NUM_SEGMENTS as u32,
+                web_rank: r,
+                tables: 0,
+                pair_rows: 0,
+                type_rows: 0,
+                table_rank: 0,
+                attn: 0,
+                attn_dk: 0,
+                value_dense_dim: 0,
+                fc: vec![(want, 4), (4, 1)],
+                multiplier: 2.5,
+                truncate: 0,
+                trailing: 0,
+            }
+        }
+
+        // acc_width and attn_dk differ so a wrongly squared attn_out size cannot pass
+        fn attention() -> Self {
+            let acc = 6u32;
+            let r = 2u32;
+            let want = 2 * acc + 2 * r + DENSE_DIM as u32;
+            ValueFileV2 {
+                acc,
+                attn: 1,
+                attn_dk: 5,
+                fc: vec![(want, 3), (3, 2), (2, 1)],
+                ..ValueFileV2::small()
+            }
+        }
+
+        fn bytes(&self) -> Vec<u8> {
+            let mut v = Vec::new();
+            v.extend_from_slice(&self.magic);
+            for u in [
+                self.spec,
+                self.vocab,
+                self.acc,
+                self.segments,
+                self.web_rank,
+                self.tables,
+                self.pair_rows,
+                self.type_rows,
+                self.table_rank,
+                self.attn,
+                self.attn_dk,
+                self.value_dense_dim,
+                self.fc.len() as u32,
+            ] {
+                v.extend_from_slice(&u.to_le_bytes());
+            }
+            for &(i, o) in &self.fc {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&self.multiplier.to_le_bytes());
+            let mut n_f32 = (self.vocab * self.acc + 2 * self.web_rank * self.acc) as usize;
+            if self.attn != 0 {
+                n_f32 += 4 * (self.attn_dk * self.acc) as usize;
+            }
+            for &(i, o) in &self.fc {
+                n_f32 += (i * o + o) as usize;
+            }
+            for k in 0..n_f32 {
+                v.extend_from_slice(&lvv2_payload(k).to_le_bytes());
+            }
+            if self.truncate > 0 {
+                v.truncate(v.len() - self.truncate);
+            }
+            for _ in 0..self.trailing {
+                v.push(0);
+            }
+            v
+        }
+
+        fn err(&self) -> String {
+            match LearnedValueV2::from_bytes(&self.bytes()) {
+                Ok(_) => panic!("malformed value weights must be refused"),
+                Err(e) => e,
+            }
+        }
+    }
+
+    fn lvv2_payload(k: usize) -> f32 {
+        ((k % 13) as f32 - 6.0) * 0.01
+    }
+
+    fn lvv2_slice(start: usize, len: usize) -> Vec<f32> {
+        (start..start + len).map(lvv2_payload).collect()
+    }
+
+    fn lvv2_header_bytes(acc: u32, web_rank: u32, fc0_in: u32) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(b"LVV2");
+        for u in [
+            FEATURE_SPEC_VERSION,
+            features::vocab_size(),
+            acc,
+            NUM_SEGMENTS as u32,
+            web_rank,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+        ] {
+            v.extend_from_slice(&u.to_le_bytes());
+        }
+        for (i, o) in [(fc0_in, 4u32), (4, 1)] {
+            v.extend_from_slice(&i.to_le_bytes());
+            v.extend_from_slice(&o.to_le_bytes());
+        }
+        v
+    }
+
+    fn lvv2_header_err(acc: u32, web_rank: u32, fc0_in: u32) -> String {
+        match LearnedValueV2::from_bytes(&lvv2_header_bytes(acc, web_rank, fc0_in)) {
+            Ok(_) => panic!("a tensorless header must be refused"),
+            Err(e) => e,
+        }
+    }
+
+    #[test]
+    fn value_v2_input_len_matches_exported_widths() {
+        assert_eq!(value_v2_input_len(8, 2), 27);
+        assert_eq!(value_v2_input_len(128, 32), 327);
+        assert_eq!(value_v2_input_len(128, 64), 391);
+    }
+
+    #[test]
+    fn value_v2_loader_wants_input_len_at_exported_widths() {
+        for (acc, r, want) in [(8u32, 2u32, 27u32), (128, 32, 327), (128, 64, 391)] {
+            let short = lvv2_header_err(acc, r, want - 1);
+            assert_eq!(short, format!("LVV2 fc1 in {} != {want}", want - 1));
+            let exact = lvv2_header_err(acc, r, want);
+            assert!(exact.starts_with("truncated weights file at byte"), "{exact}");
+        }
+    }
+
+    #[test]
+    fn value_v2_bare_arm_loads_tensors_in_order() {
+        let f = ValueFileV2::small();
+        let net = LearnedValueV2::from_bytes(&f.bytes()).expect("synthetic LVV2 must load");
+        let (vocab, acc, r) = (f.vocab as usize, f.acc as usize, f.web_rank as usize);
+        assert_eq!(net.acc_width, acc);
+        assert_eq!(net.web_rank, r);
+        assert_eq!(net.attn_dk, 0);
+        assert_eq!(net.multiplier, f.multiplier);
+        assert!(net.attn_q.is_empty(), "bare arm must carry no attn_q");
+        assert!(net.attn_k.is_empty(), "bare arm must carry no attn_k");
+        assert!(net.attn_v.is_empty(), "bare arm must carry no attn_v");
+        assert!(net.attn_out.is_empty(), "bare arm must carry no attn_out");
+        let mut off = 0;
+        assert_eq!(net.emb, lvv2_slice(off, vocab * acc));
+        off += vocab * acc;
+        assert_eq!(net.web_a, lvv2_slice(off, r * acc));
+        off += r * acc;
+        assert_eq!(net.web_b, lvv2_slice(off, r * acc));
+        off += r * acc;
+        assert_eq!(net.fc.len(), f.fc.len());
+        for (li, &(i, o)) in f.fc.iter().enumerate() {
+            let (i, o) = (i as usize, o as usize);
+            assert_eq!(net.fc[li].w, lvv2_slice(off, i * o), "fc{li} weight");
+            off += i * o;
+            assert_eq!(net.fc[li].b, lvv2_slice(off, o), "fc{li} bias");
+            off += o;
+        }
+        assert_eq!(net.fc1_input(), value_v2_input_len(net.acc_width, net.web_rank));
+    }
+
+    #[test]
+    fn value_v2_attention_arm_loads_tensors_in_order() {
+        let f = ValueFileV2::attention();
+        let net = LearnedValueV2::from_bytes(&f.bytes()).expect("synthetic attention LVV2 must load");
+        let (vocab, acc, r, dk) =
+            (f.vocab as usize, f.acc as usize, f.web_rank as usize, f.attn_dk as usize);
+        assert_ne!(acc, dk, "a square attn block would hide a wrong attn_out size");
+        assert_eq!(net.acc_width, acc);
+        assert_eq!(net.attn_dk, dk);
+        let mut off = vocab * acc + 2 * r * acc;
+        assert_eq!(net.attn_q, lvv2_slice(off, dk * acc));
+        off += dk * acc;
+        assert_eq!(net.attn_k, lvv2_slice(off, dk * acc));
+        off += dk * acc;
+        assert_eq!(net.attn_v, lvv2_slice(off, dk * acc));
+        off += dk * acc;
+        assert_eq!(net.attn_out, lvv2_slice(off, acc * dk));
+        assert_eq!(net.attn_out.len(), acc * dk);
+        off += acc * dk;
+        assert_ne!(net.attn_q, net.attn_k, "the fixture must separate q from k");
+        assert_ne!(net.attn_k, net.attn_v, "the fixture must separate k from v");
+        assert_ne!(net.attn_q, net.attn_v, "the fixture must separate q from v");
+        assert_eq!(net.fc.len(), f.fc.len());
+        for (li, &(i, o)) in f.fc.iter().enumerate() {
+            let (i, o) = (i as usize, o as usize);
+            assert_eq!(net.fc[li].w, lvv2_slice(off, i * o), "fc{li} weight");
+            off += i * o;
+            assert_eq!(net.fc[li].b, lvv2_slice(off, o), "fc{li} bias");
+            off += o;
+        }
+        assert_eq!(net.fc1_input(), value_v2_input_len(net.acc_width, net.web_rank));
+    }
+
+    #[test]
+    fn value_v2_bad_magic_refused() {
+        let mut f = ValueFileV2::small();
+        f.magic = *b"LVP2";
+        assert_eq!(f.err(), "bad magic: not an LVV2 file");
+    }
+
+    #[test]
+    fn value_v2_spec_mismatch_refused() {
+        let mut f = ValueFileV2::small();
+        f.spec = FEATURE_SPEC_VERSION - 1;
+        assert_eq!(f.err(), format!("LVV2 spec {} != compiled {FEATURE_SPEC_VERSION}", f.spec));
+    }
+
+    #[test]
+    fn value_v2_vocab_mismatch_refused() {
+        let mut f = ValueFileV2::small();
+        f.vocab += 1;
+        assert_eq!(
+            f.err(),
+            format!("vocab mismatch: weights {}, extractor {}", f.vocab, features::vocab_size())
+        );
+    }
+
+    #[test]
+    fn value_v2_segment_count_mismatch_refused() {
+        let mut f = ValueFileV2::small();
+        f.segments = NUM_SEGMENTS as u32 - 1;
+        assert_eq!(f.err(), format!("LVV2 token_segments {} != {NUM_SEGMENTS}", f.segments));
+    }
+
+    #[test]
+    fn value_v2_tables_flag_refused() {
+        let mut f = ValueFileV2::small();
+        f.tables = 1;
+        assert_eq!(f.err(), "LVV2 carries no pair table; tables flag must be 0");
+    }
+
+    #[test]
+    fn value_v2_pair_rows_without_tables_refused() {
+        let mut f = ValueFileV2::small();
+        f.pair_rows = 4;
+        assert_eq!(f.err(), "LVV2 table dims present with tables off: pair 4, type 0, rank 0");
+    }
+
+    #[test]
+    fn value_v2_type_rows_without_tables_refused() {
+        let mut f = ValueFileV2::small();
+        f.type_rows = 3;
+        assert_eq!(f.err(), "LVV2 table dims present with tables off: pair 0, type 3, rank 0");
+    }
+
+    #[test]
+    fn value_v2_table_rank_without_tables_refused() {
+        let mut f = ValueFileV2::small();
+        f.table_rank = 2;
+        assert_eq!(f.err(), "LVV2 table dims present with tables off: pair 0, type 0, rank 2");
+    }
+
+    #[test]
+    fn value_v2_attn_without_dk_refused() {
+        let mut f = ValueFileV2::small();
+        f.attn = 1;
+        assert_eq!(f.err(), "LVV2 attn flag and attn_dk disagree");
+    }
+
+    #[test]
+    fn value_v2_attn_dk_without_attn_refused() {
+        let mut f = ValueFileV2::small();
+        f.attn_dk = 4;
+        assert_eq!(f.err(), "LVV2 attn flag and attn_dk disagree");
+    }
+
+    #[test]
+    fn value_v2_value_dense_dim_refused() {
+        let mut f = ValueFileV2::small();
+        f.value_dense_dim = DENSE_DIM as u32;
+        assert_eq!(
+            f.err(),
+            format!(
+                "LVV2 value_dense_dim {DENSE_DIM} != 0; the value forward has no sidecar input"
+            )
+        );
+    }
+
+    #[test]
+    fn value_v2_single_fc_layer_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc = vec![(f.fc[0].0, 1)];
+        assert_eq!(f.err(), "LVV2 fc chain needs >= 2 layers, got 1");
+    }
+
+    #[test]
+    fn value_v2_zero_fc_layers_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc = vec![];
+        assert_eq!(f.err(), "LVV2 fc chain needs >= 2 layers, got 0");
+    }
+
+    #[test]
+    fn value_v2_fc1_input_dim_refused() {
+        let mut f = ValueFileV2::small();
+        let want = f.fc[0].0;
+        f.fc[0].0 += 1;
+        assert_eq!(f.err(), format!("LVV2 fc1 in {} != {want}", want + 1));
+    }
+
+    #[test]
+    fn value_v2_fc_chain_break_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc[0].1 += 1;
+        assert!(f.err().starts_with("LVV2 fc dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn value_v2_fc_output_dim_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc.last_mut().unwrap().1 = 2;
+        assert_eq!(f.err(), "LVV2 fc chain must end in 1 output");
+    }
+
+    #[test]
+    fn value_v2_trailing_bytes_refused() {
+        let mut f = ValueFileV2::small();
+        f.trailing = 4;
+        assert_eq!(f.err(), "LVV2 trailing bytes after the last tensor");
+    }
+
+    #[test]
+    fn value_v2_truncated_refused() {
+        let mut f = ValueFileV2::small();
+        f.truncate = 4;
+        assert!(f.err().starts_with("truncated weights file at byte"), "{}", f.err());
     }
 }
