@@ -1214,7 +1214,6 @@ pub fn value_v2_input_len(acc_width: usize, web_rank: usize) -> usize {
     2 * acc_width + 2 * web_rank + DENSE_DIM
 }
 
-#[allow(dead_code)]
 pub struct LearnedValueV2 {
     acc_width: usize,
     web_rank: usize,
@@ -1231,6 +1230,20 @@ pub struct LearnedValueV2 {
 }
 
 impl LearnedValueV2 {
+    pub fn from_env() -> Self {
+        let path = std::env::var("BRIDGE_EVAL_WEIGHTS_V2")
+            .expect("BRIDGE_EVAL_WEIGHTS_V2 must point at a learned-value-v2 weights file");
+        match Self::load(&path) {
+            Ok(e) => e,
+            Err(m) => panic!("bad weights file {path}: {m}"),
+        }
+    }
+
+    pub fn load(path: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
         let mut c = Cursor { buf: bytes, pos: 0 };
         if c.take(4)? != b"LVV2" {
@@ -1469,6 +1482,15 @@ impl LearnedValueV2 {
     ) -> f32 {
         let (x, _, _) = self.value_input(ids, seg_lens, dense);
         head_scalar(&self.fc, &x)
+    }
+}
+
+impl Evaluator for LearnedValueV2 {
+    fn eval(&self, state: &BattleState) -> f32 {
+        let mut ids = Vec::with_capacity(192);
+        let seg_lens = features::extract_segmented(state, &mut ids);
+        let dense = features::extract_dense(state);
+        self.natural_logit(&ids, &seg_lens, &dense) * self.multiplier
     }
 }
 
@@ -3394,6 +3416,24 @@ mod tests {
             off += o;
         }
         assert_eq!(net.fc1_input(), value_v2_input_len(net.acc_width, net.web_rank));
+    }
+
+    #[test]
+    fn value_v2_eval_is_scaled_forward_of_extracted_features() {
+        let f = ValueFileV2 { multiplier: 7.5, ..ValueFileV2::small() };
+        let net = LearnedValueV2::from_bytes(&f.bytes()).expect("synthetic LVV2 must load");
+        let (s, _t) = build_state(
+            vec![mon(445, 24, [89, 14, 200, 328]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        let mut ids = Vec::new();
+        let seg_lens = features::extract_segmented(&s, &mut ids);
+        let dense = features::extract_dense(&s);
+        let raw = net.natural_logit(&ids, &seg_lens, &dense);
+        assert!(raw.is_finite());
+        assert_ne!(raw, 0.0, "forward must produce a real logit on a live state");
+        assert_eq!(net.eval(&s), raw * 7.5, "eval must apply the export multiplier");
+        assert_eq!(crate::driver::EvalKind::LearnedV2(&net).name(), "learned_v2");
     }
 
     #[test]

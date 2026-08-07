@@ -1,7 +1,7 @@
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::chance_analytic::AnalyticRoot;
 use poke_mcts::eval::{Evaluator, Handcrafted};
-use poke_mcts::eval_learned::LearnedEval;
+use poke_mcts::eval_learned::{LearnedEval, LearnedValueV2};
 use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
 use poke_mcts::rng::{splitmix64, Lcg};
@@ -317,6 +317,10 @@ fn main() {
             "learned" => {
                 let le = LearnedEval::from_env();
                 bench(&fixture, &le, poke_mcts::driver::EvalKind::Learned(&le), "learned");
+            }
+            "learned-v2" => {
+                let lv = LearnedValueV2::from_env();
+                bench(&fixture, &lv, poke_mcts::driver::EvalKind::LearnedV2(&lv), "learned_v2");
             }
             other => panic!("unknown --eval {other}"),
         }

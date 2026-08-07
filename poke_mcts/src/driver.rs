@@ -5,7 +5,7 @@ use crate::chance_closed::search_world_closed;
 use crate::determinize::{Determinizer, Observation, World};
 use crate::eval::{Evaluator, Handcrafted};
 use crate::action_features::{action_features, ACTION_DENSE_DIM};
-use crate::eval_learned::{masked_softmax, ForwardInput, LearnedEval, LearnedPolicyV2, NUM_ACTIONS};
+use crate::eval_learned::{masked_softmax, ForwardInput, LearnedEval, LearnedPolicyV2, LearnedValueV2, NUM_ACTIONS};
 use crate::features::{self, DENSE_DIM, NUM_SEGMENTS};
 use crate::rng::{splitmix64, Lcg};
 use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, SearchParams, SearchResult};
@@ -16,17 +16,22 @@ use rayon::prelude::*;
 pub enum PickMode { #[default] Weighted, Argmax, Value }
 
 /// Leaf evaluator for one decision. Carries a borrow of the once-constructed
-/// LearnedEval so every world's search shares the same weights.
+/// net so every world's search shares the same weights.
 #[derive(Clone, Copy, Default)]
 pub enum EvalKind<'a> {
     #[default]
     Handcrafted,
     Learned(&'a LearnedEval),
+    LearnedV2(&'a LearnedValueV2),
 }
 
 impl EvalKind<'_> {
     pub fn name(self) -> &'static str {
-        match self { EvalKind::Handcrafted => "handcrafted", EvalKind::Learned(_) => "learned" }
+        match self {
+            EvalKind::Handcrafted => "handcrafted",
+            EvalKind::Learned(_) => "learned",
+            EvalKind::LearnedV2(_) => "learned_v2",
+        }
     }
 }
 
@@ -259,6 +264,7 @@ pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determi
         let r = match eval {
             EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed, obs.our_side, p),
             EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed, obs.our_side, p),
+            EvalKind::LearnedV2(lv) => search_eval(w, lv, cfg, &params, seed, obs.our_side, p),
         };
         (r, w.weight)
     }).collect();
