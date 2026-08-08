@@ -328,6 +328,103 @@ fn bench_sweep(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, s
     }
 }
 
+const EVAL_REPS: usize = 5;
+
+fn timed_us(mut body: impl FnMut()) -> f64 {
+    for _ in 0..1_000 {
+        body();
+    }
+    let t0 = std::time::Instant::now();
+    let mut n = 0u64;
+    loop {
+        for _ in 0..10_000 {
+            body();
+        }
+        n += 10_000;
+        if t0.elapsed().as_secs_f64() >= 0.5 {
+            break;
+        }
+    }
+    t0.elapsed().as_secs_f64() * 1e6 / n as f64
+}
+
+fn fmt_us(v: Option<f64>) -> String {
+    match v {
+        Some(x) => format!("{x:.3}"),
+        None => "n/a".to_string(),
+    }
+}
+
+fn bench_eval(fixture: &Fixture, eval: &impl Evaluator, net: Option<&LearnedValueV2>, label: &str,
+              weights: &str, seed: u64) {
+    use poke_mcts::features;
+    let (state, teams) = sweep_root(fixture);
+    let (mut totals, mut extracts, mut forwards) = (Vec::new(), Vec::new(), Vec::new());
+    for rep in 1..=EVAL_REPS {
+        let total = timed_us(|| {
+            std::hint::black_box(eval.eval(std::hint::black_box(&state)));
+        });
+        let split = net.map(|net| {
+            let extract = timed_us(|| {
+                let mut ids = Vec::with_capacity(192);
+                let seg_lens = features::extract_segmented(std::hint::black_box(&state), &mut ids);
+                let dense = features::extract_dense(std::hint::black_box(&state));
+                std::hint::black_box((&ids, seg_lens, dense));
+            });
+            let mut ids = Vec::with_capacity(192);
+            let seg_lens = features::extract_segmented(&state, &mut ids);
+            let dense = features::extract_dense(&state);
+            let forward = timed_us(|| {
+                std::hint::black_box(net.natural_logit(std::hint::black_box(&ids),
+                    std::hint::black_box(&seg_lens), std::hint::black_box(&dense)));
+            });
+            (extract, forward)
+        });
+        totals.push(total);
+        if let Some((extract, forward)) = split {
+            extracts.push(extract);
+            forwards.push(forward);
+        }
+        println!("bench-eval {label} rep {rep}: total_us={total:.3} extract_us={} forward_us={}",
+            fmt_us(split.map(|s| s.0)), fmt_us(split.map(|s| s.1)));
+    }
+
+    let counter = CountingEval::new(eval);
+    let params = SearchParams { time_ms: u64::MAX, max_iters: 4096, ..Default::default() };
+    let r = search_world(&state, &teams, &counter, &OpenLoop, &params, seed, 0, None);
+    let evals_per_iter = counter.count() as f64 / r.iterations.max(1) as f64;
+
+    let total = stats(totals).1;
+    let extract = if extracts.is_empty() { None } else { Some(stats(extracts).1) };
+    let forward = if forwards.is_empty() { None } else { Some(stats(forwards).1) };
+    let pct = match extract {
+        Some(e) => format!("{:.2}%", 100.0 * e / total),
+        None => "n/a".to_string(),
+    };
+    // distinct_states=1 is literal: this instrument repeats one root, so it cannot see the leaf distribution
+    println!("bench-eval {label}: total_us_per_eval={total:.3} extract_us_per_eval={} forward_us_per_eval={} extract_pct={pct} evals_per_iter={evals_per_iter:.3} distinct_states=1 reps={EVAL_REPS} weights={weights}",
+        fmt_us(extract), fmt_us(forward));
+}
+
+struct CountingEval<'a> {
+    inner: &'a dyn Evaluator,
+    calls: std::sync::atomic::AtomicU64,
+}
+
+impl<'a> CountingEval<'a> {
+    fn new(inner: &'a dyn Evaluator) -> Self {
+        CountingEval { inner, calls: std::sync::atomic::AtomicU64::new(0) }
+    }
+    fn count(&self) -> u64 { self.calls.load(std::sync::atomic::Ordering::Relaxed) }
+}
+
+impl Evaluator for CountingEval<'_> {
+    fn eval(&self, state: &BattleState) -> f32 {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.inner.eval(state)
+    }
+}
+
 fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed: u64) {
     let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false, chance_mode: poke_mcts::search::ChanceMode::OpenLoop, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
     let entrants: [(&str, Entrant); 5] = [
@@ -493,6 +590,18 @@ fn main() {
         }
         return;
     }
+    if args.iter().any(|a| a == "--bench-eval") {
+        match get("--eval", "learned-v2").as_str() {
+            "handcrafted" => bench_eval(&fixture, &Handcrafted, None, "handcrafted", "n/a", seed),
+            "learned-v2" => {
+                let lv = LearnedValueV2::from_env();
+                let weights = std::env::var("BRIDGE_EVAL_WEIGHTS_V2").unwrap();
+                bench_eval(&fixture, &lv, Some(&lv), "learned_v2", &weights, seed);
+            }
+            other => panic!("--bench-eval supports --eval learned-v2 and --eval handcrafted, not {other}"),
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--tournament") {
         tournament(&fixture, games, time_ms, max_iters, seed);
         return;
@@ -534,6 +643,32 @@ mod tests {
     use super::*;
 
     fn noop_report(_: usize, _: u64, _: f64, _: u64, _: f64) {}
+
+    struct ConstEval(f32);
+    impl Evaluator for ConstEval {
+        fn eval(&self, _state: &BattleState) -> f32 { self.0 }
+    }
+
+    #[test]
+    fn the_counting_evaluator_counts_every_call() {
+        let inner = ConstEval(0.25);
+        let counter = CountingEval::new(&inner);
+        let state = BattleState::default();
+        assert_eq!(counter.count(), 0);
+        for _ in 0..7 {
+            counter.eval(&state);
+        }
+        assert_eq!(counter.count(), 7);
+    }
+
+    #[test]
+    fn the_counting_evaluator_returns_the_inner_value_unchanged() {
+        let inner = ConstEval(-3.5);
+        let counter = CountingEval::new(&inner);
+        let state = BattleState::default();
+        assert_eq!(counter.eval(&state), -3.5);
+        assert_eq!(counter.count(), 1);
+    }
 
     #[test]
     fn sweep_settles_when_cost_grows_with_the_iteration_count() {
