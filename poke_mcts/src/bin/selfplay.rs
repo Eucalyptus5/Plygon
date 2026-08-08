@@ -184,6 +184,150 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
     println!("choose_action 16w@100ms wall-ms/decision: min {:.1} / median {:.1} / max {:.1}", wmin, wmed, wmax);
 }
 
+fn sweep_root(fixture: &Fixture) -> (BattleState, TeamData) {
+    let (team1, b1, l1) = build(&fixture.teams[0]);
+    let (team2, b2, l2) = build(&fixture.teams[1]);
+    let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
+    let mut state = BattleState::default();
+    state.sides[0].team = team1;
+    state.sides[1].team = team2;
+    state.phase = PHASE_ACTIONS;
+    switch::switch_in(&mut state, &teams, 0, 0);
+    switch::switch_in(&mut state, &teams, 1, 0);
+    (state, teams)
+}
+
+const SWEEP_MAX: usize = 8;
+const SWEEP_TOL: f64 = 0.02;
+const SWEEP_REPS: usize = 5;
+
+/// N -> median µs/iter under `measure`; returns (settled_N, µs/iter, sweeps, unsettled).
+fn sweep_fixed_point(
+    start_n: u64,
+    target_ms: u64,
+    mut measure: impl FnMut(u64) -> f64,
+    mut report: impl FnMut(usize, u64, f64, u64, f64),
+) -> (u64, f64, usize, bool) {
+    let target_us = target_ms as f64 * 1000.0;
+    let mut n = start_n.max(1);
+    let mut consecutive = 0usize;
+    let mut history: Vec<(u64, f64)> = Vec::with_capacity(SWEEP_MAX);
+    for k in 0..SWEEP_MAX {
+        let us_per_iter = measure(n);
+        let next_n = (target_us / us_per_iter).round().max(1.0) as u64;
+        let delta = (next_n as f64 - n as f64).abs() / n as f64;
+        report(k, n, us_per_iter, next_n, 100.0 * delta);
+        history.push((n, us_per_iter));
+        consecutive = if delta < SWEEP_TOL { consecutive + 1 } else { 0 };
+        if consecutive == 2 {
+            return (n, us_per_iter, k + 1, false);
+        }
+        n = next_n;
+    }
+    let mut last3 = history[SWEEP_MAX - 3..].to_vec();
+    last3.sort_by_key(|&(n, _)| n);
+    (last3[1].0, last3[1].1, SWEEP_MAX, true)
+}
+
+fn sweep_single(fixture: &Fixture, eval: &impl Evaluator, label: &str, start_n: u64, target_ms: u64) {
+    let (state, teams) = sweep_root(fixture);
+    let seen_iters = std::cell::Cell::new(0u64);
+    let (n, us, sweeps, unsettled) = sweep_fixed_point(
+        start_n,
+        target_ms,
+        |n| {
+            let params = SearchParams { time_ms: u64::MAX, max_iters: n, ..Default::default() };
+            let mut reps: Vec<f64> = Vec::with_capacity(SWEEP_REPS);
+            for rep in 0..SWEEP_REPS as u64 {
+                let t0 = std::time::Instant::now();
+                let r = search_world(&state, &teams, eval, &OpenLoop, &params, rep, 0, None);
+                reps.push(t0.elapsed().as_secs_f64() * 1e6 / r.iterations.max(1) as f64);
+                if rep == 0 { seen_iters.set(r.iterations); }
+            }
+            stats(reps).1
+        },
+        |k, n, us, next_n, delta| {
+            println!("sweep {label} {k}: max_iters={n} iterations={} us_per_iter={us:.3} next_N={next_n} delta={delta:.2}%",
+                seen_iters.get());
+        },
+    );
+    println!("settled {label}: N={n} us_per_iter={us:.3} sweeps={sweeps} target_ms={target_ms} unsettled={unsettled}");
+}
+
+struct SweepSnapshot { n: u64, iterations: u64, per_world_us: Vec<f64>, mean_us: f64 }
+
+#[allow(clippy::too_many_arguments)]
+fn sweep_pooled(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, start_n: u64,
+                target_ms: u64, num_worlds: usize, threads: usize, world_seed: u64) {
+    use poke_mcts::determinize::Determinizer;
+    use rayon::prelude::*;
+    let (state, teams) = sweep_root(fixture);
+    let mut belief = poke_mcts::belief::Belief::default();
+    let om = state.active_mon(1);
+    belief.note_species(om.species_id, om.level);
+    let obs = poke_mcts::determinize::Observation { state: &state, teams: &teams, our_side: 0 };
+    let mut rng = Lcg::new(splitmix64(world_seed));
+    let worlds = poke_mcts::determinize::RandomBattle.sample_worlds(&obs, &belief, num_worlds, &mut rng);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let target_us = target_ms as f64 * 1000.0;
+    let history: std::cell::RefCell<Vec<SweepSnapshot>> = std::cell::RefCell::new(Vec::new());
+    let (n, _us, sweeps, unsettled) = sweep_fixed_point(
+        start_n,
+        target_ms,
+        |n| {
+            let params = SearchParams { time_ms: u64::MAX, max_iters: n, ..Default::default() };
+            let mut reps: Vec<(f64, f64, Vec<f64>)> = Vec::with_capacity(SWEEP_REPS);
+            let mut iterations = 0u64;
+            for rep in 0..SWEEP_REPS {
+                let timed: Vec<(f64, u64)> = pool.install(|| {
+                    worlds.par_iter().enumerate().map(|(k, w)| {
+                        let seed = splitmix64(world_seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
+                        let t0 = std::time::Instant::now();
+                        let r = search_world(&w.state, &w.teams, eval, &OpenLoop, &params, seed, 0, None);
+                        (t0.elapsed().as_secs_f64() * 1e6 / r.iterations.max(1) as f64, r.iterations)
+                    }).collect()
+                });
+                if rep == 0 { iterations = timed[0].1; }
+                let per_world: Vec<f64> = timed.iter().map(|&(us, _)| us).collect();
+                let w = per_world.len() as f64;
+                let mean_us = per_world.iter().sum::<f64>() / w;
+                let mean_n = per_world.iter().map(|us| target_us / us).sum::<f64>() / w;
+                reps.push((mean_us, mean_n, per_world));
+            }
+            let median_n = stats(reps.iter().map(|r| r.1).collect()).1;
+            // one rep supplies both printed figures, so the list and its mean stay consistent
+            let mut order: Vec<usize> = (0..reps.len()).collect();
+            order.sort_by(|&a, &b| reps[a].0.partial_cmp(&reps[b].0).unwrap());
+            let mid = order[reps.len() / 2];
+            history.borrow_mut().push(SweepSnapshot {
+                n, iterations, per_world_us: reps[mid].2.clone(), mean_us: reps[mid].0,
+            });
+            target_us / median_n
+        },
+        |k, n, _us, next_n, delta| {
+            let h = history.borrow();
+            let s = h.last().unwrap();
+            let list: Vec<String> = s.per_world_us.iter().map(|us| format!("{us:.3}")).collect();
+            // mean_us_per_iter and N_8w are separate readings; neither derives from the other
+            println!("sweep8 {label} {k}: max_iters={n} iterations={} per_world_us_per_iter=[{}] mean_us_per_iter={:.3} N_8w={next_n} delta={delta:.2}%",
+                s.iterations, list.join(","), s.mean_us);
+        },
+    );
+    let mean_us = history.borrow().iter().rev().find(|s| s.n == n).map(|s| s.mean_us)
+        .expect("the settled N must be one of the measured sweeps");
+    println!("settled8 {label}: N_8w={n} mean_us_per_iter={mean_us:.3} worlds={num_worlds} threads={threads} target_ms={target_ms} seed={world_seed} sweeps={sweeps} unsettled={unsettled}");
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bench_sweep(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, start_n: u64,
+               target_ms: u64, num_worlds: usize, threads: usize, world_seed: u64) {
+    if num_worlds > 1 {
+        sweep_pooled(fixture, eval, label, start_n, target_ms, num_worlds, threads, world_seed);
+    } else {
+        sweep_single(fixture, eval, label, start_n, target_ms);
+    }
+}
+
 fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed: u64) {
     let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false, chance_mode: poke_mcts::search::ChanceMode::OpenLoop, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
     let entrants: [(&str, Entrant); 5] = [
@@ -326,6 +470,29 @@ fn main() {
         }
         return;
     }
+    if args.iter().any(|a| a == "--bench-sweep") {
+        let sweep_worlds: usize = get("--sweep-worlds", "1").parse::<usize>().unwrap().max(1);
+        let sweep_threads: usize = get("--sweep-threads", "1").parse::<usize>().unwrap().max(1);
+        let sweep_seed: u64 = get("--sweep-seed", "1").parse().unwrap();
+        assert!(args.iter().any(|a| a == "--max-iters"),
+            "--bench-sweep requires --max-iters: the sweep must start high and settle downward");
+        assert!(sweep_worlds == 1 || args.iter().any(|a| a == "--sweep-target-ms"),
+            "--sweep-worlds above 1 requires --sweep-target-ms: the pooled shape has no safe default target");
+        let target_ms: u64 = get("--sweep-target-ms", "100").parse().unwrap();
+        match get("--eval", "handcrafted").as_str() {
+            "handcrafted" => bench_sweep(&fixture, &Handcrafted, "handcrafted", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed),
+            "learned" => {
+                let le = LearnedEval::from_env();
+                bench_sweep(&fixture, &le, "learned", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed);
+            }
+            "learned-v2" => {
+                let lv = LearnedValueV2::from_env();
+                bench_sweep(&fixture, &lv, "learned_v2", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed);
+            }
+            other => panic!("unknown --eval {other}"),
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--tournament") {
         tournament(&fixture, games, time_ms, max_iters, seed);
         return;
@@ -360,4 +527,71 @@ fn main() {
     }
     println!("p1={:?} p2={:?} games={} -> p1 {:.1}% (W{} D{} L{})",
         get("--p1", "mcts"), get("--p2", "random"), games, 100.0 * score / games as f64, w, d, l);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn noop_report(_: usize, _: u64, _: f64, _: u64, _: f64) {}
+
+    #[test]
+    fn sweep_settles_when_cost_grows_with_the_iteration_count() {
+        // us(N) = 2.0 + N*1e-5 has its 100 ms fixed point at N = 41421.
+        let (n, us, sweeps, unsettled) =
+            sweep_fixed_point(1_000, 100, |n| 2.0 + n as f64 * 1e-5, noop_report);
+        assert_eq!(sweeps, 5, "converging model must settle on the fifth sweep");
+        assert!(!unsettled, "a converging model must not be flagged unsettled");
+        assert_eq!(n, 41_380);
+        assert!((us - 2.4138).abs() < 1e-9, "us was {us}");
+    }
+
+    #[test]
+    fn oscillating_cost_gives_up_at_eight_sweeps_with_the_median_of_the_last_three() {
+        // 1000 -> 100000 -> 1000 -> ... ; last three Ns are [100000, 1000, 100000].
+        let (n, _us, sweeps, unsettled) = sweep_fixed_point(
+            1_000,
+            100,
+            |n| if n < 10_000 { 1.0 } else { 100.0 },
+            noop_report,
+        );
+        assert_eq!(sweeps, SWEEP_MAX);
+        assert!(unsettled, "an oscillating model must be flagged unsettled");
+        assert_eq!(n, 100_000, "median N of the last three sweeps");
+    }
+
+    #[test]
+    fn one_small_delta_alone_does_not_settle_the_sweep() {
+        // sweep 0 is already at its fixed point, sweep 1 jumps away, then it re-converges.
+        let mut call = 0usize;
+        let (n, _us, sweeps, unsettled) = sweep_fixed_point(
+            1_000,
+            100,
+            |_n| {
+                call += 1;
+                if call == 1 { 100.0 } else { 50.0 }
+            },
+            noop_report,
+        );
+        assert!(!unsettled);
+        assert_eq!(n, 2_000, "must not stop at the lone sub-tolerance sweep 0 (N=1000)");
+        assert_eq!(sweeps, 4);
+    }
+
+    #[test]
+    fn every_sweep_is_reported_as_it_lands() {
+        let mut seen: Vec<(usize, u64, u64)> = Vec::new();
+        let (_n, _us, sweeps, _unsettled) = sweep_fixed_point(
+            1_000,
+            100,
+            |n| 2.0 + n as f64 * 1e-5,
+            |k, n, _us, next_n, _delta| seen.push((k, n, next_n)),
+        );
+        assert_eq!(seen.len(), sweeps, "one report per sweep");
+        assert_eq!(seen[0].0, 0);
+        assert_eq!(seen[0].1, 1_000, "first sweep runs at the starting N");
+        for w in seen.windows(2) {
+            assert_eq!(w[0].2, w[1].1, "each sweep runs at the previous sweep's next_N");
+        }
+    }
 }
