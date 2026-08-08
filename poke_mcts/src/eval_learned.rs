@@ -1494,6 +1494,39 @@ impl Evaluator for LearnedValueV2 {
     }
 }
 
+pub const LVV2_WEIGHTS_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.bin");
+pub const LVV2_FIXTURES_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.fixtures.json");
+
+// LVV2_REQUIRE arms every artifact prefix at once, so an absent export fails
+// the parity gates instead of skipping inside a passing run
+pub fn artifacts_required() -> bool {
+    std::env::var("LVV2_REQUIRE").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+// either override set means an operator named a specific export, so a path
+// that will not read is a typo to surface, never an absent artifact to skip
+pub fn resolve_artifact_paths(
+    magic: &str,
+    w_override: Option<String>,
+    f_override: Option<String>,
+    w_default: &str,
+    f_default: &str,
+    require: bool,
+) -> Option<(Vec<u8>, String)> {
+    let strict = w_override.is_some() || f_override.is_some() || require;
+    let w = w_override.unwrap_or_else(|| w_default.to_string());
+    let f = f_override.unwrap_or_else(|| f_default.to_string());
+    if !strict {
+        return Some((std::fs::read(&w).ok()?, std::fs::read_to_string(&f).ok()?));
+    }
+    let bin = std::fs::read(&w).unwrap_or_else(|e| panic!("{magic}_WEIGHTS resolved to {w}: {e}"));
+    let fx = std::fs::read_to_string(&f)
+        .unwrap_or_else(|e| panic!("{magic}_FIXTURES resolved to {f}: {e}"));
+    Some((bin, fx))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1513,10 +1546,6 @@ mod tests {
     );
     const SPEC3_WEIGHTS: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lv1-db937c18c028.bin");
-    const LVV2_WEIGHTS_PATH: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.bin");
-    const LVV2_FIXTURES_PATH: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.fixtures.json");
     const LVV2_ATTN_WEIGHTS_PATH: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0-attn.bin");
     const LVV2_ATTN_FIXTURES_PATH: &str = concat!(
@@ -1537,18 +1566,20 @@ mod tests {
 
     // LVP1_WEIGHTS/LVP1_FIXTURES point the parity gate at another export
     // (e.g. a freshly trained arm) without touching the pinned artifacts
-    fn artifacts() -> Option<(LearnedPolicy, serde_json::Value)> {
-        let (bin, fx) = resolve_artifact_paths(
-            "LVP1",
-            std::env::var("LVP1_WEIGHTS").ok(),
-            std::env::var("LVP1_FIXTURES").ok(),
-            WEIGHTS,
-            FIXTURES,
-        )?;
-        Some((
-            LearnedPolicy::from_bytes(&bin).expect("LVP1 weights must load"),
-            serde_json::from_str(&fx).expect("LVP1 fixtures must parse"),
-        ))
+    fn artifacts() -> (Option<(LearnedPolicy, serde_json::Value)>, String, String) {
+        let w_env = std::env::var("LVP1_WEIGHTS").ok();
+        let f_env = std::env::var("LVP1_FIXTURES").ok();
+        let wp = w_env.clone().unwrap_or_else(|| WEIGHTS.to_string());
+        let fp = f_env.clone().unwrap_or_else(|| FIXTURES.to_string());
+        let loaded =
+            resolve_artifact_paths("LVP1", w_env, f_env, WEIGHTS, FIXTURES, artifacts_required())
+                .map(|(bin, fx)| {
+                    (
+                        LearnedPolicy::from_bytes(&bin).expect("LVP1 weights must load"),
+                        serde_json::from_str(&fx).expect("LVP1 fixtures must parse"),
+                    )
+                });
+        (loaded, wp, fp)
     }
 
     // the resolved paths ride along so the ledger row shows which export was
@@ -1558,14 +1589,14 @@ mod tests {
         let f_env = std::env::var("LVP2_FIXTURES").ok();
         let wp = w_env.clone().unwrap_or_else(|| WEIGHTS_V2.to_string());
         let fp = f_env.clone().unwrap_or_else(|| FIXTURES_V2.to_string());
-        let loaded = resolve_artifact_paths("LVP2", w_env, f_env, WEIGHTS_V2, FIXTURES_V2).map(
-            |(bin, fx)| {
+        let require = artifacts_required();
+        let loaded = resolve_artifact_paths("LVP2", w_env, f_env, WEIGHTS_V2, FIXTURES_V2, require)
+            .map(|(bin, fx)| {
                 (
                     LearnedPolicyV2::from_bytes(&bin).expect("LVP2 weights must load"),
                     serde_json::from_str(&fx).expect("LVP2 fixtures must parse"),
                 )
-            },
-        );
+            });
         (loaded, wp, fp)
     }
 
@@ -1580,36 +1611,16 @@ mod tests {
         let f_env = std::env::var(format!("{magic}_FIXTURES")).ok();
         let wp = w_env.clone().unwrap_or_else(|| w_default.to_string());
         let fp = f_env.clone().unwrap_or_else(|| f_default.to_string());
-        let loaded =
-            resolve_artifact_paths(magic, w_env, f_env, w_default, f_default).map(|(bin, fx)| {
+        let require = artifacts_required();
+        let loaded = resolve_artifact_paths(magic, w_env, f_env, w_default, f_default, require).map(
+            |(bin, fx)| {
                 (
                     LearnedValueV2::from_bytes(&bin).expect("LVV2 weights must load"),
                     serde_json::from_str(&fx).expect("LVV2 fixtures must parse"),
                 )
-            });
+            },
+        );
         (loaded, wp, fp)
-    }
-
-    // either override set means an operator named a specific export, so a path
-    // that will not read is a typo to surface, never an absent artifact to skip
-    fn resolve_artifact_paths(
-        magic: &str,
-        w_override: Option<String>,
-        f_override: Option<String>,
-        w_default: &str,
-        f_default: &str,
-    ) -> Option<(Vec<u8>, String)> {
-        let strict = w_override.is_some() || f_override.is_some();
-        let w = w_override.unwrap_or_else(|| w_default.to_string());
-        let f = f_override.unwrap_or_else(|| f_default.to_string());
-        if !strict {
-            return Some((std::fs::read(&w).ok()?, std::fs::read_to_string(&f).ok()?));
-        }
-        let bin =
-            std::fs::read(&w).unwrap_or_else(|e| panic!("{magic}_WEIGHTS resolved to {w}: {e}"));
-        let fx = std::fs::read_to_string(&f)
-            .unwrap_or_else(|e| panic!("{magic}_FIXTURES resolved to {f}: {e}"));
-        Some((bin, fx))
     }
 
     fn readable_tmp(tag: &str) -> String {
@@ -1626,9 +1637,10 @@ mod tests {
         f_override: Option<String>,
         w_default: String,
         f_default: String,
+        require: bool,
     ) -> String {
         let err = std::panic::catch_unwind(move || {
-            resolve_artifact_paths(magic, w_override, f_override, &w_default, &f_default)
+            resolve_artifact_paths(magic, w_override, f_override, &w_default, &f_default, require)
         })
         .expect_err("a set override pointing at a missing path must fail, not skip");
         err.downcast_ref::<String>().cloned().unwrap_or_default()
@@ -1642,6 +1654,7 @@ mod tests {
             None,
             readable_tmp("lvp1_w"),
             readable_tmp("lvp1_w"),
+            false,
         );
         assert!(msg.contains("LVP1"), "failure must name its own magic: {msg}");
     }
@@ -1654,6 +1667,7 @@ mod tests {
             Some("/nonexistent/lvp1-f.json".to_string()),
             readable_tmp("lvp1_f"),
             readable_tmp("lvp1_f"),
+            false,
         );
         assert!(msg.contains("LVP1"), "failure must name its own magic: {msg}");
     }
@@ -1665,7 +1679,8 @@ mod tests {
             None,
             None,
             "/nonexistent/lvp1-w.bin",
-            "/nonexistent/lvp1-f.json"
+            "/nonexistent/lvp1-f.json",
+            false
         )
         .is_none());
     }
@@ -1678,6 +1693,7 @@ mod tests {
             None,
             readable_tmp("lvp2_w"),
             readable_tmp("lvp2_w"),
+            false,
         );
         assert!(msg.contains("LVP2"), "failure must name its own magic: {msg}");
     }
@@ -1690,6 +1706,7 @@ mod tests {
             Some("/nonexistent/lvp2-f.json".to_string()),
             readable_tmp("lvp2_f"),
             readable_tmp("lvp2_f"),
+            false,
         );
         assert!(msg.contains("LVP2"), "failure must name its own magic: {msg}");
     }
@@ -1701,9 +1718,31 @@ mod tests {
             None,
             None,
             "/nonexistent/lvp2-w.bin",
-            "/nonexistent/lvp2-f.json"
+            "/nonexistent/lvp2-f.json",
+            false
         )
         .is_none());
+    }
+
+    #[test]
+    fn require_fails_on_absent_defaults_for_every_prefix() {
+        for magic in ["LVV2", "LVV2_EXT", "LVV2_ATTN", "LVP1", "LVP2"] {
+            let msg = resolve_panic(
+                magic,
+                None,
+                None,
+                "/nonexistent/require-w.bin".to_string(),
+                "/nonexistent/require-f.json".to_string(),
+                true,
+            );
+            assert!(msg.contains(magic), "failure must name its own magic: {msg}");
+        }
+    }
+
+    #[test]
+    fn require_reads_present_defaults() {
+        let p = readable_tmp("require_present");
+        assert!(resolve_artifact_paths("LVV2", None, None, &p, &p, true).is_some());
     }
 
     #[test]
@@ -2623,7 +2662,7 @@ mod tests {
         net: &LearnedPolicyV2,
         rows: &[(Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], BlockOf)],
         tag: &str,
-    ) {
+    ) -> f64 {
         let items: Vec<ForwardInput> = rows
             .iter()
             .map(|(ids, lens, dense, move_ids, block)| ForwardInput {
@@ -2636,10 +2675,15 @@ mod tests {
             .collect();
         let batched = net.forward_batch(&items);
         assert_eq!(batched.len(), items.len(), "{tag}: one output row per input");
+        let mut max_diff = 0f64;
         for (k, it) in items.iter().enumerate() {
             let single =
                 net.forward(it.ids, it.seg_lens, it.dense, it.move_ids, it.action_dense);
             for i in 0..NUM_ACTIONS {
+                let d = (batched[k][i] as f64 - single[i] as f64).abs();
+                if d > max_diff {
+                    max_diff = d;
+                }
                 assert_eq!(
                     batched[k][i].to_bits(),
                     single[i].to_bits(),
@@ -2647,6 +2691,7 @@ mod tests {
                 );
             }
         }
+        max_diff
     }
 
     #[test]
@@ -2669,15 +2714,28 @@ mod tests {
     fn policy_v2_batched_forward_matches_single_on_fixtures() {
         let (loaded, wpath, fpath) = artifacts_v2();
         let Some((net, fx)) = loaded else {
-            eprintln!("SKIP policy v2 batched forward: weights={wpath} fixtures={fpath}");
+            eprintln!(
+                "SKIP policy v2 batched forward: fixtures_compared=0 max_abs_diff=inf \
+                 weights={wpath} fixtures={fpath}"
+            );
             return;
         };
         let fixtures = fx["fixtures"].as_array().expect("fixtures array");
         assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
         for (c, chunk) in fixtures.chunks(8).enumerate() {
             let rows: Vec<_> = chunk.iter().map(fixture_inputs_v2).collect();
-            assert_batch_matches_single(&net, &rows, &format!("fixtures chunk {c}"));
+            let d = assert_batch_matches_single(&net, &rows, &format!("fixtures chunk {c}"));
+            if d > max_diff {
+                max_diff = d;
+            }
+            compared += rows.len();
         }
+        eprintln!(
+            "policy v2 batched forward: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             weights={wpath} fixtures={fpath}"
+        );
     }
 
     // Measurement only: the eight-world per-turn cost as one batched call against
@@ -2796,14 +2854,19 @@ mod tests {
 
     #[test]
     fn policy_parity_64_fixtures() {
-        let Some((net, fx)) = artifacts() else {
-            eprintln!("SKIP policy parity: weights artifacts not present");
+        let (loaded, wpath, fpath) = artifacts();
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP policy parity: fixtures_compared=0 max_abs_diff=inf \
+                 value_max_abs_diff=inf weights={wpath} fixtures={fpath}"
+            );
             return;
         };
         let fixtures = fx["fixtures"].as_array().expect("fixtures array");
         assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
         let mut max_diff = 0f64;
         let mut max_vdiff = 0f64;
+        let mut compared = 0usize;
         for f in fixtures {
             let (ids, lens, dense, move_ids) = fixture_inputs(f);
             let (logits, value) = net.forward(&ids, &lens, &dense, &move_ids);
@@ -2819,8 +2882,12 @@ mod tests {
             if vd > max_vdiff {
                 max_vdiff = vd;
             }
+            compared += 1;
         }
-        eprintln!("policy parity: max abs diff logits {max_diff:.3e}, value {max_vdiff:.3e}");
+        eprintln!(
+            "policy parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             value_max_abs_diff={max_vdiff:.3e} weights={wpath} fixtures={fpath}"
+        );
         assert!(max_diff <= 1e-4, "logit parity {max_diff:e} exceeds 1e-4");
         assert!(max_vdiff <= 1e-4, "value parity {max_vdiff:e} exceeds 1e-4");
     }
@@ -2828,8 +2895,9 @@ mod tests {
     #[test]
     #[ignore]
     fn policy_forward_throughput() {
-        let Some((net, fx)) = artifacts() else {
-            eprintln!("SKIP throughput: weights artifacts not present");
+        let (loaded, wpath, fpath) = artifacts();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP throughput: weights={wpath} fixtures={fpath}");
             return;
         };
         let f = &fx["fixtures"].as_array().unwrap()[0];
