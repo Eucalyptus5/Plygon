@@ -1227,6 +1227,7 @@ pub struct LearnedValueV2 {
     attn_v: Vec<f32>,
     attn_out: Vec<f32>,
     fc: Vec<Fc>,
+    reference: frozen_value_ref::RefWeights,
 }
 
 impl LearnedValueV2 {
@@ -1309,6 +1310,8 @@ impl LearnedValueV2 {
         if c.pos != bytes.len() {
             return Err("LVV2 trailing bytes after the last tensor".into());
         }
+        // taken from this read, ahead of any in-place relayout of the served tensors
+        let reference = frozen_value_ref::RefWeights::snapshot(&web_a, &web_b, &fc);
         Ok(Self {
             acc_width: aw,
             web_rank: r,
@@ -1322,6 +1325,7 @@ impl LearnedValueV2 {
             attn_v: v,
             attn_out: o,
             fc,
+            reference,
         })
     }
 
@@ -1487,6 +1491,19 @@ impl LearnedValueV2 {
         let (x, _, _) = self.value_input(ids, seg_lens, dense);
         head_scalar(&self.fc, &x)
     }
+
+    pub fn natural_logit_reference(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> f32 {
+        frozen_value_ref::ref_logit(self, ids, seg_lens, dense)
+    }
+
+    pub fn reference_evaluator(&self) -> impl Evaluator + '_ {
+        frozen_value_ref::RefEvaluator::new(self)
+    }
 }
 
 impl Evaluator for LearnedValueV2 {
@@ -1495,6 +1512,250 @@ impl Evaluator for LearnedValueV2 {
         let seg_lens = features::extract_segmented(state, &mut ids);
         let dense = features::extract_dense(state);
         self.natural_logit(&ids, &seg_lens, &dense) * self.multiplier
+    }
+}
+
+// Frozen scalar copy of the value forward, held as the bit-equality bar for the
+// served kernels. It duplicates `dot`, `Fc::apply`, `head_scalar`, `attend` and
+// `value_input` instead of calling them, so an edit to those moves the served
+// path alone; nothing here may be changed to track such an edit.
+mod frozen_value_ref {
+    use super::{value_v2_input_len, Fc, LearnedValueV2};
+    use crate::eval::Evaluator;
+    use crate::features::{self, DENSE_DIM, NUM_SEGMENTS};
+    use pkmn_engine::data::TOTAL_SPECIES;
+    use pkmn_engine::state::BattleState;
+
+    pub(super) struct RefFc {
+        inp: usize,
+        out: usize,
+        w: Vec<f32>,
+        b: Vec<f32>,
+    }
+
+    impl RefFc {
+        pub(super) fn new(inp: usize, out: usize, w: Vec<f32>, b: Vec<f32>) -> Self {
+            Self { inp, out, w, b }
+        }
+
+        pub(super) fn apply(&self, x: &[f32], relu: bool) -> Vec<f32> {
+            debug_assert_eq!(x.len(), self.inp);
+            let mut y = vec![0.0f32; self.out];
+            for (o, yv) in y.iter_mut().enumerate() {
+                let w = &self.w[o * self.inp..(o + 1) * self.inp];
+                let mut s = self.b[o];
+                for k in 0..self.inp {
+                    s += x[k] * w[k];
+                }
+                *yv = if relu && s < 0.0 { 0.0 } else { s };
+            }
+            y
+        }
+    }
+
+    pub(super) fn ref_dot(w: &[f32], x: &[f32]) -> f32 {
+        debug_assert_eq!(w.len(), x.len());
+        w.iter().zip(x).map(|(a, b)| a * b).sum()
+    }
+
+    fn ref_head_scalar(layers: &[RefFc], x: &[f32]) -> f32 {
+        let last = layers.len() - 1;
+        let mut cur = layers[0].apply(x, last > 0);
+        for (i, fc) in layers.iter().enumerate().skip(1) {
+            cur = fc.apply(&cur, i < last);
+        }
+        cur[0]
+    }
+
+    // the embedding table is 99.7% of the artifact and stays shared; only the
+    // tensors a later relayout moves are held privately
+    pub(super) struct RefWeights {
+        web_a: Vec<f32>,
+        web_b: Vec<f32>,
+        fc: Vec<RefFc>,
+    }
+
+    impl RefWeights {
+        pub(super) fn snapshot(web_a: &[f32], web_b: &[f32], fc: &[Fc]) -> Self {
+            Self {
+                web_a: web_a.to_vec(),
+                web_b: web_b.to_vec(),
+                fc: fc.iter().map(|l| RefFc::new(l.inp, l.out, l.w.clone(), l.b.clone())).collect(),
+            }
+        }
+    }
+
+    fn ref_attend(net: &LearnedValueV2, tokens: &[f32]) -> Vec<f32> {
+        let aw = net.acc_width;
+        let dk = net.attn_dk;
+        let mut present = [false; NUM_SEGMENTS];
+        for (s, flag) in present.iter_mut().enumerate() {
+            *flag = tokens[s * aw..(s + 1) * aw].iter().map(|v| v.abs()).sum::<f32>() > 0.0;
+        }
+        let mut q = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut key = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut val = vec![0.0f32; NUM_SEGMENTS * dk];
+        for s in 0..NUM_SEGMENTS {
+            let t = &tokens[s * aw..(s + 1) * aw];
+            for o in 0..dk {
+                let w = o * aw..(o + 1) * aw;
+                q[s * dk + o] = ref_dot(&net.attn_q[w.clone()], t);
+                key[s * dk + o] = ref_dot(&net.attn_k[w.clone()], t);
+                val[s * dk + o] = ref_dot(&net.attn_v[w], t);
+            }
+        }
+        let scale = (dk as f32).sqrt();
+        let mut out = tokens.to_vec();
+        let mut w = [0.0f32; NUM_SEGMENTS];
+        let mut mix = vec![0.0f32; dk];
+        for i in 0..NUM_SEGMENTS {
+            if !present[i] {
+                continue;
+            }
+            let qi = &q[i * dk..(i + 1) * dk];
+            let mut mx = f32::NEG_INFINITY;
+            for j in 0..NUM_SEGMENTS {
+                if present[j] {
+                    w[j] = ref_dot(qi, &key[j * dk..(j + 1) * dk]) / scale;
+                    if w[j] > mx {
+                        mx = w[j];
+                    }
+                }
+            }
+            let mut sum = 0.0f32;
+            for j in 0..NUM_SEGMENTS {
+                w[j] = if present[j] { (w[j] - mx).exp() } else { 0.0 };
+                sum += w[j];
+            }
+            for v in mix.iter_mut() {
+                *v = 0.0;
+            }
+            for j in 0..NUM_SEGMENTS {
+                if !present[j] {
+                    continue;
+                }
+                let wj = w[j] / sum;
+                for o in 0..dk {
+                    mix[o] += wj * val[j * dk + o];
+                }
+            }
+            for o in 0..aw {
+                out[i * aw + o] += ref_dot(&net.attn_out[o * dk..(o + 1) * dk], &mix);
+            }
+        }
+        out
+    }
+
+    fn ref_value_input(
+        net: &LearnedValueV2,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> (Vec<f32>, i32, i32) {
+        let aw = net.acc_width;
+        let r = net.web_rank;
+        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        let f1_vocab = 4 * TOTAL_SPECIES;
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let tok_off = seg * aw;
+            for &id in &ids[pos..pos + len as usize] {
+                let idu = id as usize;
+                let row = &net.emb[idu * aw..(idu + 1) * aw];
+                for k in 0..aw {
+                    tokens[tok_off + k] += row[k];
+                }
+                if seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0 {
+                    if seg < 6 {
+                        active0 = seg as i32;
+                    } else {
+                        active1 = (seg - 6) as i32;
+                    }
+                }
+            }
+            pos += len as usize;
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        if net.attn_dk != 0 {
+            tokens = ref_attend(net, &tokens);
+        }
+
+        let mut acc = vec![0.0f32; 2 * aw];
+        for s in 0..6 {
+            for k in 0..aw {
+                acc[k] += tokens[s * aw + k];
+                acc[aw + k] += tokens[(6 + s) * aw + k];
+            }
+        }
+        for k in 0..aw {
+            acc[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
+            acc[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
+        }
+
+        let mut a = vec![0.0f32; 6 * r];
+        let mut b = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            let ti = &tokens[i * aw..(i + 1) * aw];
+            let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+            for o in 0..r {
+                a[i * r + o] = ref_dot(&net.reference.web_a[o * aw..(o + 1) * aw], ti);
+                b[i * r + o] = ref_dot(&net.reference.web_b[o * aw..(o + 1) * aw], tj);
+            }
+        }
+        let mut web_total = vec![0.0f32; r];
+        let mut active_cell = vec![0.0f32; r];
+        let mut cell = vec![0.0f32; r];
+        for i in 0..6 {
+            for j in 0..6 {
+                for o in 0..r {
+                    cell[o] = (a[i * r + o] * b[j * r + o]).max(0.0);
+                    web_total[o] += cell[o];
+                }
+                if active0 == i as i32 && active1 == j as i32 {
+                    active_cell.copy_from_slice(&cell);
+                }
+            }
+        }
+
+        let mut x = vec![0.0f32; value_v2_input_len(aw, r)];
+        for k in 0..2 * aw {
+            x[k] = acc[k].max(0.0);
+        }
+        x[2 * aw..2 * aw + r].copy_from_slice(&web_total);
+        x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&active_cell);
+        x[2 * aw + 2 * r..].copy_from_slice(dense);
+        (x, active0, active1)
+    }
+
+    pub(super) fn ref_logit(
+        net: &LearnedValueV2,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> f32 {
+        let (x, _, _) = ref_value_input(net, ids, seg_lens, dense);
+        ref_head_scalar(&net.reference.fc, &x)
+    }
+
+    pub(super) struct RefEvaluator<'a> {
+        net: &'a LearnedValueV2,
+    }
+
+    impl<'a> RefEvaluator<'a> {
+        pub(super) fn new(net: &'a LearnedValueV2) -> Self {
+            Self { net }
+        }
+    }
+
+    impl Evaluator for RefEvaluator<'_> {
+        fn eval(&self, state: &BattleState) -> f32 {
+            let mut ids = Vec::with_capacity(192);
+            let seg_lens = features::extract_segmented(state, &mut ids);
+            let dense = features::extract_dense(state);
+            ref_logit(self.net, &ids, &seg_lens, &dense) * self.net.multiplier
+        }
     }
 }
 
@@ -2719,6 +2980,118 @@ mod tests {
             LVV2_ATTN_WEIGHTS_PATH,
             LVV2_ATTN_FIXTURES_PATH,
         );
+    }
+
+    fn value_fixture_row(f: &serde_json::Value) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM]) {
+        let ids: Vec<u32> =
+            f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+        let mut seg = [0u16; NUM_SEGMENTS];
+        for (i, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+            seg[i] = v.as_u64().unwrap() as u16;
+        }
+        let mut dense = [0f32; DENSE_DIM];
+        for (i, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+            dense[i] = v.as_f64().unwrap() as f32;
+        }
+        (ids, seg, dense)
+    }
+
+    // bits, not floats: a stored-logit tolerance cannot see the ~1e-6 an
+    // arithmetic rewrite moves, and NaN or -0.0 would pass a float compare
+    fn value_v2_reference_bits(arm: &str, magic: &str, w_default: &str, f_default: &str) {
+        let (loaded, wpath, fpath) = artifacts_v2_value(magic, w_default, f_default);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP value v2 reference bits {arm}: rows_compared=0 rows_differing=0 \
+                 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let mut compared = 0usize;
+        let mut differing = 0usize;
+        for f in fixtures {
+            let (ids, seg, dense) = value_fixture_row(f);
+            let served = net.natural_logit(&ids, &seg, &dense);
+            let reference = net.natural_logit_reference(&ids, &seg, &dense);
+            if served.to_bits() != reference.to_bits() {
+                differing += 1;
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "value v2 reference bits {arm}: rows_compared={compared} rows_differing={differing} \
+             weights={wpath} fixtures={fpath}"
+        );
+        assert_eq!(compared, 64, "{arm}: reference bit gate is 64 fixtures");
+        assert_eq!(differing, 0, "{arm}: served logit left the frozen reference on {differing} rows");
+    }
+
+    #[test]
+    fn value_v2_reference_bits_bare() {
+        value_v2_reference_bits("bare", "LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+    }
+
+    #[test]
+    fn value_v2_reference_bits_attn() {
+        value_v2_reference_bits("attn", "LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+    }
+
+    struct KernelLcg(u64);
+
+    impl KernelLcg {
+        // varied signs and exponents; all-ones vectors would hide reassociation
+        fn next(&mut self) -> f32 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let m = ((self.0 >> 40) as u32) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0;
+            let e = ((self.0 >> 33) & 7) as i32 - 4;
+            m * 2f32.powi(e)
+        }
+    }
+
+    // takes no artifact, so it cannot skip: the shared kernels the policy nets
+    // also read are pinned to the frozen copies at the serving widths
+    #[test]
+    fn shared_kernel_bits() {
+        let aw = 128usize;
+        let fc_in = 327usize;
+        let fc_out = 64usize;
+        let mut g = KernelLcg(0x9E3779B97F4A7C15);
+        let mut dot_compared = 0usize;
+        let mut dot_differing = 0usize;
+        for _ in 0..256 {
+            let w: Vec<f32> = (0..aw).map(|_| g.next()).collect();
+            let x: Vec<f32> = (0..aw).map(|_| g.next()).collect();
+            if dot(&w, &x).to_bits() != frozen_value_ref::ref_dot(&w, &x).to_bits() {
+                dot_differing += 1;
+            }
+            dot_compared += 1;
+        }
+        let w: Vec<f32> = (0..fc_in * fc_out).map(|_| g.next()).collect();
+        let b: Vec<f32> = (0..fc_out).map(|_| g.next()).collect();
+        let served = Fc { inp: fc_in, out: fc_out, w: w.clone(), b: b.clone() };
+        let reference = frozen_value_ref::RefFc::new(fc_in, fc_out, w, b);
+        let mut fc_compared = 0usize;
+        let mut fc_differing = 0usize;
+        for _ in 0..64 {
+            let x: Vec<f32> = (0..fc_in).map(|_| g.next()).collect();
+            let ys = served.apply(&x, false);
+            let yr = reference.apply(&x, false);
+            for (a, c) in ys.iter().zip(yr.iter()) {
+                if a.to_bits() != c.to_bits() {
+                    fc_differing += 1;
+                }
+                fc_compared += 1;
+            }
+        }
+        eprintln!(
+            "shared kernel bits: dot_compared={dot_compared} dot_differing={dot_differing} \
+             fc_outputs_compared={fc_compared} fc_outputs_differing={fc_differing}"
+        );
+        assert_eq!(dot_compared, 256, "dot gate is 256 vectors");
+        assert_eq!(fc_compared, 4096, "fc gate is 64 outputs over 64 rows");
+        assert_eq!(dot_differing, 0, "shared dot left the frozen copy on {dot_differing} vectors");
+        assert_eq!(fc_differing, 0, "shared Fc::apply left the frozen copy on {fc_differing} outputs");
     }
 
     // eight varied roots, both orientations, so the batch exercises the
