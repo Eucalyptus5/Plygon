@@ -1474,6 +1474,10 @@ impl LearnedValueV2 {
         (x, active0, active1)
     }
 
+    pub fn export_multiplier(&self) -> f32 {
+        self.multiplier
+    }
+
     pub fn natural_logit(
         &self,
         ids: &[u32],
@@ -1498,6 +1502,13 @@ pub const LVV2_WEIGHTS_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.bin");
 pub const LVV2_FIXTURES_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.fixtures.json");
+
+// the extended rows are minted from this exact net, so any other artifact
+// makes the comparison meaningless
+pub const LVV2_EXT_WEIGHTS_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-7863b28d2c91.bin");
+pub const LVV2_EXT_FIXTURES_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/lvv2-ext.fixtures.json");
 
 // LVV2_REQUIRE arms every artifact prefix at once, so an absent export fails
 // the parity gates instead of skipping inside a passing run
@@ -2613,6 +2624,91 @@ mod tests {
     #[test]
     fn value_v2_parity_64_fixtures() {
         value_v2_parity("value v2", "LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+    }
+
+    // sibling of the 64-row gate: the extended corpus is sized by its own file,
+    // and it carries the zero-length and multi-id segment shapes the 64 rows
+    // cannot be relied on to cover
+    #[test]
+    fn value_v2_parity_ext() {
+        let (loaded, wpath, fpath) =
+            artifacts_v2_value("LVV2_EXT", LVV2_EXT_WEIGHTS_PATH, LVV2_EXT_FIXTURES_PATH);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP value v2 ext parity: fixtures_compared=0 max_abs_diff=inf distinct=0 \
+                 active0_ok=0 active1_ok=0 web_total_nz=0 active_cell_nz=0 zero_len_rows=0 \
+                 multi_id_rows=0 seg_lens_present=[] weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let aw = net.acc_width;
+        let r = net.web_rank;
+        let mut seen: Vec<Vec<u32>> = Vec::new();
+        let mut active0_ok = 0usize;
+        let mut active1_ok = 0usize;
+        let mut web_total_nz = 0usize;
+        let mut active_cell_nz = 0usize;
+        let mut zero_len_rows = 0usize;
+        let mut multi_id_rows = 0usize;
+        let mut seg_lens_present: Vec<u16> = Vec::new();
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        for f in fixtures {
+            let ids: Vec<u32> =
+                f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+            let mut seg = [0u16; NUM_SEGMENTS];
+            for (i, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+                seg[i] = v.as_u64().unwrap() as u16;
+            }
+            let mut dense = [0f32; DENSE_DIM];
+            for (i, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+                dense[i] = v.as_f64().unwrap() as f32;
+            }
+            zero_len_rows += usize::from(seg.iter().any(|&l| l == 0));
+            multi_id_rows += usize::from(seg.iter().any(|&l| l >= 2));
+            for &l in seg.iter() {
+                if !seg_lens_present.contains(&l) {
+                    seg_lens_present.push(l);
+                }
+            }
+            let (x, active0, active1) = net.value_input(&ids, &seg, &dense);
+            if !seen.contains(&ids) {
+                seen.push(ids.clone());
+            }
+            active0_ok += usize::from(active0 >= 0);
+            active1_ok += usize::from(active1 >= 0);
+            web_total_nz += usize::from(x[2 * aw..2 * aw + r].iter().any(|v| *v != 0.0));
+            active_cell_nz += usize::from(x[2 * aw + r..2 * aw + 2 * r].iter().any(|v| *v != 0.0));
+            let got = net.natural_logit(&ids, &seg, &dense);
+            let d = (got as f64 - f["logit"].as_f64().unwrap()).abs();
+            if d > max_diff {
+                max_diff = d;
+            }
+            compared += 1;
+        }
+        seg_lens_present.sort_unstable();
+        let distinct = seen.len();
+        eprintln!(
+            "value v2 ext parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             distinct={distinct} active0_ok={active0_ok} active1_ok={active1_ok} \
+             web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} \
+             zero_len_rows={zero_len_rows} multi_id_rows={multi_id_rows} \
+             seg_lens_present={seg_lens_present:?} weights={wpath} fixtures={fpath}"
+        );
+        assert!(compared >= 256, "ext corpus must carry at least 256 rows, got {compared}");
+        assert!(zero_len_rows > 0, "ext corpus must carry a zero-length segment");
+        assert!(multi_id_rows > 0, "ext corpus must carry a multi-id segment");
+        assert_eq!(distinct, compared, "ext fixtures must be distinct positions");
+        assert_eq!(active0_ok, compared, "every ext fixture needs an active seat 0");
+        assert_eq!(active1_ok, compared, "every ext fixture needs an active seat 1");
+        assert_eq!(web_total_nz, compared, "every ext fixture needs a nonzero web total");
+        assert!(
+            active_cell_nz * 2 >= compared,
+            "ext active cell nonzero on {active_cell_nz} < {}",
+            compared / 2
+        );
+        assert!(max_diff <= 1e-4, "value v2 ext parity {max_diff:e} > 1e-4");
     }
 
     #[test]

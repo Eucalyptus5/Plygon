@@ -425,6 +425,191 @@ impl Evaluator for CountingEval<'_> {
     }
 }
 
+const DUMP_PER_GAME: usize = 4;
+const DUMP_STRIDE: usize = 6;
+const DUMP_MAX_GAMES: u64 = 4_000;
+const DUMP_POOL_FACTOR: usize = 12;
+
+// search_world returns before searching unless both seats have a real choice
+fn is_decision_point(state: &BattleState) -> bool {
+    !state.is_game_over()
+        && state.phase == PHASE_ACTIONS
+        && legal_actions(state, 0).count >= 2
+        && legal_actions(state, 1).count >= 2
+}
+
+fn root_from_teams(t1: &[MonJson], t2: &[MonJson]) -> (BattleState, TeamData) {
+    let (team1, b1, l1) = build(t1);
+    let (team2, b2, l2) = build(t2);
+    let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
+    let mut state = BattleState::default();
+    state.sides[0].team = team1;
+    state.sides[1].team = team2;
+    state.phase = PHASE_ACTIONS;
+    switch::switch_in(&mut state, &teams, 0, 0);
+    switch::switch_in(&mut state, &teams, 1, 0);
+    (state, teams)
+}
+
+fn collect_decision_points(fixture: &Fixture, want: usize, seed: u64)
+    -> (Vec<(BattleState, TeamData)>, u64) {
+    use poke_mcts::features;
+    let nt = fixture.teams.len() as u64;
+    let pool_target = want.saturating_mul(DUMP_POOL_FACTOR);
+    let mut out: Vec<(BattleState, TeamData)> = Vec::with_capacity(pool_target);
+    let mut seen: Vec<Vec<u32>> = Vec::new();
+    let mut game = 0u64;
+    while out.len() < pool_target && game < DUMP_MAX_GAMES {
+        let gs = splitmix64(seed ^ game);
+        let (ta, tb) = ((splitmix64(gs) % nt) as usize, (splitmix64(gs ^ 0xF00D) % nt) as usize);
+        let (state, teams) = root_from_teams(&fixture.teams[ta], &fixture.teams[tb]);
+        let beliefs = [poke_mcts::belief::Belief::default(); 2];
+        // the offset walks with the game index so captures land on many turn numbers
+        let offset = (game as usize) % DUMP_STRIDE;
+        let greedy_side = (game % 2) as usize;
+        let (mut eligible, mut taken) = (0usize, 0usize);
+        let mut captured: Vec<(BattleState, TeamData)> = Vec::new();
+        poke_mcts::selfplay::play_to_terminal(state, &teams, beliefs, gs,
+            |side, st, tm, _bel, _sd, rng| {
+                if side == 0 && taken < DUMP_PER_GAME && is_decision_point(st) {
+                    if eligible >= offset && (eligible - offset) % DUMP_STRIDE == 0 {
+                        captured.push((*st, tm.clone()));
+                        taken += 1;
+                    }
+                    eligible += 1;
+                }
+                if side == greedy_side { greedy_action(st, side, rng) } else { random_action(st, side, rng) }
+            });
+        for p in captured {
+            let mut ids = Vec::with_capacity(192);
+            features::extract_segmented(&p.0, &mut ids);
+            if seen.contains(&ids) {
+                continue;
+            }
+            seen.push(ids);
+            out.push(p);
+        }
+        game += 1;
+    }
+    (select_covering(out, want), game)
+}
+
+// the corpus is a must-carry list, not a sample: rows carrying a segment length
+// nothing else in the corpus has are admitted first, then the rest fill in order
+fn select_covering(pool: Vec<(BattleState, TeamData)>, want: usize)
+    -> Vec<(BattleState, TeamData)> {
+    use poke_mcts::features;
+    let lens: Vec<Vec<u16>> = pool
+        .iter()
+        .map(|(s, _)| {
+            let mut ids = Vec::with_capacity(192);
+            features::extract_segmented(s, &mut ids).to_vec()
+        })
+        .collect();
+    let mut have: Vec<u16> = Vec::new();
+    let mut picked = vec![false; pool.len()];
+    let mut order: Vec<usize> = Vec::with_capacity(want);
+    for (i, seg) in lens.iter().enumerate() {
+        if order.len() >= want {
+            break;
+        }
+        if seg.iter().any(|l| !have.contains(l)) {
+            for &l in seg {
+                if !have.contains(&l) {
+                    have.push(l);
+                }
+            }
+            picked[i] = true;
+            order.push(i);
+        }
+    }
+    for i in 0..pool.len() {
+        if order.len() >= want {
+            break;
+        }
+        if !picked[i] {
+            order.push(i);
+        }
+    }
+    order.sort_unstable();
+    let mut keep: Vec<Option<(BattleState, TeamData)>> = pool.into_iter().map(Some).collect();
+    order.into_iter().map(|i| keep[i].take().expect("each index taken once")).collect()
+}
+
+fn mint_fixture_rows(net: &LearnedValueV2, pairs: &[(BattleState, TeamData)]) -> serde_json::Value {
+    use poke_mcts::features;
+    let rows: Vec<serde_json::Value> = pairs
+        .iter()
+        .enumerate()
+        .map(|(i, (state, _))| {
+            let mut ids = Vec::with_capacity(192);
+            let seg_lens = features::extract_segmented(state, &mut ids);
+            let dense = features::extract_dense(state);
+            let logit = net.natural_logit(&ids, &seg_lens, &dense);
+            serde_json::json!({
+                "index": i,
+                "ids": ids,
+                "seg_lens": seg_lens.to_vec(),
+                "dense": dense.iter().map(|v| f64::from(*v)).collect::<Vec<f64>>(),
+                "logit": f64::from(logit),
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "feature_spec_version": poke_mcts::features::FEATURE_SPEC_VERSION,
+        "vocab": poke_mcts::features::vocab_size(),
+        "export_multiplier": f64::from(net.export_multiplier()),
+        "fixtures": rows,
+    })
+}
+
+fn dump_search_states(fixture: &Fixture, from_snapshots: Option<&str>, states_out: &str,
+                      fixtures_out: &str, want: usize, seed: u64) {
+    use poke_mcts::audit_snapshot::{pack_search_states, read_search_states, write_search_states};
+    let (memory, games) = match from_snapshots {
+        Some(dir) => {
+            let n = pack_search_states(dir, states_out, want).expect("snapshot pack must succeed");
+            println!("dump-search-states source=snapshots dir={dir} packed={n}");
+            (None, 0)
+        }
+        None => {
+            let (pairs, games) = collect_decision_points(fixture, want, seed);
+            write_search_states(states_out, &pairs).expect("states must write");
+            (Some(pairs), games)
+        }
+    };
+    // the rows are minted from the deserialized pairs, so both corpora describe the states on disk
+    let pairs = read_search_states(states_out).expect("written states must read back");
+    assert_eq!(pairs.len(), want, "wrote {} of {want} requested pairs", pairs.len());
+    if let Some(m) = &memory {
+        assert_eq!(m[0], pairs[0], "the first pair must survive the round trip");
+    }
+
+    let net = LearnedValueV2::from_env();
+    let json = mint_fixture_rows(&net, &pairs);
+    std::fs::write(fixtures_out, serde_json::to_string(&json).unwrap()).expect("fixtures must write");
+
+    let mut turns: Vec<u32> = pairs.iter().map(|(s, _)| s.field.turn as u32).collect();
+    turns.sort_unstable();
+    turns.dedup();
+    let mut lens: Vec<u16> = Vec::new();
+    let (mut zero_len_rows, mut multi_id_rows) = (0usize, 0usize);
+    for f in json["fixtures"].as_array().unwrap() {
+        let seg: Vec<u16> =
+            f["seg_lens"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u16).collect();
+        zero_len_rows += usize::from(seg.iter().any(|&l| l == 0));
+        multi_id_rows += usize::from(seg.iter().any(|&l| l >= 2));
+        for l in seg {
+            if !lens.contains(&l) {
+                lens.push(l);
+            }
+        }
+    }
+    lens.sort_unstable();
+    println!("dump-search-states: pairs_read_back={} games={games} seed={seed} distinct_turns={} turn_max={} zero_len_rows={zero_len_rows} multi_id_rows={multi_id_rows} seg_lens_present={lens:?} states={states_out} fixtures={fixtures_out}",
+        pairs.len(), turns.len(), turns.last().copied().unwrap_or(0));
+}
+
 fn tournament(fixture: &Fixture, games: u64, time_ms: u64, max_iters: u64, seed: u64) {
     let base = Entrant { kind: Kind::Random, time_ms, worlds: 16, max_iters, adaptive: false, chance_mode: poke_mcts::search::ChanceMode::OpenLoop, pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false };
     let entrants: [(&str, Entrant); 5] = [
@@ -600,6 +785,17 @@ fn main() {
             }
             other => panic!("--bench-eval supports --eval learned-v2 and --eval handcrafted, not {other}"),
         }
+        return;
+    }
+    if args.iter().any(|a| a == "--dump-search-states") {
+        let states_out = get("--states-out", "tests/data/search_states.bin");
+        let fixtures_out = get("--fixtures-out", "tests/data/lvv2-ext.fixtures.json");
+        let want: usize = get("--states-count", "256").parse().unwrap();
+        let from = args
+            .iter()
+            .position(|a| a == "--from-snapshots")
+            .map(|i| args[i + 1].clone());
+        dump_search_states(&fixture, from.as_deref(), &states_out, &fixtures_out, want, seed);
         return;
     }
     if args.iter().any(|a| a == "--tournament") {
