@@ -240,9 +240,15 @@ pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer
 }
 
 pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> u8 {
+    choose_action_eval_iters(obs, belief, det, cfg, eval, prior).0
+}
+
+/// `choose_action_eval` plus the iterations the search actually served, taken as the
+/// minimum across worlds so one clipped world cannot hide behind the others.
+pub fn choose_action_eval_iters(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64) {
     let legal = legal_actions(obs.state, obs.our_side);
-    if legal.count == 0 { return ACTION_STRUGGLE; }
-    if legal.count == 1 { return legal.actions[0]; }
+    if legal.count == 0 { return (ACTION_STRUGGLE, 0); }
+    if legal.count == 1 { return (legal.actions[0], 0); }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
     #[cfg(not(feature = "train_value"))]
@@ -272,20 +278,21 @@ pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determi
     // decision's pooled value; per-decision stream order is unchanged.
     #[cfg(feature = "train_value")]
     crate::train_dump::maybe_dump_worlds_valued(&worlds, obs.our_side, obs.state.field.turn, &searched);
+    let served_iters = searched.iter().map(|(r, _)| r.iterations).min().unwrap_or(0);
     let per_world: Vec<(Vec<ArmStat>, f64)> =
         searched.iter().map(|(r, w)| (r.side(obs.our_side).to_vec(), *w)).collect();
     if cfg.raw_root && cfg.num_worlds == 1 {
         // un-aggregated: return the single world's root best-arm (max visits) directly
         let (stats, _w) = &per_world[0];
         if let Some(best) = stats.iter().max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action))) {
-            return best.action;
+            return (best.action, served_iters);
         }
     }
     if cfg.pick_mode == PickMode::Value {
-        return pick_value(&aggregate_value(&per_world), &legal);
+        return (pick_value(&aggregate_value(&per_world), &legal), served_iters);
     }
     let agg = aggregate(&per_world);
-    pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold)
+    (pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold), served_iters)
 }
 
 // Diagnostic mirror of `choose_action` that surfaces the internals a live decision hides:
@@ -482,6 +489,71 @@ mod tests {
         let w = one_world(s, t);
         let r = search_eval(&w, &Handcrafted, &cfg, &params, 3, 0, None);
         assert!(r.iterations > 0, "closed loop still runs without a prior");
+    }
+
+    #[test]
+    fn served_iters_report_the_configured_budget() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        );
+        let belief = Belief::default();
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = PimcConfig {
+            num_worlds: 4,
+            time_ms_per_world: 600_000,
+            max_iters_per_world: 512,
+            seed: 11,
+            chance_mode: ChanceMode::OpenLoop,
+            pick_mode: PickMode::Argmax,
+            filter_threshold: 0.75,
+            raw_root: false,
+            explore_coeff: 2.0,
+        };
+        let (_action, served) =
+            choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
+        assert_eq!(served, 512, "every world must report the configured budget");
+    }
+
+    #[test]
+    fn served_iters_come_from_the_search_not_the_config() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        );
+        let belief = Belief::default();
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = PimcConfig {
+            num_worlds: 4,
+            time_ms_per_world: 1,
+            max_iters_per_world: 200_000,
+            seed: 11,
+            chance_mode: ChanceMode::OpenLoop,
+            pick_mode: PickMode::Argmax,
+            filter_threshold: 0.75,
+            raw_root: false,
+            explore_coeff: 2.0,
+        };
+        let (_action, served) =
+            choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
+        assert!(served > 0, "a time-clipped search still ran some iterations");
+        assert!(
+            served < cfg.max_iters_per_world,
+            "a time-clipped search must report what it ran, not the configured cap: {served}"
+        );
+    }
+
+    #[test]
+    fn a_forced_decision_serves_no_iterations() {
+        let (s, t) = asymmetric_root();
+        assert_eq!(legal_actions(&s, 1).count, 1, "fixture must offer exactly one legal action");
+        let belief = Belief::default();
+        let obs = Observation { state: &s, our_side: 1, teams: &t };
+        let cfg = PimcConfig { num_worlds: 4, seed: 11, ..prior_cfg(ChanceMode::OpenLoop) };
+        let (action, served) =
+            choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
+        assert_eq!(served, 0, "a decision that returns before any search serves 0 iterations");
+        assert_eq!(action, legal_actions(&s, 1).actions[0]);
     }
 
     #[test]
