@@ -117,6 +117,42 @@ fn dot(w: &[f32], x: &[f32]) -> f32 {
     w.iter().zip(x).map(|(a, b)| a * b).sum()
 }
 
+// value-path fork of the fc reader: writes into a caller-owned row so the
+// chain reuses two buffers instead of allocating per layer
+fn value_fc_apply(fc: &Fc, x: &[f32], y: &mut [f32], relu: bool) {
+    debug_assert_eq!(x.len(), fc.inp);
+    debug_assert_eq!(y.len(), fc.out);
+    for (o, yv) in y.iter_mut().enumerate() {
+        let w = &fc.w[o * fc.inp..(o + 1) * fc.inp];
+        let mut s = fc.b[o];
+        for k in 0..fc.inp {
+            s += x[k] * w[k];
+        }
+        *yv = if relu && s < 0.0 { 0.0 } else { s };
+    }
+}
+
+fn value_head_scalar(layers: &[Fc], x: &[f32], h0: &mut [f32], h1: &mut [f32]) -> f32 {
+    let last = layers.len() - 1;
+    value_fc_apply(&layers[0], x, &mut h0[..layers[0].out], last > 0);
+    let mut src_is_h0 = true;
+    for (i, fc) in layers.iter().enumerate().skip(1) {
+        if src_is_h0 {
+            let (cur, dst) = (&h0[..layers[i - 1].out], &mut h1[..fc.out]);
+            value_fc_apply(fc, cur, dst, i < last);
+        } else {
+            let (cur, dst) = (&h1[..layers[i - 1].out], &mut h0[..fc.out]);
+            value_fc_apply(fc, cur, dst, i < last);
+        }
+        src_is_h0 = !src_is_h0;
+    }
+    if src_is_h0 {
+        h0[0]
+    } else {
+        h1[0]
+    }
+}
+
 #[inline(always)]
 fn species_types(id: usize) -> (usize, usize) {
     let s = species_row(id);
@@ -1230,6 +1266,36 @@ pub struct LearnedValueV2 {
     reference: frozen_value_ref::RefWeights,
 }
 
+#[derive(Default)]
+struct ValueForward {
+    tokens: Vec<f32>,
+    acc: Vec<f32>,
+    a: Vec<f32>,
+    b: Vec<f32>,
+    web_total: Vec<f32>,
+    active_cell: Vec<f32>,
+    cell: Vec<f32>,
+    x: Vec<f32>,
+    h0: Vec<f32>,
+    h1: Vec<f32>,
+}
+
+#[derive(Default)]
+struct ValueScratch {
+    ids: Vec<u32>,
+    fwd: ValueForward,
+}
+
+thread_local! {
+    static VALUE_SCRATCH: std::cell::RefCell<ValueScratch> =
+        std::cell::RefCell::new(ValueScratch::default());
+}
+
+fn fit(v: &mut Vec<f32>, n: usize) {
+    v.clear();
+    v.resize(n, 0.0);
+}
+
 impl LearnedValueV2 {
     pub fn from_env() -> Self {
         let path = std::env::var("BRIDGE_EVAL_WEIGHTS_V2")
@@ -1394,15 +1460,27 @@ impl LearnedValueV2 {
         out
     }
 
-    fn value_input(
+    fn value_input_into(
         &self,
         ids: &[u32],
         seg_lens: &[u16; NUM_SEGMENTS],
         dense: &[f32; DENSE_DIM],
-    ) -> (Vec<f32>, i32, i32) {
+        fwd: &mut ValueForward,
+    ) -> (i32, i32) {
         let aw = self.acc_width;
         let r = self.web_rank;
-        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        fit(&mut fwd.tokens, NUM_SEGMENTS * aw);
+        fit(&mut fwd.acc, 2 * aw);
+        fit(&mut fwd.a, 6 * r);
+        fit(&mut fwd.b, 6 * r);
+        fit(&mut fwd.web_total, r);
+        fit(&mut fwd.active_cell, r);
+        fit(&mut fwd.cell, r);
+        fit(&mut fwd.x, value_v2_input_len(aw, r));
+        let hmax = self.fc.iter().map(|l| l.out).max().unwrap();
+        fit(&mut fwd.h0, hmax);
+        fit(&mut fwd.h1, hmax);
+        let ValueForward { tokens, acc, a, b, web_total, active_cell, cell, x, .. } = fwd;
         let mut active0: i32 = -1;
         let mut active1: i32 = -1;
         let f1_vocab = 4 * TOTAL_SPECIES;
@@ -1427,10 +1505,10 @@ impl LearnedValueV2 {
         }
         debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
         if self.attn_dk != 0 {
-            tokens = self.attend(&tokens);
+            let mixed = self.attend(tokens);
+            tokens.copy_from_slice(&mixed);
         }
 
-        let mut acc = vec![0.0f32; 2 * aw];
         for s in 0..6 {
             for k in 0..aw {
                 acc[k] += tokens[s * aw + k];
@@ -1442,8 +1520,6 @@ impl LearnedValueV2 {
             acc[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
         }
 
-        let mut a = vec![0.0f32; 6 * r];
-        let mut b = vec![0.0f32; 6 * r];
         for i in 0..6 {
             let ti = &tokens[i * aw..(i + 1) * aw];
             let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
@@ -1452,9 +1528,6 @@ impl LearnedValueV2 {
                 b[i * r + o] = dot(&self.web_b[o * aw..(o + 1) * aw], tj);
             }
         }
-        let mut web_total = vec![0.0f32; r];
-        let mut active_cell = vec![0.0f32; r];
-        let mut cell = vec![0.0f32; r];
         for i in 0..6 {
             for j in 0..6 {
                 for o in 0..r {
@@ -1462,24 +1535,49 @@ impl LearnedValueV2 {
                     web_total[o] += cell[o];
                 }
                 if active0 == i as i32 && active1 == j as i32 {
-                    active_cell.copy_from_slice(&cell);
+                    active_cell.copy_from_slice(cell);
                 }
             }
         }
 
         // the value tail ReLUs the accumulators; the v2 policy trunk feeds them raw
-        let mut x = vec![0.0f32; value_v2_input_len(aw, r)];
         for k in 0..2 * aw {
             x[k] = acc[k].max(0.0);
         }
-        x[2 * aw..2 * aw + r].copy_from_slice(&web_total);
-        x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&active_cell);
+        x[2 * aw..2 * aw + r].copy_from_slice(web_total);
+        x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(active_cell);
         x[2 * aw + 2 * r..].copy_from_slice(dense);
-        (x, active0, active1)
+        (active0, active1)
+    }
+
+    #[cfg(test)]
+    fn value_input(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> (Vec<f32>, i32, i32) {
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let fwd = &mut s.fwd;
+            let (active0, active1) = self.value_input_into(ids, seg_lens, dense, fwd);
+            (fwd.x.clone(), active0, active1)
+        })
     }
 
     pub fn export_multiplier(&self) -> f32 {
         self.multiplier
+    }
+
+    fn logit_with(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        fwd: &mut ValueForward,
+    ) -> f32 {
+        self.value_input_into(ids, seg_lens, dense, fwd);
+        value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1)
     }
 
     pub fn natural_logit(
@@ -1488,8 +1586,10 @@ impl LearnedValueV2 {
         seg_lens: &[u16; NUM_SEGMENTS],
         dense: &[f32; DENSE_DIM],
     ) -> f32 {
-        let (x, _, _) = self.value_input(ids, seg_lens, dense);
-        head_scalar(&self.fc, &x)
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            self.logit_with(ids, seg_lens, dense, &mut s.fwd)
+        })
     }
 
     pub fn natural_logit_reference(
@@ -1508,10 +1608,14 @@ impl LearnedValueV2 {
 
 impl Evaluator for LearnedValueV2 {
     fn eval(&self, state: &BattleState) -> f32 {
-        let mut ids = Vec::with_capacity(192);
-        let seg_lens = features::extract_segmented(state, &mut ids);
-        let dense = features::extract_dense(state);
-        self.natural_logit(&ids, &seg_lens, &dense) * self.multiplier
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let ValueScratch { ids, fwd } = &mut *s;
+            ids.clear();
+            let seg_lens = features::extract_segmented(state, ids);
+            let dense = features::extract_dense(state);
+            self.logit_with(ids, &seg_lens, &dense, fwd) * self.multiplier
+        })
     }
 }
 
