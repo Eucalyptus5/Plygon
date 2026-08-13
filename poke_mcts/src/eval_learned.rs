@@ -122,13 +122,33 @@ fn dot(w: &[f32], x: &[f32]) -> f32 {
 fn value_fc_apply(fc: &Fc, x: &[f32], y: &mut [f32], relu: bool) {
     debug_assert_eq!(x.len(), fc.inp);
     debug_assert_eq!(y.len(), fc.out);
-    for (o, yv) in y.iter_mut().enumerate() {
-        let w = &fc.w[o * fc.inp..(o + 1) * fc.inp];
-        let mut s = fc.b[o];
-        for k in 0..fc.inp {
-            s += x[k] * w[k];
+    y.copy_from_slice(&fc.b);
+    for k in 0..fc.inp {
+        let xk = x[k];
+        let w = &fc.w[k * fc.out..(k + 1) * fc.out];
+        for o in 0..fc.out {
+            y[o] += xk * w[o];
         }
-        *yv = if relu && s < 0.0 { 0.0 } else { s };
+    }
+    if relu {
+        for v in y.iter_mut() {
+            if *v < 0.0 {
+                *v = 0.0;
+            }
+        }
+    }
+}
+
+fn value_web_project(wt: &[f32], t: &[f32], out: &mut [f32]) {
+    let r = out.len();
+    debug_assert_eq!(wt.len(), t.len() * r);
+    out.fill(0.0);
+    for k in 0..t.len() {
+        let tk = t[k];
+        let w = &wt[k * r..(k + 1) * r];
+        for o in 0..r {
+            out[o] += w[o] * tk;
+        }
     }
 }
 
@@ -1378,6 +1398,13 @@ impl LearnedValueV2 {
         }
         // taken from this read, ahead of any in-place relayout of the served tensors
         let reference = frozen_value_ref::RefWeights::snapshot(&web_a, &web_b, &fc);
+        // served tensors are relaid out so the kernel lanes over contiguous output neurons
+        let web_a = transpose(&web_a, r, aw);
+        let web_b = transpose(&web_b, r, aw);
+        let fc: Vec<Fc> = fc
+            .into_iter()
+            .map(|l| Fc { w: transpose(&l.w, l.out, l.inp), ..l })
+            .collect();
         Ok(Self {
             acc_width: aw,
             web_rank: r,
@@ -1523,10 +1550,8 @@ impl LearnedValueV2 {
         for i in 0..6 {
             let ti = &tokens[i * aw..(i + 1) * aw];
             let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
-            for o in 0..r {
-                a[i * r + o] = dot(&self.web_a[o * aw..(o + 1) * aw], ti);
-                b[i * r + o] = dot(&self.web_b[o * aw..(o + 1) * aw], tj);
-            }
+            value_web_project(&self.web_a, ti, &mut a[i * r..(i + 1) * r]);
+            value_web_project(&self.web_b, tj, &mut b[i * r..(i + 1) * r]);
         }
         for i in 0..6 {
             for j in 0..6 {
@@ -4011,14 +4036,14 @@ mod tests {
         let mut off = 0;
         assert_eq!(net.emb, lvv2_slice(off, vocab * acc));
         off += vocab * acc;
-        assert_eq!(net.web_a, lvv2_slice(off, r * acc));
+        assert_eq!(net.web_a, transpose(&lvv2_slice(off, r * acc), r, acc));
         off += r * acc;
-        assert_eq!(net.web_b, lvv2_slice(off, r * acc));
+        assert_eq!(net.web_b, transpose(&lvv2_slice(off, r * acc), r, acc));
         off += r * acc;
         assert_eq!(net.fc.len(), f.fc.len());
         for (li, &(i, o)) in f.fc.iter().enumerate() {
             let (i, o) = (i as usize, o as usize);
-            assert_eq!(net.fc[li].w, lvv2_slice(off, i * o), "fc{li} weight");
+            assert_eq!(net.fc[li].w, transpose(&lvv2_slice(off, i * o), o, i), "fc{li} weight");
             off += i * o;
             assert_eq!(net.fc[li].b, lvv2_slice(off, o), "fc{li} bias");
             off += o;
@@ -4051,7 +4076,7 @@ mod tests {
         assert_eq!(net.fc.len(), f.fc.len());
         for (li, &(i, o)) in f.fc.iter().enumerate() {
             let (i, o) = (i as usize, o as usize);
-            assert_eq!(net.fc[li].w, lvv2_slice(off, i * o), "fc{li} weight");
+            assert_eq!(net.fc[li].w, transpose(&lvv2_slice(off, i * o), o, i), "fc{li} weight");
             off += i * o;
             assert_eq!(net.fc[li].b, lvv2_slice(off, o), "fc{li} bias");
             off += o;
