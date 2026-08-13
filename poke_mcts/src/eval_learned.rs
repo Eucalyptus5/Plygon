@@ -1302,7 +1302,11 @@ pub fn value_v2_input_len(acc_width: usize, web_rank: usize) -> usize {
     2 * acc_width + 2 * web_rank + DENSE_DIM
 }
 
+// nonzero, so a cache that has never been bound cannot claim to hold this net
+static NEXT_VALUE_NET_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 pub struct LearnedValueV2 {
+    net_id: u64,
     acc_width: usize,
     web_rank: usize,
     attn_dk: usize,
@@ -1320,10 +1324,7 @@ pub struct LearnedValueV2 {
 
 #[derive(Default)]
 struct ValueForward {
-    tokens: Vec<f32>,
     acc: Vec<f32>,
-    a: Vec<f32>,
-    b: Vec<f32>,
     web_total: Vec<f32>,
     active_cell: Vec<f32>,
     cell: Vec<f32>,
@@ -1332,10 +1333,44 @@ struct ValueForward {
     h1: Vec<f32>,
 }
 
+// above every width the extractor can emit; a longer segment is recomputed each
+// call rather than growing the key store
+const SEG_KEY_CAP: usize = 48;
+
+// keyed by each segment's exact ordered id list, and owner of the buffers the
+// forward reads, so an unchanged segment costs a key compare and nothing else
+#[derive(Default)]
+struct SegCache {
+    net_id: u64,
+    tokens: Vec<f32>,
+    proj: Vec<f32>,
+    keys: Vec<u32>,
+    key_lens: [u16; NUM_SEGMENTS],
+    live: [bool; NUM_SEGMENTS],
+    active: [bool; NUM_SEGMENTS],
+}
+
+impl SegCache {
+    fn bind(&mut self, net: &LearnedValueV2) {
+        if self.net_id == net.net_id {
+            return;
+        }
+        self.net_id = net.net_id;
+        fit(&mut self.tokens, NUM_SEGMENTS * net.acc_width);
+        fit(&mut self.proj, 12 * net.web_rank);
+        self.keys.clear();
+        self.keys.resize(NUM_SEGMENTS * SEG_KEY_CAP, 0);
+        self.key_lens = [0; NUM_SEGMENTS];
+        self.live = [false; NUM_SEGMENTS];
+        self.active = [false; NUM_SEGMENTS];
+    }
+}
+
 #[derive(Default)]
 struct ValueScratch {
     ids: Vec<u32>,
     fwd: ValueForward,
+    cache: SegCache,
 }
 
 thread_local! {
@@ -1438,6 +1473,7 @@ impl LearnedValueV2 {
             .map(|l| Fc { w: transpose(&l.w, l.out, l.inp), ..l })
             .collect();
         Ok(Self {
+            net_id: NEXT_VALUE_NET_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             acc_width: aw,
             web_rank: r,
             attn_dk: dk,
@@ -1525,13 +1561,11 @@ impl LearnedValueV2 {
         seg_lens: &[u16; NUM_SEGMENTS],
         dense: &[f32; DENSE_DIM],
         fwd: &mut ValueForward,
+        cache: &mut SegCache,
     ) -> (i32, i32) {
         let aw = self.acc_width;
         let r = self.web_rank;
-        fit(&mut fwd.tokens, NUM_SEGMENTS * aw);
         fit(&mut fwd.acc, 2 * aw);
-        fit(&mut fwd.a, 6 * r);
-        fit(&mut fwd.b, 6 * r);
         fit(&mut fwd.web_total, r);
         fit(&mut fwd.active_cell, r);
         fit(&mut fwd.cell, r);
@@ -1539,28 +1573,52 @@ impl LearnedValueV2 {
         let hmax = self.fc.iter().map(|l| l.out).max().unwrap();
         fit(&mut fwd.h0, hmax);
         fit(&mut fwd.h1, hmax);
-        let ValueForward { tokens, acc, a, b, web_total, active_cell, cell, x, .. } = fwd;
-        let mut active0: i32 = -1;
-        let mut active1: i32 = -1;
+        cache.bind(self);
+        let ValueForward { acc, web_total, active_cell, cell, x, .. } = fwd;
+        let SegCache { tokens, proj, keys, key_lens, live, active, .. } = cache;
+        // attention mixes every token before the projections, so no segment's
+        // block is a function of that segment alone and nothing may be reused
+        let armed = self.attn_dk == 0;
         let f1_vocab = 4 * TOTAL_SPECIES;
         let mut pos = 0usize;
         for (seg, &len) in seg_lens.iter().enumerate() {
-            let tok_off = seg * aw;
-            for &id in &ids[pos..pos + len as usize] {
+            let len = len as usize;
+            let seg_ids = &ids[pos..pos + len];
+            pos += len;
+            if armed
+                && live[seg]
+                && len <= SEG_KEY_CAP
+                && key_lens[seg] as usize == len
+                && keys[seg * SEG_KEY_CAP..seg * SEG_KEY_CAP + len] == *seg_ids
+            {
+                continue;
+            }
+            live[seg] = false;
+            let tok = &mut tokens[seg * aw..(seg + 1) * aw];
+            tok.fill(0.0);
+            let mut act = false;
+            for &id in seg_ids {
                 let idu = id as usize;
-                let row = &self.emb[idu * aw..(idu + 1) * aw];
-                add_into(&mut tokens[tok_off..tok_off + aw], row);
+                add_into(tok, &self.emb[idu * aw..(idu + 1) * aw]);
                 if seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0 {
-                    if seg < 6 {
-                        active0 = seg as i32;
-                    } else {
-                        active1 = (seg - 6) as i32;
-                    }
+                    act = true;
                 }
             }
-            pos += len as usize;
+            active[seg] = act;
         }
         debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        // the id loop assigns the highest matching slot per side, so replaying it
+        // over the per-segment bits reproduces the same pair
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        for seg in 0..6 {
+            if active[seg] {
+                active0 = seg as i32;
+            }
+            if active[6 + seg] {
+                active1 = seg as i32;
+            }
+        }
         if self.attn_dk != 0 {
             let mixed = self.attend(tokens);
             tokens.copy_from_slice(&mixed);
@@ -1575,11 +1633,30 @@ impl LearnedValueV2 {
         add_pair_into(acc1, &tokens[13 * aw..14 * aw], &tokens[14 * aw..15 * aw]);
 
         for i in 0..6 {
-            let ti = &tokens[i * aw..(i + 1) * aw];
-            let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
-            value_web_project(&self.web_a, ti, &mut a[i * r..(i + 1) * r]);
-            value_web_project(&self.web_b, tj, &mut b[i * r..(i + 1) * r]);
+            if !live[i] {
+                let ti = &tokens[i * aw..(i + 1) * aw];
+                value_web_project(&self.web_a, ti, &mut proj[i * r..(i + 1) * r]);
+            }
+            if !live[6 + i] {
+                let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+                value_web_project(&self.web_b, tj, &mut proj[(6 + i) * r..(7 + i) * r]);
+            }
         }
+        // an entry goes live only once both its token and its projection are written
+        if armed {
+            let mut start = 0usize;
+            for (seg, &len) in seg_lens.iter().enumerate() {
+                let len = len as usize;
+                if !live[seg] && len <= SEG_KEY_CAP {
+                    let koff = seg * SEG_KEY_CAP;
+                    keys[koff..koff + len].copy_from_slice(&ids[start..start + len]);
+                    key_lens[seg] = len as u16;
+                    live[seg] = true;
+                }
+                start += len;
+            }
+        }
+        let (a, b) = proj.split_at(6 * r);
         for i in 0..6 {
             for j in 0..6 {
                 web_cell(cell, web_total, &a[i * r..(i + 1) * r], &b[j * r..(j + 1) * r]);
@@ -1606,8 +1683,8 @@ impl LearnedValueV2 {
     ) -> (Vec<f32>, i32, i32) {
         VALUE_SCRATCH.with(|c| {
             let mut s = c.borrow_mut();
-            let fwd = &mut s.fwd;
-            let (active0, active1) = self.value_input_into(ids, seg_lens, dense, fwd);
+            let ValueScratch { fwd, cache, .. } = &mut *s;
+            let (active0, active1) = self.value_input_into(ids, seg_lens, dense, fwd, cache);
             (fwd.x.clone(), active0, active1)
         })
     }
@@ -1622,8 +1699,9 @@ impl LearnedValueV2 {
         seg_lens: &[u16; NUM_SEGMENTS],
         dense: &[f32; DENSE_DIM],
         fwd: &mut ValueForward,
+        cache: &mut SegCache,
     ) -> f32 {
-        self.value_input_into(ids, seg_lens, dense, fwd);
+        self.value_input_into(ids, seg_lens, dense, fwd, cache);
         value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1)
     }
 
@@ -1635,7 +1713,8 @@ impl LearnedValueV2 {
     ) -> f32 {
         VALUE_SCRATCH.with(|c| {
             let mut s = c.borrow_mut();
-            self.logit_with(ids, seg_lens, dense, &mut s.fwd)
+            let ValueScratch { fwd, cache, .. } = &mut *s;
+            self.logit_with(ids, seg_lens, dense, fwd, cache)
         })
     }
 
@@ -1657,11 +1736,11 @@ impl Evaluator for LearnedValueV2 {
     fn eval(&self, state: &BattleState) -> f32 {
         VALUE_SCRATCH.with(|c| {
             let mut s = c.borrow_mut();
-            let ValueScratch { ids, fwd } = &mut *s;
+            let ValueScratch { ids, fwd, cache } = &mut *s;
             ids.clear();
             let seg_lens = features::extract_segmented(state, ids);
             let dense = features::extract_dense(state);
-            self.logit_with(ids, &seg_lens, &dense, fwd) * self.multiplier
+            self.logit_with(ids, &seg_lens, &dense, fwd, cache) * self.multiplier
         })
     }
 }
@@ -3186,6 +3265,80 @@ mod tests {
     #[test]
     fn value_v2_reference_bits_attn() {
         value_v2_reference_bits("attn", "LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+    }
+
+    // nothing carried between calls may outlive the net that produced it
+    #[test]
+    fn value_v2_interleaved_nets_bits() {
+        let (bare, wb, fb) = artifacts_v2_value("LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+        let (attn, wa, fa) =
+            artifacts_v2_value("LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+        let (Some((bare_net, bx)), Some((attn_net, ax))) = (bare, attn) else {
+            eprintln!(
+                "SKIP value v2 interleaved nets: rows_compared=0 rows_differing=0 \
+                 weights={wb},{wa} fixtures={fb},{fa}"
+            );
+            return;
+        };
+        let row_list = |fx: &serde_json::Value| -> Vec<_> {
+            fx["fixtures"].as_array().expect("fixtures array").iter().map(value_fixture_row).collect()
+        };
+        let brows: Vec<_> = row_list(&bx);
+        let arows: Vec<_> = row_list(&ax);
+        let mut compared = 0usize;
+        let mut differing = 0usize;
+        for i in 0..brows.len().min(arows.len()) {
+            for (net, (ids, seg, dense)) in [(&bare_net, &brows[i]), (&attn_net, &arows[i])] {
+                let served = net.natural_logit(ids, seg, dense);
+                if served.to_bits() != net.natural_logit_reference(ids, seg, dense).to_bits() {
+                    differing += 1;
+                }
+                compared += 1;
+            }
+        }
+        eprintln!(
+            "value v2 interleaved nets: rows_compared={compared} rows_differing={differing} \
+             weights={wb},{wa} fixtures={fb},{fa}"
+        );
+        assert!(compared > 0, "interleaving needs rows from both exports");
+        assert_eq!(differing, 0, "served left its own reference on {differing} interleaved rows");
+    }
+
+    // a row scored after a different one must still hold the reference's bits
+    #[test]
+    fn value_v2_attn_order_bits() {
+        let (loaded, wpath, fpath) =
+            artifacts_v2_value("LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP value v2 attn order bits: rows_compared=0 replays_compared=0 \
+                 replays_differing=0 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let rows: Vec<_> =
+            fx["fixtures"].as_array().expect("fixtures array").iter().map(value_fixture_row).collect();
+        let cold: Vec<u32> = rows
+            .iter()
+            .map(|(ids, seg, dense)| net.natural_logit_reference(ids, seg, dense).to_bits())
+            .collect();
+        assert!(rows.len() > 1, "the replay needs a row other than the one under test");
+        let mut compared = 0usize;
+        let mut differing = 0usize;
+        for (i, (ids, seg, dense)) in rows.iter().enumerate() {
+            let (pids, pseg, pdense) = &rows[(i + 1) % rows.len()];
+            net.natural_logit(pids, pseg, pdense);
+            if net.natural_logit(ids, seg, dense).to_bits() != cold[i] {
+                differing += 1;
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "value v2 attn order bits: rows_compared={} replays_compared={compared} \
+             replays_differing={differing} weights={wpath} fixtures={fpath}",
+            rows.len()
+        );
+        assert_eq!(differing, 0, "served logit moved with call history on {differing} replays");
     }
 
     struct KernelLcg(u64);
