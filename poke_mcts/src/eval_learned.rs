@@ -1337,6 +1337,23 @@ struct ValueForward {
 // call rather than growing the key store
 const SEG_KEY_CAP: usize = 48;
 
+// staged prefixes of the value forward; each stage runs everything below it
+pub mod value_stage {
+    pub const S_TLS: u8 = 0;
+    pub const S_ZERO: u8 = 1;
+    pub const S_KEY: u8 = 2;
+    pub const S_TOKFILL: u8 = 3;
+    pub const S_GATHER0: u8 = 4;
+    pub const S_GATHER: u8 = 5;
+    pub const S_ACC: u8 = 6;
+    pub const S_PROJ: u8 = 7;
+    pub const S_CELL0: u8 = 8;
+    pub const S_CELL: u8 = 9;
+    pub const S_XASM: u8 = 10;
+    pub const S_FULL: u8 = 11;
+    pub const S_FULL_ND: u8 = 12;
+}
+
 // keyed by each segment's exact ordered id list, and owner of the buffers the
 // forward reads, so an unchanged segment costs a key compare and nothing else
 #[derive(Default)]
@@ -1381,6 +1398,21 @@ thread_local! {
 fn fit(v: &mut Vec<f32>, n: usize) {
     v.clear();
     v.resize(n, 0.0);
+}
+
+// sizes a buffer the caller fully overwrites before reading, so the zeroing dies
+fn fit_dirty(v: &mut Vec<f32>, n: usize) {
+    if v.len() != n {
+        v.resize(n, 0.0);
+    }
+}
+
+fn value_stage_sink(fwd: &ValueForward) -> f32 {
+    fwd.x.first().copied().unwrap_or(0.0) + fwd.acc.first().copied().unwrap_or(0.0)
+}
+
+pub fn reset_value_scratch() {
+    VALUE_SCRATCH.with(|c| *c.borrow_mut() = ValueScratch::default());
 }
 
 impl LearnedValueV2 {
@@ -1555,7 +1587,7 @@ impl LearnedValueV2 {
         out
     }
 
-    fn value_input_into(
+    fn value_input_into<const STAGE: u8>(
         &self,
         ids: &[u32],
         seg_lens: &[u16; NUM_SEGMENTS],
@@ -1563,23 +1595,44 @@ impl LearnedValueV2 {
         fwd: &mut ValueForward,
         cache: &mut SegCache,
     ) -> (i32, i32) {
+        use value_stage::*;
+        if STAGE < S_ZERO {
+            std::hint::black_box(&*fwd);
+            std::hint::black_box(&*cache);
+            return (-1, -1);
+        }
         let aw = self.acc_width;
         let r = self.web_rank;
         fit(&mut fwd.acc, 2 * aw);
         fit(&mut fwd.web_total, r);
         fit(&mut fwd.active_cell, r);
-        fit(&mut fwd.cell, r);
-        fit(&mut fwd.x, value_v2_input_len(aw, r));
+        if STAGE == S_FULL_ND {
+            fit_dirty(&mut fwd.cell, r);
+            fit_dirty(&mut fwd.x, value_v2_input_len(aw, r));
+        } else {
+            fit(&mut fwd.cell, r);
+            fit(&mut fwd.x, value_v2_input_len(aw, r));
+        }
         let hmax = self.fc.iter().map(|l| l.out).max().unwrap();
-        fit(&mut fwd.h0, hmax);
-        fit(&mut fwd.h1, hmax);
+        if STAGE == S_FULL_ND {
+            fit_dirty(&mut fwd.h0, hmax);
+            fit_dirty(&mut fwd.h1, hmax);
+        } else {
+            fit(&mut fwd.h0, hmax);
+            fit(&mut fwd.h1, hmax);
+        }
         cache.bind(self);
-        let ValueForward { acc, web_total, active_cell, cell, x, .. } = fwd;
-        let SegCache { tokens, proj, keys, key_lens, live, active, .. } = cache;
         // attention mixes every token before the projections, so no segment's
         // block is a function of that segment alone and nothing may be reused
         let armed = self.attn_dk == 0;
         let f1_vocab = 4 * TOTAL_SPECIES;
+        if STAGE < S_KEY {
+            std::hint::black_box(&*fwd);
+            std::hint::black_box(&*cache);
+            return (-1, -1);
+        }
+        let ValueForward { acc, web_total, active_cell, cell, x, .. } = fwd;
+        let SegCache { tokens, proj, keys, key_lens, live, active, .. } = cache;
         let mut pos = 0usize;
         for (seg, &len) in seg_lens.iter().enumerate() {
             let len = len as usize;
@@ -1594,17 +1647,26 @@ impl LearnedValueV2 {
                 continue;
             }
             live[seg] = false;
+            if STAGE < S_TOKFILL {
+                continue;
+            }
             let tok = &mut tokens[seg * aw..(seg + 1) * aw];
             tok.fill(0.0);
+            if STAGE < S_GATHER0 {
+                continue;
+            }
             let mut act = false;
             for &id in seg_ids {
                 let idu = id as usize;
                 add_into(tok, &self.emb[idu * aw..(idu + 1) * aw]);
-                if seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0 {
+                if STAGE >= S_GATHER && seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0
+                {
                     act = true;
                 }
             }
-            active[seg] = act;
+            if STAGE >= S_GATHER {
+                active[seg] = act;
+            }
         }
         debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
         // the id loop assigns the highest matching slot per side, so replaying it
@@ -1619,27 +1681,37 @@ impl LearnedValueV2 {
                 active1 = seg as i32;
             }
         }
-        if self.attn_dk != 0 {
-            let mixed = self.attend(tokens);
-            tokens.copy_from_slice(&mixed);
-        }
-
-        let (acc0, acc1) = acc.split_at_mut(aw);
-        for s in 0..6 {
-            add_into(acc0, &tokens[s * aw..(s + 1) * aw]);
-            add_into(acc1, &tokens[(6 + s) * aw..(7 + s) * aw]);
-        }
-        add_pair_into(acc0, &tokens[12 * aw..13 * aw], &tokens[14 * aw..15 * aw]);
-        add_pair_into(acc1, &tokens[13 * aw..14 * aw], &tokens[14 * aw..15 * aw]);
-
-        for i in 0..6 {
-            if !live[i] {
-                let ti = &tokens[i * aw..(i + 1) * aw];
-                value_web_project(&self.web_a, ti, &mut proj[i * r..(i + 1) * r]);
+        // leaving early through the label keeps the key writeback below on the
+        // path of every stage that owns the hit test
+        'mix: {
+            if STAGE < S_ACC {
+                break 'mix;
             }
-            if !live[6 + i] {
-                let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
-                value_web_project(&self.web_b, tj, &mut proj[(6 + i) * r..(7 + i) * r]);
+            if self.attn_dk != 0 {
+                let mixed = self.attend(tokens);
+                tokens.copy_from_slice(&mixed);
+            }
+
+            let (acc0, acc1) = acc.split_at_mut(aw);
+            for s in 0..6 {
+                add_into(acc0, &tokens[s * aw..(s + 1) * aw]);
+                add_into(acc1, &tokens[(6 + s) * aw..(7 + s) * aw]);
+            }
+            add_pair_into(acc0, &tokens[12 * aw..13 * aw], &tokens[14 * aw..15 * aw]);
+            add_pair_into(acc1, &tokens[13 * aw..14 * aw], &tokens[14 * aw..15 * aw]);
+
+            if STAGE < S_PROJ {
+                break 'mix;
+            }
+            for i in 0..6 {
+                if !live[i] {
+                    let ti = &tokens[i * aw..(i + 1) * aw];
+                    value_web_project(&self.web_a, ti, &mut proj[i * r..(i + 1) * r]);
+                }
+                if !live[6 + i] {
+                    let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+                    value_web_project(&self.web_b, tj, &mut proj[(6 + i) * r..(7 + i) * r]);
+                }
             }
         }
         // an entry goes live only once both its token and its projection are written
@@ -1656,14 +1728,24 @@ impl LearnedValueV2 {
                 start += len;
             }
         }
+        if STAGE < S_CELL0 {
+            std::hint::black_box((&*acc, &*web_total, &*active_cell, &*cell, &*x));
+            std::hint::black_box((&*tokens, &*proj, &*keys, &*key_lens, &*live, &*active));
+            return (-1, -1);
+        }
         let (a, b) = proj.split_at(6 * r);
         for i in 0..6 {
             for j in 0..6 {
                 web_cell(cell, web_total, &a[i * r..(i + 1) * r], &b[j * r..(j + 1) * r]);
-                if active0 == i as i32 && active1 == j as i32 {
+                if STAGE >= S_CELL && active0 == i as i32 && active1 == j as i32 {
                     active_cell.copy_from_slice(cell);
                 }
             }
+        }
+        if STAGE < S_XASM {
+            std::hint::black_box((&*acc, &*web_total, &*active_cell, &*cell, &*x));
+            std::hint::black_box((&*tokens, &*proj, &*keys, &*key_lens, &*live, &*active));
+            return (-1, -1);
         }
 
         // the value tail ReLUs the accumulators; the v2 policy trunk feeds them raw
@@ -1672,6 +1754,49 @@ impl LearnedValueV2 {
         x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(active_cell);
         x[2 * aw + 2 * r..].copy_from_slice(dense);
         (active0, active1)
+    }
+
+    // holds its own key store so the hit condition above can be diffed by eye;
+    // never reached from the served path
+    pub fn value_cache_probe(&self, trace: &[(Vec<u32>, [u16; NUM_SEGMENTS])]) -> (u64, u64) {
+        let armed = self.attn_dk == 0;
+        let mut keys = vec![0u32; NUM_SEGMENTS * SEG_KEY_CAP];
+        let mut key_lens = [0u16; NUM_SEGMENTS];
+        let mut live = [false; NUM_SEGMENTS];
+        let (mut hits, mut misses) = (0u64, 0u64);
+        for (ids, seg_lens) in trace {
+            let mut pos = 0usize;
+            for (seg, &len) in seg_lens.iter().enumerate() {
+                let len = len as usize;
+                let seg_ids = &ids[pos..pos + len];
+                pos += len;
+                if armed
+                    && live[seg]
+                    && len <= SEG_KEY_CAP
+                    && key_lens[seg] as usize == len
+                    && keys[seg * SEG_KEY_CAP..seg * SEG_KEY_CAP + len] == *seg_ids
+                {
+                    hits += 1;
+                    continue;
+                }
+                misses += 1;
+                live[seg] = false;
+            }
+            if armed {
+                let mut start = 0usize;
+                for (seg, &len) in seg_lens.iter().enumerate() {
+                    let len = len as usize;
+                    if !live[seg] && len <= SEG_KEY_CAP {
+                        let koff = seg * SEG_KEY_CAP;
+                        keys[koff..koff + len].copy_from_slice(&ids[start..start + len]);
+                        key_lens[seg] = len as u16;
+                        live[seg] = true;
+                    }
+                    start += len;
+                }
+            }
+        }
+        (hits, misses)
     }
 
     #[cfg(test)]
@@ -1684,7 +1809,8 @@ impl LearnedValueV2 {
         VALUE_SCRATCH.with(|c| {
             let mut s = c.borrow_mut();
             let ValueScratch { fwd, cache, .. } = &mut *s;
-            let (active0, active1) = self.value_input_into(ids, seg_lens, dense, fwd, cache);
+            let (active0, active1) =
+                self.value_input_into::<{ value_stage::S_FULL }>(ids, seg_lens, dense, fwd, cache);
             (fwd.x.clone(), active0, active1)
         })
     }
@@ -1693,7 +1819,7 @@ impl LearnedValueV2 {
         self.multiplier
     }
 
-    fn logit_with(
+    fn logit_with<const STAGE: u8>(
         &self,
         ids: &[u32],
         seg_lens: &[u16; NUM_SEGMENTS],
@@ -1701,8 +1827,41 @@ impl LearnedValueV2 {
         fwd: &mut ValueForward,
         cache: &mut SegCache,
     ) -> f32 {
-        self.value_input_into(ids, seg_lens, dense, fwd, cache);
+        self.value_input_into::<STAGE>(ids, seg_lens, dense, fwd, cache);
+        if STAGE < value_stage::S_FULL {
+            return value_stage_sink(fwd);
+        }
         value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1)
+    }
+
+    pub fn staged_logit(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        stage: u8,
+    ) -> f32 {
+        use value_stage::*;
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let ValueScratch { fwd, cache, .. } = &mut *s;
+            match stage {
+                S_TLS => self.logit_with::<{ S_TLS }>(ids, seg_lens, dense, fwd, cache),
+                S_ZERO => self.logit_with::<{ S_ZERO }>(ids, seg_lens, dense, fwd, cache),
+                S_KEY => self.logit_with::<{ S_KEY }>(ids, seg_lens, dense, fwd, cache),
+                S_TOKFILL => self.logit_with::<{ S_TOKFILL }>(ids, seg_lens, dense, fwd, cache),
+                S_GATHER0 => self.logit_with::<{ S_GATHER0 }>(ids, seg_lens, dense, fwd, cache),
+                S_GATHER => self.logit_with::<{ S_GATHER }>(ids, seg_lens, dense, fwd, cache),
+                S_ACC => self.logit_with::<{ S_ACC }>(ids, seg_lens, dense, fwd, cache),
+                S_PROJ => self.logit_with::<{ S_PROJ }>(ids, seg_lens, dense, fwd, cache),
+                S_CELL0 => self.logit_with::<{ S_CELL0 }>(ids, seg_lens, dense, fwd, cache),
+                S_CELL => self.logit_with::<{ S_CELL }>(ids, seg_lens, dense, fwd, cache),
+                S_XASM => self.logit_with::<{ S_XASM }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL => self.logit_with::<{ S_FULL }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL_ND => self.logit_with::<{ S_FULL_ND }>(ids, seg_lens, dense, fwd, cache),
+                _ => panic!("unknown value stage {stage}"),
+            }
+        })
     }
 
     pub fn natural_logit(
@@ -1714,7 +1873,7 @@ impl LearnedValueV2 {
         VALUE_SCRATCH.with(|c| {
             let mut s = c.borrow_mut();
             let ValueScratch { fwd, cache, .. } = &mut *s;
-            self.logit_with(ids, seg_lens, dense, fwd, cache)
+            self.logit_with::<{ value_stage::S_FULL }>(ids, seg_lens, dense, fwd, cache)
         })
     }
 
@@ -1740,7 +1899,8 @@ impl Evaluator for LearnedValueV2 {
             ids.clear();
             let seg_lens = features::extract_segmented(state, ids);
             let dense = features::extract_dense(state);
-            self.logit_with(ids, &seg_lens, &dense, fwd, cache) * self.multiplier
+            self.logit_with::<{ value_stage::S_FULL }>(ids, &seg_lens, &dense, fwd, cache)
+                * self.multiplier
         })
     }
 }
@@ -3339,6 +3499,129 @@ mod tests {
             rows.len()
         );
         assert_eq!(differing, 0, "served logit moved with call history on {differing} replays");
+    }
+
+    fn staged_stage_list() -> [u8; 13] {
+        use value_stage::*;
+        [
+            S_TLS, S_ZERO, S_KEY, S_TOKFILL, S_GATHER0, S_GATHER, S_ACC, S_PROJ, S_CELL0, S_CELL,
+            S_XASM, S_FULL, S_FULL_ND,
+        ]
+    }
+
+    fn staged_rows(
+        label: &str,
+    ) -> Option<(LearnedValueV2, Vec<(Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM])>)> {
+        let (loaded, wpath, fpath) =
+            artifacts_v2_value("LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP {label}: rows_compared=0 weights={wpath} fixtures={fpath}");
+            return None;
+        };
+        let rows: Vec<_> =
+            fx["fixtures"].as_array().expect("fixtures array").iter().map(value_fixture_row).collect();
+        eprintln!("{label}: weights={wpath} fixtures={fpath}");
+        Some((net, rows))
+    }
+
+    #[test]
+    fn staged_logit_full_matches_natural_logit_bitwise() {
+        let Some((net, rows)) = staged_rows("staged logit full bits") else { return };
+        reset_value_scratch();
+        let served: Vec<u32> =
+            rows.iter().map(|(i, s, d)| net.natural_logit(i, s, d).to_bits()).collect();
+        reset_value_scratch();
+        let staged: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL).to_bits())
+            .collect();
+        let differing = served.iter().zip(&staged).filter(|(a, b)| a != b).count();
+        eprintln!("staged logit full bits: rows_compared={} rows_differing={differing}", rows.len());
+        assert_eq!(rows.len(), 64, "staged full gate is 64 fixtures");
+        assert_eq!(differing, 0, "staged full left the served logit on {differing} rows");
+    }
+
+    #[test]
+    fn staged_logit_full_nodeadzero_matches_full_bitwise() {
+        let Some((net, rows)) = staged_rows("staged logit nodeadzero bits") else { return };
+        reset_value_scratch();
+        let full: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL).to_bits())
+            .collect();
+        reset_value_scratch();
+        let nd: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL_ND).to_bits())
+            .collect();
+        let differing = full.iter().zip(&nd).filter(|(a, b)| a != b).count();
+        eprintln!(
+            "staged logit nodeadzero bits: rows_compared={} rows_differing={differing}",
+            rows.len()
+        );
+        assert_eq!(rows.len(), 64, "nodeadzero gate is 64 fixtures");
+        assert_eq!(differing, 0, "skipping the dead zeroing moved {differing} rows");
+    }
+
+    // the even slots replay one anchor row, so every buffer a prefix stage leaves
+    // behind is either correct for that row or keyed to a row that must miss
+    #[test]
+    fn staged_prefixes_do_not_disturb_the_full_result() {
+        let Some((net, rows)) = staged_rows("staged prefix isolation") else { return };
+        assert!(rows.len() > 2, "the interleave needs rows beyond the anchor");
+        let stages = staged_stage_list();
+        let steps = 48usize;
+        let (aids, aseg, adense) = &rows[0];
+        reset_value_scratch();
+        let reference: Vec<u32> = (0..steps / 2)
+            .map(|_| net.staged_logit(aids, aseg, adense, value_stage::S_FULL).to_bits())
+            .collect();
+        reset_value_scratch();
+        let mut mixed = Vec::new();
+        let mut used = std::collections::BTreeSet::new();
+        for i in 0..steps {
+            if i % 2 == 0 {
+                mixed.push(net.staged_logit(aids, aseg, adense, value_stage::S_FULL).to_bits());
+            } else {
+                let stage = stages[(i / 2) % stages.len()];
+                used.insert(stage);
+                let (ids, seg, dense) = &rows[1 + (i / 2) % (rows.len() - 1)];
+                net.staged_logit(ids, seg, dense, stage);
+            }
+        }
+        let differing = reference.iter().zip(&mixed).filter(|(a, b)| a != b).count();
+        eprintln!(
+            "staged prefix isolation: rows_compared={} stages_used={} rows_differing={differing}",
+            mixed.len(),
+            used.len()
+        );
+        assert_eq!(mixed.len(), steps / 2, "every even slot must be scored");
+        assert_eq!(used.len(), stages.len(), "every stage must appear in the interleave");
+        assert_eq!(differing, 0, "a prefix stage moved {differing} full results");
+    }
+
+    #[test]
+    fn value_cache_probe_matches_segment_reuse() {
+        let net = LearnedValueV2::from_bytes(&ValueFileV2::small().bytes())
+            .expect("synthetic LVV2 must load");
+        let seg = [1u16; NUM_SEGMENTS];
+        let base: Vec<u32> = (0..NUM_SEGMENTS as u32).collect();
+        let mut changed = base.clone();
+        changed[3] += 1;
+        let trace = vec![(base.clone(), seg), (base.clone(), seg), (changed, seg)];
+        let (hits, misses) = net.value_cache_probe(&trace);
+        eprintln!("value cache probe: hits={hits} misses={misses}");
+        assert_eq!(hits, (2 * NUM_SEGMENTS - 1) as u64, "only the edited segment may miss on replay");
+        assert_eq!(misses, (NUM_SEGMENTS + 1) as u64, "the cold pass plus the edited segment miss");
+        assert_eq!(hits + misses, (trace.len() * NUM_SEGMENTS) as u64);
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown value stage")]
+    fn staged_logit_rejects_unknown_stage() {
+        let net = LearnedValueV2::from_bytes(&ValueFileV2::small().bytes())
+            .expect("synthetic LVV2 must load");
+        net.staged_logit(&[], &[0u16; NUM_SEGMENTS], &[0f32; DENSE_DIM], 13);
     }
 
     struct KernelLcg(u64);
