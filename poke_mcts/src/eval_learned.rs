@@ -152,6 +152,38 @@ fn value_web_project(wt: &[f32], t: &[f32], out: &mut [f32]) {
     }
 }
 
+// buffers arrive as parameters so each slice carries the no-alias guarantee a
+// fresh allocation used to provide, which is what keeps these vectorized
+fn add_into(dst: &mut [f32], src: &[f32]) {
+    debug_assert_eq!(dst.len(), src.len());
+    for k in 0..dst.len() {
+        dst[k] += src[k];
+    }
+}
+
+fn add_pair_into(dst: &mut [f32], x: &[f32], y: &[f32]) {
+    debug_assert_eq!(dst.len(), x.len());
+    debug_assert_eq!(dst.len(), y.len());
+    for k in 0..dst.len() {
+        dst[k] += x[k] + y[k];
+    }
+}
+
+fn web_cell(cell: &mut [f32], web_total: &mut [f32], a: &[f32], b: &[f32]) {
+    debug_assert_eq!(cell.len(), web_total.len());
+    for o in 0..cell.len() {
+        cell[o] = (a[o] * b[o]).max(0.0);
+        web_total[o] += cell[o];
+    }
+}
+
+fn relu_into(dst: &mut [f32], src: &[f32]) {
+    debug_assert_eq!(dst.len(), src.len());
+    for k in 0..dst.len() {
+        dst[k] = src[k].max(0.0);
+    }
+}
+
 fn value_head_scalar(layers: &[Fc], x: &[f32], h0: &mut [f32], h1: &mut [f32]) -> f32 {
     let last = layers.len() - 1;
     value_fc_apply(&layers[0], x, &mut h0[..layers[0].out], last > 0);
@@ -1517,9 +1549,7 @@ impl LearnedValueV2 {
             for &id in &ids[pos..pos + len as usize] {
                 let idu = id as usize;
                 let row = &self.emb[idu * aw..(idu + 1) * aw];
-                for k in 0..aw {
-                    tokens[tok_off + k] += row[k];
-                }
+                add_into(&mut tokens[tok_off..tok_off + aw], row);
                 if seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0 {
                     if seg < 6 {
                         active0 = seg as i32;
@@ -1536,16 +1566,13 @@ impl LearnedValueV2 {
             tokens.copy_from_slice(&mixed);
         }
 
+        let (acc0, acc1) = acc.split_at_mut(aw);
         for s in 0..6 {
-            for k in 0..aw {
-                acc[k] += tokens[s * aw + k];
-                acc[aw + k] += tokens[(6 + s) * aw + k];
-            }
+            add_into(acc0, &tokens[s * aw..(s + 1) * aw]);
+            add_into(acc1, &tokens[(6 + s) * aw..(7 + s) * aw]);
         }
-        for k in 0..aw {
-            acc[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
-            acc[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
-        }
+        add_pair_into(acc0, &tokens[12 * aw..13 * aw], &tokens[14 * aw..15 * aw]);
+        add_pair_into(acc1, &tokens[13 * aw..14 * aw], &tokens[14 * aw..15 * aw]);
 
         for i in 0..6 {
             let ti = &tokens[i * aw..(i + 1) * aw];
@@ -1555,10 +1582,7 @@ impl LearnedValueV2 {
         }
         for i in 0..6 {
             for j in 0..6 {
-                for o in 0..r {
-                    cell[o] = (a[i * r + o] * b[j * r + o]).max(0.0);
-                    web_total[o] += cell[o];
-                }
+                web_cell(cell, web_total, &a[i * r..(i + 1) * r], &b[j * r..(j + 1) * r]);
                 if active0 == i as i32 && active1 == j as i32 {
                     active_cell.copy_from_slice(cell);
                 }
@@ -1566,9 +1590,7 @@ impl LearnedValueV2 {
         }
 
         // the value tail ReLUs the accumulators; the v2 policy trunk feeds them raw
-        for k in 0..2 * aw {
-            x[k] = acc[k].max(0.0);
-        }
+        relu_into(&mut x[..2 * aw], &acc[..2 * aw]);
         x[2 * aw..2 * aw + r].copy_from_slice(web_total);
         x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(active_cell);
         x[2 * aw + 2 * r..].copy_from_slice(dense);
