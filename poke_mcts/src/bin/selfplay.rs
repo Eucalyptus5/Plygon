@@ -798,6 +798,8 @@ fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Opt
     let (mut walls, mut evals_us, mut extract_us, mut forward_us) =
         (Vec::with_capacity(reps), Vec::with_capacity(reps), Vec::with_capacity(reps), Vec::with_capacity(reps));
     let mut per_iter_evals = Vec::with_capacity(reps);
+    let mut bare = Vec::with_capacity(reps);
+    // the shimmed and bare arms alternate so machine drift lands on both alike
     for rep in 1..=reps {
         shim.reset();
         let (wall_us, iters_total) = insitu_wall(&pool, &worlds, &shim, &params, world_seed);
@@ -813,19 +815,16 @@ fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Opt
             forward_us.push(f);
         }
         per_iter_evals.push(t[0] as f64 / iters_total.max(1) as f64);
-        println!("insitu-rep rep={rep} total_wall_us_per_iter={wall_per_iter:.3} evals={} eval_us_per_eval={tt:.3} extract_us_per_eval={} forward_us_per_eval={}",
+        let (bare_us, bare_iters) = insitu_wall(&pool, &worlds, inner, &params, world_seed);
+        let bare_per_iter = bare_us * num_worlds as f64 / bare_iters.max(1) as f64;
+        bare.push(bare_per_iter);
+        println!("insitu-rep rep={rep} total_wall_us_per_iter={wall_per_iter:.3} noshim_wall_us_per_iter={bare_per_iter:.3} evals={} eval_us_per_eval={tt:.3} extract_us_per_eval={} forward_us_per_eval={}",
             t[0], fmt_us(split.map(|s| s.0)), fmt_us(split.map(|s| s.1)));
     }
     let extract = if extract_us.is_empty() { None } else { Some(stats(extract_us).1) };
     let forward = if forward_us.is_empty() { None } else { Some(stats(forward_us).1) };
     println!("insitu {label}: worlds={num_worlds} threads={threads} iters={iters} reps={reps} eval_us_per_eval={:.3} extract_us_per_eval={} forward_us_per_eval={} total_wall_us_per_iter={:.3} evals_per_iter={:.3}",
         stats(evals_us).1, fmt_us(extract), fmt_us(forward), stats(walls).1, stats(per_iter_evals).1);
-
-    let mut bare = Vec::with_capacity(reps);
-    for _ in 0..reps {
-        let (wall_us, iters_total) = insitu_wall(&pool, &worlds, inner, &params, world_seed);
-        bare.push(wall_us * num_worlds as f64 / iters_total.max(1) as f64);
-    }
     println!("insitu-noshim {label}: total_wall_us_per_iter={:.3} iters={iters} reps={reps}", stats(bare).1);
 
     let (pair_ns, triple_ns) = clock_cost(reps);
