@@ -5,6 +5,7 @@ use poke_mcts::eval_learned::{LearnedEval, LearnedValueV2};
 use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
 use poke_mcts::rng::{splitmix64, Lcg};
+use poke_mcts::features::{DENSE_DIM, NUM_SEGMENTS};
 use poke_mcts::search::{search_world, SearchParams};
 use pkmn_engine::state::*;
 
@@ -425,6 +426,412 @@ impl Evaluator for CountingEval<'_> {
     }
 }
 
+#[derive(Default)]
+struct EvalTrace {
+    ids: Vec<u32>,
+    spans: Vec<(u32, u32)>,
+    seg_lens: Vec<[u16; NUM_SEGMENTS]>,
+    dense: Vec<[f32; DENSE_DIM]>,
+}
+
+impl EvalTrace {
+    fn push(&mut self, ids: &[u32], seg_lens: [u16; NUM_SEGMENTS], dense: [f32; DENSE_DIM]) {
+        self.spans.push((self.ids.len() as u32, ids.len() as u32));
+        self.ids.extend_from_slice(ids);
+        self.seg_lens.push(seg_lens);
+        self.dense.push(dense);
+    }
+
+    fn len(&self) -> usize { self.spans.len() }
+
+    fn ids_at(&self, i: usize) -> &[u32] {
+        let (off, len) = self.spans[i];
+        &self.ids[off as usize..(off + len) as usize]
+    }
+
+    fn probe_input(&self) -> Vec<(Vec<u32>, [u16; NUM_SEGMENTS])> {
+        (0..self.len()).map(|i| (self.ids_at(i).to_vec(), self.seg_lens[i])).collect()
+    }
+}
+
+fn distinct_rows(trace: &EvalTrace) -> usize {
+    let mut seen: std::collections::HashSet<(Vec<u32>, [u16; NUM_SEGMENTS], [u32; DENSE_DIM])> =
+        std::collections::HashSet::with_capacity(trace.len());
+    for i in 0..trace.len() {
+        let mut bits = [0u32; DENSE_DIM];
+        for (b, v) in bits.iter_mut().zip(trace.dense[i].iter()) {
+            *b = v.to_bits();
+        }
+        seen.insert((trace.ids_at(i).to_vec(), trace.seg_lens[i], bits));
+    }
+    seen.len()
+}
+
+fn med_spread(v: Vec<f64>) -> (f64, f64, f64, f64) {
+    let (min, med, max) = stats(v);
+    let spread = if med != 0.0 { 100.0 * (max - min) / med } else { 0.0 };
+    (med, min, max, spread)
+}
+
+struct NetGeom { aw: usize, r: usize, fc: Vec<(usize, usize)> }
+
+struct Census {
+    gather_adds: f64,
+    tokfill_stores: f64,
+    proj_macs: f64,
+    acc_adds: f64,
+    cell_ops: f64,
+    xasm_ops: f64,
+    fc_macs: f64,
+    fit_stores: f64,
+    total_ops: f64,
+}
+
+fn census(geom: &NetGeom, evals: u64, seg_misses: &[u64; NUM_SEGMENTS], missed_ids: u64) -> Census {
+    let e = evals.max(1) as f64;
+    let (aw, r) = (geom.aw as f64, geom.r as f64);
+    let misses: u64 = seg_misses.iter().sum();
+    // only the first twelve segments carry a web projection
+    let misses_web: u64 = seg_misses[..12].iter().sum();
+    let hmax = geom.fc.iter().map(|&(_, o)| o).max().unwrap() as f64;
+    let gather_adds = missed_ids as f64 * aw / e;
+    let tokfill_stores = misses as f64 * aw / e;
+    let proj_macs = misses_web as f64 * aw * r / e;
+    let acc_adds = 12.0 * aw + 2.0 * 2.0 * aw;
+    let cell_ops = 36.0 * r * 3.0;
+    let xasm_ops = 2.0 * aw + 2.0 * r + DENSE_DIM as f64;
+    let fc_macs: f64 = geom.fc.iter().map(|&(i, o)| (i * o + o) as f64).sum();
+    let fit_stores = 2.0 * aw + 3.0 * r + 2.0 * hmax;
+    Census {
+        gather_adds, tokfill_stores, proj_macs, acc_adds, cell_ops, xasm_ops, fc_macs, fit_stores,
+        total_ops: gather_adds + tokfill_stores + proj_macs + acc_adds + cell_ops + xasm_ops
+            + fc_macs + fit_stores,
+    }
+}
+
+fn net_geometry(weights: &str, net: &LearnedValueV2) -> NetGeom {
+    use std::io::Read;
+    let mut head = [0u8; 128];
+    std::fs::File::open(weights)
+        .expect("weights must open")
+        .read_exact(&mut head)
+        .expect("weights header must read");
+    assert_eq!(&head[..4], b"LVV2", "{weights} is not an LVV2 weights file");
+    let u = |i: usize| u32::from_le_bytes(head[4 + 4 * i..8 + 4 * i].try_into().unwrap()) as usize;
+    let (aw, r, n_fc) = (u(2), u(4), u(12));
+    assert!((2..=9).contains(&n_fc), "fc chain of {n_fc} layers is outside the header window");
+    let fc: Vec<(usize, usize)> = (0..n_fc).map(|k| (u(13 + 2 * k), u(14 + 2 * k))).collect();
+    assert_eq!(poke_mcts::eval_learned::value_v2_input_len(aw, r), net.fc1_input(),
+        "header acc_width {aw} / web_rank {r} disagree with the loaded net");
+    assert_eq!(fc[0].0, net.fc1_input(), "header fc1 input disagrees with the loaded net");
+    NetGeom { aw, r, fc }
+}
+
+struct RecordingEval<'a> {
+    net: &'a LearnedValueV2,
+    scratch: std::cell::RefCell<Vec<u32>>,
+    trace: std::cell::RefCell<EvalTrace>,
+}
+
+impl Evaluator for RecordingEval<'_> {
+    fn eval(&self, state: &BattleState) -> f32 {
+        use poke_mcts::features;
+        let mut ids = self.scratch.borrow_mut();
+        ids.clear();
+        let seg_lens = features::extract_segmented(state, &mut ids);
+        let dense = features::extract_dense(state);
+        self.trace.borrow_mut().push(&ids, seg_lens, dense);
+        self.net.natural_logit(&ids, &seg_lens, &dense) * self.net.export_multiplier()
+    }
+}
+
+#[derive(Clone, Copy)]
+enum StageKind { Loop, Staged(u8), Natural }
+
+fn replay_pass(net: &LearnedValueV2, trace: &EvalTrace, kind: StageKind) -> f32 {
+    let mut sink = 0f32;
+    for i in 0..trace.len() {
+        let ids = std::hint::black_box(trace.ids_at(i));
+        let seg_lens = std::hint::black_box(&trace.seg_lens[i]);
+        let dense = std::hint::black_box(&trace.dense[i]);
+        sink += match kind {
+            StageKind::Loop => {
+                std::hint::black_box((ids, seg_lens, dense));
+                0.0
+            }
+            StageKind::Staged(s) => net.staged_logit(ids, seg_lens, dense, s),
+            StageKind::Natural => net.natural_logit(ids, seg_lens, dense),
+        };
+    }
+    sink
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world_idx: usize,
+                   iters: u64, reps: usize, num_worlds: usize, world_seed: u64) {
+    use poke_mcts::determinize::Determinizer;
+    use poke_mcts::eval_learned::value_stage::*;
+    let (state, teams) = sweep_root(fixture);
+    let mut belief = poke_mcts::belief::Belief::default();
+    let om = state.active_mon(1);
+    belief.note_species(om.species_id, om.level);
+    let obs = poke_mcts::determinize::Observation { state: &state, teams: &teams, our_side: 0 };
+    let mut rng = Lcg::new(splitmix64(world_seed));
+    let worlds = poke_mcts::determinize::RandomBattle.sample_worlds(&obs, &belief, num_worlds, &mut rng);
+    assert!(world_idx < worlds.len(), "--trace-world {world_idx} is outside the {num_worlds}-world set");
+    let w = &worlds[world_idx];
+    let seed = splitmix64(world_seed ^ (world_idx as u64).wrapping_mul(0x9E3779B97F4A7C15));
+
+    let rec = RecordingEval {
+        net,
+        scratch: std::cell::RefCell::new(Vec::with_capacity(192)),
+        trace: std::cell::RefCell::new(EvalTrace::default()),
+    };
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, ..Default::default() };
+    let r = search_world(&w.state, &w.teams, &rec, &OpenLoop, &params, seed, 0, None);
+    let trace = rec.trace.into_inner();
+    let evals = trace.len();
+    assert!(evals > 0, "the traced search produced no evaluations");
+
+    let (hits, misses, seg_misses, missed_ids) = net.value_cache_probe_detail(&trace.probe_input());
+    let lens: Vec<f64> = (0..evals).map(|i| trace.ids_at(i).len() as f64).collect();
+    let (id_med, id_min, id_max, _) = med_spread(lens);
+    println!("trace: world={world_idx} iters={} evals={evals} distinct_rows={} ids_median={id_med:.1} ids_min={id_min:.0} ids_max={id_max:.0} seg_hits={hits} seg_misses={misses} seg_hit_pct={:.2}%",
+        r.iterations, distinct_rows(&trace), 100.0 * hits as f64 / (hits + misses).max(1) as f64);
+
+    let geom = net_geometry(weights, net);
+    let c = census(&geom, evals as u64, &seg_misses, missed_ids);
+    println!("census: gather_adds={:.1} tokfill_stores={:.1} proj_macs={:.1} acc_adds={:.1} cell_ops={:.1} xasm_ops={:.1} fc_macs={:.1} fit_stores={:.1} total_ops={:.1}",
+        c.gather_adds, c.tokfill_stores, c.proj_macs, c.acc_adds, c.cell_ops, c.xasm_ops,
+        c.fc_macs, c.fit_stores, c.total_ops);
+    let fc: Vec<String> = geom.fc.iter().map(|&(i, o)| format!("{i}x{o}")).collect();
+    println!("census-raw: evals={evals} seg_misses={misses} missed_ids={missed_ids} missed_seg_web={} aw={} r={} fc=[{}] weights={weights}",
+        seg_misses[..12].iter().sum::<u64>(), geom.aw, geom.r, fc.join(","));
+
+    let stages: [(&str, StageKind); 15] = [
+        ("loop", StageKind::Loop),
+        ("tls", StageKind::Staged(S_TLS)),
+        ("zero", StageKind::Staged(S_ZERO)),
+        ("key", StageKind::Staged(S_KEY)),
+        ("tokfill", StageKind::Staged(S_TOKFILL)),
+        ("gather0", StageKind::Staged(S_GATHER0)),
+        ("gather", StageKind::Staged(S_GATHER)),
+        ("acc", StageKind::Staged(S_ACC)),
+        ("proj", StageKind::Staged(S_PROJ)),
+        ("cell0", StageKind::Staged(S_CELL0)),
+        ("cell", StageKind::Staged(S_CELL)),
+        ("xasm", StageKind::Staged(S_XASM)),
+        ("full", StageKind::Staged(S_FULL)),
+        ("full_nd", StageKind::Staged(S_FULL_ND)),
+        ("natural", StageKind::Natural),
+    ];
+    let mut per_stage: Vec<Vec<f64>> = vec![Vec::with_capacity(reps); stages.len()];
+    let mut sums: Vec<Vec<u32>> = vec![Vec::with_capacity(reps); stages.len()];
+    for rep in 1..=reps {
+        for (si, &(label, kind)) in stages.iter().enumerate() {
+            poke_mcts::eval_learned::reset_value_scratch();
+            std::hint::black_box(replay_pass(net, &trace, kind));
+            poke_mcts::eval_learned::reset_value_scratch();
+            let t0 = std::time::Instant::now();
+            let sum = replay_pass(net, &trace, kind);
+            std::hint::black_box(sum);
+            let us = t0.elapsed().as_secs_f64() * 1e6 / evals as f64;
+            per_stage[si].push(us);
+            sums[si].push(sum.to_bits());
+            println!("stage-rep rep={rep} stage={label} us_per_eval={us:.3}");
+        }
+    }
+
+    let at = |name: &str| stages.iter().position(|&(l, _)| l == name).expect("stage must be listed");
+    let (full_i, nat_i) = (at("full"), at("natural"));
+    for rep in 0..reps {
+        assert_eq!(sums[full_i][rep], sums[nat_i][rep],
+            "rep {}: staged full logit sum {:#x} != natural logit sum {:#x}; the staged path is not the served path",
+            rep + 1, sums[full_i][rep], sums[nat_i][rep]);
+    }
+
+    let mut med = vec![0.0f64; stages.len()];
+    for (si, &(label, _)) in stages.iter().enumerate() {
+        let (m, lo, hi, spread) = med_spread(per_stage[si].clone());
+        med[si] = m;
+        let delta = match label {
+            "loop" => "n/a".to_string(),
+            "full_nd" | "natural" => format!("{:.3}", m - med[full_i]),
+            _ => format!("{:.3}", m - med[si - 1]),
+        };
+        println!("stage {label}: us_per_eval={m:.3} min={lo:.3} max={hi:.3} spread_pct={spread:.2} delta_vs_prev={delta}");
+    }
+    let parts_sum: f64 = (1..=full_i).map(|si| med[si] - med[si - 1]).sum();
+    let span = med[full_i] - med[0];
+    let residual = span - parts_sum;
+    let residual_pct = if span != 0.0 { 100.0 * residual / span } else { 0.0 };
+    println!("stage-sum: full={:.3} loop={:.3} parts_sum={parts_sum:.3} residual={residual:.3} residual_pct={residual_pct:.2} evals={evals} reps={reps}",
+        med[full_i], med[0]);
+}
+
+#[repr(align(128))]
+struct Slot([std::sync::atomic::AtomicU64; 4]);
+
+impl Slot {
+    fn new() -> Self {
+        use std::sync::atomic::AtomicU64;
+        Slot([AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)])
+    }
+}
+
+thread_local! {
+    static SHIM_IDS: std::cell::RefCell<Vec<u32>> =
+        std::cell::RefCell::new(Vec::with_capacity(192));
+}
+
+struct TimingShim<'a, E: Evaluator + Sync> {
+    inner: &'a E,
+    net: Option<&'a LearnedValueV2>,
+    slots: Vec<Slot>,
+}
+
+impl<'a, E: Evaluator + Sync> TimingShim<'a, E> {
+    fn new(inner: &'a E, net: Option<&'a LearnedValueV2>, slots: usize) -> Self {
+        TimingShim { inner, net, slots: (0..slots).map(|_| Slot::new()).collect() }
+    }
+
+    fn reset(&self) {
+        for s in &self.slots {
+            for a in &s.0 {
+                a.store(0, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+    }
+
+    fn totals(&self) -> [u64; 4] {
+        let mut t = [0u64; 4];
+        for s in &self.slots {
+            for (i, a) in s.0.iter().enumerate() {
+                t[i] += a.load(std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        t
+    }
+}
+
+impl<E: Evaluator + Sync> Evaluator for TimingShim<'_, E> {
+    fn eval(&self, state: &BattleState) -> f32 {
+        use poke_mcts::features;
+        use std::sync::atomic::Ordering::Relaxed;
+        let slot = &self.slots[rayon::current_thread_index().unwrap_or(0).min(self.slots.len() - 1)];
+        match self.net {
+            Some(net) => SHIM_IDS.with(|c| {
+                let mut ids = c.borrow_mut();
+                let t0 = std::time::Instant::now();
+                ids.clear();
+                let seg_lens = features::extract_segmented(state, &mut ids);
+                let dense = features::extract_dense(state);
+                let t1 = std::time::Instant::now();
+                let v = net.natural_logit(&ids, &seg_lens, &dense) * net.export_multiplier();
+                let t2 = std::time::Instant::now();
+                slot.0[0].fetch_add(1, Relaxed);
+                slot.0[1].fetch_add(t1.duration_since(t0).as_nanos() as u64, Relaxed);
+                slot.0[2].fetch_add(t2.duration_since(t1).as_nanos() as u64, Relaxed);
+                slot.0[3].fetch_add(t2.duration_since(t0).as_nanos() as u64, Relaxed);
+                v
+            }),
+            None => {
+                let t0 = std::time::Instant::now();
+                let v = self.inner.eval(state);
+                let t1 = std::time::Instant::now();
+                slot.0[0].fetch_add(1, Relaxed);
+                slot.0[3].fetch_add(t1.duration_since(t0).as_nanos() as u64, Relaxed);
+                v
+            }
+        }
+    }
+}
+
+fn insitu_wall(pool: &rayon::ThreadPool, worlds: &[poke_mcts::determinize::World],
+               eval: &(impl Evaluator + Sync), params: &SearchParams, world_seed: u64) -> (f64, u64) {
+    use rayon::prelude::*;
+    let t0 = std::time::Instant::now();
+    let its: Vec<u64> = pool.install(|| {
+        worlds.par_iter().enumerate().map(|(k, w)| {
+            let seed = splitmix64(world_seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
+            search_world(&w.state, &w.teams, eval, &OpenLoop, params, seed, 0, None).iterations
+        }).collect()
+    });
+    (t0.elapsed().as_secs_f64() * 1e6, its.iter().sum())
+}
+
+fn clock_cost(reps: usize) -> (f64, f64) {
+    let (mut pairs, mut triples) = (Vec::with_capacity(reps), Vec::with_capacity(reps));
+    for _ in 0..reps {
+        pairs.push(1000.0 * timed_us(|| {
+            let a = std::time::Instant::now();
+            let b = std::time::Instant::now();
+            std::hint::black_box(b.duration_since(std::hint::black_box(a)));
+        }));
+        triples.push(1000.0 * timed_us(|| {
+            let a = std::time::Instant::now();
+            let b = std::time::Instant::now();
+            let c = std::time::Instant::now();
+            std::hint::black_box((b.duration_since(std::hint::black_box(a)),
+                                  c.duration_since(std::hint::black_box(b))));
+        }));
+    }
+    (stats(pairs).1, stats(triples).1)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Option<&LearnedValueV2>,
+                                          label: &str, num_worlds: usize, threads: usize,
+                                          iters: u64, reps: usize, world_seed: u64) {
+    use poke_mcts::determinize::Determinizer;
+    let (state, teams) = sweep_root(fixture);
+    let mut belief = poke_mcts::belief::Belief::default();
+    let om = state.active_mon(1);
+    belief.note_species(om.species_id, om.level);
+    let obs = poke_mcts::determinize::Observation { state: &state, teams: &teams, our_side: 0 };
+    let mut rng = Lcg::new(splitmix64(world_seed));
+    let worlds = poke_mcts::determinize::RandomBattle.sample_worlds(&obs, &belief, num_worlds, &mut rng);
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, ..Default::default() };
+
+    let shim = TimingShim::new(inner, net, threads + 1);
+    let (mut walls, mut evals_us, mut extract_us, mut forward_us) =
+        (Vec::with_capacity(reps), Vec::with_capacity(reps), Vec::with_capacity(reps), Vec::with_capacity(reps));
+    let mut per_iter_evals = Vec::with_capacity(reps);
+    for rep in 1..=reps {
+        shim.reset();
+        let (wall_us, iters_total) = insitu_wall(&pool, &worlds, &shim, &params, world_seed);
+        let t = shim.totals();
+        let e = t[0].max(1) as f64;
+        let wall_per_iter = wall_us * num_worlds as f64 / iters_total.max(1) as f64;
+        let (tt, xx, ff) = (t[3] as f64 / e / 1000.0, t[1] as f64 / e / 1000.0, t[2] as f64 / e / 1000.0);
+        let split = net.map(|_| (xx, ff));
+        walls.push(wall_per_iter);
+        evals_us.push(tt);
+        if let Some((x, f)) = split {
+            extract_us.push(x);
+            forward_us.push(f);
+        }
+        per_iter_evals.push(t[0] as f64 / iters_total.max(1) as f64);
+        println!("insitu-rep rep={rep} total_wall_us_per_iter={wall_per_iter:.3} evals={} eval_us_per_eval={tt:.3} extract_us_per_eval={} forward_us_per_eval={}",
+            t[0], fmt_us(split.map(|s| s.0)), fmt_us(split.map(|s| s.1)));
+    }
+    let extract = if extract_us.is_empty() { None } else { Some(stats(extract_us).1) };
+    let forward = if forward_us.is_empty() { None } else { Some(stats(forward_us).1) };
+    println!("insitu {label}: worlds={num_worlds} threads={threads} iters={iters} reps={reps} eval_us_per_eval={:.3} extract_us_per_eval={} forward_us_per_eval={} total_wall_us_per_iter={:.3} evals_per_iter={:.3}",
+        stats(evals_us).1, fmt_us(extract), fmt_us(forward), stats(walls).1, stats(per_iter_evals).1);
+
+    let mut bare = Vec::with_capacity(reps);
+    for _ in 0..reps {
+        let (wall_us, iters_total) = insitu_wall(&pool, &worlds, inner, &params, world_seed);
+        bare.push(wall_us * num_worlds as f64 / iters_total.max(1) as f64);
+    }
+    println!("insitu-noshim {label}: total_wall_us_per_iter={:.3} iters={iters} reps={reps}", stats(bare).1);
+
+    let (pair_ns, triple_ns) = clock_cost(reps);
+    println!("clock: pair_ns={pair_ns:.2} triple_ns={triple_ns:.2} reps={reps}");
+}
+
 const DUMP_PER_GAME: usize = 4;
 const DUMP_STRIDE: usize = 6;
 const DUMP_MAX_GAMES: u64 = 4_000;
@@ -787,6 +1194,38 @@ fn main() {
         }
         return;
     }
+    if args.iter().any(|a| a == "--bench-eval-real") {
+        let kind = get("--eval", "learned-v2");
+        assert_eq!(kind, "learned-v2", "--bench-eval-real requires --eval learned-v2");
+        let lv = LearnedValueV2::from_env();
+        let weights = std::env::var("BRIDGE_EVAL_WEIGHTS_V2").unwrap();
+        let trace_world: usize = get("--trace-world", "0").parse().unwrap();
+        let trace_iters: u64 = get("--trace-iters", "19669").parse().unwrap();
+        let trace_reps: usize = get("--trace-reps", "5").parse::<usize>().unwrap().max(1);
+        let trace_worlds: usize = get("--trace-worlds", "8").parse::<usize>().unwrap().max(1);
+        let trace_seed: u64 = get("--trace-seed", "1").parse().unwrap();
+        bench_eval_real(&fixture, &lv, &weights, trace_world, trace_iters, trace_reps, trace_worlds,
+            trace_seed);
+        return;
+    }
+    if args.iter().any(|a| a == "--bench-eval-insitu") {
+        let insitu_worlds: usize = get("--insitu-worlds", "1").parse::<usize>().unwrap().max(1);
+        let insitu_threads: usize = get("--insitu-threads", "1").parse::<usize>().unwrap().max(1);
+        let insitu_iters: u64 = get("--insitu-iters", "19669").parse().unwrap();
+        let insitu_reps: usize = get("--insitu-reps", "5").parse::<usize>().unwrap().max(1);
+        let insitu_seed: u64 = get("--insitu-seed", "1").parse().unwrap();
+        match get("--eval", "learned-v2").as_str() {
+            "handcrafted" => bench_eval_insitu(&fixture, &Handcrafted, None, "handcrafted",
+                insitu_worlds, insitu_threads, insitu_iters, insitu_reps, insitu_seed),
+            "learned-v2" => {
+                let lv = LearnedValueV2::from_env();
+                bench_eval_insitu(&fixture, &lv, Some(&lv), "learned_v2", insitu_worlds,
+                    insitu_threads, insitu_iters, insitu_reps, insitu_seed);
+            }
+            other => panic!("--bench-eval-insitu supports --eval learned-v2 and --eval handcrafted, not {other}"),
+        }
+        return;
+    }
     if args.iter().any(|a| a == "--dump-search-states") {
         let states_out = get("--states-out", "tests/data/search_states.bin");
         let fixtures_out = get("--fixtures-out", "tests/data/lvv2-ext.fixtures.json");
@@ -843,6 +1282,57 @@ mod tests {
     struct ConstEval(f32);
     impl Evaluator for ConstEval {
         fn eval(&self, _state: &BattleState) -> f32 { self.0 }
+    }
+
+
+    #[test]
+    fn the_trace_container_round_trips_variable_length_id_lists() {
+        let mut t = EvalTrace::default();
+        t.push(&[1, 2, 3], [0; NUM_SEGMENTS], [0.0; DENSE_DIM]);
+        t.push(&[9], [1; NUM_SEGMENTS], [1.0; DENSE_DIM]);
+        t.push(&[4, 5], [2; NUM_SEGMENTS], [2.0; DENSE_DIM]);
+        assert_eq!(t.len(), 3);
+        assert_eq!(t.ids_at(0), &[1, 2, 3]);
+        assert_eq!(t.ids_at(1), &[9]);
+        assert_eq!(t.ids_at(2), &[4, 5]);
+    }
+
+    #[test]
+    fn distinct_rows_counts_a_repeated_row_once() {
+        let mut t = EvalTrace::default();
+        t.push(&[7, 8], [1; NUM_SEGMENTS], [0.5; DENSE_DIM]);
+        t.push(&[7, 9], [1; NUM_SEGMENTS], [0.5; DENSE_DIM]);
+        t.push(&[7, 8], [1; NUM_SEGMENTS], [0.5; DENSE_DIM]);
+        t.push(&[7, 8], [1; NUM_SEGMENTS], [0.25; DENSE_DIM]);
+        assert_eq!(t.len(), 4);
+        assert_eq!(distinct_rows(&t), 3);
+    }
+
+    #[test]
+    fn the_spread_helper_matches_the_hand_computed_values() {
+        let (med, min, max, spread) = med_spread(vec![4.0, 1.0, 2.0, 3.0, 10.0]);
+        assert_eq!((min, med, max), (1.0, 3.0, 10.0));
+        assert!((spread - 300.0).abs() < 1e-9, "spread was {spread}");
+    }
+
+    #[test]
+    fn the_census_totals_the_hand_summed_op_count() {
+        let geom = NetGeom { aw: 4, r: 2, fc: vec![(11, 3), (3, 1)] };
+        let mut seg_misses = [0u64; NUM_SEGMENTS];
+        seg_misses[0] = 2;
+        seg_misses[12] = 4;
+        let c = census(&geom, 2, &seg_misses, 6);
+        // gather 6*4/2, tokfill 6*4/2, proj 2*4*2/2, acc 16*4, cell 36*2*3,
+        // xasm 2*4+2*2+7, fc 11*3+3+3*1+1, fit 2*4+3*2+2*3
+        assert_eq!(c.gather_adds, 12.0);
+        assert_eq!(c.tokfill_stores, 12.0);
+        assert_eq!(c.proj_macs, 8.0);
+        assert_eq!(c.total_ops, 12.0 + 12.0 + 8.0 + 64.0 + 216.0 + 19.0 + 40.0 + 20.0);
+    }
+
+    #[test]
+    fn the_shim_counter_slot_is_padded_past_a_cache_line() {
+        assert!(std::mem::size_of::<Slot>() >= 128, "slot is {} bytes", std::mem::size_of::<Slot>());
     }
 
     #[test]

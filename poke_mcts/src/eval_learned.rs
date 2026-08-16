@@ -1756,14 +1756,24 @@ impl LearnedValueV2 {
         (active0, active1)
     }
 
+    pub fn value_cache_probe(&self, trace: &[(Vec<u32>, [u16; NUM_SEGMENTS])]) -> (u64, u64) {
+        let (hits, misses, _, _) = self.value_cache_probe_detail(trace);
+        (hits, misses)
+    }
+
     // holds its own key store so the hit condition above can be diffed by eye;
     // never reached from the served path
-    pub fn value_cache_probe(&self, trace: &[(Vec<u32>, [u16; NUM_SEGMENTS])]) -> (u64, u64) {
+    pub fn value_cache_probe_detail(
+        &self,
+        trace: &[(Vec<u32>, [u16; NUM_SEGMENTS])],
+    ) -> (u64, u64, [u64; NUM_SEGMENTS], u64) {
         let armed = self.attn_dk == 0;
         let mut keys = vec![0u32; NUM_SEGMENTS * SEG_KEY_CAP];
         let mut key_lens = [0u16; NUM_SEGMENTS];
         let mut live = [false; NUM_SEGMENTS];
         let (mut hits, mut misses) = (0u64, 0u64);
+        let mut seg_misses = [0u64; NUM_SEGMENTS];
+        let mut missed_ids = 0u64;
         for (ids, seg_lens) in trace {
             let mut pos = 0usize;
             for (seg, &len) in seg_lens.iter().enumerate() {
@@ -1780,6 +1790,8 @@ impl LearnedValueV2 {
                     continue;
                 }
                 misses += 1;
+                seg_misses[seg] += 1;
+                missed_ids += len as u64;
                 live[seg] = false;
             }
             if armed {
@@ -1796,7 +1808,7 @@ impl LearnedValueV2 {
                 }
             }
         }
-        (hits, misses)
+        (hits, misses, seg_misses, missed_ids)
     }
 
     #[cfg(test)]
