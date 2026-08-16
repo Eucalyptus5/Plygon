@@ -1352,6 +1352,8 @@ pub mod value_stage {
     pub const S_XASM: u8 = 10;
     pub const S_FULL: u8 = 11;
     pub const S_FULL_ND: u8 = 12;
+    pub const S_FULL_2FC: u8 = 13;
+    pub const S_FULL_2PROJ: u8 = 14;
 }
 
 // keyed by each segment's exact ordered id list, and owner of the buffers the
@@ -1753,6 +1755,15 @@ impl LearnedValueV2 {
         x[2 * aw..2 * aw + r].copy_from_slice(web_total);
         x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(active_cell);
         x[2 * aw + 2 * r..].copy_from_slice(dense);
+        if STAGE == S_FULL_2PROJ {
+            for i in 0..6 {
+                let ti = &tokens[i * aw..(i + 1) * aw];
+                value_web_project(&self.web_a, ti, &mut proj[i * r..(i + 1) * r]);
+                let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+                value_web_project(&self.web_b, tj, &mut proj[(6 + i) * r..(7 + i) * r]);
+            }
+            std::hint::black_box(&*proj);
+        }
         (active0, active1)
     }
 
@@ -1843,7 +1854,11 @@ impl LearnedValueV2 {
         if STAGE < value_stage::S_FULL {
             return value_stage_sink(fwd);
         }
-        value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1)
+        let out = value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1);
+        if STAGE == value_stage::S_FULL_2FC {
+            std::hint::black_box(value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1));
+        }
+        out
     }
 
     pub fn staged_logit(
@@ -1871,6 +1886,10 @@ impl LearnedValueV2 {
                 S_XASM => self.logit_with::<{ S_XASM }>(ids, seg_lens, dense, fwd, cache),
                 S_FULL => self.logit_with::<{ S_FULL }>(ids, seg_lens, dense, fwd, cache),
                 S_FULL_ND => self.logit_with::<{ S_FULL_ND }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL_2FC => self.logit_with::<{ S_FULL_2FC }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL_2PROJ => {
+                    self.logit_with::<{ S_FULL_2PROJ }>(ids, seg_lens, dense, fwd, cache)
+                }
                 _ => panic!("unknown value stage {stage}"),
             }
         })
@@ -3513,11 +3532,11 @@ mod tests {
         assert_eq!(differing, 0, "served logit moved with call history on {differing} replays");
     }
 
-    fn staged_stage_list() -> [u8; 13] {
+    fn staged_stage_list() -> [u8; 15] {
         use value_stage::*;
         [
             S_TLS, S_ZERO, S_KEY, S_TOKFILL, S_GATHER0, S_GATHER, S_ACC, S_PROJ, S_CELL0, S_CELL,
-            S_XASM, S_FULL, S_FULL_ND,
+            S_XASM, S_FULL, S_FULL_ND, S_FULL_2FC, S_FULL_2PROJ,
         ]
     }
 
@@ -3573,6 +3592,30 @@ mod tests {
         );
         assert_eq!(rows.len(), 64, "nodeadzero gate is 64 fixtures");
         assert_eq!(differing, 0, "skipping the dead zeroing moved {differing} rows");
+    }
+
+    #[test]
+    fn staged_duplicate_stages_match_full_bitwise() {
+        let Some((net, rows)) = staged_rows("staged logit duplicate bits") else { return };
+        reset_value_scratch();
+        let full: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL).to_bits())
+            .collect();
+        for (label, stage) in
+            [("2fc", value_stage::S_FULL_2FC), ("2proj", value_stage::S_FULL_2PROJ)]
+        {
+            reset_value_scratch();
+            let dup: Vec<u32> =
+                rows.iter().map(|(i, s, d)| net.staged_logit(i, s, d, stage).to_bits()).collect();
+            let differing = full.iter().zip(&dup).filter(|(a, b)| a != b).count();
+            eprintln!(
+                "staged logit duplicate bits {label}: rows_compared={} rows_differing={differing}",
+                rows.len()
+            );
+            assert_eq!(rows.len(), 64, "duplicate gate is 64 fixtures");
+            assert_eq!(differing, 0, "the {label} duplicate moved {differing} rows");
+        }
     }
 
     // the even slots replay one anchor row, so every buffer a prefix stage leaves
@@ -3633,7 +3676,7 @@ mod tests {
     fn staged_logit_rejects_unknown_stage() {
         let net = LearnedValueV2::from_bytes(&ValueFileV2::small().bytes())
             .expect("synthetic LVV2 must load");
-        net.staged_logit(&[], &[0u16; NUM_SEGMENTS], &[0f32; DENSE_DIM], 13);
+        net.staged_logit(&[], &[0u16; NUM_SEGMENTS], &[0f32; DENSE_DIM], 15);
     }
 
     struct KernelLcg(u64);

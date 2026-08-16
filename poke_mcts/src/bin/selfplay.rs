@@ -230,14 +230,15 @@ fn sweep_fixed_point(
     (last3[1].0, last3[1].1, SWEEP_MAX, true)
 }
 
-fn sweep_single(fixture: &Fixture, eval: &impl Evaluator, label: &str, start_n: u64, target_ms: u64) {
+fn sweep_single(fixture: &Fixture, eval: &impl Evaluator, label: &str, start_n: u64,
+                target_ms: u64, explore_coeff: f64) {
     let (state, teams) = sweep_root(fixture);
     let seen_iters = std::cell::Cell::new(0u64);
     let (n, us, sweeps, unsettled) = sweep_fixed_point(
         start_n,
         target_ms,
         |n| {
-            let params = SearchParams { time_ms: u64::MAX, max_iters: n, ..Default::default() };
+            let params = SearchParams { time_ms: u64::MAX, max_iters: n, explore_coeff, ..Default::default() };
             let mut reps: Vec<f64> = Vec::with_capacity(SWEEP_REPS);
             for rep in 0..SWEEP_REPS as u64 {
                 let t0 = std::time::Instant::now();
@@ -252,14 +253,15 @@ fn sweep_single(fixture: &Fixture, eval: &impl Evaluator, label: &str, start_n: 
                 seen_iters.get());
         },
     );
-    println!("settled {label}: N={n} us_per_iter={us:.3} sweeps={sweeps} target_ms={target_ms} unsettled={unsettled}");
+    println!("settled {label}: N={n} us_per_iter={us:.3} sweeps={sweeps} target_ms={target_ms} unsettled={unsettled} explore_coeff={explore_coeff:.2}");
 }
 
 struct SweepSnapshot { n: u64, iterations: u64, per_world_us: Vec<f64>, mean_us: f64 }
 
 #[allow(clippy::too_many_arguments)]
 fn sweep_pooled(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, start_n: u64,
-                target_ms: u64, num_worlds: usize, threads: usize, world_seed: u64) {
+                target_ms: u64, num_worlds: usize, threads: usize, world_seed: u64,
+                explore_coeff: f64) {
     use poke_mcts::determinize::Determinizer;
     use rayon::prelude::*;
     let (state, teams) = sweep_root(fixture);
@@ -276,7 +278,7 @@ fn sweep_pooled(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, 
         start_n,
         target_ms,
         |n| {
-            let params = SearchParams { time_ms: u64::MAX, max_iters: n, ..Default::default() };
+            let params = SearchParams { time_ms: u64::MAX, max_iters: n, explore_coeff, ..Default::default() };
             let mut reps: Vec<(f64, f64, Vec<f64>)> = Vec::with_capacity(SWEEP_REPS);
             let mut iterations = 0u64;
             for rep in 0..SWEEP_REPS {
@@ -316,16 +318,18 @@ fn sweep_pooled(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, 
     );
     let mean_us = history.borrow().iter().rev().find(|s| s.n == n).map(|s| s.mean_us)
         .expect("the settled N must be one of the measured sweeps");
-    println!("settled8 {label}: N_8w={n} mean_us_per_iter={mean_us:.3} worlds={num_worlds} threads={threads} target_ms={target_ms} seed={world_seed} sweeps={sweeps} unsettled={unsettled}");
+    println!("settled8 {label}: N_8w={n} mean_us_per_iter={mean_us:.3} worlds={num_worlds} threads={threads} target_ms={target_ms} seed={world_seed} sweeps={sweeps} unsettled={unsettled} explore_coeff={explore_coeff:.2}");
 }
 
 #[allow(clippy::too_many_arguments)]
 fn bench_sweep(fixture: &Fixture, eval: &(impl Evaluator + Sync), label: &str, start_n: u64,
-               target_ms: u64, num_worlds: usize, threads: usize, world_seed: u64) {
+               target_ms: u64, num_worlds: usize, threads: usize, world_seed: u64,
+               explore_coeff: f64) {
     if num_worlds > 1 {
-        sweep_pooled(fixture, eval, label, start_n, target_ms, num_worlds, threads, world_seed);
+        sweep_pooled(fixture, eval, label, start_n, target_ms, num_worlds, threads, world_seed,
+            explore_coeff);
     } else {
-        sweep_single(fixture, eval, label, start_n, target_ms);
+        sweep_single(fixture, eval, label, start_n, target_ms, explore_coeff);
     }
 }
 
@@ -483,6 +487,7 @@ struct Census {
     cell_ops: f64,
     xasm_ops: f64,
     fc_macs: f64,
+    fc_relu_ops: f64,
     fit_stores: f64,
     fit_dead_stores: f64,
     proj_fill_stores: f64,
@@ -503,14 +508,15 @@ fn census(geom: &NetGeom, evals: u64, seg_misses: &[u64; NUM_SEGMENTS], missed_i
     let cell_ops = 36.0 * r * 3.0;
     let xasm_ops = 2.0 * aw + 2.0 * r + DENSE_DIM as f64;
     let fc_macs: f64 = geom.fc.iter().map(|&(i, o)| (i * o + o) as f64).sum();
+    let fc_relu_ops: f64 = geom.fc[..geom.fc.len() - 1].iter().map(|&(_, o)| o as f64).sum();
     let fit_stores = 2.0 * aw + 3.0 * r + 2.0 * hmax + value_v2_input_len(aw as usize, r as usize) as f64;
     let fit_dead_stores = r + value_v2_input_len(aw as usize, r as usize) as f64 + 2.0 * hmax;
     Census {
-        gather_adds, tokfill_stores, proj_macs, acc_adds, cell_ops, xasm_ops, fc_macs, fit_stores,
-        fit_dead_stores,
+        gather_adds, tokfill_stores, proj_macs, acc_adds, cell_ops, xasm_ops, fc_macs, fc_relu_ops,
+        fit_stores, fit_dead_stores,
         proj_fill_stores: misses_web as f64 * r / e,
         total_ops: gather_adds + tokfill_stores + proj_macs + acc_adds + cell_ops + xasm_ops
-            + fc_macs + fit_stores + misses_web as f64 * r / e,
+            + fc_macs + fc_relu_ops + fit_stores + misses_web as f64 * r / e,
     }
 }
 
@@ -573,7 +579,8 @@ fn replay_pass(net: &LearnedValueV2, trace: &EvalTrace, kind: StageKind) -> f32 
 
 #[allow(clippy::too_many_arguments)]
 fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world_idx: usize,
-                   iters: u64, reps: usize, num_worlds: usize, world_seed: u64) {
+                   iters: u64, reps: usize, num_worlds: usize, world_seed: u64,
+                   explore_coeff: f64) {
     use poke_mcts::determinize::Determinizer;
     use poke_mcts::eval_learned::value_stage::*;
     let (state, teams) = sweep_root(fixture);
@@ -592,7 +599,7 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
         scratch: std::cell::RefCell::new(Vec::with_capacity(192)),
         trace: std::cell::RefCell::new(EvalTrace::default()),
     };
-    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, ..Default::default() };
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, explore_coeff, ..Default::default() };
     let r = search_world(&w.state, &w.teams, &rec, &OpenLoop, &params, seed, 0, None);
     let trace = rec.trace.into_inner();
     let evals = trace.len();
@@ -601,20 +608,20 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
     let (hits, misses, seg_misses, missed_ids) = net.value_cache_probe_detail(&trace.probe_input());
     let lens: Vec<f64> = (0..evals).map(|i| trace.ids_at(i).len() as f64).collect();
     let (id_med, id_min, id_max, _) = med_spread(lens);
-    println!("trace: world={world_idx} iters={} evals={evals} distinct_rows={} ids_median={id_med:.1} ids_min={id_min:.0} ids_max={id_max:.0} seg_hits={hits} seg_misses={misses} seg_hit_pct={:.2}%",
+    println!("trace: world={world_idx} iters={} evals={evals} distinct_rows={} ids_median={id_med:.1} ids_min={id_min:.0} ids_max={id_max:.0} seg_hits={hits} seg_misses={misses} seg_hit_pct={:.2}% explore_coeff={explore_coeff:.2}",
         r.iterations, distinct_rows(&trace), 100.0 * hits as f64 / (hits + misses).max(1) as f64);
 
     let geom = net_geometry(weights, net);
     let c = census(&geom, evals as u64, &seg_misses, missed_ids);
-    println!("census: gather_adds={:.1} tokfill_stores={:.1} proj_macs={:.1} acc_adds={:.1} cell_ops={:.1} xasm_ops={:.1} fc_macs={:.1} fit_stores={:.1} fit_dead_stores={:.1} proj_fill_stores={:.1} zero_stores_total={:.1} total_ops={:.1}",
+    println!("census: gather_adds={:.1} tokfill_stores={:.1} proj_macs={:.1} acc_adds={:.1} cell_ops={:.1} xasm_ops={:.1} fc_macs={:.1} fc_relu_ops={:.1} fit_stores={:.1} fit_dead_stores={:.1} proj_fill_stores={:.1} zero_stores_total={:.1} total_ops={:.1}",
         c.gather_adds, c.tokfill_stores, c.proj_macs, c.acc_adds, c.cell_ops, c.xasm_ops,
-        c.fc_macs, c.fit_stores, c.fit_dead_stores, c.proj_fill_stores,
+        c.fc_macs, c.fc_relu_ops, c.fit_stores, c.fit_dead_stores, c.proj_fill_stores,
         c.fit_stores + c.tokfill_stores + c.proj_fill_stores, c.total_ops);
     let fc: Vec<String> = geom.fc.iter().map(|&(i, o)| format!("{i}x{o}")).collect();
     println!("census-raw: evals={evals} seg_misses={misses} missed_ids={missed_ids} missed_seg_web={} aw={} r={} fc=[{}] weights={weights}",
         seg_misses[..12].iter().sum::<u64>(), geom.aw, geom.r, fc.join(","));
 
-    let stages: [(&str, StageKind); 15] = [
+    let stages: [(&str, StageKind); 17] = [
         ("loop", StageKind::Loop),
         ("tls", StageKind::Staged(S_TLS)),
         ("zero", StageKind::Staged(S_ZERO)),
@@ -629,6 +636,8 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
         ("xasm", StageKind::Staged(S_XASM)),
         ("full", StageKind::Staged(S_FULL)),
         ("full_nd", StageKind::Staged(S_FULL_ND)),
+        ("full_2fc", StageKind::Staged(S_FULL_2FC)),
+        ("full_2proj", StageKind::Staged(S_FULL_2PROJ)),
         ("natural", StageKind::Natural),
     ];
     let mut per_stage: Vec<Vec<f64>> = vec![Vec::with_capacity(reps); stages.len()];
@@ -649,11 +658,14 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
     }
 
     let at = |name: &str| stages.iter().position(|&(l, _)| l == name).expect("stage must be listed");
-    let (full_i, nat_i) = (at("full"), at("natural"));
-    for rep in 0..reps {
-        assert_eq!(sums[full_i][rep], sums[nat_i][rep],
-            "rep {}: staged full logit sum {:#x} != natural logit sum {:#x}; the staged path is not the served path",
-            rep + 1, sums[full_i][rep], sums[nat_i][rep]);
+    let full_i = at("full");
+    for name in ["natural", "full_2fc", "full_2proj"] {
+        let si = at(name);
+        for rep in 0..reps {
+            assert_eq!(sums[full_i][rep], sums[si][rep],
+                "rep {}: staged full logit sum {:#x} != {name} logit sum {:#x}; that stage is not the served path",
+                rep + 1, sums[full_i][rep], sums[si][rep]);
+        }
     }
 
     let mut med = vec![0.0f64; stages.len()];
@@ -662,7 +674,7 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
         med[si] = m;
         let delta = match label {
             "loop" => "n/a".to_string(),
-            "full_nd" | "natural" => format!("{:.3}", m - med[full_i]),
+            "full_nd" | "full_2fc" | "full_2proj" | "natural" => format!("{:.3}", m - med[full_i]),
             _ => format!("{:.3}", m - med[si - 1]),
         };
         println!("stage {label}: us_per_eval={m:.3} min={lo:.3} max={hi:.3} spread_pct={spread:.2} delta_vs_prev={delta}");
@@ -673,6 +685,18 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
     let residual_pct = if span != 0.0 { 100.0 * residual / span } else { 0.0 };
     println!("stage-sum: full={:.3} loop={:.3} parts_sum={parts_sum:.3} residual={residual:.3} residual_pct={residual_pct:.2} evals={evals} reps={reps}",
         med[full_i], med[0]);
+
+    let paired = |a: usize, b: usize| {
+        stats((0..reps).map(|r| per_stage[a][r] - per_stage[b][r]).collect()).1
+    };
+    let fc_prefix = paired(full_i, at("xasm"));
+    let fc_dup = paired(at("full_2fc"), full_i);
+    let proj_prefix = paired(at("proj"), at("acc"));
+    let proj_dup_per = paired(at("full_2proj"), full_i) / 12.0;
+    let misses_web_per_eval = seg_misses[..12].iter().sum::<u64>() as f64 / evals as f64;
+    let proj_prefix_per = proj_prefix / misses_web_per_eval;
+    println!("crosscheck: fc_prefix={fc_prefix:.3} fc_dup={fc_dup:.3} fc_ratio={:.3} proj_prefix={proj_prefix:.3} proj_dup_per_projection={proj_dup_per:.4} proj_prefix_per_projection={proj_prefix_per:.4} proj_ratio={:.3} misses_web_per_eval={misses_web_per_eval:.3}",
+        fc_dup / fc_prefix, proj_dup_per / proj_prefix_per);
 }
 
 #[repr(align(128))]
@@ -788,7 +812,8 @@ fn clock_cost(reps: usize) -> (f64, f64) {
 #[allow(clippy::too_many_arguments)]
 fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Option<&LearnedValueV2>,
                                           label: &str, num_worlds: usize, threads: usize,
-                                          iters: u64, reps: usize, world_seed: u64) {
+                                          iters: u64, reps: usize, world_seed: u64,
+                                          explore_coeff: f64) {
     use poke_mcts::determinize::Determinizer;
     let (state, teams) = sweep_root(fixture);
     let mut belief = poke_mcts::belief::Belief::default();
@@ -798,7 +823,7 @@ fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Opt
     let mut rng = Lcg::new(splitmix64(world_seed));
     let worlds = poke_mcts::determinize::RandomBattle.sample_worlds(&obs, &belief, num_worlds, &mut rng);
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
-    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, ..Default::default() };
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, explore_coeff, ..Default::default() };
 
     let shim = TimingShim::new(inner, net, threads + 1);
     let (mut walls, mut evals_us, mut extract_us, mut forward_us) =
@@ -829,9 +854,9 @@ fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Opt
     }
     let extract = if extract_us.is_empty() { None } else { Some(stats(extract_us).1) };
     let forward = if forward_us.is_empty() { None } else { Some(stats(forward_us).1) };
-    println!("insitu {label}: worlds={num_worlds} threads={threads} iters={iters} reps={reps} eval_us_per_eval={:.3} extract_us_per_eval={} forward_us_per_eval={} total_wall_us_per_iter={:.3} evals_per_iter={:.3}",
+    println!("insitu {label}: worlds={num_worlds} threads={threads} iters={iters} reps={reps} eval_us_per_eval={:.3} extract_us_per_eval={} forward_us_per_eval={} total_wall_us_per_iter={:.3} evals_per_iter={:.3} explore_coeff={explore_coeff:.2}",
         stats(evals_us).1, fmt_us(extract), fmt_us(forward), stats(walls).1, stats(per_iter_evals).1);
-    println!("insitu-noshim {label}: total_wall_us_per_iter={:.3} iters={iters} reps={reps}", stats(bare).1);
+    println!("insitu-noshim {label}: total_wall_us_per_iter={:.3} iters={iters} reps={reps} explore_coeff={explore_coeff:.2}", stats(bare).1);
 
     let (pair_ns, triple_ns) = clock_cost(reps);
     println!("clock: pair_ns={pair_ns:.2} triple_ns={triple_ns:.2} reps={reps}");
@@ -1173,15 +1198,16 @@ fn main() {
         assert!(sweep_worlds == 1 || args.iter().any(|a| a == "--sweep-target-ms"),
             "--sweep-worlds above 1 requires --sweep-target-ms: the pooled shape has no safe default target");
         let target_ms: u64 = get("--sweep-target-ms", "100").parse().unwrap();
+        let explore_coeff: f64 = get("--explore-coeff", "2.0").parse().unwrap();
         match get("--eval", "handcrafted").as_str() {
-            "handcrafted" => bench_sweep(&fixture, &Handcrafted, "handcrafted", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed),
+            "handcrafted" => bench_sweep(&fixture, &Handcrafted, "handcrafted", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed, explore_coeff),
             "learned" => {
                 let le = LearnedEval::from_env();
-                bench_sweep(&fixture, &le, "learned", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed);
+                bench_sweep(&fixture, &le, "learned", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed, explore_coeff);
             }
             "learned-v2" => {
                 let lv = LearnedValueV2::from_env();
-                bench_sweep(&fixture, &lv, "learned_v2", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed);
+                bench_sweep(&fixture, &lv, "learned_v2", max_iters, target_ms, sweep_worlds, sweep_threads, sweep_seed, explore_coeff);
             }
             other => panic!("unknown --eval {other}"),
         }
@@ -1209,8 +1235,9 @@ fn main() {
         let trace_reps: usize = get("--trace-reps", "5").parse::<usize>().unwrap().max(1);
         let trace_worlds: usize = get("--trace-worlds", "8").parse::<usize>().unwrap().max(1);
         let trace_seed: u64 = get("--trace-seed", "1").parse().unwrap();
+        let explore_coeff: f64 = get("--explore-coeff", "0.49").parse().unwrap();
         bench_eval_real(&fixture, &lv, &weights, trace_world, trace_iters, trace_reps, trace_worlds,
-            trace_seed);
+            trace_seed, explore_coeff);
         return;
     }
     if args.iter().any(|a| a == "--bench-eval-insitu") {
@@ -1219,13 +1246,15 @@ fn main() {
         let insitu_iters: u64 = get("--insitu-iters", "19669").parse().unwrap();
         let insitu_reps: usize = get("--insitu-reps", "5").parse::<usize>().unwrap().max(1);
         let insitu_seed: u64 = get("--insitu-seed", "1").parse().unwrap();
+        let explore_coeff: f64 = get("--explore-coeff", "0.49").parse().unwrap();
         match get("--eval", "learned-v2").as_str() {
             "handcrafted" => bench_eval_insitu(&fixture, &Handcrafted, None, "handcrafted",
-                insitu_worlds, insitu_threads, insitu_iters, insitu_reps, insitu_seed),
+                insitu_worlds, insitu_threads, insitu_iters, insitu_reps, insitu_seed,
+                explore_coeff),
             "learned-v2" => {
                 let lv = LearnedValueV2::from_env();
                 bench_eval_insitu(&fixture, &lv, Some(&lv), "learned_v2", insitu_worlds,
-                    insitu_threads, insitu_iters, insitu_reps, insitu_seed);
+                    insitu_threads, insitu_iters, insitu_reps, insitu_seed, explore_coeff);
             }
             other => panic!("--bench-eval-insitu supports --eval learned-v2 and --eval handcrafted, not {other}"),
         }
@@ -1328,14 +1357,15 @@ mod tests {
         seg_misses[12] = 4;
         let c = census(&geom, 2, &seg_misses, 6);
         // gather 6*4/2, tokfill 6*4/2, proj 2*4*2/2, acc 16*4, cell 36*2*3,
-        // xasm 2*4+2*2+7, fc 11*3+3+3*1+1, fit 2*4+3*2+2*3+19, proj fill 2*2/2
+        // xasm 2*4+2*2+7, fc 11*3+3+3*1+1, fc relu 3, fit 2*4+3*2+2*3+19, proj fill 2*2/2
         assert_eq!(c.gather_adds, 12.0);
         assert_eq!(c.tokfill_stores, 12.0);
         assert_eq!(c.proj_macs, 8.0);
         assert_eq!(c.fit_stores, 39.0);
         assert_eq!(c.fit_dead_stores, 2.0 + 19.0 + 6.0);
         assert_eq!(c.proj_fill_stores, 2.0);
-        assert_eq!(c.total_ops, 12.0 + 12.0 + 8.0 + 64.0 + 216.0 + 19.0 + 40.0 + 39.0 + 2.0);
+        assert_eq!(c.fc_relu_ops, 3.0);
+        assert_eq!(c.total_ops, 12.0 + 12.0 + 8.0 + 64.0 + 216.0 + 19.0 + 40.0 + 3.0 + 39.0 + 2.0);
     }
 
     #[test]
