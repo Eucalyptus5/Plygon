@@ -1,7 +1,7 @@
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::chance_analytic::AnalyticRoot;
 use poke_mcts::eval::{Evaluator, Handcrafted};
-use poke_mcts::eval_learned::{LearnedEval, LearnedValueV2};
+use poke_mcts::eval_learned::{value_v2_input_len, LearnedEval, LearnedValueV2};
 use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
 use poke_mcts::rng::{splitmix64, Lcg};
@@ -484,6 +484,8 @@ struct Census {
     xasm_ops: f64,
     fc_macs: f64,
     fit_stores: f64,
+    fit_dead_stores: f64,
+    proj_fill_stores: f64,
     total_ops: f64,
 }
 
@@ -501,11 +503,14 @@ fn census(geom: &NetGeom, evals: u64, seg_misses: &[u64; NUM_SEGMENTS], missed_i
     let cell_ops = 36.0 * r * 3.0;
     let xasm_ops = 2.0 * aw + 2.0 * r + DENSE_DIM as f64;
     let fc_macs: f64 = geom.fc.iter().map(|&(i, o)| (i * o + o) as f64).sum();
-    let fit_stores = 2.0 * aw + 3.0 * r + 2.0 * hmax;
+    let fit_stores = 2.0 * aw + 3.0 * r + 2.0 * hmax + value_v2_input_len(aw as usize, r as usize) as f64;
+    let fit_dead_stores = r + value_v2_input_len(aw as usize, r as usize) as f64 + 2.0 * hmax;
     Census {
         gather_adds, tokfill_stores, proj_macs, acc_adds, cell_ops, xasm_ops, fc_macs, fit_stores,
+        fit_dead_stores,
+        proj_fill_stores: misses_web as f64 * r / e,
         total_ops: gather_adds + tokfill_stores + proj_macs + acc_adds + cell_ops + xasm_ops
-            + fc_macs + fit_stores,
+            + fc_macs + fit_stores + misses_web as f64 * r / e,
     }
 }
 
@@ -601,9 +606,10 @@ fn bench_eval_real(fixture: &Fixture, net: &LearnedValueV2, weights: &str, world
 
     let geom = net_geometry(weights, net);
     let c = census(&geom, evals as u64, &seg_misses, missed_ids);
-    println!("census: gather_adds={:.1} tokfill_stores={:.1} proj_macs={:.1} acc_adds={:.1} cell_ops={:.1} xasm_ops={:.1} fc_macs={:.1} fit_stores={:.1} total_ops={:.1}",
+    println!("census: gather_adds={:.1} tokfill_stores={:.1} proj_macs={:.1} acc_adds={:.1} cell_ops={:.1} xasm_ops={:.1} fc_macs={:.1} fit_stores={:.1} fit_dead_stores={:.1} proj_fill_stores={:.1} zero_stores_total={:.1} total_ops={:.1}",
         c.gather_adds, c.tokfill_stores, c.proj_macs, c.acc_adds, c.cell_ops, c.xasm_ops,
-        c.fc_macs, c.fit_stores, c.total_ops);
+        c.fc_macs, c.fit_stores, c.fit_dead_stores, c.proj_fill_stores,
+        c.fit_stores + c.tokfill_stores + c.proj_fill_stores, c.total_ops);
     let fc: Vec<String> = geom.fc.iter().map(|&(i, o)| format!("{i}x{o}")).collect();
     println!("census-raw: evals={evals} seg_misses={misses} missed_ids={missed_ids} missed_seg_web={} aw={} r={} fc=[{}] weights={weights}",
         seg_misses[..12].iter().sum::<u64>(), geom.aw, geom.r, fc.join(","));
@@ -1322,11 +1328,14 @@ mod tests {
         seg_misses[12] = 4;
         let c = census(&geom, 2, &seg_misses, 6);
         // gather 6*4/2, tokfill 6*4/2, proj 2*4*2/2, acc 16*4, cell 36*2*3,
-        // xasm 2*4+2*2+7, fc 11*3+3+3*1+1, fit 2*4+3*2+2*3
+        // xasm 2*4+2*2+7, fc 11*3+3+3*1+1, fit 2*4+3*2+2*3+19, proj fill 2*2/2
         assert_eq!(c.gather_adds, 12.0);
         assert_eq!(c.tokfill_stores, 12.0);
         assert_eq!(c.proj_macs, 8.0);
-        assert_eq!(c.total_ops, 12.0 + 12.0 + 8.0 + 64.0 + 216.0 + 19.0 + 40.0 + 20.0);
+        assert_eq!(c.fit_stores, 39.0);
+        assert_eq!(c.fit_dead_stores, 2.0 + 19.0 + 6.0);
+        assert_eq!(c.proj_fill_stores, 2.0);
+        assert_eq!(c.total_ops, 12.0 + 12.0 + 8.0 + 64.0 + 216.0 + 19.0 + 40.0 + 39.0 + 2.0);
     }
 
     #[test]
