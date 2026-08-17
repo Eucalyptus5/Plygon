@@ -157,15 +157,29 @@ fn value_fc_apply(fc: &Fc, x: &[f32], y: &mut [f32], relu: bool) {
 }
 
 fn value_web_project(wt: &[f32], t: &[f32], out: &mut [f32]) {
+    // no bias, and every output is written by a block or the tail, so no pre-zero
+    const BLK: usize = 32;
     let r = out.len();
     debug_assert_eq!(wt.len(), t.len() * r);
-    out.fill(0.0);
-    for k in 0..t.len() {
-        let tk = t[k];
-        let w = &wt[k * r..(k + 1) * r];
-        for o in 0..r {
-            out[o] += w[o] * tk;
+    let blocks = r / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        for k in 0..t.len() {
+            let tk = t[k];
+            let w = &wt[k * r + base..k * r + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(w) {
+                *a += *wv * tk;
+            }
         }
+        out[base..base + BLK].copy_from_slice(&acc);
+    }
+    for o in blocks * BLK..r {
+        let mut s = 0.0f32;
+        for k in 0..t.len() {
+            s += wt[k * r + o] * t[k];
+        }
+        out[o] = s;
     }
 }
 
