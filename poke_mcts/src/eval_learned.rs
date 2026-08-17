@@ -120,22 +120,39 @@ fn dot(w: &[f32], x: &[f32]) -> f32 {
 // value-path fork of the fc reader: writes into a caller-owned row so the
 // chain reuses two buffers instead of allocating per layer
 fn value_fc_apply(fc: &Fc, x: &[f32], y: &mut [f32], relu: bool) {
+    // 32 accumulators is 8 NEON registers, so the whole k loop runs without
+    // touching y and still leaves the register file room for the weight loads
+    const BLK: usize = 32;
     debug_assert_eq!(x.len(), fc.inp);
     debug_assert_eq!(y.len(), fc.out);
-    y.copy_from_slice(&fc.b);
-    for k in 0..fc.inp {
-        let xk = x[k];
-        let w = &fc.w[k * fc.out..(k + 1) * fc.out];
-        for o in 0..fc.out {
-            y[o] += xk * w[o];
-        }
-    }
-    if relu {
-        for v in y.iter_mut() {
-            if *v < 0.0 {
-                *v = 0.0;
+    let (w, b, inp, out) = (&fc.w[..], &fc.b[..], fc.inp, fc.out);
+    let blocks = out / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        acc.copy_from_slice(&b[base..base + BLK]);
+        for k in 0..inp {
+            let xk = x[k];
+            let wk = &w[k * out + base..k * out + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(wk) {
+                *a += xk * *wv;
             }
         }
+        if relu {
+            for v in acc.iter_mut() {
+                if *v < 0.0 {
+                    *v = 0.0;
+                }
+            }
+        }
+        y[base..base + BLK].copy_from_slice(&acc);
+    }
+    for o in blocks * BLK..out {
+        let mut s = b[o];
+        for k in 0..inp {
+            s += x[k] * w[k * out + o];
+        }
+        y[o] = if relu && s < 0.0 { 0.0 } else { s };
     }
 }
 
