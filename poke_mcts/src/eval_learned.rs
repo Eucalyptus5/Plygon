@@ -200,14 +200,6 @@ fn add_pair_into(dst: &mut [f32], x: &[f32], y: &[f32]) {
     }
 }
 
-fn web_cell(cell: &mut [f32], web_total: &mut [f32], a: &[f32], b: &[f32]) {
-    debug_assert_eq!(cell.len(), web_total.len());
-    for o in 0..cell.len() {
-        cell[o] = (a[o] * b[o]).max(0.0);
-        web_total[o] += cell[o];
-    }
-}
-
 fn relu_into(dst: &mut [f32], src: &[f32]) {
     debug_assert_eq!(dst.len(), src.len());
     for k in 0..dst.len() {
@@ -1766,13 +1758,39 @@ impl LearnedValueV2 {
             std::hint::black_box((&*tokens, &*proj, &*keys, &*key_lens, &*live, &*active));
             return (-1, -1);
         }
+        // one accumulator block spans all 36 cells, so the running total never
+        // round-trips through memory, and the read cell is rebuilt once at the end
+        const BLK: usize = 32;
         let (a, b) = proj.split_at(6 * r);
-        for i in 0..6 {
-            for j in 0..6 {
-                web_cell(cell, web_total, &a[i * r..(i + 1) * r], &b[j * r..(j + 1) * r]);
-                if STAGE >= S_CELL && active0 == i as i32 && active1 == j as i32 {
-                    active_cell.copy_from_slice(cell);
+        let blocks = r / BLK;
+        for blk in 0..blocks {
+            let base = blk * BLK;
+            let mut tot = [0.0f32; BLK];
+            for i in 0..6 {
+                let ai = &a[i * r + base..i * r + base + BLK];
+                for j in 0..6 {
+                    let bj = &b[j * r + base..j * r + base + BLK];
+                    for o in 0..BLK {
+                        tot[o] += (ai[o] * bj[o]).max(0.0);
+                    }
                 }
+            }
+            web_total[base..base + BLK].copy_from_slice(&tot);
+        }
+        for o in blocks * BLK..r {
+            let mut t = 0.0f32;
+            for i in 0..6 {
+                for j in 0..6 {
+                    t += (a[i * r + o] * b[j * r + o]).max(0.0);
+                }
+            }
+            web_total[o] = t;
+        }
+        if STAGE >= S_CELL && active0 >= 0 && active1 >= 0 {
+            let ai = &a[active0 as usize * r..(active0 as usize + 1) * r];
+            let bj = &b[active1 as usize * r..(active1 as usize + 1) * r];
+            for o in 0..r {
+                active_cell[o] = (ai[o] * bj[o]).max(0.0);
             }
         }
         if STAGE < S_XASM {
