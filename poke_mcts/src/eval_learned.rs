@@ -1631,21 +1631,11 @@ impl LearnedValueV2 {
         fit(&mut fwd.acc, 2 * aw);
         fit(&mut fwd.web_total, r);
         fit(&mut fwd.active_cell, r);
-        if STAGE == S_FULL_ND {
-            fit_dirty(&mut fwd.cell, r);
-            fit_dirty(&mut fwd.x, value_v2_input_len(aw, r));
-        } else {
-            fit(&mut fwd.cell, r);
-            fit(&mut fwd.x, value_v2_input_len(aw, r));
-        }
+        fit_dirty(&mut fwd.cell, r);
+        fit_dirty(&mut fwd.x, value_v2_input_len(aw, r));
         let hmax = self.fc.iter().map(|l| l.out).max().unwrap();
-        if STAGE == S_FULL_ND {
-            fit_dirty(&mut fwd.h0, hmax);
-            fit_dirty(&mut fwd.h1, hmax);
-        } else {
-            fit(&mut fwd.h0, hmax);
-            fit(&mut fwd.h1, hmax);
-        }
+        fit_dirty(&mut fwd.h0, hmax);
+        fit_dirty(&mut fwd.h1, hmax);
         cache.bind(self);
         // attention mixes every token before the projections, so no segment's
         // block is a function of that segment alone and nothing may be reused
