@@ -975,10 +975,17 @@ fn select_covering(pool: Vec<(BattleState, TeamData)>, want: usize)
 
 fn mint_fixture_rows(net: &LearnedValueV2, pairs: &[(BattleState, TeamData)]) -> serde_json::Value {
     use poke_mcts::features;
-    let rows: Vec<serde_json::Value> = pairs
+    let mut states: Vec<BattleState> = pairs.iter().map(|(s, _)| *s).collect();
+    // every decision point has both seats occupied, so the one shape that reads the forward's
+    // active-cell zero fill back out has to be built rather than collected
+    let mut empty_seat = states[0];
+    let slot = (empty_seat.sides[0].active_index as usize).min(5);
+    empty_seat.sides[0].team[slot] = Default::default();
+    states.push(empty_seat);
+    let rows: Vec<serde_json::Value> = states
         .iter()
         .enumerate()
-        .map(|(i, (state, _))| {
+        .map(|(i, state)| {
             let mut ids = Vec::with_capacity(192);
             let seg_lens = features::extract_segmented(state, &mut ids);
             let dense = features::extract_dense(state);
@@ -1000,13 +1007,19 @@ fn mint_fixture_rows(net: &LearnedValueV2, pairs: &[(BattleState, TeamData)]) ->
     })
 }
 
-fn dump_search_states(fixture: &Fixture, from_snapshots: Option<&str>, states_out: &str,
-                      fixtures_out: &str, want: usize, seed: u64) {
+fn dump_search_states(fixture: &Fixture, from_snapshots: Option<&str>, reuse_states: bool,
+                      states_out: &str, fixtures_out: &str, want: usize, seed: u64) {
     use poke_mcts::audit_snapshot::{pack_search_states, read_search_states, write_search_states};
     let (memory, games) = match from_snapshots {
         Some(dir) => {
             let n = pack_search_states(dir, states_out, want).expect("snapshot pack must succeed");
             println!("dump-search-states source=snapshots dir={dir} packed={n}");
+            (None, 0)
+        }
+        // re-minting the rows off the states already on disk leaves them untouched; rolling
+        // fresh games does not reproduce them
+        None if reuse_states => {
+            println!("dump-search-states source=existing states={states_out}");
             (None, 0)
         }
         None => {
@@ -1268,7 +1281,8 @@ fn main() {
             .iter()
             .position(|a| a == "--from-snapshots")
             .map(|i| args[i + 1].clone());
-        dump_search_states(&fixture, from.as_deref(), &states_out, &fixtures_out, want, seed);
+        let reuse = args.iter().any(|a| a == "--from-states");
+        dump_search_states(&fixture, from.as_deref(), reuse, &states_out, &fixtures_out, want, seed);
         return;
     }
     if args.iter().any(|a| a == "--tournament") {

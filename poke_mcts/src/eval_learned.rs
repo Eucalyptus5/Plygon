@@ -3430,7 +3430,9 @@ mod tests {
         assert!(zero_len_rows > 0, "ext corpus must carry a zero-length segment");
         assert!(multi_id_rows > 0, "ext corpus must carry a multi-id segment");
         assert_eq!(distinct, compared, "ext fixtures must be distinct positions");
-        assert_eq!(active0_ok, compared, "every ext fixture needs an active seat 0");
+        // the forward zeroes the active cell and then reads it back unconditionally, so a seat
+        // with no occupant is the only shape that can tell the zero apart from a stale buffer
+        assert_eq!(compared - active0_ok, 1, "ext corpus must carry one empty active seat 0");
         assert_eq!(active1_ok, compared, "every ext fixture needs an active seat 1");
         assert_eq!(web_total_nz, compared, "every ext fixture needs a nonzero web total");
         assert!(
