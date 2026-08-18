@@ -1666,14 +1666,23 @@ impl LearnedValueV2 {
                 continue;
             }
             let tok = &mut tokens[seg * aw..(seg + 1) * aw];
-            tok.fill(0.0);
+            // the gather's first row seeds the token, so only a segment with no
+            // rows to seed it still needs the zero fill
+            if seg_ids.is_empty() {
+                tok.fill(0.0);
+            }
             if STAGE < S_GATHER0 {
                 continue;
             }
             let mut act = false;
-            for &id in seg_ids {
+            for (n, &id) in seg_ids.iter().enumerate() {
                 let idu = id as usize;
-                add_into(tok, &self.emb[idu * aw..(idu + 1) * aw]);
+                let row = &self.emb[idu * aw..(idu + 1) * aw];
+                if n == 0 {
+                    tok.copy_from_slice(row);
+                } else {
+                    add_into(tok, row);
+                }
                 if STAGE >= S_GATHER && seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0
                 {
                     act = true;
