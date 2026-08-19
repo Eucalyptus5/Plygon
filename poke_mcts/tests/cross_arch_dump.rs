@@ -131,8 +131,8 @@ fn cross_arch_dump() {
     let require = artifacts_required();
     let named_w = std::env::var("LVV2_WEIGHTS").ok().filter(|s| !s.is_empty());
     let named_f = std::env::var("LVV2_FIXTURES").ok().filter(|s| !s.is_empty());
-    if require && named_w.is_none() {
-        panic!("LVV2_REQUIRE is set but LVV2_WEIGHTS names no export; the tracked default is never an armed subject");
+    if require && (named_w.is_none() || named_f.is_none()) {
+        panic!("LVV2_REQUIRE is set but LVV2_WEIGHTS/LVV2_FIXTURES name no export; the tracked default is never an armed subject");
     }
     let w_path = named_w.unwrap_or_else(|| LVV2_WEIGHTS_PATH.to_string());
     let f_path = named_f.unwrap_or_else(|| LVV2_FIXTURES_PATH.to_string());
@@ -166,7 +166,7 @@ fn cross_arch_dump() {
             if require {
                 panic!("LVV2_FIXTURES resolved to {f_path}: {e}");
             }
-            println!("SKIP cross-arch dump: weights={w_path}");
+            println!("SKIP cross-arch dump: fixtures={f_path}");
             return;
         }
     };
@@ -174,7 +174,6 @@ fn cross_arch_dump() {
     let weights_len = std::fs::metadata(&w_path).map(|m| m.len()).unwrap_or(0);
 
     println!("=== CROSS-ARCH DUMP v2 ===");
-    println!("states={want}");
     println!("arch={} os={}", std::env::consts::ARCH, std::env::consts::OS);
     println!("weights={w_path}");
     println!("fixtures={f_path}");
@@ -182,6 +181,9 @@ fn cross_arch_dump() {
     println!("multiplier_bits={}", bits32(net.export_multiplier()));
 
     let mut body = Body { lines: Vec::new() };
+    // both decide what the body contains, so a mismatched pair must break the hash, not the header
+    body.push(format!("states={want}"));
+    body.push(format!("debug_assertions={}", cfg!(debug_assertions)));
 
     body.push("--- PROBE 1: EXTRACT ---".to_string());
     let mut ids: Vec<u32> = Vec::new();
