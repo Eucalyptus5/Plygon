@@ -9,7 +9,7 @@ use poke_mcts::search::{search_world, ArmStat, SearchParams, SearchResult};
 use rayon::prelude::*;
 
 const STATES_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/search_states.bin");
-const STATES: usize = 8;
+const STATES_DEFAULT: usize = 8;
 const ITERS: u64 = 4096;
 const SEED: u64 = 0x5EA4_C11D;
 
@@ -137,10 +137,15 @@ fn cross_arch_dump() {
     let w_path = named_w.unwrap_or_else(|| LVV2_WEIGHTS_PATH.to_string());
     let f_path = named_f.unwrap_or_else(|| LVV2_FIXTURES_PATH.to_string());
 
+    let want: usize = std::env::var("CROSS_ARCH_STATES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(STATES_DEFAULT);
     let pairs = read_search_states(STATES_PATH)
         .unwrap_or_else(|e| panic!("tracked search-state corpus {STATES_PATH}: {e}"));
-    assert!(pairs.len() >= STATES, "corpus holds {} pairs, need {STATES}", pairs.len());
-    let states = &pairs[..STATES];
+    assert!(pairs.len() >= want, "corpus holds {} pairs, need {want}", pairs.len());
+    let states = &pairs[..want];
+    let sig_real = want.min(STATES_DEFAULT);
 
     let net = match LearnedValueV2::load(&w_path) {
         Ok(n) => n,
@@ -169,6 +174,7 @@ fn cross_arch_dump() {
     let weights_len = std::fs::metadata(&w_path).map(|m| m.len()).unwrap_or(0);
 
     println!("=== CROSS-ARCH DUMP v2 ===");
+    println!("states={want}");
     println!("arch={} os={}", std::env::consts::ARCH, std::env::consts::OS);
     println!("weights={w_path}");
     println!("fixtures={f_path}");
@@ -222,7 +228,7 @@ fn cross_arch_dump() {
     let pool = rayon::ThreadPoolBuilder::new().num_threads(2).build().unwrap();
     let served_runs = run_all(&pool, states, &net);
     let ref_runs = run_all(&pool, states, &reference);
-    for i in 0..STATES {
+    for i in 0..want {
         body.push(result_line("served", i, &served_runs[i]));
         body.push(result_line("ref   ", i, &ref_runs[i]));
         arm_lines(&mut body, i, "a1", &served_runs[i].s1);
@@ -274,9 +280,9 @@ fn cross_arch_dump() {
         body.push(e);
     }
 
-    for i in 0..STATES {
+    for i in 0..sig_real {
         let root_eval = net.eval(&states[i].0);
-        for j in 0..STATES {
+        for j in 0..sig_real {
             let arg = net.eval(&states[j].0) - root_eval;
             body.push(format!(
                 "l_sig_real {i} {j} arg={:08x} y={:016x}",
