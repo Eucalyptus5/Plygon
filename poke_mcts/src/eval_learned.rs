@@ -1442,12 +1442,18 @@ pub fn reset_value_scratch() {
 
 impl LearnedValueV2 {
     pub fn from_env() -> Self {
-        let path = std::env::var("BRIDGE_EVAL_WEIGHTS_V2")
-            .expect("BRIDGE_EVAL_WEIGHTS_V2 must point at a learned-value-v2 weights file");
-        match Self::load(&path) {
+        match Self::try_from_env() {
             Ok(e) => e,
-            Err(m) => panic!("bad weights file {path}: {m}"),
+            Err(m) => panic!("BRIDGE_EVAL_WEIGHTS_V2: {m}"),
         }
+    }
+
+    /// Same resolution as `from_env`, but reports why it failed instead of aborting, so a
+    /// caller that binds this evaluator by default can degrade rather than kill the process.
+    pub fn try_from_env() -> Result<Self, String> {
+        let path = std::env::var("BRIDGE_EVAL_WEIGHTS_V2")
+            .map_err(|_| "unset (must point at a learned-value-v2 weights file)".to_string())?;
+        Self::load(&path).map_err(|m| format!("bad weights file {path}: {m}"))
     }
 
     pub fn load(path: &str) -> Result<Self, String> {
