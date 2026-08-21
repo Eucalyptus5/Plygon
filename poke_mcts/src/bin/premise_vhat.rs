@@ -202,13 +202,62 @@ fn score(args: &[String]) {
     println!("score-done out={out}");
 }
 
+fn pick(args: &[String]) {
+    let corpus = arg(args, "--corpus", "premise_rows.bin");
+    let out = arg(args, "--out", "premise_picks.tsv");
+    let threads: usize = arg(args, "--threads", "6").parse().unwrap();
+    let iters: u64 = arg(args, "--iters", "4096").parse().unwrap();
+    let seed_salt: u64 = arg(args, "--seed-salt", &ROW_SALT.to_string()).parse().unwrap();
+    let bytes = std::fs::read(&corpus).unwrap();
+    let rows: Vec<Row> = bincode::deserialize(&bytes).unwrap();
+    let net = LearnedValueV2::from_env();
+    let wpath = std::env::var("BRIDGE_EVAL_WEIGHTS_V2").unwrap();
+
+    // binding probe: the two evaluators must disagree on real rows, or the "net" arm is the hand arm
+    for k in [0usize, rows.len() / 2, rows.len() - 1] {
+        let (h, n) = (Handcrafted.eval(&rows[k].state), net.eval(&rows[k].state));
+        assert!((h - n).abs() > 1e-6, "binding probe row {k}: handcrafted {h} == net {n}");
+        println!("probe row={k} hand={h:.6} net={n:.6}");
+    }
+    println!("pick: corpus={corpus} rows={} weights={wpath} threads={threads} iters={iters} seed_salt={seed_salt} explore_coeff={EXPLORE_COEFF} chance=open", rows.len());
+    // fixed iteration cap: the deadline check is batched every 1024 iterations, so a time budget would let evaluator cost move the compute
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, explore_coeff: EXPLORE_COEFF, ..Default::default() };
+    assert_eq!(params.explore_coeff, 0.49, "explore_coeff must echo c^2 = 0.49");
+
+    let fmt_arms = |st: &[poke_mcts::search::ArmStat]| st.iter()
+        .map(|a| format!("{}:{}:{:016x}:{:016x}", a.action, a.visits, a.avg_score.to_bits(), a.win_chance.to_bits()))
+        .collect::<Vec<String>>()
+        .join(";");
+
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let lines: Vec<String> = pool.install(|| {
+        rows.par_iter().enumerate().map(|(i, row)| {
+            let seed = splitmix64(seed_salt ^ i as u64);
+            let side = row.side as usize;
+            let r = search_world(&row.state, &row.teams, &net, &poke_mcts::chance::OpenLoop, &params, seed, side, None);
+            let per_world = vec![(r.side(side).to_vec(), 1.0f64)];
+            let agg = poke_mcts::driver::aggregate(&per_world);
+            let pick = poke_mcts::driver::pick_from(&agg, &legal_actions(&row.state, side), &mut poke_mcts::rng::Lcg::new(seed), PickMode::Argmax, GEN_FILTER);
+            format!("{i}\t{}\t{}\t{}\t{}\t{}\t{pick}\t{}\t{}\t{}\t{}\t{}",
+                row.game_index, row.game_tag, row.gen_eval, row.turn, row.side,
+                r.iterations, r.guard_hits, r.depth_sum, fmt_arms(&r.s1), fmt_arms(&r.s2))
+        }).collect()
+    });
+    let mut s = String::from("row\tgame_index\tgame_tag\tgen_eval\tturn\tside\tpick\titerations\tguard_hits\tdepth_sum\tarms1\tarms2\n");
+    for l in lines { s.push_str(&l); s.push('\n'); }
+    std::fs::write(&out, s).unwrap();
+    println!("pick-done out={out}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--gen") {
         gen(&args);
     } else if args.iter().any(|a| a == "--score") {
         score(&args);
+    } else if args.iter().any(|a| a == "--pick") {
+        pick(&args);
     } else {
-        panic!("premise_vhat needs --gen or --score");
+        panic!("premise_vhat needs --gen, --score or --pick");
     }
 }
