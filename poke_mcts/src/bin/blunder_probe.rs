@@ -180,6 +180,7 @@ fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed:
         num_worlds: worlds, time_ms_per_world: ms, max_iters_per_world: iters, seed,
         chance_mode: mode, pick_mode, filter_threshold: 0.75, raw_root: false,
         explore_coeff,
+        value_temp: 1.0,
     };
     let tr = if full_info {
         choose_action_traced(&obs, &belief, &TrueState, &cfg)

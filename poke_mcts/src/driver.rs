@@ -46,6 +46,7 @@ pub struct PimcConfig {
     pub filter_threshold: f64,
     pub raw_root: bool,
     pub explore_coeff: f64, // UCB sqrt coefficient (c²); 2.0 = textbook c=√2
+    pub value_temp: f32,
 }
 
 /// (action_byte, aggregated visit fraction), sorted desc — exposed for tests/logging.
@@ -257,6 +258,7 @@ pub fn choose_action_eval_iters(obs: &Observation, belief: &Belief, det: &impl D
         time_ms: cfg.time_ms_per_world,
         max_iters: cfg.max_iters_per_world,
         explore_coeff: cfg.explore_coeff,
+        value_temp: cfg.value_temp,
         ..Default::default()
     };
     if cfg.chance_mode == ChanceMode::ClosedLoop {
@@ -335,6 +337,7 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
         time_ms: cfg.time_ms_per_world,
         max_iters: cfg.max_iters_per_world,
         explore_coeff: cfg.explore_coeff,
+        value_temp: cfg.value_temp,
         ..Default::default()
     };
     if cfg.chance_mode == ChanceMode::ClosedLoop {
@@ -461,6 +464,7 @@ mod tests {
             filter_threshold: 0.75,
             raw_root: false,
             explore_coeff: 2.0,
+            value_temp: 1.0,
         }
     }
 
@@ -509,6 +513,7 @@ mod tests {
             filter_threshold: 0.75,
             raw_root: false,
             explore_coeff: 2.0,
+            value_temp: 1.0,
         };
         let (_action, served) =
             choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
@@ -533,6 +538,7 @@ mod tests {
             filter_threshold: 0.75,
             raw_root: false,
             explore_coeff: 2.0,
+            value_temp: 1.0,
         };
         let (_action, served) =
             choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
@@ -648,7 +654,7 @@ mod tests {
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
         // Iteration-bounded; the clock is only a safety ceiling.
-        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
@@ -664,7 +670,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
         assert_eq!(a, b, "4-arg form must delegate to the eval-carrying form unchanged");
@@ -688,7 +694,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 2, time_ms_per_world: 1000, max_iters_per_world: 200, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
+        let cfg = PimcConfig { num_worlds: 2, time_ms_per_world: 1000, max_iters_per_world: 200, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
         let a = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, Some(&net));
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, Some(&net));
@@ -812,9 +818,84 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0 };
+        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert_eq!(a, b, "par_iter order preserved -> same seed -> same choice");
+    }
+
+    fn temp_cfg(seed: u64, value_temp: f32) -> PimcConfig {
+        PimcConfig {
+            num_worlds: 4,
+            time_ms_per_world: 600_000,
+            max_iters_per_world: 400,
+            seed,
+            chance_mode: ChanceMode::OpenLoop,
+            pick_mode: PickMode::Argmax,
+            filter_threshold: 0.75,
+            raw_root: false,
+            explore_coeff: 2.0,
+            value_temp,
+        }
+    }
+
+    #[test]
+    fn value_temp_reaches_the_search() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        );
+        let belief = Belief::default();
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let pick = |seed: u64, value_temp: f32| {
+            choose_action_eval(
+                &obs,
+                &belief,
+                &RandomBattle,
+                &temp_cfg(seed, value_temp),
+                EvalKind::Handcrafted,
+                None,
+            )
+        };
+        let mut flipped: Vec<u64> = Vec::new();
+        for seed in 0..64u64 {
+            let hot = pick(seed, 2.5);
+            let cold = pick(seed, 1.0);
+            assert_eq!(cold, pick(seed, 1.0), "seed {seed}: T=1.0 must be reproducible");
+            if cold != hot {
+                flipped.push(seed);
+            }
+        }
+        assert!(!flipped.is_empty(), "no seed flipped: the temperature never reached the search");
+    }
+
+    #[test]
+    fn value_temp_one_matches_a_search_built_without_the_knob() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        );
+        let belief = Belief::default();
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        for seed in 0..64u64 {
+            let cfg = PimcConfig { num_worlds: 1, raw_root: true, ..temp_cfg(seed, 1.0) };
+            let got = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
+            let mut rng = Lcg::new(splitmix64(cfg.seed));
+            let worlds = RandomBattle.sample_worlds(&obs, &belief, cfg.num_worlds, &mut rng);
+            let params = SearchParams {
+                time_ms: cfg.time_ms_per_world,
+                max_iters: cfg.max_iters_per_world,
+                explore_coeff: cfg.explore_coeff,
+                ..Default::default()
+            };
+            let r = search_eval(&worlds[0], &Handcrafted, &cfg, &params, splitmix64(cfg.seed), 0, None);
+            let want = r
+                .side(0)
+                .iter()
+                .max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action)))
+                .expect("the root must expose arms")
+                .action;
+            assert_eq!(got, want, "seed {seed}: T=1.0 must match the search built without the knob");
+        }
     }
 }

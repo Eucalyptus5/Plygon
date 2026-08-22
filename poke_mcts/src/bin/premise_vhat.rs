@@ -117,6 +117,7 @@ fn gen(args: &[String]) {
                     filter_threshold: GEN_FILTER,
                     raw_root: false,
                     explore_coeff: EXPLORE_COEFF,
+                    value_temp: 1.0,
                 };
                 choose_action_eval_iters(&obs, &bel[side], &RandomBattle, &cfg, eval, None).0
             });
