@@ -118,7 +118,7 @@ pub fn search_world_closed(
             let node = &tree[idx];
             let (a1, b1) = pick(&node.s1, node.visits, params.explore_coeff);
             let (a2, b2) = pick(&node.s2, node.visits, params.explore_coeff);
-            if a1 == 255 && a2 == 255 { value = leaf(&tree[idx].state, evaluator, root_eval); break; }
+            if a1 == 255 && a2 == 255 { value = leaf(&tree[idx].state, evaluator, root_eval, params.value_temp); break; }
             let key = (idx as u32, child_key(arm0(a1), arm0(a2)) as u16);
             path.push((idx, a1, a2));
             let edge = edges.entry(key).or_insert_with(|| {
@@ -157,7 +157,7 @@ pub fn search_world_closed(
             let outcome_state = edge.outcomes[oi].state;
             if edge.outcomes[oi].child == NO_CHILD {
                 value = if outcome_state.is_game_over() { winner_value(&outcome_state) }
-                        else { leaf(&outcome_state, evaluator, root_eval) };
+                        else { leaf(&outcome_state, evaluator, root_eval, params.value_temp) };
                 if (tree.len() as u32) < params.max_nodes && !outcome_state.is_game_over() {
                     tree.push(CNode::from_state(&outcome_state));
                     let id = (tree.len() - 1) as u32;

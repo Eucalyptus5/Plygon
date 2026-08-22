@@ -71,8 +71,8 @@ fn run_suite() {
     let (mut open_ok, mut closed_ok) = (0u32, 0u32);
     for c in &suite.cases {
         let (state, teams) = build_case(c);
-        let open_p = SearchParams { time_ms: 200, max_iters: u64::MAX, max_nodes: 2_000_000, explore_coeff: 2.0 };
-        let closed_p = SearchParams { time_ms: 200, max_iters: u64::MAX, max_nodes: poke_mcts::search::closed_loop_max_nodes(1), explore_coeff: 2.0 };
+        let open_p = SearchParams { time_ms: 200, max_iters: u64::MAX, max_nodes: 2_000_000, explore_coeff: 2.0, value_temp: 1.0 };
+        let closed_p = SearchParams { time_ms: 200, max_iters: u64::MAX, max_nodes: poke_mcts::search::closed_loop_max_nodes(1), explore_coeff: 2.0, value_temp: 1.0 };
         let o = search_world(&state, &teams, &Handcrafted, &OpenLoop, &open_p, 7, 0, None);
         let c2 = search_world_closed(&state, &teams, &Handcrafted, &closed_p, 7);
         let ob = best(&o.s1).action; let cb = best(&c2.s1).action;

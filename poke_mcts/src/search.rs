@@ -11,11 +11,12 @@ pub struct SearchParams {
     pub max_iters: u64,   // sanity cap (design §5.5); u64::MAX in normal play
     pub max_nodes: u32,   // memory cap; stop expanding past it
     pub explore_coeff: f64, // UCB sqrt coefficient (c²); 2.0 = textbook c=√2
+    pub value_temp: f32, // divides the root-relative leaf value before the sigmoid; 1.0 = unchanged
 }
 
 impl Default for SearchParams {
     fn default() -> Self {
-        SearchParams { time_ms: 100, max_iters: u64::MAX, max_nodes: 2_000_000, explore_coeff: 2.0 }
+        SearchParams { time_ms: 100, max_iters: u64::MAX, max_nodes: 2_000_000, explore_coeff: 2.0, value_temp: 1.0 }
     }
 }
 
@@ -116,11 +117,11 @@ pub fn search_world(
                 guard_hits += 1;
                 #[cfg(not(feature = "train_value"))]
                 {
-                    value = leaf(&cur, evaluator, root_eval);
+                    value = leaf(&cur, evaluator, root_eval, params.value_temp);
                 }
                 #[cfg(feature = "train_value")]
                 {
-                    let (v, a) = leaf_vals(&cur, evaluator, root_eval);
+                    let (v, a) = leaf_vals(&cur, evaluator, root_eval, params.value_temp);
                     value = v;
                     value_abs = a;
                 }
@@ -133,11 +134,11 @@ pub fn search_world(
             if a1 == NO_ARM && a2 == NO_ARM {
                 #[cfg(not(feature = "train_value"))]
                 {
-                    value = leaf(&cur, evaluator, root_eval);
+                    value = leaf(&cur, evaluator, root_eval, params.value_temp);
                 }
                 #[cfg(feature = "train_value")]
                 {
-                    let (v, a) = leaf_vals(&cur, evaluator, root_eval);
+                    let (v, a) = leaf_vals(&cur, evaluator, root_eval, params.value_temp);
                     value = v;
                     value_abs = a;
                 }
@@ -179,12 +180,12 @@ pub fn search_world(
                     value = if cur.is_game_over() {
                         winner_value(&cur)
                     } else {
-                        leaf(&cur, evaluator, root_eval)
+                        leaf(&cur, evaluator, root_eval, params.value_temp)
                     };
                 }
                 #[cfg(feature = "train_value")]
                 {
-                    let (v, a) = leaf_vals(&cur, evaluator, root_eval);
+                    let (v, a) = leaf_vals(&cur, evaluator, root_eval, params.value_temp);
                     value = v;
                     value_abs = a;
                 }
@@ -241,21 +242,21 @@ pub fn search_world(
 }
 
 #[inline]
-pub(crate) fn leaf(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32) -> f64 {
-    if s.is_game_over() { winner_value(s) } else { sigmoid(evaluator.eval(s) - root_eval) }
+pub(crate) fn leaf(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32, value_temp: f32) -> f64 {
+    if s.is_game_over() { winner_value(s) } else { sigmoid((evaluator.eval(s) - root_eval) / value_temp) }
 }
 
 // One eval per leaf: the root-relative sigmoid backprops, the absolute sigmoid only
 // feeds the value accumulator (never UCB, backprop, or the pick).
 #[cfg(feature = "train_value")]
 #[inline]
-fn leaf_vals(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32) -> (f64, f64) {
+fn leaf_vals(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32, value_temp: f32) -> (f64, f64) {
     if s.is_game_over() {
         let w = winner_value(s);
         return (w, w);
     }
     let e = evaluator.eval(s);
-    (sigmoid(e - root_eval), sigmoid(e))
+    (sigmoid((e - root_eval) / value_temp), sigmoid(e))
 }
 
 #[inline]

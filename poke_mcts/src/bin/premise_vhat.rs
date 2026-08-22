@@ -208,6 +208,8 @@ fn pick(args: &[String]) {
     let threads: usize = arg(args, "--threads", "6").parse().unwrap();
     let iters: u64 = arg(args, "--iters", "4096").parse().unwrap();
     let seed_salt: u64 = arg(args, "--seed-salt", &ROW_SALT.to_string()).parse().unwrap();
+    let temp: f32 = arg(args, "--temp", "1").parse().unwrap();
+    assert!(temp > 0.0, "--temp must be > 0, got {temp}");
     let bytes = std::fs::read(&corpus).unwrap();
     let rows: Vec<Row> = bincode::deserialize(&bytes).unwrap();
     let net = LearnedValueV2::from_env();
@@ -219,9 +221,9 @@ fn pick(args: &[String]) {
         assert!((h - n).abs() > 1e-6, "binding probe row {k}: handcrafted {h} == net {n}");
         println!("probe row={k} hand={h:.6} net={n:.6}");
     }
-    println!("pick: corpus={corpus} rows={} weights={wpath} threads={threads} iters={iters} seed_salt={seed_salt} explore_coeff={EXPLORE_COEFF} chance=open", rows.len());
+    println!("pick: corpus={corpus} rows={} weights={wpath} threads={threads} iters={iters} seed_salt={seed_salt} temp={temp} explore_coeff={EXPLORE_COEFF} chance=open", rows.len());
     // fixed iteration cap: the deadline check is batched every 1024 iterations, so a time budget would let evaluator cost move the compute
-    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, explore_coeff: EXPLORE_COEFF, ..Default::default() };
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, explore_coeff: EXPLORE_COEFF, value_temp: temp, ..Default::default() };
     assert_eq!(params.explore_coeff, 0.49, "explore_coeff must echo c^2 = 0.49");
 
     let fmt_arms = |st: &[poke_mcts::search::ArmStat]| st.iter()
