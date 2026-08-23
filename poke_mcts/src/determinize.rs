@@ -111,7 +111,7 @@ pub fn sample_unrevealed_species(taken: &[u16], rng: &mut Lcg) -> u16 {
     }
 }
 
-fn install(
+pub(crate) fn install(
     state: &mut BattleState,
     teams: &mut TeamData,
     side: usize,
@@ -171,6 +171,87 @@ impl Determinizer for RandomBattle {
             worlds.push(World { state, teams, weight: 1.0 / n as f64 });
         }
         worlds
+    }
+}
+
+/// Oracle world source: the opponent's TRUE sets installed onto the reconstruction's slots.
+/// Public state (hp fraction, status, tera flag, active_index, field, side conditions) still
+/// comes from the observation, so only the set information differs from `RandomBattle`.
+#[derive(Default)]
+pub struct TrueSets {
+    pub inputs: Vec<MonBuildInput>,
+}
+
+pub struct TrueSetsFill {
+    pub installed: u64,
+    pub slots_expected: u64,
+    pub species_mismatch: u64,
+}
+
+impl TrueSets {
+    fn plan(&self, obs: &Observation) -> [Option<usize>; 6] {
+        let opp = 1 - obs.our_side;
+        let base_at = |slot: usize| {
+            let sid = obs.state.sides[opp].team[slot].species_id;
+            (sid != 0).then(|| data_bridge::base_species(sid))
+        };
+        let mut by_slot: [Option<usize>; 6] = [None; 6];
+        let mut placed = vec![false; self.inputs.len()];
+        for (i, input) in self.inputs.iter().enumerate() {
+            let want = data_bridge::base_species(input.species_id);
+            if let Some(slot) = (0..6).find(|&s| by_slot[s].is_none() && base_at(s) == Some(want)) {
+                by_slot[slot] = Some(i);
+                placed[i] = true;
+            }
+        }
+        let mut rest = (0..self.inputs.len()).filter(|&i| !placed[i]);
+        for slot in 0..6 {
+            if by_slot[slot].is_none() {
+                by_slot[slot] = rest.next();
+            }
+        }
+        by_slot
+    }
+
+    pub fn fill(&self, obs: &Observation) -> TrueSetsFill {
+        let opp = 1 - obs.our_side;
+        let by_slot = self.plan(obs);
+        let mut mismatch = 0u64;
+        for slot in 0..6 {
+            let sid = obs.state.sides[opp].team[slot].species_id;
+            if sid == 0 {
+                continue;
+            }
+            let matched = by_slot[slot].is_some_and(|i| {
+                data_bridge::base_species(self.inputs[i].species_id) == data_bridge::base_species(sid)
+            });
+            if !matched {
+                mismatch += 1;
+            }
+        }
+        TrueSetsFill {
+            installed: by_slot.iter().filter(|s| s.is_some()).count() as u64,
+            slots_expected: self.inputs.len().min(6) as u64,
+            species_mismatch: mismatch,
+        }
+    }
+}
+
+impl Determinizer for TrueSets {
+    fn sample_worlds(&self, obs: &Observation, _belief: &Belief, n: usize, _rng: &mut Lcg) -> Vec<World> {
+        let opp = 1 - obs.our_side;
+        let by_slot = self.plan(obs);
+        let mut state = *obs.state;
+        let mut teams = obs.teams.clone();
+        for slot in 0..6 {
+            let Some(i) = by_slot[slot] else { continue };
+            let revealed = obs.state.sides[opp].team[slot].species_id != 0;
+            let observed = revealed.then(|| &obs.state.sides[opp].team[slot]);
+            install(&mut state, &mut teams, opp, slot, &self.inputs[i], observed);
+        }
+        (0..n)
+            .map(|_| World { state, teams: teams.clone(), weight: 1.0 / n as f64 })
+            .collect()
     }
 }
 
@@ -271,6 +352,97 @@ mod tests {
         let mut rng = Lcg::new(5);
         let worlds = RandomBattle.sample_worlds(&obs, &belief, 2, &mut rng);
         assert_eq!(worlds.len(), 2, "no panic; slot resolved via base species");
+    }
+
+    fn true_input(species_id: u16, ability_id: u16, moves: [u16; 4]) -> MonBuildInput {
+        MonBuildInput {
+            species_id, ability_id, item_id: 0, moves,
+            ivs: [31; 6], evs: [0; 6], nature: 0, level: 80,
+            tera_type: 0, is_female: false,
+        }
+    }
+
+    #[test]
+    fn true_sets_install_keeps_the_reconstructions_public_state() {
+        let (mut s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0])],
+        );
+        s.sides[1].team[0].current_hp = s.sides[1].team[0].max_hp / 3;
+        s.sides[1].team[0].status = STATUS_BURN;
+        s.sides[1].team[0].status_counter = 3;
+        let observed = s.sides[1].team[0];
+
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let det = TrueSets { inputs: vec![true_input(445, 47, [34, 89, 0, 0])] };
+        let worlds = det.sample_worlds(&obs, &Belief::default(), 4, &mut Lcg::new(3));
+
+        let om = &worlds[0].state.sides[1].team[0];
+        assert_eq!(om.ability_id, 47, "true ability installed");
+        assert_eq!(om.moves[0], 34, "true moves installed");
+        assert_eq!(worlds[0].teams.mons[1][0].evs, [0; 6], "true EVs installed");
+        assert_ne!(om.max_hp, observed.max_hp, "the true EVs really give a different max_hp");
+        let f_obs = observed.current_hp as f64 / observed.max_hp as f64;
+        let f_w = om.current_hp as f64 / om.max_hp as f64;
+        assert!((f_obs - f_w).abs() < 0.02, "hp fraction comes from the reconstruction");
+        assert_eq!(om.status, STATUS_BURN, "status comes from the reconstruction");
+        assert_eq!(om.status_counter, 3, "status counter comes from the reconstruction");
+    }
+
+    #[test]
+    fn true_sets_leave_active_index_and_our_side_alone() {
+        let (mut s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        s.sides[1].active_index = 1;
+        s.sides[0].side_conditions.spikes = 2;
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let det = TrueSets {
+            inputs: vec![true_input(445, 47, [34, 0, 0, 0]), true_input(130, 22, [57, 0, 0, 0])],
+        };
+        let worlds = det.sample_worlds(&obs, &Belief::default(), 8, &mut Lcg::new(3));
+        assert_eq!(worlds.len(), 8);
+        for w in &worlds {
+            assert_eq!(w.state.sides[1].active_index, 1, "active_index is never written");
+            assert!(w.state.sides[0] == s.sides[0], "our side is untouched");
+            assert!(w.state.field == s.field, "field is untouched");
+            assert!(w.state.sides[1] == worlds[0].state.sides[1], "oracle worlds are identical");
+            assert_eq!(w.teams, worlds[0].teams, "oracle worlds are identical");
+            assert!((w.weight - 1.0 / 8.0).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn true_sets_match_revealed_slots_by_base_species() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        // handed in the opposite order to the reconstruction's slots
+        let det = TrueSets {
+            inputs: vec![true_input(130, 22, [57, 0, 0, 0]), true_input(445, 47, [34, 0, 0, 0])],
+        };
+        let worlds = det.sample_worlds(&obs, &Belief::default(), 2, &mut Lcg::new(3));
+        assert_eq!(worlds[0].state.sides[1].team[0].species_id, 445);
+        assert_eq!(worlds[0].state.sides[1].team[0].ability_id, 47);
+        assert_eq!(worlds[0].state.sides[1].team[1].species_id, 130);
+        let fill = det.fill(&obs);
+        assert_eq!(fill.species_mismatch, 0);
+        assert_eq!(fill.installed, 2);
+        assert_eq!(fill.slots_expected, 2);
+    }
+
+    #[test]
+    fn true_sets_report_an_unmatched_revealed_slot() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0]), mon(130, 22, [57, 0, 0, 0])],
+        );
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let det = TrueSets { inputs: vec![true_input(143, 47, [34, 0, 0, 0])] };
+        assert_eq!(det.fill(&obs).species_mismatch, 2, "neither revealed slot got its truth");
     }
 
     #[test]
