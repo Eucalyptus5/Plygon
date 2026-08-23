@@ -252,6 +252,76 @@ fn pick(args: &[String]) {
     println!("pick-done out={out}");
 }
 
+fn sweep(args: &[String]) {
+    let corpus = arg(args, "--corpus", "premise_rows.bin");
+    let out = arg(args, "--out", "premise_sweep.tsv");
+    let arm = arg(args, "--arm", "");
+    let iters: u64 = arg(args, "--iters", "4096").parse().unwrap();
+    let threads: usize = arg(args, "--threads", "6").parse().unwrap();
+    let stride: usize = arg(args, "--stride", "1").parse().unwrap();
+    assert!(matches!(arm.as_str(), "net" | "hand" | "alone"), "--arm must be net, hand or alone, got {arm:?}");
+    assert!(stride > 0, "--stride must be > 0");
+    let bytes = std::fs::read(&corpus).unwrap();
+    let rows: Vec<Row> = bincode::deserialize(&bytes).unwrap();
+    let net = LearnedValueV2::from_env();
+    let wpath = std::env::var("BRIDGE_EVAL_WEIGHTS_V2").unwrap();
+
+    // binding probe: the two evaluators must disagree on real rows, or the "net" arm is the hand arm
+    for k in [0usize, rows.len() / 2, rows.len() - 1] {
+        let (h, n) = (Handcrafted.eval(&rows[k].state), net.eval(&rows[k].state));
+        assert!((h - n).abs() > 1e-6, "binding probe row {k}: handcrafted {h} == net {n}");
+        println!("probe row={k} hand={h:.6} net={n:.6}");
+    }
+    let kept: Vec<(usize, &Row)> = rows.iter().enumerate().filter(|(i, _)| i % stride == 0).collect();
+    println!("sweep: corpus={corpus} rows={} kept={} weights={wpath} arm={arm} iters={iters} stride={stride} threads={threads} explore_coeff={EXPLORE_COEFF} chance=open", rows.len(), kept.len());
+    // deadline off: the budget is then exact and independent of box load
+    let params = SearchParams { time_ms: u64::MAX, max_iters: iters, explore_coeff: EXPLORE_COEFF, ..Default::default() };
+    assert_eq!(params.explore_coeff, 0.49, "explore_coeff must echo c^2 = 0.49");
+
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let lines: Vec<String> = pool.install(|| {
+        kept.par_iter().flat_map(|(i, row)| {
+            // seed keyed on the full-vector index, so a row keeps its seed at every budget, arm and stride
+            let seed = splitmix64(ROW_SALT ^ *i as u64);
+            let side = row.side as usize;
+            let f = |o: Option<f64>| o.map_or("nan".to_string(), |v| format!("{v:.9}"));
+            let head = format!("{i}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.game_index, row.game_tag, row.gen_eval, row.turn, row.side, row.z);
+            if arm == "alone" {
+                let tn = std::time::Instant::now();
+                let en = net.eval(&row.state);
+                let msn = tn.elapsed().as_secs_f64() * 1e3;
+                let th = std::time::Instant::now();
+                let eh = Handcrafted.eval(&row.state);
+                let msh = th.elapsed().as_secs_f64() * 1e3;
+                vec![
+                    format!("{head}\tnet_alone\t0\t{}\t0\t{msn:.3}\t{:08x}", f(Some(poke_mcts::eval::sigmoid(en))), en.to_bits()),
+                    format!("{head}\thand_alone\t0\t{}\t0\t{msh:.3}\t{:08x}", f(Some(poke_mcts::eval::sigmoid(eh))), eh.to_bits()),
+                ]
+            } else {
+                let t = std::time::Instant::now();
+                let r = if arm == "net" {
+                    search_world(&row.state, &row.teams, &net, &poke_mcts::chance::OpenLoop, &params, seed, side, None)
+                } else {
+                    search_world(&row.state, &row.teams, &Handcrafted, &poke_mcts::chance::OpenLoop, &params, seed, side, None)
+                };
+                let ms = t.elapsed().as_secs_f64() * 1e3;
+                let (leg, bits) = if arm == "net" {
+                    ("net_search", net.eval(&row.state).to_bits())
+                } else {
+                    ("hand_search", Handcrafted.eval(&row.state).to_bits())
+                };
+                vec![format!("{head}\t{leg}\t{iters}\t{}\t{}\t{ms:.3}\t{bits:08x}", f(vhat(&r)), r.iterations)]
+            }
+        }).collect()
+    });
+    let mut s = String::from("row\tgame_index\tgame_tag\tgen_eval\tturn\tside\tz\tleg\tbudget\tvhat\titers\tms\troot_eval_bits\n");
+    let n = lines.len();
+    for l in lines { s.push_str(&l); s.push('\n'); }
+    std::fs::write(&out, s).unwrap();
+    println!("sweep-done out={out} lines={n}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--gen") {
@@ -260,7 +330,9 @@ fn main() {
         score(&args);
     } else if args.iter().any(|a| a == "--pick") {
         pick(&args);
+    } else if args.iter().any(|a| a == "--sweep") {
+        sweep(&args);
     } else {
-        panic!("premise_vhat needs --gen, --score or --pick");
+        panic!("premise_vhat needs --gen, --score, --pick or --sweep");
     }
 }
