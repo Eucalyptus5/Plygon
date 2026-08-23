@@ -1,4 +1,4 @@
-use poke_mcts::eval_learned::{artifacts_required, LearnedValueV2, LVV2_WEIGHTS_PATH};
+use poke_mcts::eval_learned::{artifacts_required, LearnedValueV2, INT8_SCOPE_ENV, LVV2_WEIGHTS_PATH};
 use poke_mcts::features::{DENSE_DIM, NUM_SEGMENTS};
 
 const FIXTURES_PATH: &str =
@@ -102,7 +102,8 @@ fn served_value_forward_is_stateless_and_input_sensitive() {
     let path = named.unwrap_or_else(|| LVV2_WEIGHTS_PATH.to_string());
 
     let rows = load_rows();
-    let net = match LearnedValueV2::load(&path) {
+    let scope = std::env::var(INT8_SCOPE_ENV).unwrap_or_default();
+    let net = match LearnedValueV2::load_quantized(&path, &scope) {
         Ok(n) => n,
         Err(e) => {
             if require {
@@ -112,7 +113,7 @@ fn served_value_forward_is_stateless_and_input_sensitive() {
                 "SKIP mutation battery: rows_compared=0 reference_bits_differing=0 \
                  order_compared=0 order_differing=0 swap_compared=0 swap_unmoved=0 \
                  id_compared=0 id_unmoved=0 drop_compared=0 drop_unmoved=0 \
-                 dense_ulp_compared=0 dense_ulp_moved=0 weights={path}"
+                 dense_ulp_compared=0 dense_ulp_moved=0 int8={scope} weights={path}"
             );
             return;
         }
@@ -178,7 +179,8 @@ fn served_value_forward_is_stateless_and_input_sensitive() {
          swap_compared={swap_compared} swap_unmoved={swap_unmoved} \
          id_compared={n} id_unmoved={id_unmoved} \
          drop_compared={drop_compared} drop_unmoved={drop_unmoved} \
-         dense_ulp_compared={dense_compared} dense_ulp_moved={dense_moved} weights={path}{tag}"
+         dense_ulp_compared={dense_compared} dense_ulp_moved={dense_moved} int8={} weights={path}{tag}",
+        net.int8_scope()
     );
 
     assert_eq!(

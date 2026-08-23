@@ -856,7 +856,8 @@ fn bench_eval_insitu<E: Evaluator + Sync>(fixture: &Fixture, inner: &E, net: Opt
     }
     let extract = if extract_us.is_empty() { None } else { Some(stats(extract_us).1) };
     let forward = if forward_us.is_empty() { None } else { Some(stats(forward_us).1) };
-    println!("insitu {label}: worlds={num_worlds} threads={threads} iters={iters} reps={reps} eval_us_per_eval={:.3} extract_us_per_eval={} forward_us_per_eval={} total_wall_us_per_iter={:.3} evals_per_iter={:.3} explore_coeff={explore_coeff:.2}",
+    let int8 = net.map_or_else(|| "n/a".to_string(), |n| n.int8_scope());
+    println!("insitu {label}: worlds={num_worlds} threads={threads} iters={iters} reps={reps} eval_us_per_eval={:.3} extract_us_per_eval={} forward_us_per_eval={} total_wall_us_per_iter={:.3} evals_per_iter={:.3} explore_coeff={explore_coeff:.2} int8={int8}",
         stats(evals_us).1, fmt_us(extract), fmt_us(forward), stats(walls).1, stats(per_iter_evals).1);
     println!("insitu-noshim {label}: total_wall_us_per_iter={:.3} iters={iters} reps={reps} explore_coeff={explore_coeff:.2}", stats(bare).1);
 

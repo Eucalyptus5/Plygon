@@ -228,6 +228,246 @@ fn value_head_scalar(layers: &[Fc], x: &[f32], h0: &mut [f32], h1: &mut [f32]) -
     }
 }
 
+// which fc layers the scope quantizes; `All` and `Hidden` resolve against the
+// loaded chain's length, `Bits` names layers explicitly and is checked against it
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum FcSel {
+    #[default]
+    None,
+    All,
+    Hidden,
+    Bits(u32),
+}
+
+impl FcSel {
+    fn mask(&self, layers: usize) -> Result<u32, String> {
+        let full = if layers >= 32 { u32::MAX } else { (1u32 << layers) - 1 };
+        match *self {
+            Self::None => Ok(0),
+            Self::All => Ok(full),
+            Self::Hidden => Ok(full >> 1),
+            Self::Bits(b) if b & !full == 0 => Ok(b),
+            Self::Bits(b) => Err(format!("int8 fc mask {b:#b} names a layer past the chain's {layers}")),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct Int8Scope {
+    emb: bool,
+    web: bool,
+    fc: FcSel,
+    act: bool,
+}
+
+impl Int8Scope {
+    fn parse(spec: &str) -> Result<Self, String> {
+        let mut s = Self::default();
+        for tok in spec.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+            match tok {
+                "none" => {}
+                "emb" => s.emb = true,
+                "web" => s.web = true,
+                "fc" => s.fc = FcSel::All,
+                "fchid" => s.fc = FcSel::Hidden,
+                "act" => s.act = true,
+                "all" => s = Self { emb: true, web: true, fc: FcSel::All, act: true },
+                other => {
+                    let l = other
+                        .strip_prefix("fc")
+                        .filter(|d| d.bytes().all(|c| c.is_ascii_digit()))
+                        .and_then(|d| d.parse::<u32>().ok())
+                        .filter(|l| *l < 32)
+                        .ok_or_else(|| format!("unknown int8 tensor {other}"))?;
+                    let bits = match s.fc {
+                        FcSel::Bits(b) => b,
+                        FcSel::None => 0,
+                        _ => return Err("int8 fc layer list cannot follow fc or fchid".into()),
+                    };
+                    s.fc = FcSel::Bits(bits | 1 << l);
+                }
+            }
+        }
+        if s.act && s.fc == FcSel::None {
+            return Err("int8 act needs fc: quantized activations only feed the integer fc chain".into());
+        }
+        Ok(s)
+    }
+
+    fn any(&self) -> bool {
+        self.emb || self.web || self.fc != FcSel::None
+    }
+
+    fn canonical(&self) -> String {
+        let mut v: Vec<String> = Vec::new();
+        if self.emb {
+            v.push("emb".into());
+        }
+        if self.web {
+            v.push("web".into());
+        }
+        match self.fc {
+            FcSel::None => {}
+            FcSel::All => v.push("fc".into()),
+            FcSel::Hidden => v.push("fchid".into()),
+            FcSel::Bits(b) => v.extend((0..32).filter(|l| b >> l & 1 == 1).map(|l| format!("fc{l}"))),
+        }
+        if self.act {
+            v.push("act".into());
+        }
+        if v.is_empty() {
+            "none".to_string()
+        } else {
+            v.join(",")
+        }
+    }
+}
+
+fn quantize_rows(src: &[f32], rows: usize, cols: usize) -> (Vec<i8>, Vec<f32>) {
+    debug_assert_eq!(src.len(), rows * cols);
+    let mut q = vec![0i8; rows * cols];
+    let mut sc = vec![0.0f32; rows];
+    for r in 0..rows {
+        let row = &src[r * cols..(r + 1) * cols];
+        let m = row.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+        let s = m / 127.0;
+        sc[r] = s;
+        if s > 0.0 {
+            let inv = 1.0 / s;
+            for (c, v) in row.iter().enumerate() {
+                q[r * cols + c] = (v * inv).round().clamp(-127.0, 127.0) as i8;
+            }
+        }
+    }
+    (q, sc)
+}
+
+// the served web and fc tensors are held transposed as w[k * outs + o], so a
+// row is a stride-`outs` column and the scale still belongs to `o`
+fn quantize_cols(src: &[f32], ins: usize, outs: usize) -> (Vec<i8>, Vec<f32>) {
+    debug_assert_eq!(src.len(), ins * outs);
+    let mut q = vec![0i8; ins * outs];
+    let mut sc = vec![0.0f32; outs];
+    for o in 0..outs {
+        let m = (0..ins).fold(0.0f32, |a, k| a.max(src[k * outs + o].abs()));
+        let s = m / 127.0;
+        sc[o] = s;
+        if s > 0.0 {
+            let inv = 1.0 / s;
+            for k in 0..ins {
+                q[k * outs + o] = (src[k * outs + o] * inv).round().clamp(-127.0, 127.0) as i8;
+            }
+        }
+    }
+    (q, sc)
+}
+
+fn value_web_project_q8(wq: &[i8], ws: &[f32], t: &[f32], out: &mut [f32]) {
+    const BLK: usize = 32;
+    let r = out.len();
+    debug_assert_eq!(wq.len(), t.len() * r);
+    let blocks = r / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        for k in 0..t.len() {
+            let tk = t[k];
+            let w = &wq[k * r + base..k * r + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(w) {
+                *a += f32::from(*wv) * tk;
+            }
+        }
+        for (o, a) in acc.iter().enumerate() {
+            out[base + o] = ws[base + o] * *a;
+        }
+    }
+    for o in blocks * BLK..r {
+        let mut s = 0.0f32;
+        for k in 0..t.len() {
+            s += f32::from(wq[k * r + o]) * t[k];
+        }
+        out[o] = ws[o] * s;
+    }
+}
+
+fn value_fc_apply_q8(fc: &Fc, wq: &[i8], ws: &[f32], x: &[f32], y: &mut [f32], relu: bool) {
+    const BLK: usize = 32;
+    debug_assert_eq!(x.len(), fc.inp);
+    debug_assert_eq!(y.len(), fc.out);
+    let (b, inp, out) = (&fc.b[..], fc.inp, fc.out);
+    let blocks = out / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        for k in 0..inp {
+            let xk = x[k];
+            let wk = &wq[k * out + base..k * out + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(wk) {
+                *a += xk * f32::from(*wv);
+            }
+        }
+        for (o, a) in acc.iter().enumerate() {
+            let v = b[base + o] + ws[base + o] * *a;
+            y[base + o] = if relu && v < 0.0 { 0.0 } else { v };
+        }
+    }
+    for o in blocks * BLK..out {
+        let mut s = 0.0f32;
+        for k in 0..inp {
+            s += x[k] * f32::from(wq[k * out + o]);
+        }
+        let v = b[o] + ws[o] * s;
+        y[o] = if relu && v < 0.0 { 0.0 } else { v };
+    }
+}
+
+// int8 x int8 into i32: inp <= 327 and both factors are bounded by 127, so the
+// worst-case magnitude is 5.27e6 and the accumulator cannot overflow
+fn value_fc_apply_q8a(
+    fc: &Fc,
+    wq: &[i8],
+    ws: &[f32],
+    x: &[f32],
+    xq: &mut [i8],
+    y: &mut [f32],
+    relu: bool,
+) {
+    const BLK: usize = 32;
+    debug_assert_eq!(x.len(), fc.inp);
+    debug_assert_eq!(y.len(), fc.out);
+    let (b, inp, out) = (&fc.b[..], fc.inp, fc.out);
+    let m = x.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+    let sx = m / 127.0;
+    let inv = if sx > 0.0 { 1.0 / sx } else { 0.0 };
+    for (q, v) in xq[..inp].iter_mut().zip(x) {
+        *q = (*v * inv).round().clamp(-127.0, 127.0) as i8;
+    }
+    let blocks = out / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0i32; BLK];
+        for k in 0..inp {
+            let xk = i32::from(xq[k]);
+            let wk = &wq[k * out + base..k * out + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(wk) {
+                *a += xk * i32::from(*wv);
+            }
+        }
+        for (o, a) in acc.iter().enumerate() {
+            let v = b[base + o] + sx * ws[base + o] * *a as f32;
+            y[base + o] = if relu && v < 0.0 { 0.0 } else { v };
+        }
+    }
+    for o in blocks * BLK..out {
+        let mut s = 0i32;
+        for k in 0..inp {
+            s += i32::from(xq[k]) * i32::from(wq[k * out + o]);
+        }
+        let v = b[o] + sx * ws[o] * s as f32;
+        y[o] = if relu && v < 0.0 { 0.0 } else { v };
+    }
+}
+
 #[inline(always)]
 fn species_types(id: usize) -> (usize, usize) {
     let s = species_row(id);
@@ -1325,6 +1565,8 @@ pub fn value_v2_input_len(acc_width: usize, web_rank: usize) -> usize {
     2 * acc_width + 2 * web_rank + DENSE_DIM
 }
 
+pub const INT8_SCOPE_ENV: &str = "BRIDGE_VALUE_INT8";
+
 // nonzero, so a cache that has never been bound cannot claim to hold this net
 static NEXT_VALUE_NET_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
@@ -1342,7 +1584,22 @@ pub struct LearnedValueV2 {
     attn_v: Vec<f32>,
     attn_out: Vec<f32>,
     fc: Vec<Fc>,
+    q: Option<Q8>,
     reference: frozen_value_ref::RefWeights,
+}
+
+// the float originals are retained beside these, so the frozen reference never
+// reads a quantized weight
+struct Q8 {
+    scope: Int8Scope,
+    fc_mask: u32,
+    emb: Vec<i8>,
+    emb_s: Vec<f32>,
+    web_a: Vec<i8>,
+    web_a_s: Vec<f32>,
+    web_b: Vec<i8>,
+    web_b_s: Vec<f32>,
+    fc: Vec<Option<(Vec<i8>, Vec<f32>)>>,
 }
 
 #[derive(Default)]
@@ -1354,6 +1611,7 @@ struct ValueForward {
     x: Vec<f32>,
     h0: Vec<f32>,
     h1: Vec<f32>,
+    xq: Vec<i8>,
 }
 
 // above every width the extractor can emit; a longer segment is recomputed each
@@ -1432,6 +1690,12 @@ fn fit_dirty(v: &mut Vec<f32>, n: usize) {
     }
 }
 
+fn fit_dirty_i8(v: &mut Vec<i8>, n: usize) {
+    if v.len() != n {
+        v.resize(n, 0);
+    }
+}
+
 fn value_stage_sink(fwd: &ValueForward) -> f32 {
     fwd.x.first().copied().unwrap_or(0.0) + fwd.acc.first().copied().unwrap_or(0.0)
 }
@@ -1453,7 +1717,8 @@ impl LearnedValueV2 {
     pub fn try_from_env() -> Result<Self, String> {
         let path = std::env::var("BRIDGE_EVAL_WEIGHTS_V2")
             .map_err(|_| "unset (must point at a learned-value-v2 weights file)".to_string())?;
-        Self::load(&path).map_err(|m| format!("bad weights file {path}: {m}"))
+        let scope = std::env::var(INT8_SCOPE_ENV).unwrap_or_default();
+        Self::load_quantized(&path, &scope).map_err(|m| format!("bad weights file {path}: {m}"))
     }
 
     pub fn load(path: &str) -> Result<Self, String> {
@@ -1461,7 +1726,24 @@ impl LearnedValueV2 {
         Self::from_bytes(&bytes)
     }
 
+    /// Loads the artifact and quantizes the named tensors. `scope` is a comma-separated list
+    /// drawn from `emb`, `web`, `act`, and one of `fc` (the whole chain), `fchid` (all but its
+    /// output layer) or an explicit `fc0`/`fc1`/... list; empty or `none` loads the float net.
+    pub fn load_quantized(path: &str, scope: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes_scoped(&bytes, Int8Scope::parse(scope)?)
+    }
+
+    /// The scope actually armed, canonicalised; `none` when the served kernel is float.
+    pub fn int8_scope(&self) -> String {
+        self.q.as_ref().map_or_else(|| "none".to_string(), |q| q.scope.canonical())
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        Self::from_bytes_scoped(bytes, Int8Scope::default())
+    }
+
+    fn from_bytes_scoped(bytes: &[u8], scope: Int8Scope) -> Result<Self, String> {
         let mut c = Cursor { buf: bytes, pos: 0 };
         if c.take(4)? != b"LVV2" {
             return Err("bad magic: not an LVV2 file".into());
@@ -1535,6 +1817,31 @@ impl LearnedValueV2 {
             .into_iter()
             .map(|l| Fc { w: transpose(&l.w, l.out, l.inp), ..l })
             .collect();
+        let fc_mask = scope.fc.mask(fc.len())?;
+        let q8 = (scope.any() && (scope.emb || scope.web || fc_mask != 0)).then(|| {
+            let (emb_q, emb_s) =
+                if scope.emb { quantize_rows(&emb, vocab, aw) } else { (vec![], vec![]) };
+            let (wa, wa_s) =
+                if scope.web { quantize_cols(&web_a, aw, r) } else { (vec![], vec![]) };
+            let (wb, wb_s) =
+                if scope.web { quantize_cols(&web_b, aw, r) } else { (vec![], vec![]) };
+            let fcq = fc
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (fc_mask >> i & 1 == 1).then(|| quantize_cols(&l.w, l.inp, l.out)))
+                .collect();
+            Q8 {
+                scope,
+                fc_mask,
+                emb: emb_q,
+                emb_s,
+                web_a: wa,
+                web_a_s: wa_s,
+                web_b: wb,
+                web_b_s: wb_s,
+                fc: fcq,
+            }
+        });
         Ok(Self {
             net_id: NEXT_VALUE_NET_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             acc_width: aw,
@@ -1549,6 +1856,7 @@ impl LearnedValueV2 {
             attn_v: v,
             attn_out: o,
             fc,
+            q: q8,
             reference,
         })
     }
@@ -1642,6 +1950,7 @@ impl LearnedValueV2 {
         let hmax = self.fc.iter().map(|l| l.out).max().unwrap();
         fit_dirty(&mut fwd.h0, hmax);
         fit_dirty(&mut fwd.h1, hmax);
+        fit_dirty_i8(&mut fwd.xq, self.fc.iter().map(|l| l.inp).max().unwrap());
         cache.bind(self);
         // attention mixes every token before the projections, so no segment's
         // block is a function of that segment alone and nothing may be reused
@@ -1654,6 +1963,8 @@ impl LearnedValueV2 {
         }
         let ValueForward { acc, web_total, active_cell, cell, x, .. } = fwd;
         let SegCache { tokens, proj, keys, key_lens, live, active, .. } = cache;
+        let embq = self.q.as_ref().filter(|q| q.scope.emb);
+        let webq = self.q.as_ref().filter(|q| q.scope.web);
         let mut pos = 0usize;
         for (seg, &len) in seg_lens.iter().enumerate() {
             let len = len as usize;
@@ -1683,11 +1994,28 @@ impl LearnedValueV2 {
             let mut act = false;
             for (n, &id) in seg_ids.iter().enumerate() {
                 let idu = id as usize;
-                let row = &self.emb[idu * aw..(idu + 1) * aw];
-                if n == 0 {
-                    tok.copy_from_slice(row);
-                } else {
-                    add_into(tok, row);
+                match embq {
+                    None => {
+                        let row = &self.emb[idu * aw..(idu + 1) * aw];
+                        if n == 0 {
+                            tok.copy_from_slice(row);
+                        } else {
+                            add_into(tok, row);
+                        }
+                    }
+                    Some(q) => {
+                        let sc = q.emb_s[idu];
+                        let row = &q.emb[idu * aw..(idu + 1) * aw];
+                        if n == 0 {
+                            for (t, wv) in tok.iter_mut().zip(row) {
+                                *t = sc * f32::from(*wv);
+                            }
+                        } else {
+                            for (t, wv) in tok.iter_mut().zip(row) {
+                                *t += sc * f32::from(*wv);
+                            }
+                        }
+                    }
                 }
                 if STAGE >= S_GATHER && seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0
                 {
@@ -1736,11 +2064,19 @@ impl LearnedValueV2 {
             for i in 0..6 {
                 if !live[i] {
                     let ti = &tokens[i * aw..(i + 1) * aw];
-                    value_web_project(&self.web_a, ti, &mut proj[i * r..(i + 1) * r]);
+                    let dst = &mut proj[i * r..(i + 1) * r];
+                    match webq {
+                        None => value_web_project(&self.web_a, ti, dst),
+                        Some(q) => value_web_project_q8(&q.web_a, &q.web_a_s, ti, dst),
+                    }
                 }
                 if !live[6 + i] {
                     let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
-                    value_web_project(&self.web_b, tj, &mut proj[(6 + i) * r..(7 + i) * r]);
+                    let dst = &mut proj[(6 + i) * r..(7 + i) * r];
+                    match webq {
+                        None => value_web_project(&self.web_b, tj, dst),
+                        Some(q) => value_web_project_q8(&q.web_b, &q.web_b_s, tj, dst),
+                    }
                 }
             }
         }
@@ -1812,9 +2148,17 @@ impl LearnedValueV2 {
         if STAGE == S_FULL_2PROJ {
             for i in 0..6 {
                 let ti = &tokens[i * aw..(i + 1) * aw];
-                value_web_project(&self.web_a, ti, &mut proj[i * r..(i + 1) * r]);
+                let da = &mut proj[i * r..(i + 1) * r];
+                match webq {
+                    None => value_web_project(&self.web_a, ti, da),
+                    Some(q) => value_web_project_q8(&q.web_a, &q.web_a_s, ti, da),
+                }
                 let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
-                value_web_project(&self.web_b, tj, &mut proj[(6 + i) * r..(7 + i) * r]);
+                let db = &mut proj[(6 + i) * r..(7 + i) * r];
+                match webq {
+                    None => value_web_project(&self.web_b, tj, db),
+                    Some(q) => value_web_project_q8(&q.web_b, &q.web_b_s, tj, db),
+                }
             }
             std::hint::black_box(&*proj);
         }
@@ -1908,11 +2252,46 @@ impl LearnedValueV2 {
         if STAGE < value_stage::S_FULL {
             return value_stage_sink(fwd);
         }
-        let out = value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1);
+        let ValueForward { x, h0, h1, xq, .. } = fwd;
+        let out = self.value_head(x, h0, h1, xq);
         if STAGE == value_stage::S_FULL_2FC {
-            std::hint::black_box(value_head_scalar(&self.fc, &fwd.x, &mut fwd.h0, &mut fwd.h1));
+            std::hint::black_box(self.value_head(x, h0, h1, xq));
         }
         out
+    }
+
+    fn value_head(&self, x: &[f32], h0: &mut [f32], h1: &mut [f32], xq: &mut [i8]) -> f32 {
+        let Some(q) = self.q.as_ref().filter(|q| q.fc_mask != 0) else {
+            return value_head_scalar(&self.fc, x, h0, h1);
+        };
+        let last = self.fc.len() - 1;
+        let apply = |fc: &Fc, l: usize, src: &[f32], dst: &mut [f32], xq: &mut [i8], relu: bool| {
+            let Some((wq, ws)) = q.fc[l].as_ref() else {
+                return value_fc_apply(fc, src, dst, relu);
+            };
+            if q.scope.act {
+                value_fc_apply_q8a(fc, wq, ws, src, xq, dst, relu);
+            } else {
+                value_fc_apply_q8(fc, wq, ws, src, dst, relu);
+            }
+        };
+        apply(&self.fc[0], 0, x, &mut h0[..self.fc[0].out], xq, last > 0);
+        let mut src_is_h0 = true;
+        for (i, fc) in self.fc.iter().enumerate().skip(1) {
+            if src_is_h0 {
+                let (cur, dst) = (&h0[..self.fc[i - 1].out], &mut h1[..fc.out]);
+                apply(fc, i, cur, dst, xq, i < last);
+            } else {
+                let (cur, dst) = (&h1[..self.fc[i - 1].out], &mut h0[..fc.out]);
+                apply(fc, i, cur, dst, xq, i < last);
+            }
+            src_is_h0 = !src_is_h0;
+        }
+        if src_is_h0 {
+            h0[0]
+        } else {
+            h1[0]
+        }
     }
 
     pub fn staged_logit(
@@ -2361,8 +2740,10 @@ mod tests {
         let require = artifacts_required();
         let loaded = resolve_artifact_paths(magic, w_env, f_env, w_default, f_default, require).map(
             |(bin, fx)| {
+                let spec = std::env::var(INT8_SCOPE_ENV).unwrap_or_default();
+                let scope = Int8Scope::parse(&spec).expect("BRIDGE_VALUE_INT8 must name tensors");
                 (
-                    LearnedValueV2::from_bytes(&bin).expect("LVV2 weights must load"),
+                    LearnedValueV2::from_bytes_scoped(&bin, scope).expect("LVV2 weights must load"),
                     serde_json::from_str(&fx).expect("LVV2 fixtures must parse"),
                 )
             },
@@ -3345,8 +3726,9 @@ mod tests {
         eprintln!(
             "{label} parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
              distinct={distinct} active0_ok={active0_ok} active1_ok={active1_ok} \
-             web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} \
-             weights={wpath} fixtures={fpath}"
+             web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} int8={} \
+             weights={wpath} fixtures={fpath}",
+            net.int8_scope()
         );
         assert_eq!(distinct, 64, "{label}: fixtures must be 64 distinct positions");
         assert_eq!(active0_ok, 64, "{label}: every fixture needs an active seat 0");
@@ -3354,7 +3736,18 @@ mod tests {
         assert_eq!(web_total_nz, 64, "{label}: every fixture needs a nonzero web total");
         assert!(active_cell_nz >= 32, "{label}: active cell nonzero on {active_cell_nz} < 32");
         assert_eq!(compared, 64, "{label}: 64 fixtures compared");
-        assert!(max_diff <= 1e-4, "{label} parity {max_diff:e} > 1e-4");
+        let bar = value_parity_bar(&net);
+        assert!(max_diff <= bar, "{label} parity {max_diff:e} > {bar:e}");
+    }
+
+    // the value gates score the served logit, so a quantized kernel is read
+    // against the quantization budget
+    fn value_parity_bar(net: &LearnedValueV2) -> f64 {
+        if net.int8_scope() == "none" {
+            1e-4
+        } else {
+            0.02
+        }
     }
 
     #[test]
@@ -3426,11 +3819,12 @@ mod tests {
         seg_lens_present.sort_unstable();
         let distinct = seen.len();
         eprintln!(
-            "value v2 ext parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+            "value v2 ext parity: int8={} fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
              distinct={distinct} active0_ok={active0_ok} active1_ok={active1_ok} \
              web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} \
              zero_len_rows={zero_len_rows} multi_id_rows={multi_id_rows} \
-             seg_lens_present={seg_lens_present:?} weights={wpath} fixtures={fpath}"
+             seg_lens_present={seg_lens_present:?} weights={wpath} fixtures={fpath}",
+            net.int8_scope()
         );
         assert!(compared >= 256, "ext corpus must carry at least 256 rows, got {compared}");
         assert!(zero_len_rows > 0, "ext corpus must carry a zero-length segment");
@@ -3446,7 +3840,8 @@ mod tests {
             "ext active cell nonzero on {active_cell_nz} < {}",
             compared / 2
         );
-        assert!(max_diff <= 1e-4, "value v2 ext parity {max_diff:e} > 1e-4");
+        let bar = value_parity_bar(&net);
+        assert!(max_diff <= bar, "value v2 ext parity {max_diff:e} > {bar:e}");
     }
 
     #[test]

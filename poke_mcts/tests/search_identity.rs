@@ -1,7 +1,7 @@
 use poke_mcts::audit_snapshot::{read_search_states, SearchStatePair};
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::eval::Evaluator;
-use poke_mcts::eval_learned::{artifacts_required, LearnedValueV2, LVV2_WEIGHTS_PATH};
+use poke_mcts::eval_learned::{artifacts_required, LearnedValueV2, INT8_SCOPE_ENV, LVV2_WEIGHTS_PATH};
 use poke_mcts::search::{search_world, ArmStat, SearchParams, SearchResult};
 use rayon::prelude::*;
 
@@ -63,13 +63,14 @@ fn served_search_matches_frozen_reference() {
     assert!(pairs.len() >= STATES, "corpus holds {} pairs, need {STATES}", pairs.len());
     let states = &pairs[..STATES];
 
-    let net = match LearnedValueV2::load(&path) {
+    let scope = std::env::var(INT8_SCOPE_ENV).unwrap_or_default();
+    let net = match LearnedValueV2::load_quantized(&path, &scope) {
         Ok(n) => n,
         Err(e) => {
             if require {
                 panic!("LVV2_WEIGHTS resolved to {path}: {e}");
             }
-            println!("SKIP search identity: states_compared=0 states_differing=0 iterations=0 weights={path}");
+            println!("SKIP search identity: states_compared=0 states_differing=0 iterations=0 int8={scope} weights={path}");
             return;
         }
     };
@@ -85,10 +86,11 @@ fn served_search_matches_frozen_reference() {
         (0..STATES).filter(|&i| !identical(&refs[i], &served[i])).collect();
     let tag = if not_subject { " NOT-SUBJECT" } else { "" };
     println!(
-        "search identity: states_compared={} states_differing={} iterations={} weights={path}{tag}",
+        "search identity: states_compared={} states_differing={} iterations={} int8={} weights={path}{tag}",
         STATES,
         differing.len(),
         refs[0].iterations,
+        net.int8_scope(),
     );
 
     assert!(differing.is_empty(), "served search diverged from the reference at states {differing:?}");
