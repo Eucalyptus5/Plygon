@@ -247,9 +247,16 @@ pub fn choose_action_eval(obs: &Observation, belief: &Belief, det: &impl Determi
 /// `choose_action_eval` plus the iterations the search actually served, taken as the
 /// minimum across worlds so one clipped world cannot hide behind the others.
 pub fn choose_action_eval_iters(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64) {
+    let (action, iters, _, _) = choose_action_eval_iters_value(obs, belief, det, cfg, eval, prior);
+    (action, iters)
+}
+
+/// `choose_action_eval_iters` plus the picked action's visit-weighted root value and the
+/// side-0 root value averaged over the searched worlds (0.0 without `train_value`).
+pub fn choose_action_eval_iters_value(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64, f64, f64) {
     let legal = legal_actions(obs.state, obs.our_side);
-    if legal.count == 0 { return (ACTION_STRUGGLE, 0); }
-    if legal.count == 1 { return (legal.actions[0], 0); }
+    if legal.count == 0 { return (ACTION_STRUGGLE, 0, 0.0, 0.0); }
+    if legal.count == 1 { return (legal.actions[0], 0, 0.0, 0.0); }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
     #[cfg(not(feature = "train_value"))]
@@ -287,14 +294,25 @@ pub fn choose_action_eval_iters(obs: &Observation, belief: &Belief, det: &impl D
         // un-aggregated: return the single world's root best-arm (max visits) directly
         let (stats, _w) = &per_world[0];
         if let Some(best) = stats.iter().max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action))) {
-            return (best.action, served_iters);
+            return (best.action, served_iters, 0.0, 0.0);
         }
     }
     if cfg.pick_mode == PickMode::Value {
-        return (pick_value(&aggregate_value(&per_world), &legal), served_iters);
+        return (pick_value(&aggregate_value(&per_world), &legal), served_iters, 0.0, 0.0);
     }
+    let valued = aggregate_value(&per_world);
     let agg = aggregate(&per_world);
-    (pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold), served_iters)
+    let picked = pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold);
+    let v = valued.iter().find(|(a, _, _)| *a == picked).map_or(0.0, |(_, mean, _)| *mean);
+    #[cfg(feature = "train_value")]
+    let vabs = {
+        let sum: f64 = searched.iter().map(|(r, _)| r.value_sum).sum();
+        let count: u64 = searched.iter().map(|(r, _)| r.value_count).sum();
+        sum / count.max(1) as f64
+    };
+    #[cfg(not(feature = "train_value"))]
+    let vabs = 0.0;
+    (picked, served_iters, v, vabs)
 }
 
 // Diagnostic mirror of `choose_action` that surfaces the internals a live decision hides:
