@@ -1,4 +1,7 @@
-use crate::belief::{pm_get, set_consistent, species_sets, Belief, MonBelief};
+use crate::belief::{
+    pm_get, set_consistent, species_sets, Belief, MonBelief, ScreenMask, SCREEN_C10_TYPING,
+    SCREEN_C11_GRAFT,
+};
 use crate::gen_sets::{SetEntry, SpeciesSets, GEN9_SET_POOL, GEN9_SET_POOL_TOTAL};
 use crate::rng::Lcg;
 use pkmn_engine::data::types::Type;
@@ -45,7 +48,7 @@ fn pool_for(species_id: u16) -> Option<&'static SpeciesSets> {
     species_sets(species_id).or_else(|| species_sets(data_bridge::base_species(species_id)))
 }
 
-pub fn sample_set(species_id: u16, b: &MonBelief, rng: &mut Lcg) -> MonBuildInput {
+pub fn sample_set(species_id: u16, b: &MonBelief, screen: ScreenMask, rng: &mut Lcg) -> MonBuildInput {
     let pool = pool_for(species_id)
         .unwrap_or_else(|| panic!("species {species_id} not in set pool — regenerate gen_sets (stale table)"));
     // live candidate pool (#1): when active, only sampled-in static indices survive (01 §2b)
@@ -62,13 +65,15 @@ pub fn sample_set(species_id: u16, b: &MonBelief, rng: &mut Lcg) -> MonBuildInpu
         input_from_set(pool.species_id, chosen)
     } else {
         let mut input = input_from_set(pool.species_id, &pool.sets[0]);
-        for &mv in b.moves[..b.n_moves as usize].iter() {
-            if !input.moves.contains(&mv) {
-                let slot = input.moves.iter().position(|m| !b.moves[..b.n_moves as usize].contains(m)).unwrap_or(0);
-                input.moves[slot] = mv;
+        if screen.on(SCREEN_C11_GRAFT) {
+            for &mv in b.moves[..b.n_moves as usize].iter() {
+                if !input.moves.contains(&mv) {
+                    let slot = input.moves.iter().position(|m| !b.moves[..b.n_moves as usize].contains(m)).unwrap_or(0);
+                    input.moves[slot] = mv;
+                }
             }
+            if b.tera_revealed { input.tera_type = b.tera_type; }
         }
-        if b.tera_revealed { input.tera_type = b.tera_type; }
         input
     };
     if b.ability_id != 0 { input.ability_id = b.ability_id; }
@@ -96,7 +101,7 @@ fn violates_typing(candidate: u16, drawn: &[u16]) -> bool {
     false
 }
 
-pub fn sample_unrevealed_species(taken: &[u16], rng: &mut Lcg) -> u16 {
+pub fn sample_unrevealed_species(taken: &[u16], screen: ScreenMask, rng: &mut Lcg) -> u16 {
     let mut attempts = 0u32;
     loop {
         let mut r = (rng.roll(u32::MAX) as u64 | ((rng.roll(u32::MAX) as u64) << 32)) % GEN9_SET_POOL_TOTAL;
@@ -106,7 +111,7 @@ pub fn sample_unrevealed_species(taken: &[u16], rng: &mut Lcg) -> u16 {
             r -= sp.total_count as u64;
         }
         if taken.contains(&candidate) { attempts += 1; continue; }
-        if attempts < 10 && violates_typing(candidate, taken) { attempts += 1; continue; }
+        if screen.on(SCREEN_C10_TYPING) && attempts < 10 && violates_typing(candidate, taken) { attempts += 1; continue; }
         return candidate;
     }
 }
@@ -156,16 +161,17 @@ impl Determinizer for RandomBattle {
                         sid != 0 && data_bridge::base_species(sid) == data_bridge::base_species(mb.species_id)
                     })
                     .expect("belief species must exist on the true opponent side");
-                let input = sample_set(mb.species_id, mb, rng);
+                let input = sample_set(mb.species_id, mb, belief.screen, rng);
                 install(&mut state, &mut teams, opp, slot, &input, Some(&obs.state.sides[opp].team[slot]));
                 filled[slot] = true;
                 taken.push(pool_for(mb.species_id).map_or(mb.species_id, |p| p.species_id));
             }
             for slot in 0..6 {
                 if filled[slot] { continue; }
-                let sp = sample_unrevealed_species(&taken, rng);
+                let sp = sample_unrevealed_species(&taken, belief.screen, rng);
                 taken.push(sp);
-                let input = sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, rng);
+                let input =
+                    sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, belief.screen, rng);
                 install(&mut state, &mut teams, opp, slot, &input, None);
             }
             worlds.push(World { state, teams, weight: 1.0 / n as f64 });
@@ -268,7 +274,7 @@ mod tests {
         let mut b = MonBelief { species_id: 445, ..Default::default() };
         b.moves[0] = probe; b.n_moves = 1;
         for _ in 0..50 {
-            let input = sample_set(445, &b, &mut rng);
+            let input = sample_set(445, &b, ScreenMask::default(), &mut rng);
             assert!(input.moves.contains(&probe), "revealed move always present");
             assert_eq!(input.species_id, 445);
             assert_eq!(input.nature, 0);
@@ -280,7 +286,7 @@ mod tests {
         let mut rng = Lcg::new(11);
         let mut b = MonBelief { species_id: 445, ..Default::default() };
         b.moves[0] = 150; b.n_moves = 1;
-        let input = sample_set(445, &b, &mut rng);
+        let input = sample_set(445, &b, ScreenMask::default(), &mut rng);
         assert!(input.moves.contains(&150), "revealed move grafted onto nearest set");
     }
 
@@ -289,7 +295,7 @@ mod tests {
         let mut rng = Lcg::new(11);
         let taken = [445u16, 25, 130, 143, 248];
         for _ in 0..200 {
-            let s = sample_unrevealed_species(&taken, &mut rng);
+            let s = sample_unrevealed_species(&taken, ScreenMask::default(), &mut rng);
             assert!(!taken.contains(&s));
         }
     }
@@ -334,7 +340,7 @@ mod tests {
         // Minior-Meteor (1291) is a build-time forme; its sets live under Minior (774)
         let mut rng = Lcg::new(11);
         let b = MonBelief { species_id: 1291, ..Default::default() };
-        let input = sample_set(1291, &b, &mut rng);
+        let input = sample_set(1291, &b, ScreenMask::default(), &mut rng);
         assert_eq!(input.species_id, 774, "input uses the teambuilder species");
     }
 
@@ -446,10 +452,50 @@ mod tests {
     }
 
     #[test]
+    fn the_typing_constraint_is_off_when_its_bit_is_clear() {
+        // C10 off keeps the weighted draw and skips the retry, so the first candidate the stream
+        // offers is returned even when it violates the typing softcap.
+        use crate::belief::{SCREEN_ALL, SCREEN_C10_TYPING};
+        let off = ScreenMask(SCREEN_ALL & !SCREEN_C10_TYPING);
+        let taken = [445u16, 25, 130, 143, 248];
+        let (mut off_bad, mut on_bad) = (0, 0);
+        for seed in 0..400u64 {
+            let d_off = sample_unrevealed_species(&taken, off, &mut Lcg::new(seed));
+            let d_on = sample_unrevealed_species(&taken, ScreenMask::default(), &mut Lcg::new(seed));
+            assert!(!taken.contains(&d_off), "species dedup is not part of C10");
+            off_bad += violates_typing(d_off, &taken) as u32;
+            on_bad += violates_typing(d_on, &taken) as u32;
+        }
+        assert!(off_bad > 0, "the fixture must actually offer softcap-violating draws");
+        assert!(on_bad < off_bad, "C10 on must reject draws C10 off accepts ({on_bad} vs {off_bad})");
+    }
+
+    #[test]
+    fn the_graft_fallback_is_off_when_its_bit_is_clear() {
+        // C11 off returns the UNGRAFTED nearest set when nothing is consistent; the ability,
+        // item and level overrides still apply.
+        use crate::belief::{SCREEN_ALL, SCREEN_C11_GRAFT};
+        let off = ScreenMask(SCREEN_ALL & !SCREEN_C11_GRAFT);
+        let mut b = MonBelief { species_id: 445, ability_id: 24, level: 71, ..Default::default() };
+        b.moves[0] = 150;
+        b.n_moves = 1;
+        b.tera_revealed = true;
+        b.tera_type = 17;
+        let on = sample_set(445, &b, ScreenMask::default(), &mut Lcg::new(11));
+        assert!(on.moves.contains(&150) && on.tera_type == 17, "C11 on grafts the reveals");
+        let out = sample_set(445, &b, off, &mut Lcg::new(11));
+        assert!(!out.moves.contains(&150), "C11 off must not graft the revealed move");
+        assert_ne!(out.tera_type, 17, "C11 off must not graft the revealed tera");
+        assert_eq!(out.moves, species_sets(445).unwrap().sets[0].moves);
+        assert_eq!(out.ability_id, 24, "the ability override still applies");
+        assert_eq!(out.level, 71, "the level override still applies");
+    }
+
+    #[test]
     fn typing_softcap_escape_valve_fires() {
         let mut rng = Lcg::new(99);
         for _ in 0..50 {
-            let _ = sample_unrevealed_species(&[], &mut rng);
+            let _ = sample_unrevealed_species(&[], ScreenMask::default(), &mut rng);
         }
     }
 }

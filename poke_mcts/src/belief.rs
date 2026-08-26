@@ -11,6 +11,8 @@ pub struct MonBelief {
     pub moves: [u16; 4],          // revealed moves (0-padded)
     pub n_moves: u8,
     pub item_id: u16,             // 0 = unknown (v1 offline never learns items)
+    #[serde(default)]
+    pub scarf_item_id: u16,       // scarf pinned by turn-order deduction; survives an item_id clear
     pub ability_id: u16,          // 0 = unknown
     pub tera_type: u8,            // valid only if tera_revealed
     pub tera_revealed: bool,
@@ -21,7 +23,11 @@ pub struct MonBelief {
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
-pub struct Belief { pub mons: [MonBelief; 6] }
+pub struct Belief {
+    pub mons: [MonBelief; 6],
+    #[serde(default)]
+    pub screen: ScreenMask,
+}
 
 impl Belief {
     /// Returns the slot index for this species, claiming a fresh slot on first sight.
@@ -148,6 +154,34 @@ pub fn can_have_priority_modified(species_id: u16, move_id: u16, grassy_glide_id
         && species_can_have_ability(species_id, data_bridge::ABILITY_MYCELIUM_MIGHT)
 }
 
+// Which belief components a determinization is allowed to use. Bit set = component ON; the
+// default is every component on, so an unconfigured Belief behaves exactly as production does.
+// Bit MEANINGS are fixed here and downstream tooling keys off them; never renumber.
+pub const SCREEN_C1_POOL_PRUNE: u16   = 1 << 0;
+pub const SCREEN_C2_CHOICE_LOCK: u16  = 1 << 1;
+pub const SCREEN_C3_IMPOSS_ITEM: u16  = 1 << 2;
+pub const SCREEN_C4_IMPOSS_ABIL: u16  = 1 << 3;
+pub const SCREEN_C5_ABILITY: u16      = 1 << 4;
+pub const SCREEN_C6_ITEM: u16         = 1 << 5;
+pub const SCREEN_C7_MOVES: u16        = 1 << 6;
+pub const SCREEN_C8_TERA: u16         = 1 << 7;
+pub const SCREEN_C9_SCARF: u16        = 1 << 8;
+pub const SCREEN_C10_TYPING: u16      = 1 << 9;
+pub const SCREEN_C11_GRAFT: u16       = 1 << 10;
+pub const SCREEN_ALL: u16 = 0x07FF;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ScreenMask(pub u16);
+
+impl Default for ScreenMask {
+    fn default() -> Self { ScreenMask(SCREEN_ALL) }
+}
+
+impl ScreenMask {
+    #[inline(always)]
+    pub fn on(self, bit: u16) -> bool { self.0 & bit != 0 }
+}
+
 // Curated inferable item/ability bit positions (01 §1c). Single source of truth for the bit
 // MEANINGS lives in data/belief_curated_bits.json; these MUST match it (F2 adds a drift test).
 pub const BIT_CHOICEBAND: u32     = 1 << 0;
@@ -173,11 +207,19 @@ pub const BIT_PRESSURE: u32       = 1 << 18;
 pub const BIT_NEUTRALIZINGGAS: u32 = 1 << 19;
 // bits 20-31 reserved. No regenerator/gem bit (01 §1c).
 
+// The three disjoint negative-knowledge groups a component screen switches independently.
+pub const OTHER_ITEM_BITS: u32 = BIT_ASSAULTVEST | BIT_LIFEORB | BIT_LEFTOVERS | BIT_BLACKSLUDGE
+    | BIT_HEAVYDUTYBOOTS | BIT_AIRBALLOON | BIT_BOOSTERENERGY | BIT_FLAMEORB | BIT_TOXICORB
+    | BIT_LUMBERRY;
+pub const ABILITY_EXCL_BITS: u32 = BIT_INTIMIDATE | BIT_DROUGHT | BIT_DRIZZLE | BIT_SANDSTREAM
+    | BIT_SNOWWARNING | BIT_PRESSURE | BIT_NEUTRALIZINGGAS;
+
 // Negative-knowledge set-rejection belief was implemented and washed (2026-06; see .decompose/mcts-exploration/findings-log.md). Preserved on dead-end branch mcts/chance-belief, not merged.
 pub fn set_consistent(set: &SetEntry, b: &MonBelief) -> bool {
     if b.tera_revealed && set.tera_type != b.tera_type { return false; }
     if b.ability_id != 0 && set.ability_id != b.ability_id { return false; }
     if b.item_id != 0 && set.item_id != b.item_id { return false; }
+    if b.scarf_item_id != 0 && set.item_id != b.scarf_item_id { return false; }
     // negative knowledge: #2 choice-lock, #6 impossible-items, #7 impossible-abilities (01 §2a)
     if set.infer_bits & b.excluded_bits != 0 { return false; }
     b.moves[..b.n_moves as usize].iter().all(|m| set.moves.contains(m))
