@@ -252,11 +252,11 @@ pub fn choose_action_eval_iters(obs: &Observation, belief: &Belief, det: &impl D
 }
 
 /// `choose_action_eval_iters` plus the picked action's visit-weighted root value and the
-/// side-0 root value averaged over the searched worlds (0.0 without `train_value`).
-pub fn choose_action_eval_iters_value(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64, f64, f64) {
+/// side-0 root value averaged over the searched worlds (both `None` without `train_value`).
+pub fn choose_action_eval_iters_value(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64, Option<f64>, Option<f64>) {
     let legal = legal_actions(obs.state, obs.our_side);
-    if legal.count == 0 { return (ACTION_STRUGGLE, 0, 0.0, 0.0); }
-    if legal.count == 1 { return (legal.actions[0], 0, 0.0, 0.0); }
+    if legal.count == 0 { return (ACTION_STRUGGLE, 0, None, None); }
+    if legal.count == 1 { return (legal.actions[0], 0, None, None); }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
     #[cfg(not(feature = "train_value"))]
@@ -294,24 +294,28 @@ pub fn choose_action_eval_iters_value(obs: &Observation, belief: &Belief, det: &
         // un-aggregated: return the single world's root best-arm (max visits) directly
         let (stats, _w) = &per_world[0];
         if let Some(best) = stats.iter().max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action))) {
-            return (best.action, served_iters, 0.0, 0.0);
+            return (best.action, served_iters, None, None);
         }
     }
     if cfg.pick_mode == PickMode::Value {
-        return (pick_value(&aggregate_value(&per_world), &legal), served_iters, 0.0, 0.0);
+        return (pick_value(&aggregate_value(&per_world), &legal), served_iters, None, None);
     }
+    #[cfg(feature = "train_value")]
     let valued = aggregate_value(&per_world);
     let agg = aggregate(&per_world);
     let picked = pick_from(&agg, &legal, &mut rng, cfg.pick_mode, cfg.filter_threshold);
-    let v = valued.iter().find(|(a, _, _)| *a == picked).map_or(0.0, |(_, mean, _)| *mean);
+    #[cfg(feature = "train_value")]
+    let v = valued.iter().find(|(a, _, _)| *a == picked).map(|(_, mean, _)| *mean);
+    #[cfg(not(feature = "train_value"))]
+    let v = None;
     #[cfg(feature = "train_value")]
     let vabs = {
         let sum: f64 = searched.iter().map(|(r, _)| r.value_sum).sum();
         let count: u64 = searched.iter().map(|(r, _)| r.value_count).sum();
-        sum / count.max(1) as f64
+        if count == 0 { None } else { Some(sum / count as f64) }
     };
     #[cfg(not(feature = "train_value"))]
-    let vabs = 0.0;
+    let vabs = None;
     (picked, served_iters, v, vabs)
 }
 
