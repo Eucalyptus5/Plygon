@@ -1,4 +1,4 @@
-use crate::belief::{Belief, MonBelief, ScreenMask};
+use crate::belief::{possible, species_sets_with_base_fallback, Belief, MonBelief, ScreenMask};
 use crate::determinize::{install, sample_set, sample_unrevealed_species};
 use crate::rng::Lcg;
 use pkmn_engine::state::*;
@@ -38,8 +38,7 @@ pub fn mask_to_skeleton(state: &BattleState, decider: usize, belief: &Belief) ->
     let mut out = *state;
     for slot in 0..6 {
         let src = &state.sides[opp].team[slot];
-        let base = data_bridge::base_species(src.species_id);
-        let known = belief.mons.iter().find(|mb| mb.species_id != 0 && data_bridge::base_species(mb.species_id) == base);
+        let known = known_slot(belief, src.species_id);
         let mut t = MonSlot::default();
         if let (true, Some(mb)) = (src.species_id != 0, known) {
             t.species_id = src.species_id;
@@ -69,6 +68,109 @@ pub fn mask_to_skeleton(state: &BattleState, decider: usize, belief: &Belief) ->
     out
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Kind {
+    Move,
+    Tera,
+    Switch,
+    SwitchUnseen,
+}
+
+impl Kind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Kind::Move => "move",
+            Kind::Tera => "tera",
+            Kind::Switch => "switch",
+            Kind::SwitchUnseen => "switch-unseen",
+        }
+    }
+}
+
+fn known_slot(belief: &Belief, species_id: u16) -> Option<&MonBelief> {
+    let base = data_bridge::base_species(species_id);
+    belief.mons.iter().find(|mb| mb.species_id != 0 && data_bridge::base_species(mb.species_id) == base)
+}
+
+pub fn label_space(state: &BattleState, decider: usize, belief: &Belief) -> (Vec<(Kind, u16)>, Vec<f64>) {
+    let opp = 1 - decider;
+    let switch_only = match state.phase {
+        PHASE_SWITCH_BOTH => true,
+        PHASE_SWITCH_P1 => opp == 0,
+        PHASE_SWITCH_P2 => opp == 1,
+        _ => false,
+    };
+    let mut sets: Vec<([u16; 4], u32)> = Vec::new();
+    if !switch_only {
+        let sp = state.active_mon(opp).species_id;
+        if let (Some(mb), Some(ss)) = (known_slot(belief, sp), species_sets_with_base_fallback(sp)) {
+            for (i, t) in ss.sets.iter().enumerate() {
+                if possible(i, t, mb) {
+                    sets.push((t.moves, t.count));
+                }
+            }
+        }
+    }
+    let mut moves: Vec<u16> = sets.iter().flat_map(|(m, _)| m.iter().copied()).filter(|&m| m != 0).collect();
+    moves.sort_unstable();
+    moves.dedup();
+    // bit 0 of _padding[0] is the side's battle-lifetime tera-used flag, the bit can_tera reads
+    let tera = !switch_only && state.sides[opp]._padding[0] & 1 == 0;
+    let mut labels: Vec<(Kind, u16)> = moves.iter().map(|&m| (Kind::Move, m)).collect();
+    if tera {
+        labels.extend(moves.iter().map(|&m| (Kind::Tera, m)));
+    }
+    let active = state.sides[opp].active_index as usize;
+    let mut revealed = 0u32;
+    let mut unseen_alive = 0u32;
+    for k in 0..6 {
+        let m = &state.sides[opp].team[k];
+        if k == active || m.species_id == 0 || m.current_hp == 0 {
+            continue;
+        }
+        if known_slot(belief, m.species_id).is_some() {
+            labels.push((Kind::Switch, m.species_id));
+            revealed += 1;
+        } else {
+            unseen_alive += 1;
+        }
+    }
+    if unseen_alive > 0 {
+        labels.push((Kind::SwitchUnseen, 0));
+    }
+    if sets.is_empty() {
+        sets.push(([0; 4], 1));
+    }
+    let total_count: f64 = sets.iter().map(|(_, c)| *c as f64).sum();
+    let mut prior = vec![0.0f64; labels.len()];
+    let index = |kind: Kind, id: u16| labels.iter().position(|&e| e == (kind, id)).unwrap();
+    for (set_moves, count) in &sets {
+        let mut mv: Vec<u16> = set_moves.iter().copied().filter(|&m| m != 0).collect();
+        mv.sort_unstable();
+        mv.dedup();
+        let n_mv = mv.len() as u32;
+        let total_slots = n_mv + if tera { n_mv } else { 0 } + revealed + unseen_alive;
+        if total_slots == 0 {
+            continue;
+        }
+        let w = *count as f64 / total_count / total_slots as f64;
+        for &m in &mv {
+            prior[index(Kind::Move, m)] += w;
+            if tera {
+                prior[index(Kind::Tera, m)] += w;
+            }
+        }
+        for (i, (kind, _)) in labels.iter().enumerate() {
+            match kind {
+                Kind::Switch => prior[i] += w,
+                Kind::SwitchUnseen => prior[i] += w * unseen_alive as f64,
+                _ => {}
+            }
+        }
+    }
+    (labels, prior)
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct NativeSnapshot {
     pub game: u64,
@@ -81,7 +183,7 @@ pub struct NativeSnapshot {
     pub seed: u64,
 }
 
-fn bincode_err(e: bincode::Error) -> std::io::Error {
+pub fn bincode_err(e: bincode::Error) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Other, e)
 }
 
@@ -98,6 +200,7 @@ pub fn read_all(path: &str) -> std::io::Result<Vec<NativeSnapshot>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gen_sets::{SetEntry, GEN9_SET_POOL};
 
     fn two_teams(seed: u64) -> ([MonBuildInput; 6], [MonBuildInput; 6]) {
         let mut rng = Lcg::new(seed);
@@ -215,5 +318,188 @@ mod tests {
             assert_eq!(x.pick, y.pick);
             assert_eq!(x.seed, y.seed);
         }
+    }
+
+    fn opp_fixture(seed: u64) -> (BattleState, Belief) {
+        let (a, b) = two_teams(seed);
+        let (state, _teams) = initial_state(&a, &b);
+        let mut belief = Belief::default();
+        let om = state.active_mon(1);
+        belief.note_species(om.species_id, om.level);
+        (state, belief)
+    }
+
+    fn all_moves<'a>(sets: impl Iterator<Item = &'a SetEntry>) -> Vec<u16> {
+        let mut out: Vec<u16> = sets.flat_map(|t| t.moves.iter().copied()).filter(|&m| m != 0).collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    fn of_kind(l: &[(Kind, u16)], kind: Kind) -> Vec<u16> {
+        l.iter().filter(|(k, _)| *k == kind).map(|&(_, id)| id).collect()
+    }
+
+    fn shrinking_species() -> (u16, u16) {
+        for ss in GEN9_SET_POOL {
+            let full = all_moves(ss.sets.iter());
+            for t in ss.sets {
+                for &m in t.moves.iter().filter(|&&m| m != 0) {
+                    let kept = all_moves(ss.sets.iter().filter(|s| s.moves.contains(&m)));
+                    if kept.len() < full.len() {
+                        return (ss.species_id, m);
+                    }
+                }
+            }
+        }
+        panic!("no species whose revealed move shrinks the pooled move union");
+    }
+
+    #[test]
+    fn label_space_move_part_is_the_union_of_surviving_sets() {
+        let (mut state, _) = opp_fixture(5);
+        let (sp, m) = shrinking_species();
+        let ai = state.sides[1].active_index as usize;
+        state.sides[1].team[ai].species_id = sp;
+        let mut belief = Belief::default();
+        let k = belief.note_species(sp, 80);
+        let ss = species_sets_with_base_fallback(sp).unwrap();
+        let (l, _) = label_space(&state, 0, &belief);
+        let moves = of_kind(&l, Kind::Move);
+        assert_eq!(moves, all_moves(ss.sets.iter()));
+        belief.note_move(k, m);
+        let (l2, _) = label_space(&state, 0, &belief);
+        let moves2 = of_kind(&l2, Kind::Move);
+        assert_eq!(moves2, all_moves(ss.sets.iter().filter(|t| t.moves.contains(&m))));
+        assert!(moves2.len() < moves.len());
+        assert!(moves2.contains(&m));
+        assert!(moves2.windows(2).all(|w| w[0] < w[1]), "ascending move ids");
+    }
+
+    #[test]
+    fn label_space_tera_entries_are_suppressed_by_the_sides_tera_used_bit() {
+        let (mut state, belief) = opp_fixture(6);
+        let (l, _) = label_space(&state, 0, &belief);
+        let moves = of_kind(&l, Kind::Move);
+        assert!(!moves.is_empty());
+        assert_eq!(of_kind(&l, Kind::Tera), moves);
+        state.sides[1]._padding[0] |= 1;
+        let (l2, _) = label_space(&state, 0, &belief);
+        assert!(of_kind(&l2, Kind::Tera).is_empty());
+        assert_eq!(of_kind(&l2, Kind::Move), moves);
+    }
+
+    #[test]
+    fn label_space_switch_entries_follow_revealed_alive_bench_and_the_unseen_pool() {
+        let (mut state, mut belief) = opp_fixture(7);
+        let ai = state.sides[1].active_index as usize;
+        let bench: Vec<usize> = (0..6).filter(|&k| k != ai).collect();
+        let (l, _) = label_space(&state, 0, &belief);
+        assert!(of_kind(&l, Kind::Switch).is_empty());
+        assert!(l.contains(&(Kind::SwitchUnseen, 0)));
+
+        let alive = state.sides[1].team[bench[0]];
+        let fainted = state.sides[1].team[bench[1]];
+        belief.note_species(alive.species_id, alive.level);
+        belief.note_species(fainted.species_id, fainted.level);
+        state.sides[1].team[bench[1]].current_hp = 0;
+        let (l, _) = label_space(&state, 0, &belief);
+        assert_eq!(of_kind(&l, Kind::Switch), vec![alive.species_id]);
+        assert!(!l.contains(&(Kind::Switch, fainted.species_id)));
+        assert!(l.contains(&(Kind::SwitchUnseen, 0)));
+
+        for &k in &bench[2..4] {
+            let m = state.sides[1].team[k];
+            belief.note_species(m.species_id, m.level);
+        }
+        state.sides[1].team[bench[4]].current_hp = 0;
+        let (l, _) = label_space(&state, 0, &belief);
+        assert!(!l.contains(&(Kind::SwitchUnseen, 0)));
+        let expect: Vec<u16> = [bench[0], bench[2], bench[3]].iter().map(|&k| state.sides[1].team[k].species_id).collect();
+        assert_eq!(of_kind(&l, Kind::Switch), expect);
+        let rank = |k: Kind| match k {
+            Kind::Move => 0,
+            Kind::Tera => 1,
+            Kind::Switch => 2,
+            Kind::SwitchUnseen => 3,
+        };
+        assert!(l.windows(2).all(|w| rank(w[0].0) <= rank(w[1].0)), "moves, then tera, then switches");
+    }
+
+    #[test]
+    fn label_space_in_a_switch_only_phase_has_only_switch_entries() {
+        let (mut state, mut belief) = opp_fixture(8);
+        let ai = state.sides[1].active_index as usize;
+        let k = (0..6).find(|&k| k != ai).unwrap();
+        let m = state.sides[1].team[k];
+        belief.note_species(m.species_id, m.level);
+        let only_switches = |l: &[(Kind, u16)]| l.iter().all(|(k, _)| matches!(k, Kind::Switch | Kind::SwitchUnseen));
+        for phase in [PHASE_SWITCH_P2, PHASE_SWITCH_BOTH] {
+            state.phase = phase;
+            let (l, p) = label_space(&state, 0, &belief);
+            assert!(only_switches(&l), "phase {phase}: {l:?}");
+            assert_eq!(l, vec![(Kind::Switch, m.species_id), (Kind::SwitchUnseen, 0)]);
+            assert!((p.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+        }
+        state.phase = PHASE_SWITCH_P1;
+        let (l, _) = label_space(&state, 0, &belief);
+        assert!(!of_kind(&l, Kind::Move).is_empty(), "our own forced switch does not restrict the opponent");
+        let mut b1 = Belief::default();
+        let om = state.active_mon(0);
+        b1.note_species(om.species_id, om.level);
+        let (l, _) = label_space(&state, 1, &b1);
+        assert!(only_switches(&l));
+        assert_eq!(l, vec![(Kind::SwitchUnseen, 0)]);
+    }
+
+    #[test]
+    fn prior_sums_to_one_and_covers_every_entry() {
+        for seed in 20..40u64 {
+            let (mut state, mut belief) = opp_fixture(seed);
+            let ai = state.sides[1].active_index as usize;
+            let k = (0..6).find(|&k| k != ai).unwrap();
+            let m = state.sides[1].team[k];
+            for reveal in [false, true] {
+                if reveal {
+                    belief.note_species(m.species_id, m.level);
+                    let om = *state.active_mon(1);
+                    belief.note_move(0, om.moves[0]);
+                    state.sides[1]._padding[0] |= (seed & 1) as u8;
+                }
+                for phase in [PHASE_ACTIONS, PHASE_SWITCH_P2, PHASE_SWITCH_BOTH] {
+                    state.phase = phase;
+                    let (l, p) = label_space(&state, 0, &belief);
+                    assert_eq!(l.len(), p.len());
+                    assert!(!l.is_empty());
+                    let sum: f64 = p.iter().sum();
+                    assert!((sum - 1.0).abs() < 1e-9, "seed {seed} phase {phase} reveal {reveal}: sum {sum}");
+                    assert!(p.iter().all(|&x| x > 0.0), "seed {seed} phase {phase} reveal {reveal}: {l:?} {p:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prior_favours_a_move_every_surviving_set_carries() {
+        let (sp, universal, singleton) = GEN9_SET_POOL
+            .iter()
+            .filter(|ss| ss.sets.len() >= 2)
+            .find_map(|ss| {
+                let full = all_moves(ss.sets.iter());
+                let u = full.iter().copied().find(|m| ss.sets.iter().all(|t| t.moves.contains(m)))?;
+                let s = full.iter().copied().find(|m| ss.sets.iter().filter(|t| t.moves.contains(m)).count() == 1)?;
+                Some((ss.species_id, u, s))
+            })
+            .unwrap();
+        let (mut state, _) = opp_fixture(9);
+        let ai = state.sides[1].active_index as usize;
+        state.sides[1].team[ai].species_id = sp;
+        let mut belief = Belief::default();
+        belief.note_species(sp, 80);
+        let (l, p) = label_space(&state, 0, &belief);
+        let at = |kind: Kind, id: u16| p[l.iter().position(|&e| e == (kind, id)).unwrap()];
+        assert!(at(Kind::Move, universal) > at(Kind::Move, singleton));
+        assert!(at(Kind::Tera, universal) > at(Kind::Tera, singleton));
+        assert!((p.iter().sum::<f64>() - 1.0).abs() < 1e-9);
     }
 }
