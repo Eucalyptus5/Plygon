@@ -197,6 +197,40 @@ pub fn read_all(path: &str) -> std::io::Result<Vec<NativeSnapshot>> {
     bincode::deserialize(&bytes).map_err(bincode_err)
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct Row {
+    pub game_index: u32,
+    pub game_tag: u64,
+    pub gen_eval: u8, // 0 = handcrafted-driven game, 1 = net-driven game
+    pub turn: u16,
+    pub side: u8,
+    pub z: f32,
+    pub state: BattleState,
+    pub teams: TeamData,
+}
+
+pub fn read_rows(paths: &[String]) -> std::io::Result<Vec<Row>> {
+    use std::io::Read;
+    let mut rows: Vec<Row> = Vec::new();
+    for path in paths {
+        let mut magic = [0u8; 2];
+        std::fs::File::open(path)?.read_exact(&mut magic)?;
+        let bytes = if magic == [0x1f, 0x8b] {
+            let out = std::process::Command::new("gzip").arg("-dc").arg(path).output()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("gzip -dc {path}: {e}")))?;
+            if !out.status.success() {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, format!("gzip -dc {path}: {}", out.status)));
+            }
+            out.stdout
+        } else {
+            std::fs::read(path)?
+        };
+        let part: Vec<Row> = bincode::deserialize(&bytes).map_err(bincode_err)?;
+        rows.extend(part);
+    }
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +535,35 @@ mod tests {
         assert!(at(Kind::Move, universal) > at(Kind::Move, singleton));
         assert!(at(Kind::Tera, universal) > at(Kind::Tera, singleton));
         assert!((p.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+    }
+}
+
+#[cfg(test)]
+mod row_tests {
+    use super::*;
+
+    #[test]
+    fn read_rows_concatenates_plain_and_gzipped_files_in_order() {
+        let mut rng = Lcg::new(5);
+        let (a, b) = (gen_team(&mut rng), gen_team(&mut rng));
+        let (state, teams) = initial_state(&a, &b);
+        let row = |i: u32| Row { game_index: i, game_tag: 7 * i as u64, gen_eval: (i % 2) as u8, turn: 1, side: (i % 2) as u8, z: 0.25 * i as f32, state, teams: teams.clone() };
+        let dir = std::env::temp_dir().join(format!("frontier_rows_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let plain = dir.join("rows.0.bin");
+        let packed = dir.join("rows.1.bin");
+        std::fs::write(&plain, bincode::serialize(&vec![row(0), row(1)]).unwrap()).unwrap();
+        std::fs::write(&packed, bincode::serialize(&vec![row(2)]).unwrap()).unwrap();
+        assert!(std::process::Command::new("gzip").arg("-f").arg(&packed).status().unwrap().success());
+        let paths = [plain.to_str().unwrap().to_string(), format!("{}.gz", packed.to_str().unwrap())];
+        let rows = read_rows(&paths).unwrap();
+        assert_eq!(rows.iter().map(|r| r.game_index).collect::<Vec<u32>>(), vec![0, 1, 2]);
+        assert_eq!(rows[2].game_tag, 14);
+        assert_eq!(rows[1].side, 1);
+        assert_eq!(rows[1].gen_eval, 1);
+        assert_eq!(rows[2].z, 0.5);
+        assert_eq!(rows[0].state.sides[0].team[0].species_id, state.sides[0].team[0].species_id);
+        assert_eq!(rows[2].teams.levels, teams.levels);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
