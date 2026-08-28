@@ -122,11 +122,45 @@ fn note_pp_uses(beliefs: &mut [Belief; 2], state: &BattleState, pre: &[PpSnapsho
 
 // Shared terminal loop lifted from the self-play binary. Both play_from and the bin's play call it.
 pub fn play_to_terminal<F>(
+    state: BattleState,
+    teams: &TeamData,
+    beliefs: [Belief; 2],
+    game_seed: u64,
+    choose: F,
+) -> f64
+where
+    F: FnMut(usize, &BattleState, &TeamData, &[Belief; 2], u64, &mut Lcg) -> u8,
+{
+    play_to_terminal_timed(state, teams, beliefs, game_seed, choose, None)
+}
+
+#[derive(Clone, Copy, Default, Debug)]
+pub struct LoopTimes {
+    pub engine: std::time::Duration,
+    pub belief: std::time::Duration,
+    pub steps: u32,
+    pub turns: u16,
+}
+
+fn timed<T>(bucket: Option<&mut std::time::Duration>, f: impl FnOnce() -> T) -> T {
+    match bucket {
+        Some(b) => {
+            let t = std::time::Instant::now();
+            let r = f();
+            *b += t.elapsed();
+            r
+        }
+        None => f(),
+    }
+}
+
+pub fn play_to_terminal_timed<F>(
     mut state: BattleState,
     teams: &TeamData,
     mut beliefs: [Belief; 2],
     game_seed: u64,
     mut choose: F,
+    mut times: Option<&mut LoopTimes>,
 ) -> f64
 where
     F: FnMut(usize, &BattleState, &TeamData, &[Belief; 2], u64, &mut Lcg) -> u8,
@@ -139,7 +173,7 @@ where
             }
         }
     };
-    note_active(&mut beliefs, &state);
+    timed(times.as_deref_mut().map(|t| &mut t.belief), || note_active(&mut beliefs, &state));
 
     let mut battle_rng = Lcg::new(splitmix64(game_seed));
     let mut pol_rng = Lcg::new(splitmix64(game_seed ^ 0xA5A5));
@@ -160,40 +194,54 @@ where
             ACTION_STRUGGLE
         };
         let mut belief_slots = [0usize; 2];
-        for (s, a) in [(0usize, a1), (1usize, a2)] {
-            if state.phase != PHASE_ACTIONS {
-                continue;
-            }
-            let viewer = 1 - s;
-            let slot = beliefs[viewer].note_species(state.active_mon(s).species_id, state.active_mon(s).level);
-            belief_slots[s] = slot;
-            match a {
-                0..=3 => {
-                    let mv = effective_moves(&state, s)[a as usize];
-                    beliefs[viewer].note_move(slot, mv);
+        timed(times.as_deref_mut().map(|t| &mut t.belief), || {
+            for (s, a) in [(0usize, a1), (1usize, a2)] {
+                if state.phase != PHASE_ACTIONS {
+                    continue;
                 }
-                ACTION_TERA_0..=ACTION_TERA_3 => {
-                    let mv = effective_moves(&state, s)[(a - ACTION_TERA_0) as usize];
-                    beliefs[viewer].note_move(slot, mv);
-                    // MonBelief stores Showdown indices; the inverse map handles the Stellar (18) identity.
-                    let sd_tera = engine_type_to_showdown(state.active_mon(s).tera_type);
-                    beliefs[viewer].note_tera(slot, sd_tera);
+                let viewer = 1 - s;
+                let slot = beliefs[viewer].note_species(state.active_mon(s).species_id, state.active_mon(s).level);
+                belief_slots[s] = slot;
+                match a {
+                    0..=3 => {
+                        let mv = effective_moves(&state, s)[a as usize];
+                        beliefs[viewer].note_move(slot, mv);
+                    }
+                    ACTION_TERA_0..=ACTION_TERA_3 => {
+                        let mv = effective_moves(&state, s)[(a - ACTION_TERA_0) as usize];
+                        beliefs[viewer].note_move(slot, mv);
+                        // MonBelief stores Showdown indices; the inverse map handles the Stellar (18) identity.
+                        let sd_tera = engine_type_to_showdown(state.active_mon(s).tera_type);
+                        beliefs[viewer].note_tera(slot, sd_tera);
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
-        }
+        });
         match state.phase {
             PHASE_ACTIONS => {
-                let pre = pp_snapshot(&state);
-                execute_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m));
-                note_pp_uses(&mut beliefs, &state, &pre, belief_slots);
+                let pre = timed(times.as_deref_mut().map(|t| &mut t.belief), || pp_snapshot(&state));
+                timed(times.as_deref_mut().map(|t| &mut t.engine), || {
+                    execute_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m))
+                });
+                timed(times.as_deref_mut().map(|t| &mut t.belief), || {
+                    note_pp_uses(&mut beliefs, &state, &pre, belief_slots)
+                });
             }
             PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
-                execute_switch_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m))
+                timed(times.as_deref_mut().map(|t| &mut t.engine), || {
+                    execute_switch_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m))
+                })
             }
             _ => break,
         }
-        note_active(&mut beliefs, &state);
+        if let Some(t) = times.as_deref_mut() {
+            t.steps += 1;
+        }
+        timed(times.as_deref_mut().map(|t| &mut t.belief), || note_active(&mut beliefs, &state));
+    }
+    if let Some(t) = times.as_deref_mut() {
+        t.turns = state.field.turn;
     }
     winner_value(&state)
 }
@@ -521,5 +569,24 @@ mod tests {
         assert!(has(FAINTED), "fainted bench species noted");
         assert!(!has(LIVING), "living bench species must not be noted");
         assert_eq!(b.revealed_count(), 2, "only active + fainted revealed");
+    }
+
+    #[test]
+    fn timed_loop_matches_untimed_result() {
+        let mut rng = Lcg::new(3);
+        let a = crate::frontier::gen_team(&mut rng);
+        let b = crate::frontier::gen_team(&mut rng);
+        let (state, teams) = crate::frontier::initial_state(&a, &b);
+        let chooser = |side: usize, st: &BattleState, _: &TeamData, _: &[Belief; 2], _: u64, rng: &mut Lcg| {
+            random_action(st, side, rng)
+        };
+        let plain = play_to_terminal(state, &teams, [Belief::default(); 2], 11, chooser);
+        let mut lt = LoopTimes::default();
+        let with_times = play_to_terminal_timed(state, &teams, [Belief::default(); 2], 11, chooser, Some(&mut lt));
+        assert_eq!(plain, with_times);
+        assert!(lt.steps > 0);
+        assert!(lt.turns > 0);
+        assert!(lt.engine > std::time::Duration::ZERO);
+        assert!(lt.belief > std::time::Duration::ZERO);
     }
 }

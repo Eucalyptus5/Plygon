@@ -23,3 +23,4 @@ pub mod train_dump;
 pub mod features;
 pub mod policy_label;
 pub mod action_features;
+pub mod frontier;

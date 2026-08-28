@@ -116,7 +116,7 @@ pub fn sample_unrevealed_species(taken: &[u16], screen: ScreenMask, rng: &mut Lc
     }
 }
 
-pub(crate) fn install(
+pub fn install(
     state: &mut BattleState,
     teams: &mut TeamData,
     side: usize,
