@@ -123,10 +123,19 @@ pub(crate) fn install(
     slot: usize,
     input: &MonBuildInput,
     observed: Option<&MonSlot>,
+    uses: Option<&MonBelief>,
 ) {
     let (mut mon, bd) = build_mon(input);
     // showdown_type_to_engine is 18-wide and clamps Stellar (18) to Normal; restore it post-build.
     if input.tera_type == 18 { mon.tera_type = 18; }
+    if let Some(mb) = uses {
+        for i in 0..4 {
+            if mon.moves[i] == 0 { continue; }
+            if let Some(k) = mb.moves[..mb.n_moves as usize].iter().position(|&m| m == mon.moves[i]) {
+                mon.pp[i] = mon.pp[i].saturating_sub(mb.move_uses[k]);
+            }
+        }
+    }
     if let Some(true_mon) = observed {
         if true_mon.current_hp == 0 {
             mon.current_hp = 0;
@@ -162,7 +171,7 @@ impl Determinizer for RandomBattle {
                     })
                     .expect("belief species must exist on the true opponent side");
                 let input = sample_set(mb.species_id, mb, belief.screen, rng);
-                install(&mut state, &mut teams, opp, slot, &input, Some(&obs.state.sides[opp].team[slot]));
+                install(&mut state, &mut teams, opp, slot, &input, Some(&obs.state.sides[opp].team[slot]), Some(mb));
                 filled[slot] = true;
                 taken.push(pool_for(mb.species_id).map_or(mb.species_id, |p| p.species_id));
             }
@@ -172,7 +181,7 @@ impl Determinizer for RandomBattle {
                 taken.push(sp);
                 let input =
                     sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, belief.screen, rng);
-                install(&mut state, &mut teams, opp, slot, &input, None);
+                install(&mut state, &mut teams, opp, slot, &input, None, None);
             }
             worlds.push(World { state, teams, weight: 1.0 / n as f64 });
         }
@@ -253,7 +262,7 @@ impl Determinizer for TrueSets {
             let Some(i) = by_slot[slot] else { continue };
             let revealed = obs.state.sides[opp].team[slot].species_id != 0;
             let observed = revealed.then(|| &obs.state.sides[opp].team[slot]);
-            install(&mut state, &mut teams, opp, slot, &self.inputs[i], observed);
+            install(&mut state, &mut teams, opp, slot, &self.inputs[i], observed, None);
         }
         (0..n)
             .map(|_| World { state, teams: teams.clone(), weight: 1.0 / n as f64 })
@@ -333,6 +342,54 @@ mod tests {
             distinct_opp_teams.insert((1..6).map(|i| w.state.sides[1].team[i].species_id).collect::<Vec<_>>());
         }
         assert!(distinct_opp_teams.len() > 1, "hidden slots actually vary across worlds");
+    }
+
+    #[test]
+    fn revealed_move_pp_drops_by_the_recorded_uses() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0])],
+        );
+        let mut belief = Belief::default();
+        let slot = belief.note_species(445, s.sides[1].team[0].level);
+        belief.note_move(slot, 89);
+        belief.mons[slot].move_uses[0] = 3;
+
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let worlds = RandomBattle.sample_worlds(&obs, &belief, 8, &mut Lcg::new(5));
+        let full = (move_base_pp(89) as u16 * 8 / 5) as u8;
+        assert!(full > 3);
+        for w in &worlds {
+            let om = &w.state.sides[1].team[0];
+            let i = om.moves.iter().position(|&m| m == 89).expect("revealed move is in every sampled set");
+            assert_eq!(om.pp[i], full - 3, "sampled PP is max PP minus the recorded uses");
+            for j in 0..4 {
+                if j != i && om.moves[j] != 0 {
+                    let other = (move_base_pp(om.moves[j]) as u16 * 8 / 5) as u8;
+                    assert_eq!(om.pp[j], other, "unrecorded moves keep full PP");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn recorded_uses_floor_sampled_pp_at_zero() {
+        let (s, t) = build_state(
+            vec![mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(445, 24, [89, 14, 0, 0])],
+        );
+        let mut belief = Belief::default();
+        let slot = belief.note_species(445, s.sides[1].team[0].level);
+        belief.note_move(slot, 89);
+        belief.mons[slot].move_uses[0] = 255;
+
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let worlds = RandomBattle.sample_worlds(&obs, &belief, 8, &mut Lcg::new(5));
+        for w in &worlds {
+            let om = &w.state.sides[1].team[0];
+            let i = om.moves.iter().position(|&m| m == 89).unwrap();
+            assert_eq!(om.pp[i], 0, "uses beyond max PP floor at zero");
+        }
     }
 
     #[test]

@@ -10,6 +10,8 @@ pub struct MonBelief {
     pub species_id: u16,          // 0 = slot not yet revealed
     pub moves: [u16; 4],          // revealed moves (0-padded)
     pub n_moves: u8,
+    #[serde(default)]
+    pub move_uses: [u8; 4],       // PP spent on moves[k], index-aligned with `moves`
     pub item_id: u16,             // 0 = unknown (v1 offline never learns items)
     #[serde(default)]
     pub scarf_item_id: u16,       // scarf pinned by turn-order deduction; survives an item_id clear
@@ -61,6 +63,12 @@ impl Belief {
         if move_id == 0 || m.moves[..m.n_moves as usize].contains(&move_id) || m.n_moves >= 4 { return; }
         m.moves[m.n_moves as usize] = move_id;
         m.n_moves += 1;
+    }
+    pub fn note_move_use(&mut self, slot: usize, move_id: u16, cost: u8) {
+        let m = &mut self.mons[slot];
+        if move_id == 0 { return; }
+        let Some(k) = m.moves[..m.n_moves as usize].iter().position(|&x| x == move_id) else { return; };
+        m.move_uses[k] = m.move_uses[k].saturating_add(cost);
     }
     pub fn note_tera(&mut self, slot: usize, tera_type: u8) {
         self.mons[slot].tera_revealed = true;
@@ -309,6 +317,32 @@ mod tests {
         b.note_move(s, 89);
         b.note_move(s, 89);
         assert_eq!(b.mons[s].n_moves, 1);
+    }
+
+    #[test]
+    fn note_move_use_accumulates_per_revealed_move() {
+        let mut b = Belief::default();
+        let s = b.note_species(445, 78);
+        b.note_move(s, 89);
+        b.note_move(s, 14);
+        b.note_move_use(s, 89, 1);
+        b.note_move_use(s, 89, 2);
+        b.note_move_use(s, 14, 1);
+        assert_eq!(b.mons[s].move_uses[0], 3, "uses land on the revealed move's index");
+        assert_eq!(b.mons[s].move_uses[1], 1);
+    }
+
+    #[test]
+    fn note_move_use_ignores_unknown_moves_and_saturates() {
+        let mut b = Belief::default();
+        let s = b.note_species(445, 78);
+        b.note_move(s, 89);
+        b.note_move_use(s, 0, 1);
+        b.note_move_use(s, 200, 1);
+        assert_eq!(b.mons[s].move_uses, [0; 4], "no move id and an unrevealed move both record nothing");
+        b.note_move_use(s, 89, 250);
+        b.note_move_use(s, 89, 250);
+        assert_eq!(b.mons[s].move_uses[0], 255, "count saturates instead of wrapping");
     }
 
     #[test]

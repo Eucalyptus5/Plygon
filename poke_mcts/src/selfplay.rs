@@ -89,6 +89,37 @@ fn decide(
     }
 }
 
+#[derive(Clone, Copy)]
+struct PpSnapshot {
+    slot: usize,
+    flags: u32,
+    pp: [u8; 4],
+}
+
+fn pp_snapshot(state: &BattleState) -> [PpSnapshot; 2] {
+    std::array::from_fn(|s| {
+        let slot = state.sides[s].active_index as usize;
+        PpSnapshot { slot, flags: state.sides[s].active.volatile_flags, pp: state.sides[s].team[slot].pp }
+    })
+}
+
+// The engine spends PP on a locked or charging continuation turn; Showdown shows no move there.
+fn note_pp_uses(beliefs: &mut [Belief; 2], state: &BattleState, pre: &[PpSnapshot; 2], slots: [usize; 2]) {
+    for s in 0..2 {
+        let p = pre[s];
+        if p.flags & (VOL_MOVE_LOCKED | VOL_CHARGING) != 0 {
+            continue;
+        }
+        let m = &state.sides[s].team[p.slot];
+        for i in 0..4 {
+            let d = p.pp[i].saturating_sub(m.pp[i]);
+            if d > 0 {
+                beliefs[1 - s].note_move_use(slots[s], m.moves[i], d);
+            }
+        }
+    }
+}
+
 // Shared terminal loop lifted from the self-play binary. Both play_from and the bin's play call it.
 pub fn play_to_terminal<F>(
     mut state: BattleState,
@@ -128,12 +159,14 @@ where
         } else {
             ACTION_STRUGGLE
         };
+        let mut belief_slots = [0usize; 2];
         for (s, a) in [(0usize, a1), (1usize, a2)] {
             if state.phase != PHASE_ACTIONS {
                 continue;
             }
             let viewer = 1 - s;
             let slot = beliefs[viewer].note_species(state.active_mon(s).species_id, state.active_mon(s).level);
+            belief_slots[s] = slot;
             match a {
                 0..=3 => {
                     let mv = effective_moves(&state, s)[a as usize];
@@ -150,7 +183,11 @@ where
             }
         }
         match state.phase {
-            PHASE_ACTIONS => execute_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m)),
+            PHASE_ACTIONS => {
+                let pre = pp_snapshot(&state);
+                execute_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m));
+                note_pp_uses(&mut beliefs, &state, &pre, belief_slots);
+            }
             PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
                 execute_switch_turn(&mut state, teams, a1, a2, &mut |m| battle_rng.roll(m))
             }
@@ -225,7 +262,117 @@ mod tests {
     use crate::determinize::{Determinizer, Observation, RandomBattle};
     use crate::rng::Lcg;
     use crate::testutil::{build_state, mon};
+    use pkmn_engine::data::{MOVE_BODY_SLAM, MOVE_FLY, MOVE_OUTRAGE, MOVE_SPLASH, MOVE_U_TURN};
     use pkmn_engine::state::MonSlot;
+
+    // Mirrors play_to_terminal's PHASE_ACTIONS body: reveal the chosen move, step, then book the uses.
+    fn step(beliefs: &mut [Belief; 2], state: &mut BattleState, teams: &TeamData, a1: u8, a2: u8) {
+        let mut slots = [0usize; 2];
+        for (s, a) in [(0usize, a1), (1usize, a2)] {
+            let viewer = 1 - s;
+            let active = state.active_mon(s);
+            slots[s] = beliefs[viewer].note_species(active.species_id, active.level);
+            if a <= 3 {
+                let mv = effective_moves(state, s)[a as usize];
+                beliefs[viewer].note_move(slots[s], mv);
+            }
+        }
+        let pre = pp_snapshot(state);
+        execute_turn(state, teams, a1, a2, &mut |_m| 0u32);
+        note_pp_uses(beliefs, state, &pre, slots);
+    }
+
+    fn duel_vs_splash(attacker: MonBuildInput) -> (BattleState, TeamData) {
+        build_state(vec![attacker], vec![mon(143, 0, [MOVE_SPLASH as u16, 0, 0, 0])])
+    }
+
+    #[test]
+    fn locked_move_continuation_records_one_use() {
+        let (mut state, teams) = duel_vs_splash(mon(242, 0, [MOVE_OUTRAGE as u16, 0, 0, 0]));
+        let mut beliefs = [Belief::default(); 2];
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED), "the first Outrage locks the user in");
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert_eq!(beliefs[1].mons[0].moves[0], MOVE_OUTRAGE as u16);
+        assert_eq!(beliefs[1].mons[0].move_uses[0], 1, "a locked run costs the opponent one visible use");
+    }
+
+    #[test]
+    fn locked_move_cut_short_records_one_use() {
+        let (mut state, teams) = duel_vs_splash(mon(242, 0, [MOVE_OUTRAGE as u16, 0, 0, 0]));
+        let mut beliefs = [Belief::default(); 2];
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert!(state.sides[0].active.has_volatile(VOL_MOVE_LOCKED));
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert_eq!(beliefs[1].mons[0].move_uses[0], 1, "stopping mid-run still books exactly one use");
+    }
+
+    #[test]
+    fn charge_turn_records_one_use() {
+        let (mut state, teams) = duel_vs_splash(mon(242, 0, [MOVE_FLY as u16, 0, 0, 0]));
+        let mut beliefs = [Belief::default(); 2];
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert!(state.sides[0].active.has_volatile(VOL_CHARGING), "Fly's first turn is the charge turn");
+        assert_eq!(beliefs[1].mons[0].move_uses[0], 1, "the charge turn is where the use shows");
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert!(!state.sides[0].active.has_volatile(VOL_CHARGING), "the second turn releases");
+        assert_eq!(beliefs[1].mons[0].move_uses[0], 1, "the release turn adds nothing");
+    }
+
+    #[test]
+    fn sleeping_turn_records_no_use() {
+        let (mut state, teams) = duel_vs_splash(mon(242, 0, [MOVE_BODY_SLAM as u16, 0, 0, 0]));
+        state.sides[0].team[0].status = STATUS_SLEEP;
+        state.sides[0].team[0].status_counter = 3;
+        let mut beliefs = [Belief::default(); 2];
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert_eq!(state.sides[0].team[0].status, STATUS_SLEEP, "the mon really slept through the turn");
+        assert_eq!(beliefs[1].mons[0].moves[0], MOVE_BODY_SLAM as u16, "the attempted move is still revealed");
+        assert_eq!(beliefs[1].mons[0].move_uses[0], 0, "a move that never executed costs no PP");
+    }
+
+    #[test]
+    fn actor_dragged_out_mid_turn_still_books_its_own_use() {
+        let (mut state, teams) = build_state(
+            vec![
+                mon(242, 0, [MOVE_U_TURN as u16, 0, 0, 0]),
+                mon(143, 0, [MOVE_SPLASH as u16, 0, 0, 0]),
+            ],
+            vec![mon(130, 0, [MOVE_SPLASH as u16, 0, 0, 0])],
+        );
+        state.sides[1].team[0].item_id = data_bridge::ITEM_RED_CARD;
+        let mut beliefs = [Belief::default(); 2];
+        let bench = beliefs[1].note_species(143, state.sides[0].team[1].level);
+        beliefs[1].note_move(bench, MOVE_SPLASH as u16);
+        step(&mut beliefs, &mut state, &teams, 0, 0);
+        assert_eq!(state.sides[0].active_index, 1, "Red Card dragged the pivoting user out");
+        let pivot = beliefs[1].mons.iter().position(|m| m.species_id == 242).unwrap();
+        assert_eq!(beliefs[1].mons[pivot].moves[0], MOVE_U_TURN as u16);
+        assert_eq!(beliefs[1].mons[pivot].move_uses[0], 1, "the use lands on the mon that acted");
+        assert_eq!(beliefs[1].mons[bench].move_uses, [0; 4], "the dragged-in mon spent nothing");
+    }
+
+    #[test]
+    fn the_native_loop_books_one_use_per_completed_turn() {
+        let (state, teams) = build_state(
+            vec![mon(242, 0, [MOVE_SPLASH as u16, 0, 0, 0])],
+            vec![mon(143, 0, [MOVE_SPLASH as u16, 0, 0, 0])],
+        );
+        let seen = std::cell::RefCell::new(Vec::new());
+        play_to_terminal(state, &teams, [Belief::default(); 2], 7, |side, st, _tm, bel, _seed, _rng| {
+            if side == 0 {
+                seen.borrow_mut().push(bel[1]);
+            }
+            let idx = st.sides[side].active_index as usize;
+            if st.sides[side].team[idx].pp[0] > 0 { 0 } else { ACTION_STRUGGLE }
+        });
+        let seen = seen.into_inner();
+        assert!(seen.len() > 4, "the duel ran several turns, got {}", seen.len());
+        for (turn, b) in seen.iter().take(5).enumerate() {
+            assert_eq!(b.mons[0].move_uses[0] as usize, turn, "turn {turn} sees one use per prior turn");
+        }
+    }
 
     // Make `opp_side`'s active a genuine last mon (1 HP) backed by 5 revealed-fainted teammates, and
     // return our view of it. Since play_from re-determinizes the opponent from this belief, the bench
