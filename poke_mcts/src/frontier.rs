@@ -1,7 +1,9 @@
 use crate::belief::{possible, species_sets_with_base_fallback, Belief, MonBelief, ScreenMask};
 use crate::determinize::{install, sample_set, sample_unrevealed_species};
-use crate::rng::Lcg;
+use crate::eval::{winner_value, Evaluator};
+use crate::rng::{splitmix64, Lcg};
 use pkmn_engine::state::*;
+use std::cell::Cell;
 
 pub fn gen_team(rng: &mut Lcg) -> [MonBuildInput; 6] {
     let screen = ScreenMask::default();
@@ -229,6 +231,96 @@ pub fn read_rows(paths: &[String]) -> std::io::Result<Vec<Row>> {
         rows.extend(part);
     }
     Ok(rows)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PlayoutPolicy {
+    Uniform,
+    Greedy,
+}
+
+impl PlayoutPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PlayoutPolicy::Uniform => "uniform",
+            PlayoutPolicy::Greedy => "greedy",
+        }
+    }
+
+    fn choose(self, state: &BattleState, side: usize, rng: &mut Lcg) -> u8 {
+        match self {
+            PlayoutPolicy::Uniform => crate::policies::random_action(state, side, rng),
+            PlayoutPolicy::Greedy => crate::policies::greedy_action(state, side, rng),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Playout {
+    pub value: f64,
+    pub steps: u32,
+    pub turn: u16,
+    pub capped: bool,
+}
+
+pub const PLAYOUT_STEP_CAP: u32 = 500;
+const PLAYOUT_NEXT_SALT: u64 = 0x7F4A_7C15_9E37_79B9;
+
+pub struct PlayoutEval {
+    pub teams: TeamData,
+    pub k: u32,
+    pub seed: Cell<u64>,
+    pub policy: PlayoutPolicy,
+}
+
+impl PlayoutEval {
+    pub fn new(teams: TeamData, k: u32, seed: u64, policy: PlayoutPolicy) -> Self {
+        PlayoutEval { teams, k, seed: Cell::new(seed), policy }
+    }
+
+    // game i of an eval call at seed s runs at this seed whatever k is, so a k = 8 value is
+    // the mean of the first 8 games of the k = 32 value at the same seed
+    pub fn game_seed(seed: u64, i: u32) -> u64 {
+        splitmix64(seed ^ i as u64)
+    }
+
+    pub fn playout(&self, state: &BattleState, game_seed: u64) -> Playout {
+        let mut state = *state;
+        let mut battle_rng = Lcg::new(splitmix64(game_seed));
+        let mut pol_rng = Lcg::new(splitmix64(game_seed ^ 0xA5A5));
+        let mut steps = 0u32;
+        while !state.is_game_over() {
+            if steps == PLAYOUT_STEP_CAP {
+                return Playout { value: winner_value(&state), steps, turn: state.field.turn, capped: true };
+            }
+            let act = |side: usize, pol_rng: &mut Lcg| {
+                if legal_actions(&state, side).count > 0 { self.policy.choose(&state, side, pol_rng) } else { ACTION_STRUGGLE }
+            };
+            let a1 = act(0, &mut pol_rng);
+            let a2 = act(1, &mut pol_rng);
+            match state.phase {
+                PHASE_ACTIONS => execute_turn(&mut state, &self.teams, a1, a2, &mut |m| battle_rng.roll(m)),
+                PHASE_SWITCH_P1 | PHASE_SWITCH_P2 | PHASE_SWITCH_BOTH => {
+                    execute_switch_turn(&mut state, &self.teams, a1, a2, &mut |m| battle_rng.roll(m))
+                }
+                _ => break,
+            }
+            steps += 1;
+        }
+        Playout { value: winner_value(&state), steps, turn: state.field.turn, capped: false }
+    }
+}
+
+impl Evaluator for PlayoutEval {
+    fn eval(&self, state: &BattleState) -> f32 {
+        let seed = self.seed.get();
+        self.seed.set(splitmix64(seed ^ PLAYOUT_NEXT_SALT));
+        let mut sum = 0.0f64;
+        for i in 0..self.k {
+            sum += self.playout(state, Self::game_seed(seed, i)).value;
+        }
+        (sum / self.k as f64) as f32
+    }
 }
 
 #[cfg(test)]
@@ -565,5 +657,56 @@ mod row_tests {
         assert_eq!(rows[0].state.sides[0].team[0].species_id, state.sides[0].team[0].species_id);
         assert_eq!(rows[2].teams.levels, teams.levels);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod playout_tests {
+    use super::*;
+
+    fn fixture(seed: u64) -> (BattleState, TeamData) {
+        let mut rng = Lcg::new(seed);
+        let (a, b) = (gen_team(&mut rng), gen_team(&mut rng));
+        initial_state(&a, &b)
+    }
+
+    #[test]
+    fn playout_reaches_a_terminal_and_is_seed_determined() {
+        let (state, teams) = fixture(11);
+        for policy in [PlayoutPolicy::Uniform, PlayoutPolicy::Greedy] {
+            let pe = PlayoutEval::new(teams.clone(), 1, 5, policy);
+            let p = pe.playout(&state, 99);
+            assert!(!p.capped, "{policy:?}");
+            assert!(p.value == 0.0 || p.value == 0.5 || p.value == 1.0, "{policy:?}: {p:?}");
+            assert!(p.steps >= 1 && p.turn >= 1, "{policy:?}: {p:?}");
+            assert_eq!(pe.playout(&state, 99), p, "{policy:?}");
+        }
+    }
+
+    #[test]
+    fn eval_is_the_mean_of_k_games_and_shares_its_first_games_across_k() {
+        let (state, teams) = fixture(12);
+        let e8 = PlayoutEval::new(teams.clone(), 8, 3, PlayoutPolicy::Uniform);
+        let e32 = PlayoutEval::new(teams, 32, 3, PlayoutPolicy::Uniform);
+        let games: Vec<f64> = (0..32).map(|i| e32.playout(&state, PlayoutEval::game_seed(3, i)).value).collect();
+        let mean = |g: &[f64]| (g.iter().sum::<f64>() / g.len() as f64) as f32;
+        assert_eq!(e8.eval(&state), mean(&games[..8]));
+        assert_eq!(e32.eval(&state), mean(&games));
+        assert!(games.iter().any(|&v| v != games[0]), "32 uniform games from the opening never all agree");
+        assert_ne!(e8.seed.get(), 3, "the seed advances after an eval");
+        assert_eq!(e8.seed.get(), e32.seed.get());
+    }
+
+    #[test]
+    fn a_terminal_state_evaluates_to_its_winner_without_a_step() {
+        let (mut state, teams) = fixture(13);
+        for i in 0..6 {
+            state.sides[1].team[i].current_hp = 0;
+        }
+        state.phase = PHASE_GAME_OVER;
+        let pe = PlayoutEval::new(teams, 4, 1, PlayoutPolicy::Greedy);
+        let p = pe.playout(&state, 0);
+        assert_eq!((p.value, p.steps, p.capped), (1.0, 0, false));
+        assert_eq!(pe.eval(&state), 1.0);
     }
 }

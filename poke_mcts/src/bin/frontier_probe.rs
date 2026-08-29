@@ -1,8 +1,9 @@
 use pkmn_engine::state::{legal_actions, move_base_pp, BattleState, MonSlot, TeamData, STATUS_BAD_POISON, STATUS_SLEEP, VOL_TRANSFORMED};
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::driver::{aggregate, pick_from, PickMode};
-use poke_mcts::eval::Handcrafted;
-use poke_mcts::frontier::{read_rows, Row};
+use poke_mcts::eval::{Evaluator, Handcrafted};
+use poke_mcts::eval_learned::LearnedValueV2;
+use poke_mcts::frontier::{read_rows, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
 use poke_mcts::rng::{splitmix64, Lcg};
 use poke_mcts::search::{search_world, SearchParams};
 use rayon::prelude::*;
@@ -324,14 +325,145 @@ fn flip_fields(args: &[String]) {
     println!("flip-fields-out rows={out} summary={summary}");
 }
 
+fn loadavg() -> String {
+    let out = std::process::Command::new("sysctl").arg("-n").arg("vm.loadavg").output();
+    match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().trim_matches(|c| c == '{' || c == '}').trim().replace(' ', "/"),
+        _ => "-".to_string(),
+    }
+}
+
+fn percentile(sorted: &[f64], p: f64) -> f64 {
+    sorted[((sorted.len() - 1) as f64 * p).round() as usize]
+}
+
+const POLICIES: [PlayoutPolicy; 2] = [PlayoutPolicy::Uniform, PlayoutPolicy::Greedy];
+
+fn cost(args: &[String]) {
+    let rows = load(args);
+    let turn_lo: u16 = parse(args, "--turn-lo", "5");
+    let turn_hi: u16 = parse(args, "--turn-hi", "25");
+    let n: usize = parse(args, "--n", "2000");
+    let repeats: usize = parse(args, "--repeats", "3");
+    let run_seed: u64 = parse(args, "--seed", "1");
+    let out = arg(args, "--out", "results/0.3.cost.tsv");
+    if let Some(dir) = std::path::Path::new(&out).parent() {
+        std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+    }
+    let picked: Vec<usize> = rows.iter().enumerate().filter(|(_, r)| (turn_lo..=turn_hi).contains(&r.turn)).map(|(i, _)| i).take(n).collect();
+    println!("cost: rows={} turns={turn_lo}..={turn_hi} picked={} repeats={repeats} seed={run_seed} k=1 sequential=yes step_cap={PLAYOUT_STEP_CAP}", rows.len(), picked.len());
+    let mut tsv = String::from("run\tpolicy\trows\tk\tus_mean\tus_median\tus_p90\tus_max\tsteps_mean\tsteps_median\tturns_mean\tturns_median\tturns_max\tcapped\tvalue_mean\tload_start\tload_end\twall_s\n");
+    for run in 0..repeats {
+        for policy in POLICIES {
+            let load_start = loadavg();
+            let wall = Instant::now();
+            let mut us: Vec<f64> = Vec::with_capacity(picked.len());
+            let mut steps: Vec<f64> = Vec::with_capacity(picked.len());
+            let mut turns: Vec<f64> = Vec::with_capacity(picked.len());
+            let (mut capped, mut value_sum) = (0u64, 0.0f64);
+            for &i in &picked {
+                let row = &rows[i];
+                let pe = PlayoutEval::new(row.teams.clone(), 1, row_seed(run_seed, i), policy);
+                let game_seed = PlayoutEval::game_seed(pe.seed.get(), 0);
+                let t = Instant::now();
+                let p = pe.playout(&row.state, game_seed);
+                us.push(t.elapsed().as_secs_f64() * 1e6);
+                steps.push(p.steps as f64);
+                turns.push(p.turn.saturating_sub(row.state.field.turn) as f64);
+                capped += p.capped as u64;
+                value_sum += p.value;
+            }
+            let wall_s = wall.elapsed().as_secs_f64();
+            let load_end = loadavg();
+            let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+            let mut us_s = us.clone();
+            us_s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mut st_s = steps.clone();
+            st_s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mut tu_s = turns.clone();
+            tu_s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let line = format!(
+                "{run}\t{}\t{}\t1\t{:.3}\t{:.3}\t{:.3}\t{:.3}\t{:.3}\t{}\t{:.3}\t{}\t{}\t{capped}\t{:.4}\t{load_start}\t{load_end}\t{wall_s:.3}\n",
+                policy.as_str(), picked.len(), mean(&us), percentile(&us_s, 0.5), percentile(&us_s, 0.9), us_s[us_s.len() - 1],
+                mean(&steps), percentile(&st_s, 0.5), mean(&turns), percentile(&tu_s, 0.5), tu_s[tu_s.len() - 1], value_sum / picked.len() as f64
+            );
+            print!("{line}");
+            tsv.push_str(&line);
+        }
+    }
+    std::fs::write(&out, tsv).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    println!("cost-out {out}");
+}
+
+fn signal(args: &[String]) {
+    let rows = load(args);
+    let ks: Vec<u32> = list(args, "--k", "8,32");
+    let run_seed: u64 = parse(args, "--seed", "1");
+    let threads: usize = parse(args, "--threads", &std::thread::available_parallelism().map_or(1, |n| n.get()).to_string());
+    let out = arg(args, "--out", "results/0.3.values.tsv");
+    if let Some(dir) = std::path::Path::new(&out).parent() {
+        std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+    }
+    let net = LearnedValueV2::from_env();
+    let games_per_row: u32 = ks.iter().sum::<u32>() * POLICIES.len() as u32;
+    println!(
+        "signal: rows={} k={ks:?} policies=uniform,greedy seed={run_seed} threads={threads} hand=Handcrafted net={} int8_scope={} games_per_row={games_per_row} step_cap={PLAYOUT_STEP_CAP}",
+        rows.len(), std::env::var("BRIDGE_EVAL_WEIGHTS_V2").unwrap_or_default(), net.int8_scope()
+    );
+    let done = AtomicU64::new(0);
+    let wall = Instant::now();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let values: Vec<Vec<f32>> = pool.install(|| {
+        rows.par_iter().enumerate().map(|(i, row)| {
+            let mut v = vec![Handcrafted.eval(&row.state), net.eval(&row.state)];
+            let seed = row_seed(run_seed, i);
+            for policy in POLICIES {
+                for &k in &ks {
+                    v.push(PlayoutEval::new(row.teams.clone(), k, seed, policy).eval(&row.state));
+                }
+            }
+            let d = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if d % 2000 == 0 {
+                eprintln!("progress rows={d}/{} wall_s={:.0}", rows.len(), wall.elapsed().as_secs_f64());
+            }
+            v
+        }).collect()
+    });
+    let wall_s = wall.elapsed().as_secs_f64();
+    let games = rows.len() as f64 * games_per_row as f64;
+    println!("signal-done rows={} wall_s={wall_s:.1} playouts={games} playouts_per_s={:.0} playouts_per_s_per_thread={:.0}", rows.len(), games / wall_s, games / wall_s / threads as f64);
+    let mut s = String::from("row\tgame_tag\tgen_eval\tturn\tside\tz\thand\tnet");
+    for policy in POLICIES {
+        for &k in &ks {
+            s.push_str(&format!("\tplayout_{}_k{k}", policy.as_str()));
+        }
+    }
+    s.push('\n');
+    for (i, (row, v)) in rows.iter().zip(&values).enumerate() {
+        s.push_str(&format!("{i}\t{}\t{}\t{}\t{}\t{}", row.game_tag, row.gen_eval, row.turn, row.side, row.z));
+        for x in v {
+            s.push_str(&format!("\t{x}"));
+        }
+        s.push('\n');
+    }
+    std::fs::write(&out, s).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    println!("signal-out {out}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--count") {
         count(&args);
     } else if args.iter().any(|a| a == "--flip-fields") {
         flip_fields(&args);
+    } else if args.iter().any(|a| a == "--cost") {
+        cost(&args);
+    } else if args.iter().any(|a| a == "--signal") {
+        signal(&args);
     } else {
-        eprintln!("usage: frontier_probe (--count | --flip-fields) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
+        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
+        eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
+        eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
         std::process::exit(2);
     }
 }
