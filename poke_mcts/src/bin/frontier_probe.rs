@@ -1,12 +1,12 @@
-use pkmn_engine::state::{legal_actions, move_base_pp, BattleState, MonSlot, TeamData, ACTION_SWITCH_0, ACTION_SWITCH_5, ACTION_TERA_0, ACTION_TERA_3, STATUS_BAD_POISON, STATUS_SLEEP, VOL_TRANSFORMED};
+use pkmn_engine::state::{effective_moves, legal_actions, move_base_pp, BattleState, MonSlot, TeamData, ACTION_SWITCH_0, ACTION_SWITCH_5, ACTION_TERA_0, ACTION_TERA_3, STATUS_BAD_POISON, STATUS_SLEEP, VOL_TRANSFORMED};
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::determinize::{Determinizer, Observation, RandomBattle};
-use poke_mcts::driver::{aggregate, choose_action_traced_salted, pick_from, PickMode, PimcConfig, WorldTrace};
+use poke_mcts::driver::{aggregate, choose_action_traced, choose_action_traced_salted, pick_from, PickMode, PimcConfig, WorldTrace};
 use poke_mcts::eval::{Evaluator, Handcrafted};
 use poke_mcts::eval_learned::LearnedValueV2;
 use poke_mcts::frontier::{read_all, read_rows, Declairvoyant, NativeSnapshot, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
 use poke_mcts::rng::{splitmix64, Lcg};
-use poke_mcts::search::{search_world, ArmStat, ChanceMode, SearchParams};
+use poke_mcts::search::{search_world, ArmStat, ChanceMode, SearchParams, NO_ARM};
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
@@ -781,6 +781,333 @@ fn declairvoyance(args: &[String]) {
     println!("declairvoyance-out summary={out} dump={dump} roots={roots_file}");
 }
 
+// What one side's action byte names in one world: a move by id with the Tera flag carried, or a
+// switch by the target's species. Our bytes mean the same thing in every world; the opponent's
+// index that world's own sampled set, so only this form compares across worlds.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Named {
+    Absent,
+    Move(u16, bool),
+    Switch(u16),
+}
+
+impl Named {
+    fn label(self) -> String {
+        match self {
+            Named::Absent => "-".to_string(),
+            Named::Move(id, tera) => format!("{}{id}", if tera { "t" } else { "m" }),
+            Named::Switch(sp) => format!("s{sp}"),
+        }
+    }
+}
+
+fn named(state: &BattleState, side: usize, active: usize, byte: u8) -> Named {
+    let moves = if active == state.sides[side].active_index as usize {
+        effective_moves(state, side)
+    } else {
+        state.sides[side].team[active].moves
+    };
+    match byte {
+        0..=3 => Named::Move(moves[byte as usize], false),
+        ACTION_SWITCH_0..=ACTION_SWITCH_5 => {
+            Named::Switch(state.sides[side].team[(byte - ACTION_SWITCH_0) as usize].species_id)
+        }
+        ACTION_TERA_0..=ACTION_TERA_3 => Named::Move(moves[(byte - ACTION_TERA_0) as usize], true),
+        _ => Named::Absent,
+    }
+}
+
+// The opponent's active slot at ply d is the last switch byte the path took on that side (a
+// forced replacement is itself a switch byte), so the path decodes without the intermediate states.
+fn opp_meaning_path(state: &BattleState, opp: usize, path: &[(u8, u8); 3]) -> [Named; 3] {
+    let mut active = state.sides[opp].active_index as usize;
+    let mut out = [Named::Absent; 3];
+    for (d, &(_, byte)) in path.iter().enumerate() {
+        out[d] = named(state, opp, active, byte);
+        if let Named::Switch(_) = out[d] {
+            active = (byte - ACTION_SWITCH_0) as usize;
+        }
+    }
+    out
+}
+
+// the three highest-visit arms, ties to the lowest byte
+fn top3(arms: &[ArmStat]) -> Vec<u8> {
+    let mut v: Vec<&ArmStat> = arms.iter().collect();
+    v.sort_by(|a, b| b.visits.cmp(&a.visits).then(a.action.cmp(&b.action)));
+    v.iter().take(3).map(|a| a.action).collect()
+}
+
+fn jaccard<T: PartialEq>(a: &[T], b: &[T]) -> f64 {
+    let inter = a.iter().filter(|x| b.contains(x)).count();
+    let union = a.len() + b.len() - inter;
+    if union == 0 { 1.0 } else { inter as f64 / union as f64 }
+}
+
+fn mean_pairwise_jaccard<T: PartialEq>(sets: &[Vec<T>]) -> f64 {
+    let mut sum = 0.0;
+    let mut pairs = 0u32;
+    for i in 0..sets.len() {
+        for j in i + 1..sets.len() {
+            sum += jaccard(&sets[i], &sets[j]);
+            pairs += 1;
+        }
+    }
+    if pairs == 0 { 0.0 } else { sum / pairs as f64 }
+}
+
+// how many worlds fall into the largest group agreeing on the prefix through ply d, and how
+// many distinct prefixes there are; sharing at depth d is "largest group >= 2"
+fn prefix_groups<T: PartialEq>(prefixes: &[Vec<T>], d: usize) -> (usize, usize) {
+    let mut reps: Vec<(&[T], usize)> = Vec::with_capacity(prefixes.len());
+    for p in prefixes {
+        let key = &p[..d];
+        match reps.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, n)) => *n += 1,
+            None => reps.push((key, 1)),
+        }
+    }
+    (reps.len(), reps.iter().map(|(_, n)| *n).max().unwrap_or(0))
+}
+
+struct ShareCell {
+    opp_species: u16,
+    principal: [(u8, u8); 3],
+    opp_named: [Named; 3],
+    top3_ours: Vec<u8>,
+    iters: u64,
+}
+
+#[derive(Default)]
+struct ShareRun {
+    seed: u64,
+    share_raw: [bool; 3],
+    share_mng: [bool; 3],
+    distinct_raw: [usize; 3],
+    distinct_mng: [usize; 3],
+    maxgroup_raw: [usize; 3],
+    maxgroup_mng: [usize; 3],
+    jac_ours: f64,
+    jac_opp: f64,
+    short: u32,
+    truncated: u32,
+    one_sided: u32,
+    min_iters: u64,
+    worlds: Vec<ShareCell>,
+}
+
+fn share_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig) -> ShareRun {
+    let side = snap.side as usize;
+    let opp = 1 - side;
+    let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
+    let belief = &snap.beliefs[side];
+    let trace = choose_action_traced(&obs, belief, &RandomBattle, cfg);
+    // the same draw `choose_action_traced` made, replayed for the sampled sets the trace omits
+    let worlds = RandomBattle.sample_worlds(&obs, belief, cfg.num_worlds, &mut Lcg::new(splitmix64(cfg.seed)));
+    assert_eq!(trace.per_world.len(), cfg.num_worlds, "root {position}: world count");
+    assert_eq!(worlds.len(), cfg.num_worlds, "root {position}: replayed world count");
+    let mut run = ShareRun { seed, min_iters: u64::MAX, ..Default::default() };
+    let mut raw: Vec<Vec<(u8, u8)>> = Vec::with_capacity(cfg.num_worlds);
+    let mut mng: Vec<Vec<(u8, Named)>> = Vec::with_capacity(cfg.num_worlds);
+    let mut ours: Vec<Vec<u8>> = Vec::with_capacity(cfg.num_worlds);
+    let mut opps: Vec<Vec<Named>> = Vec::with_capacity(cfg.num_worlds);
+    for (k, w) in trace.per_world.iter().enumerate() {
+        let ws = &worlds[k].state;
+        let am = ws.active_mon(opp);
+        assert!(
+            (am.species_id, am.item_id, am.ability_id, am.current_hp, am.max_hp, am.status)
+                == (w.opp_species, w.opp_item, w.opp_ability, w.opp_hp, w.opp_max_hp, w.opp_status),
+            "root {position} world {k}: the replayed world is not the searched one"
+        );
+        let opp_named = opp_meaning_path(ws, opp, &w.principal);
+        run.short += (w.iterations < cfg.max_iters_per_world) as u32;
+        run.min_iters = run.min_iters.min(w.iterations);
+        run.truncated += w.principal.iter().any(|&(a, b)| a == NO_ARM && b == NO_ARM) as u32;
+        run.one_sided += w
+            .principal
+            .iter()
+            .filter(|&&(a, b)| (a == NO_ARM) != (b == NO_ARM))
+            .count() as u32;
+        raw.push(w.principal.to_vec());
+        mng.push(w.principal.iter().zip(opp_named).map(|(&(a, _), n)| (a, n)).collect());
+        let t3 = top3(&w.arms);
+        opps.push(top3(&w.s2).iter().map(|&b| named(ws, opp, ws.sides[opp].active_index as usize, b)).collect());
+        ours.push(t3.clone());
+        run.worlds.push(ShareCell {
+            opp_species: w.opp_species,
+            principal: w.principal,
+            opp_named,
+            top3_ours: t3,
+            iters: w.iterations,
+        });
+    }
+    for d in 0..3 {
+        let (dr, gr) = prefix_groups(&raw, d + 1);
+        let (dm, gm) = prefix_groups(&mng, d + 1);
+        run.distinct_raw[d] = dr;
+        run.maxgroup_raw[d] = gr;
+        run.share_raw[d] = gr >= 2;
+        run.distinct_mng[d] = dm;
+        run.maxgroup_mng[d] = gm;
+        run.share_mng[d] = gm >= 2;
+    }
+    run.jac_ours = mean_pairwise_jaccard(&ours);
+    run.jac_opp = mean_pairwise_jaccard(&opps);
+    run
+}
+
+// mean over roots of the per-root value (itself averaged over the seeds in the row), with the
+// standard error of that per-root mean at n = roots
+fn root_mean_se(per_root: &[Vec<&ShareRun>], f: impl Fn(&ShareRun) -> f64) -> (f64, f64) {
+    let x: Vec<f64> = per_root
+        .iter()
+        .map(|rs| rs.iter().map(|r| f(r)).sum::<f64>() / rs.len() as f64)
+        .collect();
+    let n = x.len();
+    let m = x.iter().sum::<f64>() / n as f64;
+    if n < 2 { return (m, 0.0); }
+    let sd = (x.iter().map(|v| (v - m).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt();
+    (m, sd / (n as f64).sqrt())
+}
+
+fn sharing_row(label: &str, per_root: &[Vec<&ShareRun>], worlds: usize) -> String {
+    let all: Vec<&ShareRun> = per_root.iter().flatten().copied().collect();
+    let mut s = format!("{label}\t{}\t{worlds}", per_root.len());
+    for d in 0..3 {
+        let (m, se) = root_mean_se(per_root, |r| r.share_raw[d] as u8 as f64);
+        s.push_str(&format!("\t{m:.6}\t{se:.6}"));
+    }
+    for d in 0..3 {
+        let (m, se) = root_mean_se(per_root, |r| r.share_mng[d] as u8 as f64);
+        s.push_str(&format!("\t{m:.6}\t{se:.6}"));
+    }
+    for d in 0..3 {
+        let (m, _) = root_mean_se(per_root, |r| r.distinct_raw[d] as f64);
+        let (g, _) = root_mean_se(per_root, |r| r.maxgroup_raw[d] as f64);
+        s.push_str(&format!("\t{m:.4}\t{g:.4}"));
+    }
+    for d in 0..3 {
+        let (m, _) = root_mean_se(per_root, |r| r.distinct_mng[d] as f64);
+        let (g, _) = root_mean_se(per_root, |r| r.maxgroup_mng[d] as f64);
+        s.push_str(&format!("\t{m:.4}\t{g:.4}"));
+    }
+    let (jo, jo_se) = root_mean_se(per_root, |r| r.jac_ours);
+    let (jp, jp_se) = root_mean_se(per_root, |r| r.jac_opp);
+    let sum = |f: fn(&ShareRun) -> u32| all.iter().map(|r| f(r) as u64).sum::<u64>();
+    s.push_str(&format!(
+        "\t{jo:.6}\t{jo_se:.6}\t{jp:.6}\t{jp_se:.6}\t{}\t{}\t{}\t{}\n",
+        sum(|r| r.truncated),
+        sum(|r| (r.truncated > 0) as u32),
+        sum(|r| r.one_sided),
+        sum(|r| r.short)
+    ));
+    s
+}
+
+fn support_sharing(args: &[String]) {
+    let path = arg(args, "--snapshots", "../.decompose/frontier/results/0.1.snapshots.bin");
+    let snaps = read_all(&path).unwrap_or_else(|e| panic!("read_all {path}: {e}"));
+    println!("snapshots: path={path} count={}", snaps.len());
+    let seeds: Vec<u64> = list(args, "--seeds", "1,2,3");
+    let worlds: usize = parse(args, "--worlds", "8");
+    let iters: u64 = parse(args, "--iters", "35199");
+    let time_ms: u64 = parse(args, "--time-ms", "600000");
+    let threads: usize = parse(args, "--threads", &std::thread::available_parallelism().map_or(1, |n| n.get()).to_string());
+    let out = arg(args, "--out", "results/0.11.sharing.tsv");
+    let dump = arg(args, "--dump", "results/0.11.paths.tsv");
+    let roots_file = arg(args, "--roots", "results/0.7.roots.tsv");
+    let roots = load_roots(&roots_file, &snaps);
+    println!("roots: loaded={} file={roots_file}", roots.len());
+    assert!(!roots.is_empty(), "no roots kept");
+    for p in [&out, &dump] {
+        if let Some(dir) = std::path::Path::new(p).parent() {
+            std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+        }
+    }
+    println!(
+        "support-sharing: roots={} seeds={seeds:?} worlds={worlds} iters={iters} time_ms={time_ms} evaluator=Handcrafted determinizer=RandomBattle chance=OpenLoop pick=Argmax filter={PICK_FILTER} raw_root=false explore_coeff={EXPLORE_COEFF} value_temp=1.0 top_arm=max_visits_lowest_byte_on_ties threads={threads}",
+        roots.len()
+    );
+    let cfg = |seed: u64| PimcConfig {
+        num_worlds: worlds,
+        time_ms_per_world: time_ms,
+        max_iters_per_world: iters,
+        seed,
+        chance_mode: ChanceMode::OpenLoop,
+        pick_mode: PickMode::Argmax,
+        filter_threshold: PICK_FILTER,
+        raw_root: false,
+        explore_coeff: EXPLORE_COEFF,
+        value_temp: 1.0,
+    };
+
+    let done = AtomicU64::new(0);
+    let iters_total = AtomicU64::new(0);
+    let first = AtomicBool::new(false);
+    let wall = Instant::now();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let runs: Vec<Vec<ShareRun>> = pool.install(|| {
+        roots.par_iter().map(|root| {
+            let snap = &snaps[root.position];
+            let runs: Vec<ShareRun> = seeds.iter().map(|&s| share_root(snap, root.position, s, &cfg(row_seed(s, root.position)))).collect();
+            let total: u64 = runs.iter().flat_map(|r| &r.worlds).map(|w| w.iters).sum();
+            iters_total.fetch_add(total, Ordering::Relaxed);
+            if !first.swap(true, Ordering::Relaxed) {
+                println!("first root={} game={} turn={} side={} iters_min={}", root.position, root.game, root.turn, root.side, runs.iter().map(|r| r.min_iters).min().unwrap());
+            }
+            let d = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if d % 100 == 0 {
+                eprintln!("progress roots={d}/{} wall_s={:.0}", roots.len(), wall.elapsed().as_secs_f64());
+            }
+            runs
+        }).collect()
+    });
+    let wall_s = wall.elapsed().as_secs_f64();
+    let total = iters_total.load(Ordering::Relaxed);
+    let short: u64 = runs.iter().flatten().map(|r| r.short as u64).sum();
+    let truncated: u64 = runs.iter().flatten().map(|r| r.truncated as u64).sum();
+    let one_sided: u64 = runs.iter().flatten().map(|r| r.one_sided as u64).sum();
+    let short_principals: u64 = runs.iter().flatten().filter(|r| r.truncated > 0).count() as u64;
+    println!(
+        "support-sharing-done roots={} seeds={} wall_s={wall_s:.1} iters={total} iters_per_s={:.0} iters_per_s_per_thread={:.0} short_searches={short} short_principal_worlds={truncated} short_principal_roots={short_principals} one_sided_plies={one_sided}",
+        roots.len(), seeds.len(), total as f64 / wall_s, total as f64 / wall_s / threads as f64
+    );
+
+    let byte = |b: u8| if b == NO_ARM { "-".to_string() } else { b.to_string() };
+    let mut s = String::from("position\tgame\tturn\tside\tseed\tworld\topp_species\tp1_ours\tp1_opp\tp2_ours\tp2_opp\tp3_ours\tp3_opp\tp1_opp_named\tp2_opp_named\tp3_opp_named\ttop3_ours\titers\tshare_d1_raw\tshare_d2_raw\tshare_d3_raw\tshare_d1_meaning\tshare_d2_meaning\tshare_d3_meaning\tjaccard_ours\tjaccard_opp_meaning\n");
+    for (root, rs) in roots.iter().zip(&runs) {
+        for r in rs {
+            for (k, w) in r.worlds.iter().enumerate() {
+                s.push_str(&format!(
+                    "{}\t{}\t{}\t{}\t{}\t{k}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.6}\t{:.6}\n",
+                    root.position, root.game, root.turn, root.side, r.seed, w.opp_species,
+                    byte(w.principal[0].0), byte(w.principal[0].1),
+                    byte(w.principal[1].0), byte(w.principal[1].1),
+                    byte(w.principal[2].0), byte(w.principal[2].1),
+                    w.opp_named[0].label(), w.opp_named[1].label(), w.opp_named[2].label(),
+                    w.top3_ours.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(","),
+                    w.iters,
+                    r.share_raw[0] as u8, r.share_raw[1] as u8, r.share_raw[2] as u8,
+                    r.share_mng[0] as u8, r.share_mng[1] as u8, r.share_mng[2] as u8,
+                    r.jac_ours, r.jac_opp
+                ));
+            }
+        }
+    }
+    std::fs::write(&dump, s).unwrap_or_else(|e| panic!("write {dump}: {e}"));
+
+    let mut t = String::from("seed\troots\tworlds\tshare_d1_raw\tshare_d1_raw_se\tshare_d2_raw\tshare_d2_raw_se\tshare_d3_raw\tshare_d3_raw_se\tshare_d1_meaning\tshare_d1_meaning_se\tshare_d2_meaning\tshare_d2_meaning_se\tshare_d3_meaning\tshare_d3_meaning_se\tdistinct_d1_raw\tmaxgroup_d1_raw\tdistinct_d2_raw\tmaxgroup_d2_raw\tdistinct_d3_raw\tmaxgroup_d3_raw\tdistinct_d1_meaning\tmaxgroup_d1_meaning\tdistinct_d2_meaning\tmaxgroup_d2_meaning\tdistinct_d3_meaning\tmaxgroup_d3_meaning\tjaccard_ours\tjaccard_ours_se\tjaccard_opp_meaning\tjaccard_opp_meaning_se\tshort_principal_worlds\tshort_principal_roots\tone_sided_plies\tshort_searches\n");
+    for (i, seed) in seeds.iter().enumerate() {
+        let per_root: Vec<Vec<&ShareRun>> = runs.iter().map(|rs| vec![&rs[i]]).collect();
+        t.push_str(&sharing_row(&seed.to_string(), &per_root, worlds));
+    }
+    let per_root: Vec<Vec<&ShareRun>> = runs.iter().map(|rs| rs.iter().collect()).collect();
+    t.push_str(&sharing_row("pooled", &per_root, worlds));
+    print!("{t}");
+    std::fs::write(&out, t).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    println!("support-sharing-out summary={out} dump={dump} roots={roots_file}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--count") {
@@ -793,11 +1120,14 @@ fn main() {
         signal(&args);
     } else if args.iter().any(|a| a == "--declairvoyance") {
         declairvoyance(&args);
+    } else if args.iter().any(|a| a == "--support-sharing") {
+        support_sharing(&args);
     } else {
-        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
+        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
         eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
         eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
         eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv]");
+        eprintln!("  --support-sharing [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.11.sharing.tsv] [--dump results/0.11.paths.tsv]");
         std::process::exit(2);
     }
 }
@@ -836,6 +1166,55 @@ mod tests {
         assert!(is_tera(Some(10)) && !is_switch(Some(10)));
         assert!(is_tera(Some(13)) && !is_switch(Some(13)));
         assert!(!is_tera(None) && !is_switch(None));
+    }
+
+    #[test]
+    fn top3_is_the_three_busiest_arms_lowest_byte_on_ties() {
+        assert_eq!(top3(&[arm(4, 10), arm(0, 10), arm(1, 9), arm(7, 11)]), vec![7, 0, 4]);
+        assert_eq!(top3(&[arm(2, 1)]), vec![2]);
+        assert!(top3(&[]).is_empty());
+    }
+
+    #[test]
+    fn jaccard_is_intersection_over_union() {
+        assert_eq!(jaccard(&[0u8, 1, 2], &[0, 1, 2]), 1.0);
+        assert_eq!(jaccard(&[0u8, 1, 2], &[3, 4, 5]), 0.0);
+        assert_eq!(jaccard(&[0u8, 1, 2], &[1, 2, 3]), 0.5);
+        assert_eq!(jaccard::<u8>(&[], &[]), 1.0);
+        assert_eq!(mean_pairwise_jaccard(&[vec![0u8, 1], vec![0, 1], vec![2, 3]]), 1.0 / 3.0);
+    }
+
+    #[test]
+    fn prefix_groups_counts_the_largest_agreeing_set() {
+        let p = vec![vec![1u8, 2, 3], vec![1, 2, 9], vec![1, 7, 7], vec![1, 2, 3]];
+        assert_eq!(prefix_groups(&p, 1), (1, 4));
+        assert_eq!(prefix_groups(&p, 2), (2, 3));
+        assert_eq!(prefix_groups(&p, 3), (3, 2));
+        assert_eq!(prefix_groups(&[vec![0u8], vec![1], vec![2]], 1), (3, 1));
+    }
+
+    #[test]
+    fn action_bytes_decode_to_what_they_name() {
+        let mut rng = Lcg::new(4);
+        let (state, _teams) = initial_state(&gen_team(&mut rng), &gen_team(&mut rng));
+        let side = 0usize;
+        let active = state.sides[side].active_index as usize;
+        let moves = effective_moves(&state, side);
+        assert_eq!(named(&state, side, active, 0), Named::Move(moves[0], false));
+        assert_eq!(named(&state, side, active, ACTION_TERA_0 + 2), Named::Move(moves[2], true));
+        assert_ne!(named(&state, side, active, 0), named(&state, side, active, ACTION_TERA_0));
+        let bench = (0..6).find(|&j| j != active).unwrap();
+        assert_eq!(
+            named(&state, side, active, ACTION_SWITCH_0 + bench as u8),
+            Named::Switch(state.sides[side].team[bench].species_id)
+        );
+        assert_eq!(named(&state, side, active, NO_ARM), Named::Absent);
+        // a switch byte moves the slot the later plies read their moves from
+        let path = [(0u8, ACTION_SWITCH_0 + bench as u8), (0, 1), (0, NO_ARM)];
+        let got = opp_meaning_path(&state, side, &path);
+        assert_eq!(got[0], Named::Switch(state.sides[side].team[bench].species_id));
+        assert_eq!(got[1], Named::Move(state.sides[side].team[bench].moves[1], false));
+        assert_eq!(got[2], Named::Absent);
     }
 
     fn snapshot(seed: u64, game: u64, turn: u16, side: u8) -> NativeSnapshot {

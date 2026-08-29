@@ -50,17 +50,38 @@ pub struct ArmStat {
     pub win_chance: f64,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SearchResult {
     pub s1: Vec<ArmStat>,
     pub s2: Vec<ArmStat>,
     pub iterations: u64,
     pub guard_hits: u64,
     pub depth_sum: u64,
+    // Max-visit joint action (side 0's byte, side 1's byte) at each of the first three plies of
+    // the finished tree, in the same absolute side order as s1/s2; NO_ARM where the ply or the
+    // side's bandit is absent. Diagnostic only.
+    pub principal: [(u8, u8); 3],
     #[cfg(feature = "train_value")]
     pub value_sum: f64,
     #[cfg(feature = "train_value")]
     pub value_count: u64,
+}
+
+impl Default for SearchResult {
+    fn default() -> Self {
+        SearchResult {
+            s1: Vec::new(),
+            s2: Vec::new(),
+            iterations: 0,
+            guard_hits: 0,
+            depth_sum: 0,
+            principal: NO_PRINCIPAL,
+            #[cfg(feature = "train_value")]
+            value_sum: 0.0,
+            #[cfg(feature = "train_value")]
+            value_count: 0,
+        }
+    }
 }
 
 impl SearchResult {
@@ -68,7 +89,8 @@ impl SearchResult {
 }
 
 struct PathStep { node: usize, a1: u8, a2: u8 } // arm indices; 255 = side had no bandit
-const NO_ARM: u8 = 255;
+pub const NO_ARM: u8 = 255;
+pub const NO_PRINCIPAL: [(u8, u8); 3] = [(NO_ARM, NO_ARM); 3];
 
 pub fn search_world(
     root_state: &BattleState,
@@ -84,7 +106,7 @@ pub fn search_world(
     let mut tree: Vec<Node> = Vec::with_capacity(4096);
     tree.push(Node::from_state(root_state));
     if root_state.is_game_over() || (tree[0].s1.is_empty() && tree[0].s2.is_empty()) {
-        return harvest(&tree[0], 0, 0, 0);
+        return harvest(&tree, 0, 0, 0);
     }
     let root_eval = evaluator.eval(root_state) as f32;
     let start = Instant::now();
@@ -230,7 +252,7 @@ pub fn search_world(
         iters += 1;
     }
 
-    let mut res = harvest(&tree[0], iters, guard_hits, depth_sum);
+    let mut res = harvest(&tree, iters, guard_hits, depth_sum);
     #[cfg(feature = "train_value")]
     {
         res.value_sum = value_sum;
@@ -320,6 +342,7 @@ pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit
         iterations,
         guard_hits,
         depth_sum,
+        principal: NO_PRINCIPAL,
         #[cfg(feature = "train_value")]
         value_sum: 0.0,
         #[cfg(feature = "train_value")]
@@ -327,8 +350,37 @@ pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit
     }
 }
 
-pub(crate) fn harvest(root: &Node, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
-    harvest_bandits(&root.s1, &root.s2, iterations, guard_hits, depth_sum)
+pub(crate) fn harvest(tree: &[Node], iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
+    let mut res = harvest_bandits(&tree[0].s1, &tree[0].s2, iterations, guard_hits, depth_sum);
+    res.principal = principal_path(tree);
+    res
+}
+
+// max visits, ties to the lowest action byte -- the rule the raw-root pick already uses
+fn best_arm(b: &crate::node::Bandit) -> (u8, u8) {
+    if b.is_empty() { return (NO_ARM, NO_ARM); }
+    let mut best = 0usize;
+    for i in 1..b.len as usize {
+        let (x, y) = (&b.arms[i], &b.arms[best]);
+        if x.visits > y.visits || (x.visits == y.visits && x.action < y.action) { best = i; }
+    }
+    (best as u8, b.arms[best].action)
+}
+
+fn principal_path(tree: &[Node]) -> [(u8, u8); 3] {
+    let mut out = NO_PRINCIPAL;
+    let mut idx = 0usize;
+    for ply in out.iter_mut() {
+        let node = &tree[idx];
+        let (i1, a1) = best_arm(&node.s1);
+        let (i2, a2) = best_arm(&node.s2);
+        if a1 == NO_ARM && a2 == NO_ARM { break; }
+        *ply = (a1, a2);
+        let child = node.children[child_key(arm0(i1), arm0(i2))];
+        if child == NO_CHILD { break; }
+        idx = child as usize;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -535,6 +587,60 @@ mod tests {
         assert_eq!(r.value_count, r.iterations, "one absolute leaf value per iteration");
         let mean = r.value_sum / r.value_count as f64;
         assert!((0.0..=1.0).contains(&mean), "mean leaf value {mean} outside [0,1]");
+    }
+
+    #[test]
+    fn best_arm_takes_max_visits_and_the_lowest_byte_on_ties() {
+        use crate::node::{Bandit, MoveNode};
+        let mut b = Bandit::default();
+        for (i, (action, visits)) in [(4u8, 10u32), (0, 10), (1, 9)].into_iter().enumerate() {
+            b.arms[i] = MoveNode { action, total_score: 0.0, visits };
+            b.len += 1;
+        }
+        assert_eq!(best_arm(&b), (1, 0), "tie goes to the lowest byte, at its own arm index");
+        b.arms[2].visits = 30;
+        assert_eq!(best_arm(&b), (2, 1));
+        assert_eq!(best_arm(&Bandit::default()), (NO_ARM, NO_ARM));
+    }
+
+    // both sides keep a live bench, so the max-visit joint action does not always end the game
+    fn benched_root() -> (BattleState, TeamData) {
+        build_state(
+            vec![mon(143, 47, [34, 89, 33, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(130, 22, [57, 85, 33, 0]), mon(445, 24, [89, 14, 0, 0])],
+        )
+    }
+
+    #[test]
+    fn principal_follows_the_max_visit_joint_path() {
+        let (s, t) = benched_root();
+        let r = run(&s, &t, 10_000, 20_000, 3);
+        let top = |arms: &[ArmStat]| {
+            arms.iter().max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action))).unwrap().action
+        };
+        assert_eq!(r.principal[0], (top(&r.s1), top(&r.s2)), "ply 1 is the root's max-visit joint arm");
+        for (d, ply) in r.principal.iter().enumerate() {
+            assert_ne!(*ply, (NO_ARM, NO_ARM), "ply {} must exist after 20,000 iterations", d + 1);
+        }
+    }
+
+    #[test]
+    fn principal_is_absent_at_a_terminal_root() {
+        let (mut s, t) = duel(mon(25, 9, [85, 0, 0, 0]), mon(445, 24, [89, 0, 0, 0]));
+        s.sides[1].team[0].current_hp = 0;
+        s.phase = PHASE_GAME_OVER;
+        assert_eq!(run(&s, &t, 10, 100, 1).principal, NO_PRINCIPAL);
+    }
+
+    #[test]
+    fn principal_marks_the_side_with_no_bandit() {
+        let (mut s, t) = benched_root();
+        s.sides[0].team[0].current_hp = 0;
+        s.phase = PHASE_SWITCH_P1;
+        assert_eq!(legal_actions(&s, 1).count, 0, "fixture: side 1 does not act in this phase");
+        let r = run(&s, &t, 10_000, 2_000, 4);
+        assert_eq!(r.principal[0].1, NO_ARM, "the non-acting side carries no byte");
+        assert_ne!(r.principal[0].0, NO_ARM, "the replacing side does");
     }
 
     #[test]

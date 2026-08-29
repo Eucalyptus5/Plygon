@@ -335,6 +335,8 @@ pub struct WorldTrace {
     pub opp_status: u8,
     pub arms: Vec<ArmStat>,
     pub s2: Vec<ArmStat>,
+    // oriented like `arms`/`s2`: (our byte, the opponent's), not side 0's then side 1's
+    pub principal: [(u8, u8); 3],
 }
 
 #[derive(Clone)]
@@ -388,6 +390,7 @@ pub fn choose_action_traced_salted(obs: &Observation, belief: &Belief, det: &imp
             opp_hp: om.current_hp, opp_max_hp: om.max_hp, opp_status: om.status,
             arms: r.side(obs.our_side).to_vec(),
             s2: r.side(opp).to_vec(),
+            principal: if obs.our_side == 0 { r.principal } else { r.principal.map(|(a, b)| (b, a)) },
         }
     }).collect();
     let per_world_stats: Vec<(Vec<ArmStat>, f64)> =
@@ -422,6 +425,35 @@ mod tests {
         s.sides[1].team[ai].current_hp = 0;
         s.phase = PHASE_SWITCH_P2;
         (s, t)
+    }
+
+    // pinned because SearchResult::principal is in absolute side order and WorldTrace's is not
+    #[test]
+    fn traced_principal_is_oriented_to_our_side() {
+        let (s, t) = build_state(
+            vec![mon(143, 47, [34, 89, 33, 0]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(130, 22, [57, 85, 33, 0]), mon(445, 24, [89, 14, 0, 0])],
+        );
+        let top = |arms: &[ArmStat]| {
+            arms.iter().max_by(|a, b| a.visits.cmp(&b.visits).then(b.action.cmp(&a.action))).unwrap().action
+        };
+        for our_side in [0usize, 1] {
+            let opp = 1 - our_side;
+            let mut belief = Belief::default();
+            belief.note_species(s.sides[opp].team[0].species_id, s.sides[opp].team[0].level);
+            let obs = Observation { state: &s, our_side, teams: &t };
+            let cfg = PimcConfig {
+                num_worlds: 4, time_ms_per_world: 10_000, max_iters_per_world: 4_000,
+                seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax,
+                filter_threshold: 0.75, raw_root: false, explore_coeff: 0.49, value_temp: 1.0,
+            };
+            let tr = choose_action_traced(&obs, &belief, &RandomBattle, &cfg);
+            assert_eq!(tr.per_world.len(), 4);
+            for (k, w) in tr.per_world.iter().enumerate() {
+                assert_eq!(w.principal[0].0, top(&w.arms), "side {our_side} world {k}: our byte");
+                assert_eq!(w.principal[0].1, top(&w.s2), "side {our_side} world {k}: the opponent's");
+            }
+        }
     }
 
     #[test]
