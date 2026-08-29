@@ -334,6 +334,7 @@ pub struct WorldTrace {
     pub opp_max_hp: u16,
     pub opp_status: u8,
     pub arms: Vec<ArmStat>,
+    pub s2: Vec<ArmStat>,
 }
 
 #[derive(Clone)]
@@ -346,6 +347,10 @@ pub struct DecisionTrace {
 }
 
 pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig) -> DecisionTrace {
+    choose_action_traced_salted(obs, belief, det, cfg, 0)
+}
+
+pub fn choose_action_traced_salted(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, search_salt: u64) -> DecisionTrace {
     let legal = legal_actions(obs.state, obs.our_side);
     let legal_vec: Vec<u8> = legal.as_slice().to_vec();
     if legal.count <= 1 {
@@ -366,7 +371,7 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
         params.max_nodes = closed_loop_max_nodes(cfg.num_worlds);
     }
     let traced: Vec<WorldTrace> = worlds.par_iter().enumerate().map(|(k, w)| {
-        let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
+        let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ search_salt);
         let r = match cfg.chance_mode {
             ChanceMode::OpenLoop =>
                 search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed, obs.our_side, None),
@@ -382,6 +387,7 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
             opp_species: om.species_id, opp_item: om.item_id, opp_ability: om.ability_id,
             opp_hp: om.current_hp, opp_max_hp: om.max_hp, opp_status: om.status,
             arms: r.side(obs.our_side).to_vec(),
+            s2: r.side(opp).to_vec(),
         }
     }).collect();
     let per_world_stats: Vec<(Vec<ArmStat>, f64)> =
@@ -918,6 +924,79 @@ mod tests {
                 .expect("the root must expose arms")
                 .action;
             assert_eq!(got, want, "seed {seed}: T=1.0 must match the search built without the knob");
+        }
+    }
+
+    fn salt_root() -> (BattleState, TeamData) {
+        build_state(
+            vec![mon(25, 9, [85, 150, 33, 34]), mon(143, 47, [34, 89, 0, 0])],
+            vec![mon(445, 24, [89, 14, 33, 0]), mon(130, 22, [57, 85, 0, 0])],
+        )
+    }
+
+    fn av(arms: &[ArmStat]) -> Vec<(u8, u32)> {
+        arms.iter().map(|a| (a.action, a.visits)).collect()
+    }
+
+    #[test]
+    fn salt_zero_reproduces_the_unsalted_trace() {
+        let (s, t) = salt_root();
+        let mut belief = Belief::default();
+        belief.note_species(445, s.sides[1].team[0].level);
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = temp_cfg(17, 1.0);
+        let a = choose_action_traced(&obs, &belief, &RandomBattle, &cfg);
+        let b = choose_action_traced_salted(&obs, &belief, &RandomBattle, &cfg, 0);
+        assert_eq!(a.picked, b.picked);
+        assert_eq!(b.picked, choose_action(&obs, &belief, &RandomBattle, &cfg));
+        assert_eq!(a.per_world.len(), cfg.num_worlds);
+        assert_eq!(a.per_world.len(), b.per_world.len());
+        for (x, y) in a.per_world.iter().zip(&b.per_world) {
+            assert_eq!(x.iterations, y.iterations);
+            assert_eq!(av(&x.arms), av(&y.arms));
+            assert_eq!(av(&x.s2), av(&y.s2));
+        }
+    }
+
+    #[test]
+    fn a_salt_moves_only_the_search() {
+        let (s, t) = salt_root();
+        let mut belief = Belief::default();
+        belief.note_species(445, s.sides[1].team[0].level);
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = temp_cfg(17, 1.0);
+        let a = choose_action_traced_salted(&obs, &belief, &RandomBattle, &cfg, 0);
+        let b = choose_action_traced_salted(&obs, &belief, &RandomBattle, &cfg, 0xA0761D6478BD642F);
+        assert_eq!(a.per_world.len(), b.per_world.len());
+        let mut moved = false;
+        for (x, y) in a.per_world.iter().zip(&b.per_world) {
+            assert_eq!((x.opp_species, x.opp_item, x.opp_ability), (y.opp_species, y.opp_item, y.opp_ability));
+            assert_eq!((x.opp_hp, x.opp_max_hp, x.opp_status), (y.opp_hp, y.opp_max_hp, y.opp_status));
+            moved |= av(&x.arms) != av(&y.arms);
+        }
+        assert!(moved, "the salt must move at least one world's search");
+    }
+
+    #[test]
+    fn s2_holds_the_opponents_root_arms() {
+        let (s, t) = salt_root();
+        for us in 0..2 {
+            let opp_active = s.sides[1 - us].team[0];
+            let mut belief = Belief::default();
+            belief.note_species(opp_active.species_id, opp_active.level);
+            let obs = Observation { state: &s, our_side: us, teams: &t };
+            let tr = choose_action_traced(&obs, &belief, &RandomBattle, &temp_cfg(19, 1.0));
+            assert_eq!(tr.per_world.len(), 4);
+            for w in &tr.per_world {
+                assert!(!w.s2.is_empty(), "us={us}");
+                assert!(w.s2.iter().all(|a| a.action <= 13), "us={us}");
+                let ours: u64 = w.arms.iter().map(|a| a.visits as u64).sum();
+                let theirs: u64 = w.s2.iter().map(|a| a.visits as u64).sum();
+                assert!(theirs >= 1, "us={us}");
+                assert_eq!(theirs, ours, "us={us}: both root bandits are pulled once per iteration");
+                assert_eq!(ours, w.iterations, "us={us}");
+                assert_ne!(av(&w.arms), av(&w.s2), "us={us}");
+            }
         }
     }
 }

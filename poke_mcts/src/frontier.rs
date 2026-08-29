@@ -1,5 +1,5 @@
 use crate::belief::{possible, species_sets_with_base_fallback, Belief, MonBelief, ScreenMask};
-use crate::determinize::{install, sample_set, sample_unrevealed_species};
+use crate::determinize::{install, sample_set, sample_unrevealed_species, Determinizer, Observation, World};
 use crate::eval::{winner_value, Evaluator};
 use crate::rng::{splitmix64, Lcg};
 use pkmn_engine::state::*;
@@ -68,6 +68,65 @@ pub fn mask_to_skeleton(state: &BattleState, decider: usize, belief: &Belief) ->
         out.sides[opp].team[slot] = t;
     }
     out
+}
+
+pub struct Declairvoyant<D: Determinizer> {
+    pub inner: D,
+    pub opp_view: Belief,
+}
+
+impl<D: Determinizer> Determinizer for Declairvoyant<D> {
+    fn sample_worlds(&self, obs: &Observation, belief: &Belief, n: usize, rng: &mut Lcg) -> Vec<World> {
+        let mut worlds = self.inner.sample_worlds(obs, belief, n, rng);
+        let us = obs.our_side;
+        let team = &obs.state.sides[us].team;
+        let active = obs.state.sides[us].active_index as usize;
+        let screen = self.opp_view.screen;
+        let seen = |slot: usize| slot == active || known_slot(&self.opp_view, team[slot].species_id).is_some();
+        for w in worlds.iter_mut() {
+            let mut taken: Vec<u16> = Vec::with_capacity(6);
+            for slot in (0..6).filter(|&s| team[s].species_id != 0 && seen(s)) {
+                let mb = known_slot(&self.opp_view, team[slot].species_id)
+                    .copied()
+                    .unwrap_or(MonBelief { species_id: team[slot].species_id, ..Default::default() });
+                let input = sample_set(team[slot].species_id, &mb, screen, rng);
+                install(&mut w.state, &mut w.teams, us, slot, &input, Some(&team[slot]), None);
+                copy_true_pp(&mut w.state.sides[us].team[slot], &team[slot]);
+                taken.push(input.species_id);
+            }
+            for slot in (0..6).filter(|&s| team[s].species_id != 0 && !seen(s)) {
+                let sp = sample_unrevealed_species(&taken, screen, rng);
+                taken.push(sp);
+                let input = sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, screen, rng);
+                install(&mut w.state, &mut w.teams, us, slot, &input, Some(&team[slot]), None);
+                copy_true_pp(&mut w.state.sides[us].team[slot], &team[slot]);
+            }
+        }
+        worlds
+    }
+}
+
+// install writes max PP; without this the re-sampled side gets a full tank while the true side carries spent PP
+fn copy_true_pp(mon: &mut MonSlot, true_mon: &MonSlot) {
+    let full = |m: u16| (move_base_pp(m) as u16 * 8 / 5) as u8;
+    let (mut left, mut max) = (0u32, 0u32);
+    for i in 0..4 {
+        if true_mon.moves[i] != 0 {
+            left += true_mon.pp[i] as u32;
+            max += full(true_mon.moves[i]) as u32;
+        }
+    }
+    for j in 0..4 {
+        if mon.moves[j] == 0 {
+            continue;
+        }
+        let f = full(mon.moves[j]);
+        if let Some(i) = (0..4).find(|&i| true_mon.moves[i] == mon.moves[j]) {
+            mon.pp[j] = true_mon.pp[i].min(f);
+        } else if max != 0 {
+            mon.pp[j] = (f as u32 * left / max) as u8;
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -708,5 +767,212 @@ mod playout_tests {
         let p = pe.playout(&state, 0);
         assert_eq!((p.value, p.steps, p.capped), (1.0, 0, false));
         assert_eq!(pe.eval(&state), 1.0);
+    }
+}
+
+#[cfg(test)]
+mod declairvoyant_tests {
+    use super::*;
+    use crate::determinize::RandomBattle;
+
+    fn fixture(seed: u64) -> (BattleState, TeamData) {
+        let mut rng = Lcg::new(seed);
+        let (a, b) = (gen_team(&mut rng), gen_team(&mut rng));
+        initial_state(&a, &b)
+    }
+
+    fn full(m: u16) -> u8 {
+        (move_base_pp(m) as u16 * 8 / 5) as u8
+    }
+
+    fn base(sid: u16) -> u16 {
+        data_bridge::base_species(sid)
+    }
+
+    fn note(belief: &mut Belief, m: &MonSlot) -> usize {
+        belief.note_species(m.species_id, m.level)
+    }
+
+    fn views(state: &BattleState, us: usize) -> (Belief, Belief) {
+        let mut belief = Belief::default();
+        note(&mut belief, state.active_mon(1 - us));
+        let mut opp_view = Belief::default();
+        note(&mut opp_view, state.active_mon(us));
+        note(&mut opp_view, &state.sides[us].team[2]);
+        (belief, opp_view)
+    }
+
+    #[test]
+    fn opponent_slots_are_identical_to_the_unwrapped_draw_at_one_seed() {
+        for us in 0..2 {
+            let opp = 1 - us;
+            for seed in 1..=5u64 {
+                let (state, teams) = fixture(seed);
+                let (belief, opp_view) = views(&state, us);
+                let obs = Observation { state: &state, teams: &teams, our_side: us };
+                let a = RandomBattle.sample_worlds(&obs, &belief, 8, &mut Lcg::new(seed));
+                let det = Declairvoyant { inner: RandomBattle, opp_view };
+                let b = det.sample_worlds(&obs, &belief, 8, &mut Lcg::new(seed));
+                assert_eq!(a.len(), 8);
+                assert_eq!(b.len(), 8);
+                for k in 0..8 {
+                    assert!(a[k].state.sides[opp].team == b[k].state.sides[opp].team, "us={us} seed={seed} world {k}");
+                    assert!(a[k].state.sides[opp] == b[k].state.sides[opp], "us={us} seed={seed} world {k}");
+                    assert_eq!(a[k].teams.mons[opp], b[k].teams.mons[opp]);
+                    assert_eq!(a[k].teams.levels[opp], b[k].teams.levels[opp]);
+                    assert!(a[k].state.field == b[k].state.field);
+                    assert!(b[k].state.sides[us].active == a[k].state.sides[us].active);
+                    assert_eq!(b[k].state.sides[us].active_index, a[k].state.sides[us].active_index);
+                    assert!(b[k].state.sides[us].side_conditions == a[k].state.sides[us].side_conditions);
+                    assert!((b[k].weight - a[k].weight).abs() < 1e-12);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn seen_slots_keep_species_and_reveals_while_unseen_slots_are_redrawn() {
+        let (state, teams) = fixture(21);
+        let us = 0;
+        let truth = state.sides[us].team;
+        assert!(truth[0].item_id != 0 && truth[0].moves[1] != 0, "fixture needs an item and two moves on the active");
+        let mut opp_view = Belief::default();
+        let k = note(&mut opp_view, &truth[0]);
+        opp_view.note_move(k, truth[0].moves[0]);
+        opp_view.note_move(k, truth[0].moves[1]);
+        opp_view.mons[k].item_id = truth[0].item_id;
+        opp_view.mons[k].ability_id = truth[0].ability_id;
+        note(&mut opp_view, &truth[2]);
+        let obs = Observation { state: &state, teams: &teams, our_side: us };
+        let det = Declairvoyant { inner: RandomBattle, opp_view };
+        let worlds = det.sample_worlds(&obs, &Belief::default(), 8, &mut Lcg::new(3));
+        let mut redrawn = false;
+        for w in &worlds {
+            let team = &w.state.sides[us].team;
+            for slot in [0, 2] {
+                assert_eq!(base(team[slot].species_id), base(truth[slot].species_id), "seen slot {slot} keeps its species");
+            }
+            assert!(team[0].moves.contains(&truth[0].moves[0]) && team[0].moves.contains(&truth[0].moves[1]));
+            assert_eq!(team[0].item_id, truth[0].item_id);
+            assert_eq!(team[0].ability_id, truth[0].ability_id);
+            for slot in [1, 3, 4, 5] {
+                assert_ne!(team[slot].species_id, 0);
+                redrawn |= base(team[slot].species_id) != base(truth[slot].species_id);
+            }
+            let mut bases: Vec<u16> = team.iter().map(|m| base(m.species_id)).collect();
+            bases.sort_unstable();
+            bases.dedup();
+            assert_eq!(bases.len(), 6, "no two slots share a base species");
+        }
+        assert!(redrawn, "an unseen slot must be redrawn in at least one world");
+    }
+
+    #[test]
+    fn re_sampled_slots_carry_the_true_public_state() {
+        let (mut state, teams) = fixture(22);
+        let us = 0;
+        state.sides[us].team[0].current_hp = state.sides[us].team[0].max_hp / 2;
+        state.sides[us].team[0].status = STATUS_BURN;
+        state.sides[us].team[3].current_hp = 0;
+        let (belief, opp_view) = views(&state, us);
+        let obs = Observation { state: &state, teams: &teams, our_side: us };
+        let det = Declairvoyant { inner: RandomBattle, opp_view };
+        let worlds = det.sample_worlds(&obs, &belief, 8, &mut Lcg::new(4));
+        for w in &worlds {
+            let m0 = &w.state.sides[us].team[0];
+            let f = m0.current_hp as f64 / m0.max_hp as f64;
+            assert!((f - 0.5).abs() < 0.02, "hp fraction {f}");
+            assert_eq!(m0.status, STATUS_BURN);
+            assert_eq!(w.state.sides[us].team[3].current_hp, 0);
+            assert_ne!(w.state.sides[us].team[3].species_id, 0);
+        }
+    }
+
+    #[test]
+    fn copy_true_pp_follows_the_rule() {
+        let (state, _) = fixture(23);
+        let team = state.sides[0].team;
+        let src = team
+            .iter()
+            .find(|m| {
+                let mut pps: Vec<u8> = m.moves.iter().map(|&x| full(x)).collect();
+                pps.sort_unstable();
+                pps.dedup();
+                m.moves.iter().all(|&x| x != 0) && pps.len() >= 2
+            })
+            .expect("a four-move mon with two distinct base PPs");
+        let [m1, m2, m3, m4] = src.moves;
+        let mut others = team.iter().flat_map(|m| m.moves).filter(|&x| x != 0 && !src.moves.contains(&x));
+        let x = others.next().unwrap();
+        let y = others.find(|&v| v != x).unwrap();
+        let mut true_mon = MonSlot { moves: [m1, m2, m3, m4], pp: [full(m1) - 3, 0, full(m3), 2], ..Default::default() };
+        let fresh = || MonSlot { moves: [m1, x, m3, y], pp: [full(m1), full(x), full(m3), full(y)], ..Default::default() };
+        let left = (full(m1) - 3) as u32 + full(m3) as u32 + 2;
+        let max = full(m1) as u32 + full(m2) as u32 + full(m3) as u32 + full(m4) as u32;
+        let mut mon = fresh();
+        copy_true_pp(&mut mon, &true_mon);
+        assert_eq!(mon.pp[0], full(m1) - 3);
+        assert_eq!(mon.pp[2], full(m3));
+        assert_eq!(mon.pp[1], (full(x) as u32 * left / max) as u8);
+        assert_eq!(mon.pp[3], (full(y) as u32 * left / max) as u8);
+        assert!(mon.pp[1] < full(x) && mon.pp[3] < full(y), "the proportional rule must spend PP here");
+
+        true_mon.pp[0] = 255;
+        let mut mon = fresh();
+        copy_true_pp(&mut mon, &true_mon);
+        assert_eq!(mon.pp[0], full(m1), "true pp above max clamps to max");
+
+        let mut mon = fresh();
+        copy_true_pp(&mut mon, &MonSlot::default());
+        assert_eq!(mon.pp, fresh().pp, "no true moves leaves pp untouched");
+    }
+
+    #[test]
+    fn our_worlds_pp_obey_the_copy_rule_end_to_end() {
+        let (mut state, teams) = fixture(24);
+        let us = 0;
+        {
+            let m = &mut state.sides[us].team[0];
+            assert!(m.moves[1] != 0 && m.pp[0] > 5);
+            m.pp[0] -= 5;
+            m.pp[1] = 0;
+        }
+        let truth = state.sides[us].team[0];
+        let (belief, opp_view) = views(&state, us);
+        let obs = Observation { state: &state, teams: &teams, our_side: us };
+        let det = Declairvoyant { inner: RandomBattle, opp_view };
+        let worlds = det.sample_worlds(&obs, &belief, 8, &mut Lcg::new(6));
+        let left: u32 = (0..4).filter(|&i| truth.moves[i] != 0).map(|i| truth.pp[i] as u32).sum();
+        let max: u32 = (0..4).filter(|&i| truth.moves[i] != 0).map(|i| full(truth.moves[i]) as u32).sum();
+        assert!(left < max);
+        for w in &worlds {
+            let m = &w.state.sides[us].team[0];
+            for j in 0..4 {
+                if m.moves[j] == 0 {
+                    continue;
+                }
+                let want = match truth.moves.iter().position(|&t| t == m.moves[j]) {
+                    Some(i) => truth.pp[i].min(full(m.moves[j])),
+                    None => (full(m.moves[j]) as u32 * left / max) as u8,
+                };
+                assert_eq!(m.pp[j], want, "slot 0 move {j}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_wrapper_is_seed_determined() {
+        let (state, teams) = fixture(25);
+        let (belief, opp_view) = views(&state, 1);
+        let obs = Observation { state: &state, teams: &teams, our_side: 1 };
+        let det = Declairvoyant { inner: RandomBattle, opp_view };
+        let a = det.sample_worlds(&obs, &belief, 8, &mut Lcg::new(7));
+        let b = det.sample_worlds(&obs, &belief, 8, &mut Lcg::new(7));
+        assert_eq!(a.len(), b.len());
+        for (x, y) in a.iter().zip(&b) {
+            assert!(x.state == y.state);
+            assert_eq!(x.teams, y.teams);
+        }
+        assert!(a.iter().any(|w| w.state.sides[1].team != state.sides[1].team), "the wrapper rewrites our side");
     }
 }
