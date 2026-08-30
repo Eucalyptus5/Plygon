@@ -1,10 +1,13 @@
-use pkmn_engine::state::{effective_moves, legal_actions, move_base_pp, BattleState, MonSlot, TeamData, ACTION_SWITCH_0, ACTION_SWITCH_5, ACTION_TERA_0, ACTION_TERA_3, STATUS_BAD_POISON, STATUS_SLEEP, VOL_TRANSFORMED};
+use pkmn_engine::state::team_builder::showdown_type_to_engine;
+use pkmn_engine::state::{data_bridge, effective_moves, legal_actions, move_base_pp, BattleState, MonBuildData, MonSlot, TeamData, MON_FLAG_FEMALE, ACTION_SWITCH_0, ACTION_SWITCH_5, ACTION_TERA_0, ACTION_TERA_3, STATUS_BAD_POISON, STATUS_SLEEP, VOL_TRANSFORMED};
+use poke_mcts::belief::{possible, species_sets_with_base_fallback, Belief, MonBelief};
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::determinize::{Determinizer, Observation, RandomBattle};
 use poke_mcts::driver::{aggregate, choose_action_traced, choose_action_traced_salted, pick_from, PickMode, PimcConfig, WorldTrace};
 use poke_mcts::eval::{Evaluator, Handcrafted};
 use poke_mcts::eval_learned::LearnedValueV2;
 use poke_mcts::frontier::{read_all, read_rows, Declairvoyant, NativeSnapshot, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
+use poke_mcts::gen_sets::SetEntry;
 use poke_mcts::rng::{splitmix64, Lcg};
 use poke_mcts::search::{search_world, ArmStat, ChanceMode, SearchParams, NO_ARM};
 use rayon::prelude::*;
@@ -1108,6 +1111,487 @@ fn support_sharing(args: &[String]) {
     println!("support-sharing-out summary={out} dump={dump} roots={roots_file}");
 }
 
+const N_ARMS: usize = 5;
+const ARM_A: usize = 0;
+const ARM_C: usize = 2;
+const ARM_RESEED: usize = 3;
+
+struct ArmSpec {
+    label: String,
+    worlds: usize,
+    iters: u64,
+    reseed: bool,
+    salt: u64,
+}
+
+// "8x8192" -> (8, 8192)
+fn worlds_iters(args: &[String], k: &str, d: &str) -> (usize, u64) {
+    let v = arg(args, k, d);
+    let (w, i) = v.split_once('x').unwrap_or_else(|| panic!("{k} {v:?}: want WORLDSxITERS"));
+    (w.parse().unwrap_or_else(|e| panic!("{k} {v:?}: {e}")), i.parse().unwrap_or_else(|e| panic!("{k} {v:?}: {e}")))
+}
+
+#[derive(Default)]
+struct FlipRun {
+    seed: u64,
+    picks: [u8; N_ARMS],
+    iters: [u64; N_ARMS],
+    depth: [u64; N_ARMS],
+    short: [u32; N_ARMS],
+    prefix_shared: bool,
+}
+
+// (move-move, move-switch, switch-switch, tera-non-tera); the first three tile every flip, the
+// fourth is an orthogonal cut that overlaps them.
+fn flip_split(a: u8, b: u8) -> [bool; 4] {
+    let (sa, sb) = (is_switch(Some(a)), is_switch(Some(b)));
+    let (ta, tb) = (is_tera(Some(a)), is_tera(Some(b)));
+    [!sa && !sb, sa != sb, sa && sb, ta != tb]
+}
+
+// The world draw is `Lcg::new(splitmix64(cfg.seed))` consumed once per world in order, so a
+// larger draw should reproduce a smaller one's worlds as its prefix. Only `World::weight` differs.
+fn world_prefix_shared(snap: &NativeSnapshot, cfg_seed: u64, small: usize, large: usize) -> bool {
+    let side = snap.side as usize;
+    let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
+    let belief = &snap.beliefs[side];
+    let a = RandomBattle.sample_worlds(&obs, belief, small, &mut Lcg::new(splitmix64(cfg_seed)));
+    let b = RandomBattle.sample_worlds(&obs, belief, large, &mut Lcg::new(splitmix64(cfg_seed)));
+    large >= small && a.len() == small && a.iter().zip(&b).all(|(x, y)| x.state == y.state && x.teams == y.teams)
+}
+
+fn flip_root(snap: &NativeSnapshot, position: usize, run_seed: u64, specs: &[ArmSpec; N_ARMS], time_ms: u64) -> FlipRun {
+    let side = snap.side as usize;
+    let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
+    let belief = &snap.beliefs[side];
+    let base_seed = row_seed(run_seed, position);
+    let reseed_seed = row_seed(run_seed ^ RESEED_SALT, position);
+    let mut run = FlipRun { seed: run_seed, ..Default::default() };
+    for (k, sp) in specs.iter().enumerate() {
+        let cfg = PimcConfig {
+            num_worlds: sp.worlds,
+            time_ms_per_world: time_ms,
+            max_iters_per_world: sp.iters,
+            seed: if sp.reseed { reseed_seed } else { base_seed },
+            chance_mode: ChanceMode::OpenLoop,
+            pick_mode: PickMode::Argmax,
+            filter_threshold: PICK_FILTER,
+            raw_root: false,
+            explore_coeff: EXPLORE_COEFF,
+            value_temp: 1.0,
+        };
+        let t = choose_action_traced_salted(&obs, belief, &RandomBattle, &cfg, sp.salt);
+        assert_eq!(t.per_world.len(), sp.worlds, "root {position} arm {}: world count", sp.label);
+        run.picks[k] = t.picked;
+        run.iters[k] = t.per_world.iter().map(|w| w.iterations).sum();
+        run.depth[k] = t.per_world.iter().map(|w| w.depth_sum).sum();
+        run.short[k] = t.per_world.iter().filter(|w| w.iterations < sp.iters).count() as u32;
+    }
+    run.prefix_shared = world_prefix_shared(snap, base_seed, specs[ARM_A].worlds, specs[ARM_C].worlds);
+    run
+}
+
+fn mean_se(v: &[f64]) -> (f64, f64) {
+    let n = v.len() as f64;
+    let m = v.iter().sum::<f64>() / n;
+    if v.len() < 2 {
+        return (m, 0.0);
+    }
+    let var = v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / (n - 1.0);
+    (m, (var / n).sqrt())
+}
+
+// One row per contrast: rates are per-root means over the row's seeds, so every SE is at n = roots.
+fn contrast_row(label: &str, seed: &str, per_root: &[Vec<&FlipRun>], arm: usize) -> String {
+    let roots = per_root.len();
+    let per_root_mean = |f: &dyn Fn(&FlipRun) -> f64| -> Vec<f64> {
+        per_root.iter().map(|rs| rs.iter().map(|&r| f(r)).sum::<f64>() / rs.len() as f64).collect()
+    };
+    let flipped = |r: &FlipRun| (r.picks[ARM_A] != r.picks[arm]) as u8 as f64;
+    let (rate, se) = mean_se(&per_root_mean(&flipped));
+    let mut cells = String::new();
+    let mut counts = String::new();
+    for k in 0..4 {
+        let f = move |r: &FlipRun| {
+            (r.picks[ARM_A] != r.picks[arm] && flip_split(r.picks[ARM_A], r.picks[arm])[k]) as u8 as f64
+        };
+        let (m, s) = mean_se(&per_root_mean(&f));
+        let n: f64 = per_root.iter().flatten().map(|&r| f(r)).sum();
+        counts.push_str(&format!("\t{n:.0}"));
+        cells.push_str(&format!("\t{m:.6}\t{s:.6}"));
+    }
+    let floor = |r: &FlipRun| (r.picks[ARM_A] != r.picks[ARM_RESEED]) as u8 as f64;
+    let d: Vec<f64> = per_root
+        .iter()
+        .map(|rs| rs.iter().map(|&r| flipped(r) - floor(r)).sum::<f64>() / rs.len() as f64)
+        .collect();
+    let (dm, dse) = mean_se(&d);
+    let flips: f64 = per_root.iter().flatten().map(|&r| flipped(r)).sum();
+    format!(
+        "contrast\t{label}\t{seed}\t{roots}\t{flips:.0}\t{rate:.6}\t{se:.6}{counts}{cells}\t{:.4}\t{:.4}\n",
+        dm * 100.0,
+        dse * 100.0
+    )
+}
+
+fn arm_row(spec: &ArmSpec, seed: &str, runs: &[&FlipRun], arm: usize, roots: usize) -> String {
+    let iters: u64 = runs.iter().map(|r| r.iters[arm]).sum();
+    let depth: u64 = runs.iter().map(|r| r.depth[arm]).sum();
+    let short: u64 = runs.iter().map(|r| r.short[arm] as u64).sum();
+    format!(
+        "arm\t{}\t{seed}\t{roots}\t{}\t{}\t{iters}\t{depth}\t{:.6}\t{short}\n",
+        spec.label,
+        spec.worlds,
+        spec.iters,
+        depth as f64 / iters as f64
+    )
+}
+
+fn worlds_flip(args: &[String]) {
+    let path = arg(args, "--snapshots", "../.decompose/frontier/results/0.1.snapshots.bin");
+    let snaps = read_all(&path).unwrap_or_else(|e| panic!("read_all {path}: {e}"));
+    println!("snapshots: path={path} count={}", snaps.len());
+    let seeds: Vec<u64> = list(args, "--seeds", "1,2,3");
+    let time_ms: u64 = parse(args, "--time-ms", "600000");
+    let threads: usize = parse(args, "--threads", &std::thread::available_parallelism().map_or(1, |n| n.get()).to_string());
+    let out = arg(args, "--out", "results/0.9.worlds.tsv");
+    let dump = arg(args, "--dump", "");
+    let roots_file = arg(args, "--roots", "results/0.7.roots.tsv");
+    let (aw, ai) = worlds_iters(args, "--arm-a", "8x8192");
+    let (bw, bi) = worlds_iters(args, "--arm-b", "64x1024");
+    let (cw, ci) = worlds_iters(args, "--arm-c", "64x8192");
+    let (fw, fi) = worlds_iters(args, "--floor", "8x8192");
+    let name = |w: usize, i: u64| format!("w{w}_i{i}");
+    let specs: [ArmSpec; N_ARMS] = [
+        ArmSpec { label: name(aw, ai), worlds: aw, iters: ai, reseed: false, salt: 0 },
+        ArmSpec { label: name(bw, bi), worlds: bw, iters: bi, reseed: false, salt: 0 },
+        ArmSpec { label: name(cw, ci), worlds: cw, iters: ci, reseed: false, salt: 0 },
+        ArmSpec { label: format!("{}_reseed", name(fw, fi)), worlds: fw, iters: fi, reseed: true, salt: 0 },
+        ArmSpec { label: format!("{}_salt", name(fw, fi)), worlds: fw, iters: fi, reseed: false, salt: SEARCH_SALT },
+    ];
+    let roots = load_roots(&roots_file, &snaps);
+    println!("roots: loaded={} file={roots_file}", roots.len());
+    assert!(!roots.is_empty(), "no roots kept");
+    for p in [&out, &dump] {
+        if p.is_empty() {
+            continue;
+        }
+        if let Some(dir) = std::path::Path::new(p).parent() {
+            std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+        }
+    }
+    println!(
+        "worlds-flip: roots={} seeds={seeds:?} arms=[{}] time_ms={time_ms} evaluator=Handcrafted determinizer=RandomBattle chance=OpenLoop pick=Argmax filter={PICK_FILTER} raw_root=false explore_coeff={EXPLORE_COEFF} value_temp=1.0 prior=none reseed=row_seed(seed^0x{RESEED_SALT:x}) search_salt=0x{SEARCH_SALT:x} threads={threads}",
+        roots.len(),
+        specs.iter().map(|s| format!("{} {}x{}", s.label, s.worlds, s.iters)).collect::<Vec<_>>().join(", ")
+    );
+
+    let done = AtomicU64::new(0);
+    let iters_total = AtomicU64::new(0);
+    let first = AtomicBool::new(false);
+    let wall = Instant::now();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let runs: Vec<Vec<FlipRun>> = pool.install(|| {
+        roots
+            .par_iter()
+            .map(|root| {
+                let snap = &snaps[root.position];
+                let runs: Vec<FlipRun> = seeds.iter().map(|&s| flip_root(snap, root.position, s, &specs, time_ms)).collect();
+                let total: u64 = runs.iter().map(|r| r.iters.iter().sum::<u64>()).sum();
+                iters_total.fetch_add(total, Ordering::Relaxed);
+                if !first.swap(true, Ordering::Relaxed) {
+                    println!("first root={} game={} turn={} side={} picks={:?}", root.position, root.game, root.turn, root.side, runs[0].picks);
+                }
+                let d = done.fetch_add(1, Ordering::Relaxed) + 1;
+                if d % 100 == 0 {
+                    eprintln!("progress roots={d}/{} wall_s={:.0}", roots.len(), wall.elapsed().as_secs_f64());
+                }
+                runs
+            })
+            .collect()
+    });
+    let wall_s = wall.elapsed().as_secs_f64();
+    let total = iters_total.load(Ordering::Relaxed);
+    let short: u64 = runs.iter().flatten().map(|r| r.short.iter().map(|&x| x as u64).sum::<u64>()).sum();
+    let shared = runs.iter().flatten().filter(|r| r.prefix_shared).count();
+    println!(
+        "worlds-flip-done roots={} seeds={} wall_s={wall_s:.1} iters={total} iters_per_s={:.0} iters_per_s_per_thread={:.0} short_searches={short} c_prefix_equals_a={shared}/{}",
+        roots.len(),
+        seeds.len(),
+        total as f64 / wall_s,
+        total as f64 / wall_s / threads as f64,
+        runs.iter().flatten().count()
+    );
+
+    if !dump.is_empty() {
+        let mut s = String::from("position\tgame\tturn\tside\tseed");
+        for sp in &specs {
+            s.push_str(&format!("\tpick_{}", sp.label));
+        }
+        s.push_str("\tc_prefix_equals_a\n");
+        for (root, rs) in roots.iter().zip(&runs) {
+            for r in rs {
+                s.push_str(&format!("{}\t{}\t{}\t{}\t{}", root.position, root.game, root.turn, root.side, r.seed));
+                for p in r.picks {
+                    s.push_str(&format!("\t{p}"));
+                }
+                s.push_str(&format!("\t{}\n", r.prefix_shared as u8));
+            }
+        }
+        std::fs::write(&dump, s).unwrap_or_else(|e| panic!("write {dump}: {e}"));
+    }
+
+    let mut t = String::from("kind\tlabel\tseed\troots\tflips_or_worlds\trate_or_iters_cap\tse_or_iters\tmm\tms\tss\ttn\tmm_rate\tmm_se\tms_rate\tms_se\tss_rate\tss_se\ttn_rate\ttn_se\tminus_reseed_floor_pp\tminus_reseed_floor_se_pp\n");
+    let mut a = String::from("kind\tlabel\tseed\troots\tworlds\titers_cap\titers_total\tdepth_total\tmean_depth_per_world\tshort_searches\n");
+    for (i, seed) in seeds.iter().enumerate() {
+        let per_root: Vec<Vec<&FlipRun>> = runs.iter().map(|rs| vec![&rs[i]]).collect();
+        let flat: Vec<&FlipRun> = runs.iter().map(|rs| &rs[i]).collect();
+        for k in 1..N_ARMS {
+            t.push_str(&contrast_row(&format!("{}_vs_{}", specs[ARM_A].label, specs[k].label), &seed.to_string(), &per_root, k));
+        }
+        for (k, sp) in specs.iter().enumerate() {
+            a.push_str(&arm_row(sp, &seed.to_string(), &flat, k, roots.len()));
+        }
+    }
+    let per_root: Vec<Vec<&FlipRun>> = runs.iter().map(|rs| rs.iter().collect()).collect();
+    let flat: Vec<&FlipRun> = runs.iter().flatten().collect();
+    for k in 1..N_ARMS {
+        t.push_str(&contrast_row(&format!("{}_vs_{}", specs[ARM_A].label, specs[k].label), "pooled", &per_root, k));
+    }
+    for (k, sp) in specs.iter().enumerate() {
+        a.push_str(&arm_row(sp, "pooled", &flat, k, roots.len()));
+    }
+    print!("{t}\n{a}");
+    std::fs::write(&out, format!("{t}\n{a}")).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    println!("worlds-flip-out summary={out} dump={dump:?} roots={roots_file}");
+}
+
+// gen_sets tera is Showdown-space; MonSlot's is engine-space. This is exactly the map
+// `determinize::install` applies at build time, Stellar identity included.
+fn set_tera_to_engine(t: u8) -> u8 {
+    if t == 18 {
+        18
+    } else {
+        showdown_type_to_engine(t)
+    }
+}
+
+fn sorted_moves(m: [u16; 4]) -> [u16; 4] {
+    let mut m = m;
+    m.sort_unstable();
+    m
+}
+
+// The true set is the pool entry the mon was built from: every field `build_mon` installs, taken
+// from the snapshot's true state (moves, item, ability, tera, level, gender) and its true TeamData
+// (EVs, IVs). Species is fixed by the pool lookup, which follows the base-species fallback.
+// `item` is skipped only under the relaxed rule, and only for a mon whose item is already gone.
+fn set_is_true_mon(set: &SetEntry, mon: &MonSlot, bd: &MonBuildData, relax_item: bool) -> bool {
+    let item_ok = set.item_id == mon.item_id || (relax_item && mon.item_id == 0);
+    item_ok
+        && sorted_moves(set.moves) == sorted_moves(mon.moves)
+        && set.ability_id == mon.ability_id
+        && set_tera_to_engine(set.tera_type) == mon.tera_type
+        && set.level == mon.level
+        && set.is_female == (mon.flags & MON_FLAG_FEMALE != 0)
+        && set.evs == bd.evs
+        && set.ivs == bd.ivs
+}
+
+fn known_mon_belief(belief: &Belief, species_id: u16) -> Option<&MonBelief> {
+    let base = data_bridge::base_species(species_id);
+    belief.mons.iter().find(|mb| mb.species_id != 0 && data_bridge::base_species(mb.species_id) == base)
+}
+
+#[derive(Default)]
+struct NllRow {
+    position: usize,
+    game: u64,
+    turn: u16,
+    side: u8,
+    species: u16,
+    pool: usize,
+    support: usize,
+    matches: usize,
+    matches_pool: usize,
+    nll: f64,
+    h: f64,
+    nll_relaxed: f64,
+    item_zero: bool,
+    scored: bool,
+    relaxed_scored: bool,
+    excl_no_slot: bool,
+    excl_no_pool: bool,
+    excl_no_match_anywhere: bool,
+    excl_match_pool_only: bool,
+}
+
+fn nll_root(snap: &NativeSnapshot, position: usize) -> NllRow {
+    let side = snap.side as usize;
+    let opp = 1 - side;
+    let mon = snap.state.active_mon(opp);
+    let bd = &snap.teams.mons[opp][snap.state.sides[opp].active_index as usize];
+    let mut row = NllRow {
+        position,
+        game: snap.game,
+        turn: snap.turn,
+        side: snap.side,
+        species: mon.species_id,
+        item_zero: mon.item_id == 0,
+        ..Default::default()
+    };
+    let Some(mb) = known_mon_belief(&snap.beliefs[side], mon.species_id) else {
+        row.excl_no_slot = true;
+        return row;
+    };
+    let Some(ss) = species_sets_with_base_fallback(mon.species_id) else {
+        row.excl_no_pool = true;
+        return row;
+    };
+    row.pool = ss.sets.len();
+    row.matches_pool = ss.sets.iter().filter(|s| set_is_true_mon(s, mon, bd, false)).count();
+    let live: Vec<&SetEntry> = ss.sets.iter().enumerate().filter(|(i, s)| possible(*i, s, mb)).map(|(_, s)| s).collect();
+    row.support = live.len();
+    let total: f64 = live.iter().map(|s| s.count as f64).sum();
+    if total <= 0.0 {
+        row.excl_no_match_anywhere = true;
+        return row;
+    }
+    row.h = -live.iter().map(|s| s.count as f64 / total).map(|p| if p > 0.0 { p * p.ln() } else { 0.0 }).sum::<f64>();
+    let mass = |relax: bool| -> f64 { live.iter().filter(|s| set_is_true_mon(s, mon, bd, relax)).map(|s| s.count as f64).sum() };
+    row.matches = live.iter().filter(|s| set_is_true_mon(s, mon, bd, false)).count();
+    // an item consumed in battle zeroes MonSlot.item_id, so the strict rule misses that mon; the
+    // relaxed rule drops item for exactly those and is reported as a sensitivity, never as headline
+    let relaxed_mass = mass(true);
+    if relaxed_mass > 0.0 {
+        row.relaxed_scored = true;
+        row.nll_relaxed = -(relaxed_mass / total).ln();
+    }
+    if row.matches == 0 {
+        if row.matches_pool == 0 {
+            row.excl_no_match_anywhere = true;
+        } else {
+            row.excl_match_pool_only = true;
+        }
+        return row;
+    }
+    row.nll = -(mass(false) / total).ln();
+    row.scored = true;
+    row
+}
+
+const NLL_BUCKETS: [(u16, u16); 4] = [(2, 4), (5, 8), (9, 14), (15, 20)];
+
+fn nll_bucket_row(label: &str, rows: &[&NllRow]) -> String {
+    let scored: Vec<&NllRow> = rows.iter().copied().filter(|r| r.scored).collect();
+    let mean = |f: &dyn Fn(&NllRow) -> f64| -> f64 {
+        if scored.is_empty() {
+            0.0
+        } else {
+            scored.iter().map(|&r| f(r)).sum::<f64>() / scored.len() as f64
+        }
+    };
+    let d: Vec<f64> = scored.iter().map(|r| r.nll - r.h).collect();
+    let (dm, dse) = if d.is_empty() { (0.0, 0.0) } else { mean_se(&d) };
+    let rd: Vec<f64> = rows.iter().filter(|r| r.relaxed_scored).map(|r| r.nll_relaxed - r.h).collect();
+    let (rm, rse) = if rd.is_empty() { (0.0, 0.0) } else { mean_se(&rd) };
+    let count = |f: &dyn Fn(&NllRow) -> bool| rows.iter().filter(|&&r| f(r)).count();
+    format!(
+        "{label}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.6}\t{:.6}\t{:.6}\t{:.6}\t{:.4}\t{:.4}\t{}\t{}\t{}\t{:.6}\t{:.6}\n",
+        rows.len(),
+        scored.len(),
+        rows.len() - scored.len(),
+        count(&|r| r.excl_no_slot),
+        count(&|r| r.excl_no_pool),
+        count(&|r| r.excl_no_match_anywhere),
+        count(&|r| r.excl_match_pool_only),
+        mean(&|r| r.nll),
+        mean(&|r| r.h),
+        dm,
+        dse,
+        mean(&|r| r.support as f64),
+        mean(&|r| r.pool as f64),
+        count(&|r| r.item_zero),
+        count(&|r| r.matches > 1),
+        count(&|r| r.relaxed_scored),
+        rm,
+        rse
+    )
+}
+
+fn prior_nll(args: &[String]) {
+    let path = arg(args, "--snapshots", "../.decompose/frontier/results/0.1.snapshots.bin");
+    let snaps = read_all(&path).unwrap_or_else(|e| panic!("read_all {path}: {e}"));
+    println!("snapshots: path={path} count={}", snaps.len());
+    let out = arg(args, "--out", "results/0.9.nll.tsv");
+    let dump = arg(args, "--dump", "");
+    let roots_file = arg(args, "--roots", "results/0.7.roots.tsv");
+    let roots = load_roots(&roots_file, &snaps);
+    println!("roots: loaded={} file={roots_file}", roots.len());
+    assert!(!roots.is_empty(), "no roots kept");
+    for p in [&out, &dump] {
+        if p.is_empty() {
+            continue;
+        }
+        if let Some(dir) = std::path::Path::new(p).parent() {
+            std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+        }
+    }
+    println!("prior-nll: roots={} prior=count_weighted_over_gen_sets restricted_by=belief::possible belief=beliefs[decider] buckets={NLL_BUCKETS:?}", roots.len());
+
+    // what the native beliefs actually carry, since `possible` reads exactly these
+    let (mut pool_active, mut with_item, mut with_ability, mut with_scarf, mut with_excl, mut with_tera, mut with_moves) = (0, 0, 0, 0, 0, 0, 0);
+    for root in &roots {
+        let snap = &snaps[root.position];
+        let mon = snap.state.active_mon(1 - snap.side as usize);
+        if let Some(mb) = known_mon_belief(&snap.beliefs[snap.side as usize], mon.species_id) {
+            pool_active += mb.pool_active as usize;
+            with_item += (mb.item_id != 0) as usize;
+            with_ability += (mb.ability_id != 0) as usize;
+            with_scarf += (mb.scarf_item_id != 0) as usize;
+            with_excl += (mb.excluded_bits != 0) as usize;
+            with_tera += mb.tera_revealed as usize;
+            with_moves += (mb.n_moves > 0) as usize;
+        }
+    }
+    println!(
+        "belief-content roots={} pool_active={pool_active} item_known={with_item} ability_known={with_ability} scarf_pinned={with_scarf} excluded_bits={with_excl} tera_revealed={with_tera} any_move_revealed={with_moves}",
+        roots.len()
+    );
+
+    let rows: Vec<NllRow> = roots.iter().map(|r| nll_root(&snaps[r.position], r.position)).collect();
+    let ambiguous = rows.iter().filter(|r| r.matches > 1).count();
+    println!(
+        "prior-nll-done roots={} scored={} excluded={} multi_match={ambiguous}",
+        rows.len(),
+        rows.iter().filter(|r| r.scored).count(),
+        rows.iter().filter(|r| !r.scored).count()
+    );
+
+    if !dump.is_empty() {
+        let mut s = String::from("position\tgame\tturn\tside\topp_species\tpool\tsupport\tmatches\tmatches_pool\tnll\th\tnll_minus_h\tscored\titem_zero\trelaxed_scored\tnll_relaxed\n");
+        for r in &rows {
+            s.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.6}\t{:.6}\t{:.6}\t{}\t{}\t{}\t{:.6}\n",
+                r.position, r.game, r.turn, r.side, r.species, r.pool, r.support, r.matches, r.matches_pool, r.nll, r.h, r.nll - r.h, r.scored as u8, r.item_zero as u8, r.relaxed_scored as u8, r.nll_relaxed
+            ));
+        }
+        std::fs::write(&dump, s).unwrap_or_else(|e| panic!("write {dump}: {e}"));
+    }
+
+    let mut t = String::from("turn_bucket\troots\tscored\texcluded\texcl_no_belief_slot\texcl_no_set_pool\texcl_no_match_anywhere\texcl_match_in_pool_only\tmean_nll_nats\tmean_entropy_nats\tmean_nll_minus_h_nats\tse_nll_minus_h_nats\tmean_restricted_support\tmean_pool_size\titem_zero\tmulti_match\trelaxed_scored\trelaxed_nll_minus_h_nats\tse_relaxed_nll_minus_h_nats\n");
+    for (lo, hi) in NLL_BUCKETS {
+        let sel: Vec<&NllRow> = rows.iter().filter(|r| (lo..=hi).contains(&r.turn)).collect();
+        t.push_str(&nll_bucket_row(&format!("{lo}-{hi}"), &sel));
+    }
+    let outside: Vec<&NllRow> = rows.iter().filter(|r| !NLL_BUCKETS.iter().any(|&(lo, hi)| (lo..=hi).contains(&r.turn))).collect();
+    t.push_str(&nll_bucket_row("outside", &outside));
+    t.push_str(&nll_bucket_row("pooled", &rows.iter().collect::<Vec<_>>()));
+    print!("{t}");
+    std::fs::write(&out, t).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    println!("prior-nll-out summary={out} dump={dump:?} roots={roots_file}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--count") {
@@ -1122,12 +1606,18 @@ fn main() {
         declairvoyance(&args);
     } else if args.iter().any(|a| a == "--support-sharing") {
         support_sharing(&args);
+    } else if args.iter().any(|a| a == "--worlds-flip") {
+        worlds_flip(&args);
+    } else if args.iter().any(|a| a == "--prior-nll") {
+        prior_nll(&args);
     } else {
-        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
+        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
         eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
         eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
         eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv]");
         eprintln!("  --support-sharing [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.11.sharing.tsv] [--dump results/0.11.paths.tsv]");
+        eprintln!("  --worlds-flip [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--arm-a 8x8192] [--arm-b 64x1024] [--arm-c 64x8192] [--floor 8x8192] [--time-ms 600000] [--threads T] [--out results/0.9.worlds.tsv] [--dump PICKS.tsv]");
+        eprintln!("  --prior-nll [--snapshots PATH] [--roots results/0.7.roots.tsv] [--out results/0.9.nll.tsv] [--dump ROWS.tsv]");
         std::process::exit(2);
     }
 }
@@ -1239,6 +1729,76 @@ mod tests {
 
     fn positions(roots: &[RootRef]) -> Vec<usize> {
         roots.iter().map(|r| r.position).collect()
+    }
+
+    #[test]
+    fn flip_split_puts_every_pair_in_exactly_one_structural_class() {
+        for a in [0u8, 3, ACTION_TERA_0, ACTION_TERA_3, ACTION_SWITCH_0, ACTION_SWITCH_5] {
+            for b in [0u8, 3, ACTION_TERA_0, ACTION_TERA_3, ACTION_SWITCH_0, ACTION_SWITCH_5] {
+                let k = flip_split(a, b);
+                assert_eq!(k[..3].iter().filter(|&&x| x).count(), 1, "{a} vs {b}");
+            }
+        }
+        assert_eq!(flip_split(0, 1), [true, false, false, false]);
+        assert_eq!(flip_split(0, ACTION_SWITCH_0), [false, true, false, false]);
+        assert_eq!(flip_split(ACTION_SWITCH_0, ACTION_SWITCH_0 + 1), [false, false, true, false]);
+        assert_eq!(flip_split(0, ACTION_TERA_0), [true, false, false, true]);
+        assert_eq!(flip_split(ACTION_TERA_0, ACTION_TERA_0 + 1), [true, false, false, false]);
+        assert_eq!(flip_split(ACTION_TERA_0, ACTION_SWITCH_0), [false, true, false, true]);
+    }
+
+    #[test]
+    fn a_large_world_draw_starts_with_the_small_draw_at_the_same_seed() {
+        let snap = snapshot(41, 0, 6, 0);
+        assert!(world_prefix_shared(&snap, 7, 8, 64));
+        assert!(world_prefix_shared(&snap, 7, 8, 8));
+        let side = snap.side as usize;
+        let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
+        let a = RandomBattle.sample_worlds(&obs, &snap.beliefs[side], 8, &mut Lcg::new(splitmix64(7)));
+        let b = RandomBattle.sample_worlds(&obs, &snap.beliefs[side], 8, &mut Lcg::new(splitmix64(8)));
+        assert!(a.iter().zip(&b).any(|(x, y)| x.state != y.state), "a different seed must move the worlds");
+        assert_eq!(a[0].weight, 1.0 / 8.0);
+    }
+
+    #[test]
+    fn the_true_built_mon_matches_a_pool_entry() {
+        let snap = snapshot(23, 0, 4, 0);
+        for side in 0..2 {
+            for slot in 0..6 {
+                let mon = &snap.state.sides[side].team[slot];
+                let ss = species_sets_with_base_fallback(mon.species_id).expect("pooled species");
+                let bd = &snap.teams.mons[side][slot];
+                assert!(ss.sets.iter().any(|e| set_is_true_mon(e, mon, bd, false)), "side {side} slot {slot} species {}", mon.species_id);
+            }
+        }
+    }
+
+    #[test]
+    fn nll_of_the_true_set_sits_under_a_species_only_belief() {
+        let snap = snapshot(23, 0, 4, 0);
+        let row = nll_root(&snap, 0);
+        assert!(row.scored, "excluded: {} {} {}", row.excl_no_slot, row.excl_no_match_anywhere, row.excl_match_pool_only);
+        let mon = snap.state.active_mon(1);
+        let bd = &snap.teams.mons[1][snap.state.sides[1].active_index as usize];
+        let ss = species_sets_with_base_fallback(mon.species_id).unwrap();
+        assert_eq!(row.support, ss.sets.len(), "a species-only belief prunes nothing");
+        assert_eq!(row.pool, ss.sets.len());
+        assert!(row.matches >= 1);
+        let total: f64 = ss.sets.iter().map(|e| e.count as f64).sum();
+        let mass: f64 = ss.sets.iter().filter(|e| set_is_true_mon(e, mon, bd, false)).map(|e| e.count as f64).sum();
+        assert!((row.nll - -(mass / total).ln()).abs() < 1e-12);
+        assert!(row.h >= 0.0 && row.nll >= 0.0);
+        assert!(row.h <= (ss.sets.len() as f64).ln() + 1e-12);
+    }
+
+    #[test]
+    fn mean_se_on_indicators_is_the_binomial_standard_error() {
+        let v: Vec<f64> = (0..100).map(|i| (i < 25) as u8 as f64).collect();
+        let (m, se) = mean_se(&v);
+        assert!((m - 0.25).abs() < 1e-12);
+        let binom = (0.25f64 * 0.75 / 100.0).sqrt();
+        assert!((se / binom - 1.0).abs() < 0.01, "{se} vs {binom}");
+        assert_eq!(mean_se(&[1.0]), (1.0, 0.0));
     }
 
     #[test]
