@@ -44,8 +44,7 @@ fn digest(bytes: impl Iterator<Item = u8>) -> u64 {
     h
 }
 
-#[test]
-fn root_pick_and_visit_counts_are_frozen() {
+fn picks_and_visit_digests() -> (Vec<u8>, Vec<u64>) {
     let states = read_search_states(STATES_PATH).expect("search_states.bin");
     assert!(states.len() >= STATES, "fixture holds {} states", states.len());
     let mut picks = Vec::with_capacity(STATES);
@@ -65,8 +64,36 @@ fn root_pick_and_visit_counts_are_frozen() {
     }
     println!("picks: {picks:?}");
     println!("visits: {}", visits.iter().map(|v| format!("0x{v:016x}")).collect::<Vec<_>>().join(", "));
+    (picks, visits)
+}
+
+#[test]
+fn root_pick_and_visit_counts_are_frozen() {
+    let (picks, visits) = picks_and_visit_digests();
     assert_eq!(picks, EXPECTED_PICKS, "the root pick moved");
     assert_eq!(visits, EXPECTED_VISITS, "a root bandit's visit counts moved");
+}
+
+// The pins below were captured with no histogram in the search, so reproducing them in a build
+// that fills one on every iteration is the histogram-off-versus-on comparison.
+#[cfg(feature = "train_value")]
+#[test]
+fn the_leaf_histogram_fills_without_moving_the_pick() {
+    use poke_mcts::chance::OpenLoop;
+    use poke_mcts::eval::Handcrafted;
+    use poke_mcts::search::{search_world, SearchParams};
+
+    let states = read_search_states(STATES_PATH).expect("search_states.bin");
+    let params = SearchParams { max_iters: ITERS, time_ms: 600_000, explore_coeff: 0.49, ..Default::default() };
+    for (i, (s, t)) in states.iter().take(STATES).enumerate() {
+        let r = search_world(s, t, &Handcrafted, &OpenLoop, &params, 0x5EA4_C11D + i as u64, 0, None);
+        let leaves: u64 = r.leaf_hist.iter().map(|&c| c as u64).sum();
+        assert_eq!(r.iterations, ITERS, "state {i}: the search stopped short");
+        assert_eq!(leaves, r.iterations, "state {i}: {leaves} binned leaves over {} iterations", r.iterations);
+    }
+    let (picks, visits) = picks_and_visit_digests();
+    assert_eq!(picks, EXPECTED_PICKS, "the histogram moved the root pick");
+    assert_eq!(visits, EXPECTED_VISITS, "the histogram moved a root bandit's visit counts");
 }
 
 const EXPECTED_PICKS: [u8; STATES] = [0, 3, 1, 1, 2, 3, 6, 7, 7, 8, 9, 3, 3, 1, 0, 7];

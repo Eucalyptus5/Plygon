@@ -65,6 +65,10 @@ pub struct SearchResult {
     pub value_sum: f64,
     #[cfg(feature = "train_value")]
     pub value_count: u64,
+    // One count per iteration, binning the backprop leaf value over [0, 1]. Diagnostic only:
+    // written after the value is settled, never read by UCB, backprop or the pick.
+    #[cfg(feature = "train_value")]
+    pub leaf_hist: [u32; 20],
 }
 
 impl Default for SearchResult {
@@ -80,6 +84,8 @@ impl Default for SearchResult {
             value_sum: 0.0,
             #[cfg(feature = "train_value")]
             value_count: 0,
+            #[cfg(feature = "train_value")]
+            leaf_hist: [0; 20],
         }
     }
 }
@@ -116,6 +122,8 @@ pub fn search_world(
     let mut path: Vec<PathStep> = Vec::with_capacity(64);
     #[cfg(feature = "train_value")]
     let (mut value_sum, mut value_count) = (0.0f64, 0u64);
+    #[cfg(feature = "train_value")]
+    let mut leaf_hist = [0u32; 20];
     // Per-root-arm provable terminal-win branch-chance (analytic root only; stays 0.0 otherwise).
     let mut win_s1 = [0.0f64; crate::node::ARM_CAP];
     let mut win_s2 = [0.0f64; crate::node::ARM_CAP];
@@ -146,6 +154,7 @@ pub fn search_world(
                     let (v, a) = leaf_vals(&cur, evaluator, root_eval, params.value_temp);
                     value = v;
                     value_abs = a;
+                    leaf_hist[bin20(v)] += 1;
                 }
                 break;
             }
@@ -163,6 +172,7 @@ pub fn search_world(
                     let (v, a) = leaf_vals(&cur, evaluator, root_eval, params.value_temp);
                     value = v;
                     value_abs = a;
+                    leaf_hist[bin20(v)] += 1;
                 }
                 break;
             }
@@ -210,6 +220,7 @@ pub fn search_world(
                     let (v, a) = leaf_vals(&cur, evaluator, root_eval, params.value_temp);
                     value = v;
                     value_abs = a;
+                    leaf_hist[bin20(v)] += 1;
                 }
                 if (tree.len() as u32) < params.max_nodes && !cur.is_game_over() {
                     tree.push(Node::from_state(&cur));
@@ -223,6 +234,7 @@ pub fn search_world(
                 #[cfg(feature = "train_value")]
                 {
                     value_abs = value;
+                    leaf_hist[bin20(value)] += 1;
                 }
                 break;
             }
@@ -257,6 +269,7 @@ pub fn search_world(
     {
         res.value_sum = value_sum;
         res.value_count = value_count;
+        res.leaf_hist = leaf_hist;
     }
     for (i, a) in res.s1.iter_mut().enumerate() { a.win_chance = win_s1[i]; }
     for (i, a) in res.s2.iter_mut().enumerate() { a.win_chance = win_s2[i]; }
@@ -279,6 +292,13 @@ fn leaf_vals(s: &BattleState, evaluator: &impl Evaluator, root_eval: f32, value_
     }
     let e = evaluator.eval(s);
     (sigmoid((e - root_eval) / value_temp), sigmoid(e))
+}
+
+// 20 equal bins over [0, 1]; the closed top edge folds into the last bin
+#[cfg(feature = "train_value")]
+#[inline]
+fn bin20(v: f64) -> usize {
+    ((v * 20.0) as usize).min(19)
 }
 
 #[inline]
@@ -347,6 +367,8 @@ pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit
         value_sum: 0.0,
         #[cfg(feature = "train_value")]
         value_count: 0,
+        #[cfg(feature = "train_value")]
+        leaf_hist: [0; 20],
     }
 }
 

@@ -1592,6 +1592,181 @@ fn prior_nll(args: &[String]) {
     println!("prior-nll-out summary={out} dump={dump:?} roots={roots_file}");
 }
 
+#[cfg(feature = "train_value")]
+const LEAF_BINS: usize = 20;
+
+// midpoint of bin b of the 20 equal bins over [0, 1] that `SearchResult.leaf_hist` counts
+#[cfg(feature = "train_value")]
+fn leaf_bin_mid(b: usize) -> f64 {
+    (b as f64 + 0.5) / LEAF_BINS as f64
+}
+
+// SD is of the binned distribution, at bin midpoints -- the histogram is all the search keeps.
+// "outside" is bin 0 plus bin 19, i.e. a leaf value under 0.05 or 0.95 and over.
+#[cfg(feature = "train_value")]
+fn leaf_stats(hist: &[u32; LEAF_BINS]) -> (u64, f64, f64) {
+    let n: u64 = hist.iter().map(|&c| c as u64).sum();
+    if n == 0 {
+        return (0, 0.0, 0.0);
+    }
+    let mut mean = 0.0;
+    for (b, &c) in hist.iter().enumerate() {
+        mean += leaf_bin_mid(b) * c as f64;
+    }
+    mean /= n as f64;
+    let mut var = 0.0;
+    for (b, &c) in hist.iter().enumerate() {
+        let d = leaf_bin_mid(b) - mean;
+        var += d * d * c as f64;
+    }
+    (n, (var / n as f64).sqrt(), (hist[0] as f64 + hist[LEAF_BINS - 1] as f64) / n as f64)
+}
+
+#[cfg(feature = "train_value")]
+struct LeafCell {
+    iterations: u64,
+    leaves: u64,
+    sd: f64,
+    outside: f64,
+    hist: [u32; LEAF_BINS],
+}
+
+#[cfg(feature = "train_value")]
+fn leaf_cell(row: &Row, evaluator: &impl Evaluator, params: &SearchParams, seed: u64) -> LeafCell {
+    let r = search_world(&row.state, &row.teams, evaluator, &OpenLoop, params, seed, row.side as usize, None);
+    let (leaves, sd, outside) = leaf_stats(&r.leaf_hist);
+    LeafCell { iterations: r.iterations, leaves, sd, outside, hist: r.leaf_hist }
+}
+
+#[cfg(feature = "train_value")]
+const LEAF_EVALUATORS: [&str; 2] = ["learned_v2", "handcrafted"];
+#[cfg(feature = "train_value")]
+const OVER_SHARE: f64 = 1.0 / 3.0;
+
+#[cfg(feature = "train_value")]
+fn leaf_summary_row(evaluator: &str, stratum: &str, cells: &[&LeafCell], iqr_ref: Option<f64>) -> (String, f64) {
+    if cells.is_empty() {
+        return (format!("{evaluator}\t{stratum}\t0\t-\t-\t-\t-\t-\t-\t-\t-\t-\n"), 0.0);
+    }
+    let n = cells.len() as f64;
+    let mut sds: Vec<f64> = cells.iter().map(|c| c.sd).collect();
+    sds.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let (q1, med, q3) = (percentile(&sds, 0.25), percentile(&sds, 0.5), percentile(&sds, 0.75));
+    let iqr = q3 - q1;
+    let leaves: u64 = cells.iter().map(|c| c.leaves).sum();
+    let ratio = match iqr_ref {
+        Some(r) if r > 0.0 => format!("{:.4}", iqr / r),
+        _ => "-".to_string(),
+    };
+    let line = format!(
+        "{evaluator}\t{stratum}\t{}\t{:.1}\t{:.6}\t{:.6}\t{:.6}\t{:.6}\t{:.6}\t{:.6}\t{:.6}\t{ratio}\n",
+        cells.len(),
+        leaves as f64 / n,
+        cells.iter().map(|c| c.sd).sum::<f64>() / n,
+        q1, med, q3, iqr,
+        cells.iter().map(|c| c.outside).sum::<f64>() / n,
+        cells.iter().filter(|c| c.outside > OVER_SHARE).count() as f64 / n,
+    );
+    (line, iqr)
+}
+
+#[cfg(not(feature = "train_value"))]
+fn leaf_dispersion(_args: &[String]) {
+    eprintln!("--leaf-dispersion: built without train_value; rebuild with `cargo build --release --features train_value`");
+    std::process::exit(2);
+}
+
+#[cfg(feature = "train_value")]
+fn leaf_dispersion(args: &[String]) {
+    let rows = load(args);
+    let run_seed: u64 = parse(args, "--seed", "1");
+    let iters: u64 = parse(args, "--iters", "16384");
+    let threads: usize = parse(args, "--threads", &std::thread::available_parallelism().map_or(1, |n| n.get()).to_string());
+    let out = arg(args, "--out", "results/0.14.dispersion.tsv");
+    let dump = arg(args, "--dump", "results/0.14.leaves.tsv");
+    for path in [&out, &dump] {
+        if let Some(dir) = std::path::Path::new(path).parent() {
+            std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+        }
+    }
+    let net = LearnedValueV2::from_env();
+    let params = SearchParams { max_iters: iters, time_ms: TIME_MS, explore_coeff: EXPLORE_COEFF, ..Default::default() };
+    println!(
+        "leaf-dispersion: rows={} iters={iters} seed={run_seed} threads={threads} evaluators={LEAF_EVALUATORS:?} chance=OpenLoop explore_coeff={EXPLORE_COEFF} time_ms={TIME_MS} value_temp={} decider=row.side bins={LEAF_BINS} net={} int8_scope={} load_start={}",
+        rows.len(), params.value_temp, std::env::var("BRIDGE_EVAL_WEIGHTS_V2").unwrap_or_default(), net.int8_scope(), loadavg()
+    );
+    let done = AtomicU64::new(0);
+    let wall = Instant::now();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let cells: Vec<[LeafCell; 2]> = pool.install(|| {
+        rows.par_iter().enumerate().map(|(i, row)| {
+            let seed = row_seed(run_seed, i);
+            let cell = [leaf_cell(row, &net, &params, seed), leaf_cell(row, &Handcrafted, &params, seed)];
+            let d = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if d % 500 == 0 {
+                eprintln!("progress rows={d}/{} wall_s={:.0}", rows.len(), wall.elapsed().as_secs_f64());
+            }
+            cell
+        }).collect()
+    });
+    let wall_s = wall.elapsed().as_secs_f64();
+    let total_iters: u64 = cells.iter().flatten().map(|c| c.iterations).sum();
+    let short: usize = cells.iter().flatten().filter(|c| c.iterations < iters).count();
+    println!(
+        "leaf-dispersion-done rows={} searches={} wall_s={wall_s:.1} iters={total_iters} iters_per_s={:.0} iters_per_s_per_thread={:.0} short_searches={short} load_end={}",
+        rows.len(), cells.len() * LEAF_EVALUATORS.len(), total_iters as f64 / wall_s, total_iters as f64 / wall_s / threads as f64, loadavg()
+    );
+
+    let mut d = String::from("row\tgame_index\tgame_tag\tgen_eval\tturn\tside\tz\tevaluator\titerations\tleaves\tsd\toutside");
+    for b in 0..LEAF_BINS {
+        d.push_str(&format!("\tb{b}"));
+    }
+    d.push('\n');
+    for (i, (row, cs)) in rows.iter().zip(&cells).enumerate() {
+        for (e, c) in LEAF_EVALUATORS.iter().zip(cs) {
+            d.push_str(&format!(
+                "{i}\t{}\t{}\t{}\t{}\t{}\t{}\t{e}\t{}\t{}\t{:.6}\t{:.6}\t{}\n",
+                row.game_index, row.game_tag, row.gen_eval, row.turn, row.side, row.z, c.iterations, c.leaves, c.sd, c.outside,
+                c.hist.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("\t")
+            ));
+        }
+    }
+    std::fs::write(&dump, d).unwrap_or_else(|e| panic!("write {dump}: {e}"));
+
+    let strata: [(&str, Option<u8>); 3] = [("all", None), ("gen_eval=0", Some(0)), ("gen_eval=1", Some(1))];
+    let mut t = String::from("evaluator\tstratum\troots\tleaves_mean\tsd_mean\tsd_q1\tsd_median\tsd_q3\tsd_iqr\toutside_mean\troots_over_third\tiqr_ratio_vs_hand\n");
+    for (stratum, gen) in strata {
+        let pick = |e: usize| -> Vec<&LeafCell> {
+            rows.iter().zip(&cells).filter(|(r, _)| gen.is_none_or(|g| r.gen_eval == g)).map(|(_, c)| &c[e]).collect()
+        };
+        let (hand_line, hand_iqr) = leaf_summary_row(LEAF_EVALUATORS[1], stratum, &pick(1), None);
+        let (net_line, _) = leaf_summary_row(LEAF_EVALUATORS[0], stratum, &pick(0), Some(hand_iqr));
+        t.push_str(&net_line);
+        t.push_str(&hand_line);
+    }
+    t.push_str("\nevaluator\tstratum\tbin\tlo\thi\tcount\tshare\n");
+    for (stratum, gen) in strata {
+        for (e, name) in LEAF_EVALUATORS.iter().enumerate() {
+            let mut pooled = [0u64; LEAF_BINS];
+            for (_, c) in rows.iter().zip(&cells).filter(|(r, _)| gen.is_none_or(|g| r.gen_eval == g)) {
+                for (b, &x) in c[e].hist.iter().enumerate() {
+                    pooled[b] += x as u64;
+                }
+            }
+            let total: u64 = pooled.iter().sum();
+            for (b, &x) in pooled.iter().enumerate() {
+                let share = if total > 0 { format!("{:.8}", x as f64 / total as f64) } else { "-".to_string() };
+                t.push_str(&format!(
+                    "{name}\t{stratum}\t{b}\t{:.2}\t{:.2}\t{x}\t{share}\n",
+                    b as f64 / LEAF_BINS as f64, (b + 1) as f64 / LEAF_BINS as f64
+                ));
+            }
+        }
+    }
+    std::fs::write(&out, t).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    println!("leaf-dispersion-out {out} dump={dump}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--count") {
@@ -1610,14 +1785,17 @@ fn main() {
         worlds_flip(&args);
     } else if args.iter().any(|a| a == "--prior-nll") {
         prior_nll(&args);
+    } else if args.iter().any(|a| a == "--leaf-dispersion") {
+        leaf_dispersion(&args);
     } else {
-        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
+        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll | --leaf-dispersion) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
         eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
         eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
         eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv]");
         eprintln!("  --support-sharing [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.11.sharing.tsv] [--dump results/0.11.paths.tsv]");
         eprintln!("  --worlds-flip [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--arm-a 8x8192] [--arm-b 64x1024] [--arm-c 64x8192] [--floor 8x8192] [--time-ms 600000] [--threads T] [--out results/0.9.worlds.tsv] [--dump PICKS.tsv]");
         eprintln!("  --prior-nll [--snapshots PATH] [--roots results/0.7.roots.tsv] [--out results/0.9.nll.tsv] [--dump ROWS.tsv]");
+        eprintln!("  --leaf-dispersion [--rows A,B] [--limit N] [--seed 1] [--iters 16384] [--threads T] [--out results/0.14.dispersion.tsv] [--dump results/0.14.leaves.tsv]  (needs train_value and BRIDGE_EVAL_WEIGHTS_V2)");
         std::process::exit(2);
     }
 }
