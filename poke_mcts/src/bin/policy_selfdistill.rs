@@ -89,6 +89,7 @@ fn main() {
     let mut heldout: Option<String> = None;
     let mut seed_base = BASELINE_SEED;
     let mut threads: Option<usize> = None;
+    let mut emit_q = false;
     let mut inputs: Vec<String> = Vec::new();
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
@@ -97,11 +98,12 @@ fn main() {
             "--heldout-games" => heldout = it.next(),
             "--seed" => seed_base = it.next().and_then(|v| v.parse().ok()).unwrap_or(BASELINE_SEED),
             "--threads" => threads = it.next().and_then(|v| v.parse().ok()),
+            "--emit-q" => emit_q = true,
             _ => inputs.push(a),
         }
     }
     let Some(out_path) = out_path else {
-        eprintln!("usage: policy_selfdistill --out <labels.jsonl> [--heldout-games f] [--seed S] [--threads T] <shard-dir-or-file>...");
+        eprintln!("usage: policy_selfdistill --out <labels.jsonl> [--heldout-games f] [--seed S] [--threads T] [--emit-q] <shard-dir-or-file>...");
         std::process::exit(2);
     };
     if inputs.is_empty() {
@@ -172,6 +174,8 @@ fn main() {
             // mdist and legal-match set so a struggle-in-legal record lands
             // legal_match=false and is skipped consistently.
             let strug = pkmn_engine::state::ACTION_STRUGGLE;
+            let mut q = [0f32; 14];
+            let mut nmax = 0u32;
             let (mdist, iterations, elapsed, arm_bytes): (BTreeMap<u8, f64>, u64, f64, HashSet<u8>) =
                 if legal.count <= 1 {
                     let b = legal.as_slice()[0];
@@ -198,6 +202,8 @@ fn main() {
                         bytes.insert(s.action);
                         if s.visits > 0 && total > 0 {
                             m.insert(s.action, s.visits as f64 / total as f64);
+                            q[s.action as usize] = s.avg_score as f32;
+                            nmax = nmax.max(s.visits);
                         }
                     }
                     (m, total, (el * 1000.0).round() / 1000.0, bytes)
@@ -220,8 +226,14 @@ fn main() {
                 md.push_str(&format!("\"{b}\":{s}"));
             }
             md.push('}');
+            let qs = if emit_q {
+                let v: Vec<String> = q.iter().map(|x| x.to_string()).collect();
+                format!(",\"q\":[{}],\"nmax\":{nmax}", v.join(","))
+            } else {
+                String::new()
+            };
             buf.push_str(&format!(
-                "{{\"key\":\"{key}\",\"mdist\":{md},\"iterations\":{iterations},\"elapsed\":{elapsed},\"legal_match\":{legal_match}}}\n"
+                "{{\"key\":\"{key}\",\"mdist\":{md},\"iterations\":{iterations},\"elapsed\":{elapsed},\"legal_match\":{legal_match}{qs}}}\n"
             ));
             n_labeled.fetch_add(1, Ordering::Relaxed);
         }
