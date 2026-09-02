@@ -1,4 +1,4 @@
-use crate::belief::{engine_type_to_showdown, Belief};
+use crate::belief::{engine_type_to_showdown, seed_pool, Belief};
 use crate::determinize::{Determinizer, Observation, RandomBattle};
 use crate::driver::{choose_action, PickMode, PimcConfig};
 use crate::eval::winner_value;
@@ -154,6 +154,15 @@ fn timed<T>(bucket: Option<&mut std::time::Duration>, f: impl FnOnce() -> T) -> 
     }
 }
 
+// The bridge tracker seeds the candidate pool on the same first sighting; a re-entry keeps its prunes.
+fn reveal(b: &mut Belief, species_id: u16, level: u8) -> usize {
+    let (slot, fresh) = b.note_species_tracked(species_id, level);
+    if fresh {
+        seed_pool(&mut b.mons[slot], species_id);
+    }
+    slot
+}
+
 pub fn play_to_terminal_timed<F>(
     mut state: BattleState,
     teams: &TeamData,
@@ -169,7 +178,7 @@ where
         for s in 0..2 {
             let om = state.active_mon(1 - s);
             if om.species_id != 0 && om.current_hp > 0 {
-                beliefs[s].note_species(om.species_id, om.level);
+                reveal(&mut beliefs[s], om.species_id, om.level);
             }
         }
     };
@@ -200,7 +209,7 @@ where
                     continue;
                 }
                 let viewer = 1 - s;
-                let slot = beliefs[viewer].note_species(state.active_mon(s).species_id, state.active_mon(s).level);
+                let slot = reveal(&mut beliefs[viewer], state.active_mon(s).species_id, state.active_mon(s).level);
                 belief_slots[s] = slot;
                 match a {
                     0..=3 => {
@@ -419,6 +428,31 @@ mod tests {
         assert!(seen.len() > 4, "the duel ran several turns, got {}", seen.len());
         for (turn, b) in seen.iter().take(5).enumerate() {
             assert_eq!(b.mons[0].move_uses[0] as usize, turn, "turn {turn} sees one use per prior turn");
+        }
+    }
+
+    #[test]
+    fn the_native_loop_seeds_a_full_candidate_pool_on_reveal() {
+        use crate::belief::{pm_get, species_sets_with_base_fallback};
+        let (state, teams) = build_state(
+            vec![mon(242, 0, [MOVE_SPLASH as u16, 0, 0, 0])],
+            vec![mon(143, 0, [MOVE_SPLASH as u16, 0, 0, 0])],
+        );
+        let seen = std::cell::RefCell::new(None);
+        play_to_terminal(state, &teams, [Belief::default(); 2], 7, |side, st, _tm, bel, _seed, _rng| {
+            if seen.borrow().is_none() {
+                *seen.borrow_mut() = Some(*bel);
+            }
+            let idx = st.sides[side].active_index as usize;
+            if st.sides[side].team[idx].pp[0] > 0 { 0 } else { ACTION_STRUGGLE }
+        });
+        let seen = seen.into_inner().expect("the duel made a decision");
+        for (viewer, species) in [(0usize, 143u16), (1, 242)] {
+            let m = &seen[viewer].mons[0];
+            assert_eq!(m.species_id, species);
+            assert!(m.pool_active, "viewer {viewer} sees a seeded pool on the first reveal");
+            let n = species_sets_with_base_fallback(species).unwrap().sets.len();
+            assert!((0..n).all(|i| pm_get(&m.pool_mask, i)), "every set of the species starts possible");
         }
     }
 
