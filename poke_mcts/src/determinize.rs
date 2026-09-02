@@ -110,7 +110,8 @@ pub fn sample_unrevealed_species(taken: &[u16], screen: ScreenMask, rng: &mut Lc
             if r < sp.total_count as u64 { candidate = sp.species_id; break; }
             r -= sp.total_count as u64;
         }
-        if taken.contains(&candidate) { attempts += 1; continue; }
+        let base = data_bridge::base_species(candidate);
+        if taken.iter().any(|&t| data_bridge::base_species(t) == base) { attempts += 1; continue; }
         if screen.on(SCREEN_C10_TYPING) && attempts < 10 && violates_typing(candidate, taken) { attempts += 1; continue; }
         return candidate;
     }
@@ -306,6 +307,26 @@ mod tests {
         for _ in 0..200 {
             let s = sample_unrevealed_species(&taken, ScreenMask::default(), &mut rng);
             assert!(!taken.contains(&s));
+        }
+    }
+
+    #[test]
+    fn species_dedup_is_by_base_species() {
+        let (a, b) = GEN9_SET_POOL
+            .iter()
+            .find_map(|x| {
+                let base = data_bridge::base_species(x.species_id);
+                GEN9_SET_POOL
+                    .iter()
+                    .find(|y| y.species_id != x.species_id && data_bridge::base_species(y.species_id) == base)
+                    .map(|y| (x.species_id, y.species_id))
+            })
+            .expect("the pool carries two ids of one base");
+        let taken = [a];
+        let mut rng = Lcg::new(11);
+        for _ in 0..20_000 {
+            let s = sample_unrevealed_species(&taken, ScreenMask::default(), &mut rng);
+            assert_ne!(data_bridge::base_species(s), data_bridge::base_species(a), "{s} shares a base with taken {a} (sibling {b})");
         }
     }
 

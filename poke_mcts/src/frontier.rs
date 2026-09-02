@@ -9,13 +9,7 @@ pub fn gen_team(rng: &mut Lcg) -> [MonBuildInput; 6] {
     let screen = ScreenMask::default();
     let mut taken: Vec<u16> = Vec::with_capacity(6);
     std::array::from_fn(|_| {
-        let sp = loop {
-            let sp = sample_unrevealed_species(&taken, screen, rng);
-            let base = data_bridge::base_species(sp);
-            if !taken.iter().any(|&t| data_bridge::base_species(t) == base) {
-                break sp;
-            }
-        };
+        let sp = sample_unrevealed_species(&taken, screen, rng);
         taken.push(sp);
         sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, screen, rng)
     })
