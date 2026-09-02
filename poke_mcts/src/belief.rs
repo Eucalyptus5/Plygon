@@ -266,9 +266,10 @@ pub fn seed_pool(b: &mut MonBelief, species_id: u16) {
     let Some(sets) = species_sets_with_base_fallback(species_id) else {
         return;
     };
-    b.pool_mask = [0u64; 4];
-    for i in 0..sets.sets.len() {
-        pm_set(&mut b.pool_mask, i);
+    let n = sets.sets.len();
+    for w in 0..4 {
+        let lo = w * 64;
+        b.pool_mask[w] = if n >= lo + 64 { !0 } else if n > lo { (1u64 << (n - lo)) - 1 } else { 0 };
     }
     b.pool_active = true;
 }
@@ -287,6 +288,18 @@ mod tests {
         let after_prune = b.pool_mask;
         seed_pool(&mut b, GARCHOMP); // forme flip re-fires note_species
         assert_eq!(b.pool_mask, after_prune, "an active pool must not be re-seeded — prunes preserved");
+    }
+
+    #[test]
+    fn seed_pool_lights_exactly_the_species_sets() {
+        for ss in GEN9_SET_POOL.iter() {
+            let mut b = MonBelief { species_id: ss.species_id, ..Default::default() };
+            seed_pool(&mut b, ss.species_id);
+            let n = ss.sets.len();
+            assert!(b.pool_active);
+            assert!((0..n).all(|i| pm_get(&b.pool_mask, i)), "species {} lights all {n} sets", ss.species_id);
+            assert_eq!(b.pool_mask.iter().map(|w| w.count_ones()).sum::<u32>() as usize, n, "species {} lights nothing beyond its sets", ss.species_id);
+        }
     }
 
     #[test]
