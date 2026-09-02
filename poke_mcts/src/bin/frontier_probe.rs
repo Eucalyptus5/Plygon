@@ -6,8 +6,8 @@ use poke_mcts::determinize::{Determinizer, Observation, RandomBattle};
 use poke_mcts::driver::{aggregate, choose_action_traced, choose_action_traced_salted, pick_from, PickMode, PimcConfig, WorldTrace};
 use poke_mcts::eval::{Evaluator, Handcrafted};
 use poke_mcts::eval_learned::LearnedValueV2;
-use poke_mcts::frontier::{read_all, read_rows, Declairvoyant, NativeSnapshot, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
-use poke_mcts::gen_sets::SetEntry;
+use poke_mcts::frontier::{gen_team, read_all, read_rows, Declairvoyant, NativeSnapshot, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
+use poke_mcts::gen_sets::{SetEntry, GEN9_SET_POOL};
 use poke_mcts::rng::{splitmix64, Lcg};
 use poke_mcts::search::{search_world, ArmStat, ChanceMode, SearchParams, NO_ARM};
 use rayon::prelude::*;
@@ -1767,6 +1767,218 @@ fn leaf_dispersion(args: &[String]) {
     println!("leaf-dispersion-out {out} dump={dump}");
 }
 
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+fn fnv1a(h: &mut u64, v: u16) {
+    for b in v.to_le_bytes() {
+        *h ^= b as u64;
+        *h = h.wrapping_mul(FNV_PRIME);
+    }
+}
+
+const DUP_KINDS: [&str; 4] = ["rev-rev", "rev-unrev", "unrev-unrev", "true-true"];
+
+#[derive(Default)]
+struct DupTally {
+    roots: usize,
+    worlds: usize,
+    dup_worlds: usize,
+    dup_worlds_opp: usize,
+    dup_worlds_us: usize,
+    dup_pairs: usize,
+    kinds: [usize; 4],
+    offenders: std::collections::BTreeMap<u16, usize>,
+}
+
+impl DupTally {
+    fn merge(&mut self, o: &DupTally) {
+        self.roots += o.roots;
+        self.worlds += o.worlds;
+        self.dup_worlds += o.dup_worlds;
+        self.dup_worlds_opp += o.dup_worlds_opp;
+        self.dup_worlds_us += o.dup_worlds_us;
+        self.dup_pairs += o.dup_pairs;
+        for k in 0..4 {
+            self.kinds[k] += o.kinds[k];
+        }
+        for (b, c) in &o.offenders {
+            *self.offenders.entry(*b).or_default() += c;
+        }
+    }
+
+    fn row(&self, det: &str, label: &str) -> String {
+        format!(
+            "{det}\t{label}\t{}\t{}\t{}\t{:.6}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            self.roots, self.worlds, self.dup_worlds, self.dup_worlds as f64 / self.worlds.max(1) as f64,
+            self.dup_worlds_opp, self.dup_worlds_us, self.dup_pairs, self.kinds[0], self.kinds[1], self.kinds[2], self.kinds[3]
+        )
+    }
+}
+
+fn revealed_by(belief: &Belief, true_species: u16) -> bool {
+    let base = data_bridge::base_species(true_species);
+    belief.mons.iter().any(|mb| mb.species_id != 0 && data_bridge::base_species(mb.species_id) == base)
+}
+
+struct DupPair {
+    side: usize,
+    base: u16,
+    slot_a: usize,
+    sp_a: u16,
+    slot_b: usize,
+    sp_b: u16,
+    kind: usize,
+}
+
+// revealed[side][slot]: Some(true) a revealed slot, Some(false) a drawn slot, None the true team
+fn world_dup_pairs(state: &BattleState, revealed: &[[Option<bool>; 6]; 2]) -> Vec<DupPair> {
+    let mut out = Vec::new();
+    for side in 0..2 {
+        let team = &state.sides[side].team;
+        for a in 0..6 {
+            if team[a].species_id == 0 {
+                continue;
+            }
+            let base = data_bridge::base_species(team[a].species_id);
+            for b in a + 1..6 {
+                if team[b].species_id == 0 || data_bridge::base_species(team[b].species_id) != base {
+                    continue;
+                }
+                let kind = match (revealed[side][a], revealed[side][b]) {
+                    (None, _) | (_, None) => 3,
+                    (Some(true), Some(true)) => 0,
+                    (Some(false), Some(false)) => 2,
+                    _ => 1,
+                };
+                out.push(DupPair { side, base, slot_a: a, sp_a: team[a].species_id, slot_b: b, sp_b: team[b].species_id, kind });
+            }
+        }
+    }
+    out
+}
+
+fn world_dups(args: &[String]) {
+    let path = arg(args, "--snapshots", "../.decompose/frontier/results/0.1.snapshots.bin");
+    let snaps = read_all(&path).unwrap_or_else(|e| panic!("read_all {path}: {e}"));
+    println!("snapshots: path={path} count={}", snaps.len());
+    let roots_file = arg(args, "--roots", "results/0.7.roots.tsv");
+    let n: usize = parse(args, "--n", "2000");
+    let seeds: Vec<u64> = list(args, "--seeds", "1,2,3");
+    let worlds: usize = parse(args, "--worlds", "8");
+    let team_seeds: u64 = parse(args, "--team-seeds", "2000");
+    let out = arg(args, "--out", "results/F3.dups.tsv");
+    let dump = arg(args, "--dump", "results/F3.worlds.tsv");
+    let offenders_out = arg(args, "--offenders", "results/F3.offenders.tsv");
+    for p in [&out, &dump, &offenders_out] {
+        if let Some(dir) = std::path::Path::new(p).parent() {
+            std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
+        }
+    }
+    let mut roots = load_roots(&roots_file, &snaps);
+    let loaded = roots.len();
+    roots.truncate(n);
+    println!("roots: loaded={loaded} used={} file={roots_file} order=first_rows_in_file", roots.len());
+    assert!(!roots.is_empty(), "no roots");
+
+    let mut by_base: std::collections::BTreeMap<u16, Vec<u16>> = std::collections::BTreeMap::new();
+    for sp in GEN9_SET_POOL {
+        by_base.entry(data_bridge::base_species(sp.species_id)).or_default().push(sp.species_id);
+    }
+    let multi: Vec<(&u16, &Vec<u16>)> = by_base.iter().filter(|(_, v)| v.len() >= 2).collect();
+    println!("pool: ids={} bases={} bases_with_ge2_ids={}", GEN9_SET_POOL.len(), by_base.len(), multi.len());
+    for (b, ids) in &multi {
+        println!("pool-multi base={b} ids={ids:?}");
+    }
+
+    let mut h = FNV_OFFSET;
+    for s in 1..=team_seeds {
+        for m in &gen_team(&mut Lcg::new(s)) {
+            fnv1a(&mut h, m.species_id);
+        }
+    }
+    println!("gen-team-digest seeds=1..={team_seeds} fnv1a64=0x{h:016x}");
+    println!("world-dups: roots={} seeds={seeds:?} worlds={worlds} draw=Lcg::new(splitmix64(row_seed(seed, position))) rule=base_species_equal_either_side", roots.len());
+
+    let mut tsv = String::from("determinizer\tseed\troots\tworlds\tdup_worlds\tdup_rate\tdup_worlds_opp\tdup_worlds_us\tdup_pairs\trev_rev\trev_unrev\tunrev_unrev\ttrue_true\n");
+    let mut dump_s = String::from("determinizer\tseed\tposition\tgame\tturn\tside\tworld\tdup_side\tbase\tslot_a\tsp_a\tslot_b\tsp_b\tkind\n");
+    let mut offenders_s = String::from("determinizer\tbase\tdup_pairs\n");
+    let wall = Instant::now();
+    for det in ["RandomBattle", "Declairvoyant"] {
+        let mut pooled = DupTally::default();
+        let mut digest = FNV_OFFSET;
+        for &seed in &seeds {
+            let mut t = DupTally::default();
+            for r in &roots {
+                let snap = &snaps[r.position];
+                let side = snap.side as usize;
+                let opp = 1 - side;
+                let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
+                let belief = &snap.beliefs[side];
+                let mut rng = Lcg::new(splitmix64(row_seed(seed, r.position)));
+                let ws = if det == "RandomBattle" {
+                    RandomBattle.sample_worlds(&obs, belief, worlds, &mut rng)
+                } else {
+                    Declairvoyant { inner: RandomBattle, opp_view: snap.beliefs[opp] }.sample_worlds(&obs, belief, worlds, &mut rng)
+                };
+                let mut revealed = [[None; 6]; 2];
+                let active = snap.state.sides[side].active_index as usize;
+                for slot in 0..6 {
+                    let sid = snap.state.sides[opp].team[slot].species_id;
+                    revealed[opp][slot] = (sid != 0).then(|| revealed_by(belief, sid));
+                    if det == "Declairvoyant" {
+                        let sid = snap.state.sides[side].team[slot].species_id;
+                        revealed[side][slot] = (sid != 0).then(|| slot == active || revealed_by(&snap.beliefs[opp], sid));
+                    }
+                }
+                t.roots += 1;
+                for (k, w) in ws.iter().enumerate() {
+                    t.worlds += 1;
+                    for s in 0..2 {
+                        for slot in 0..6 {
+                            fnv1a(&mut digest, w.state.sides[s].team[slot].species_id);
+                        }
+                    }
+                    let pairs = world_dup_pairs(&w.state, &revealed);
+                    if pairs.is_empty() {
+                        continue;
+                    }
+                    t.dup_worlds += 1;
+                    t.dup_worlds_opp += pairs.iter().any(|p| p.side == opp) as usize;
+                    t.dup_worlds_us += pairs.iter().any(|p| p.side == side) as usize;
+                    for p in &pairs {
+                        t.dup_pairs += 1;
+                        t.kinds[p.kind] += 1;
+                        *t.offenders.entry(p.base).or_default() += 1;
+                        dump_s.push_str(&format!(
+                            "{det}\t{seed}\t{}\t{}\t{}\t{}\t{k}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                            r.position, r.game, r.turn, r.side, p.side, p.base, p.slot_a, p.sp_a, p.slot_b, p.sp_b, DUP_KINDS[p.kind]
+                        ));
+                    }
+                }
+            }
+            let line = t.row(det, &seed.to_string());
+            print!("{line}");
+            tsv.push_str(&line);
+            pooled.merge(&t);
+        }
+        let line = pooled.row(det, "pooled");
+        print!("{line}");
+        tsv.push_str(&line);
+        let mut off: Vec<(u16, usize)> = pooled.offenders.iter().map(|(b, c)| (*b, *c)).collect();
+        off.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        for (b, c) in &off {
+            offenders_s.push_str(&format!("{det}\t{b}\t{c}\n"));
+        }
+        println!("world-digest det={det} fnv1a64=0x{digest:016x} top_offenders_base_pairs={:?}", off.iter().take(10).collect::<Vec<_>>());
+    }
+    println!("world-dups-done wall_s={:.1}", wall.elapsed().as_secs_f64());
+    std::fs::write(&out, tsv).unwrap_or_else(|e| panic!("write {out}: {e}"));
+    std::fs::write(&dump, dump_s).unwrap_or_else(|e| panic!("write {dump}: {e}"));
+    std::fs::write(&offenders_out, offenders_s).unwrap_or_else(|e| panic!("write {offenders_out}: {e}"));
+    println!("world-dups-out {out} dump={dump} offenders={offenders_out}");
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--count") {
@@ -1787,8 +1999,10 @@ fn main() {
         prior_nll(&args);
     } else if args.iter().any(|a| a == "--leaf-dispersion") {
         leaf_dispersion(&args);
+    } else if args.iter().any(|a| a == "--world-dups") {
+        world_dups(&args);
     } else {
-        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll | --leaf-dispersion) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
+        eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll | --leaf-dispersion | --world-dups) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
         eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
         eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
         eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv]");
@@ -1796,6 +2010,7 @@ fn main() {
         eprintln!("  --worlds-flip [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--arm-a 8x8192] [--arm-b 64x1024] [--arm-c 64x8192] [--floor 8x8192] [--time-ms 600000] [--threads T] [--out results/0.9.worlds.tsv] [--dump PICKS.tsv]");
         eprintln!("  --prior-nll [--snapshots PATH] [--roots results/0.7.roots.tsv] [--out results/0.9.nll.tsv] [--dump ROWS.tsv]");
         eprintln!("  --leaf-dispersion [--rows A,B] [--limit N] [--seed 1] [--iters 16384] [--threads T] [--out results/0.14.dispersion.tsv] [--dump results/0.14.leaves.tsv]  (needs train_value and BRIDGE_EVAL_WEIGHTS_V2)");
+        eprintln!("  --world-dups [--snapshots PATH] [--roots results/0.7.roots.tsv] [--n 2000] [--seeds 1,2,3] [--worlds 8] [--team-seeds 2000] [--out results/F3.dups.tsv] [--dump results/F3.worlds.tsv] [--offenders results/F3.offenders.tsv]");
         std::process::exit(2);
     }
 }
