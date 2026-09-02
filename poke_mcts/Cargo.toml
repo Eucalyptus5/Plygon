@@ -6,6 +6,10 @@ edition = "2021"
 [[bin]]
 name = "ab_chance"
 
+[[bin]]
+name = "premise_vhat"
+required-features = ["train_value"]
+
 [features]
 train_value = []
 
