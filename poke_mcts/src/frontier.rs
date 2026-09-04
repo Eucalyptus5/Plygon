@@ -226,6 +226,36 @@ pub fn label_space(state: &BattleState, decider: usize, belief: &Belief) -> (Vec
     (labels, prior)
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct BuildInput {
+    pub species_id: u16,
+    pub ability_id: u16,
+    pub item_id: u16,
+    pub moves: [u16; 4],
+    pub ivs: [u8; 6],
+    pub evs: [u8; 6],
+    pub nature: u8,
+    pub level: u8,
+    pub tera_type: u8,
+    pub is_female: bool,
+}
+
+impl From<&MonBuildInput> for BuildInput {
+    fn from(m: &MonBuildInput) -> Self {
+        BuildInput { species_id: m.species_id, ability_id: m.ability_id, item_id: m.item_id, moves: m.moves, ivs: m.ivs, evs: m.evs, nature: m.nature, level: m.level, tera_type: m.tera_type, is_female: m.is_female }
+    }
+}
+
+impl From<&BuildInput> for MonBuildInput {
+    fn from(b: &BuildInput) -> Self {
+        MonBuildInput { species_id: b.species_id, ability_id: b.ability_id, item_id: b.item_id, moves: b.moves, ivs: b.ivs, evs: b.evs, nature: b.nature, level: b.level, tera_type: b.tera_type, is_female: b.is_female }
+    }
+}
+
+pub fn team_builds(team: &[MonBuildInput; 6]) -> [BuildInput; 6] {
+    std::array::from_fn(|i| BuildInput::from(&team[i]))
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct NativeSnapshot {
     pub game: u64,
@@ -236,20 +266,52 @@ pub struct NativeSnapshot {
     pub beliefs: [Belief; 2],
     pub pick: u8,
     pub seed: u64,
+    pub builds: Option<[[BuildInput; 6]; 2]>,
 }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SnapshotV0 {
+    game: u64,
+    turn: u16,
+    side: u8,
+    state: BattleState,
+    teams: TeamData,
+    beliefs: [Belief; 2],
+    pick: u8,
+    seed: u64,
+}
+
+impl From<SnapshotV0> for NativeSnapshot {
+    fn from(s: SnapshotV0) -> Self {
+        NativeSnapshot { game: s.game, turn: s.turn, side: s.side, state: s.state, teams: s.teams, beliefs: s.beliefs, pick: s.pick, seed: s.seed, builds: None }
+    }
+}
+
+// a version-0 file is a bare bincode Vec whose leading row count can never be all ones
+const SNAPSHOT_MAGIC: [u8; 8] = [0xFF; 8];
+const SNAPSHOT_VERSION: u8 = 1;
 
 pub fn bincode_err(e: bincode::Error) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Other, e)
 }
 
 pub fn write_all(path: &str, snaps: &[NativeSnapshot]) -> std::io::Result<()> {
-    let bytes = bincode::serialize(snaps).map_err(bincode_err)?;
+    let mut bytes = SNAPSHOT_MAGIC.to_vec();
+    bytes.push(SNAPSHOT_VERSION);
+    bincode::serialize_into(&mut bytes, snaps).map_err(bincode_err)?;
     std::fs::write(path, bytes)
 }
 
 pub fn read_all(path: &str) -> std::io::Result<Vec<NativeSnapshot>> {
     let bytes = std::fs::read(path)?;
-    bincode::deserialize(&bytes).map_err(bincode_err)
+    if bytes.len() > SNAPSHOT_MAGIC.len() && bytes[..SNAPSHOT_MAGIC.len()] == SNAPSHOT_MAGIC {
+        return match bytes[SNAPSHOT_MAGIC.len()] {
+            SNAPSHOT_VERSION => bincode::deserialize(&bytes[SNAPSHOT_MAGIC.len() + 1..]).map_err(bincode_err),
+            v => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("unknown snapshot format version {v}"))),
+        };
+    }
+    let v0: Vec<SnapshotV0> = bincode::deserialize(&bytes).map_err(bincode_err)?;
+    Ok(v0.into_iter().map(NativeSnapshot::from).collect())
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -478,12 +540,15 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(state.sides[1].team[0].species_id, state.sides[1].team[0].level);
         let snaps = vec![
-            NativeSnapshot { game: 1, turn: 2, side: 0, state, teams: teams.clone(), beliefs: [belief, Belief::default()], pick: 3, seed: 9 },
-            NativeSnapshot { game: 5, turn: 6, side: 1, state, teams, beliefs: [Belief::default(), belief], pick: 7, seed: 11 },
+            NativeSnapshot { game: 1, turn: 2, side: 0, state, teams: teams.clone(), beliefs: [belief, Belief::default()], pick: 3, seed: 9, builds: Some([team_builds(&a), team_builds(&b)]) },
+            NativeSnapshot { game: 5, turn: 6, side: 1, state, teams, beliefs: [Belief::default(), belief], pick: 7, seed: 11, builds: None },
         ];
         let path = std::env::temp_dir().join(format!("frontier_snapshots_{}.bin", std::process::id()));
         let path = path.to_string_lossy().into_owned();
         write_all(&path, &snaps).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        assert_eq!(bytes[..8], SNAPSHOT_MAGIC);
+        assert_eq!(bytes[8], SNAPSHOT_VERSION);
         let back = read_all(&path).unwrap();
         std::fs::remove_file(&path).unwrap();
         assert_eq!(back.len(), snaps.len());
@@ -496,7 +561,25 @@ mod tests {
             assert_eq!(x.beliefs, y.beliefs);
             assert_eq!(x.pick, y.pick);
             assert_eq!(x.seed, y.seed);
+            assert_eq!(x.builds, y.builds);
         }
+        let builds = back[0].builds.unwrap();
+        assert_eq!(builds[0].iter().map(|m| m.species_id).collect::<Vec<_>>(), a.iter().map(|m| m.species_id).collect::<Vec<_>>());
+        assert_eq!(MonBuildInput::from(&builds[1][3]).moves, b[3].moves);
+    }
+
+    #[test]
+    fn version_zero_file_reads_with_its_rows_unchanged() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/v0.snapshots.bin");
+        let fixture = std::fs::read(path).unwrap();
+        let back = read_all(path).unwrap();
+        assert_eq!(back.len(), 20);
+        assert!(back.iter().all(|s| s.builds.is_none()));
+        let v0: Vec<SnapshotV0> = back
+            .iter()
+            .map(|s| SnapshotV0 { game: s.game, turn: s.turn, side: s.side, state: s.state, teams: s.teams.clone(), beliefs: s.beliefs, pick: s.pick, seed: s.seed })
+            .collect();
+        assert_eq!(bincode::serialize(&v0).unwrap(), fixture);
     }
 
     fn opp_fixture(seed: u64) -> (BattleState, Belief) {

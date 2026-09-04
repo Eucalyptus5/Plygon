@@ -392,6 +392,7 @@ fn run_game(g: u64, seed: u64, opp_random: bool, policy: Policy) -> GameOutput {
     let a = frontier::gen_team(&mut team_rng);
     let b = frontier::gen_team(&mut team_rng);
     let (state, teams) = frontier::initial_state(&a, &b);
+    let builds = [frontier::team_builds(&a), frontier::team_builds(&b)];
     let random_seat = opp_random.then(|| (g & 1) as usize);
     let mut out = GameOutput { records: Vec::new(), sidecar: Vec::new(), snaps: Vec::new(), outcome: 0.5, turns: 0, counters: Counters::default(), first_search: None };
     let mut pending: Option<Pending> = None;
@@ -411,7 +412,7 @@ fn run_game(g: u64, seed: u64, opp_random: bool, policy: Policy) -> GameOutput {
         };
         let turn = st.field.turn;
         if SNAPSHOT_TURNS.contains(&turn) {
-            out.snaps.push(NativeSnapshot { game: g, turn, side: side as u8, state: *st, teams: tm.clone(), beliefs: *bel, pick: a, seed: game_seed });
+            out.snaps.push(NativeSnapshot { game: g, turn, side: side as u8, state: *st, teams: tm.clone(), beliefs: *bel, pick: a, seed: game_seed, builds: Some(builds) });
         }
         let rec = (random_seat != Some(side)).then(|| {
             let (labels, prior) = frontier::label_space(st, side, &bel[side]);

@@ -2110,7 +2110,7 @@ mod tests {
             let om = state.active_mon(1 - s);
             beliefs[s].note_species(om.species_id, om.level);
         }
-        NativeSnapshot { game, turn, side, state, teams, beliefs, pick: 0, seed }
+        NativeSnapshot { game, turn, side, state, teams, beliefs, pick: 0, seed, builds: None }
     }
 
     fn snapshots() -> Vec<NativeSnapshot> {
