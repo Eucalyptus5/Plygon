@@ -114,9 +114,11 @@ impl Field {
 fn load(args: &[String]) -> Vec<Row> {
     let paths: Vec<String> = list(args, "--rows", DEFAULT_ROWS);
     let mut rows = read_rows(&paths).unwrap_or_else(|e| panic!("read_rows {paths:?}: {e}"));
+    let skip: usize = parse(args, "--skip", "0");
+    rows.drain(..skip.min(rows.len()));
     let limit: usize = parse(args, "--limit", &rows.len().to_string());
     rows.truncate(limit);
-    println!("rows: paths={paths:?} rows={}", rows.len());
+    println!("rows: paths={paths:?} skip={skip} rows={}", rows.len());
     rows
 }
 
@@ -229,6 +231,7 @@ fn summary_line(field: &str, budget: u64, seed: &str, t: &Tally, with_flips: boo
 
 fn flip_fields(args: &[String]) {
     let rows = load(args);
+    let skip: usize = parse(args, "--skip", "0");
     let budgets: Vec<u64> = list(args, "--budgets", "1024,32768");
     let seeds: Vec<u64> = list(args, "--seeds", "1,2,3");
     let threads: usize = parse(args, "--threads", &std::thread::available_parallelism().map_or(1, |n| n.get()).to_string());
@@ -257,10 +260,10 @@ fn flip_fields(args: &[String]) {
             let mut out = Vec::with_capacity(params.len() * seeds.len());
             for p in &params {
                 for &s in &seeds {
-                    let seed = row_seed(s, i);
+                    let seed = row_seed(s, i + skip);
                     let (base, it0) = root_pick(&row.state, &row.teams, side, p, seed);
                     let (repeat, it1) = root_pick(&row.state, &row.teams, side, p, seed);
-                    let (reseed, it2) = root_pick(&row.state, &row.teams, side, p, row_seed(s ^ RESEED_SALT, i));
+                    let (reseed, it2) = root_pick(&row.state, &row.teams, side, p, row_seed(s ^ RESEED_SALT, i + skip));
                     let mut min_iters = it0.min(it1).min(it2);
                     let mut total = it0 + it1 + it2;
                     let mut perturbed = [None; N_FIELDS];
@@ -290,12 +293,13 @@ fn flip_fields(args: &[String]) {
     let fmt = |o: Option<u8>| o.map_or("-".to_string(), |p| p.to_string());
     let mut s = String::from("row\tgame_index\tgame_tag\tturn\tside\tbudget\tseed\tbase\trepeat\treseed\t");
     s.push_str(&FIELDS.iter().map(|f| f.name()).collect::<Vec<_>>().join("\t"));
-    s.push_str("\tmin_iters\n");
+    s.push_str("\tmin_iters\tpre_toxic_counter\n");
     for (i, (row, cs)) in rows.iter().zip(&cells).enumerate() {
         for c in cs {
-            s.push_str(&format!("{i}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                row.game_index, row.game_tag, row.turn, row.side, c.budget, c.seed, c.base, c.repeat, c.reseed,
-                c.perturbed.iter().map(|&p| fmt(p)).collect::<Vec<_>>().join("\t"), c.min_iters));
+            s.push_str(&format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                i + skip, row.game_index, row.game_tag, row.turn, row.side, c.budget, c.seed, c.base, c.repeat, c.reseed,
+                c.perturbed.iter().map(|&p| fmt(p)).collect::<Vec<_>>().join("\t"), c.min_iters,
+                row.state.sides[row.side as usize].active.toxic_counter));
         }
     }
     std::fs::write(&out, s).unwrap_or_else(|e| panic!("write {out}: {e}"));
