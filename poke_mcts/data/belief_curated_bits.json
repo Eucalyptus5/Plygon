@@ -1,0 +1,7 @@
+{
+  "items":     { "choiceband":0,"choicescarf":1,"choicespecs":2,"assaultvest":3,"lifeorb":4,
+                 "leftovers":5,"blacksludge":6,"heavydutyboots":7,"airballoon":8,"boosterenergy":9,
+                 "flameorb":10,"toxicorb":11,"lumberry":12 },
+  "abilities": { "intimidate":13,"drought":14,"drizzle":15,"sandstream":16,"snowwarning":17,
+                 "pressure":18,"neutralizinggas":19 }
+}

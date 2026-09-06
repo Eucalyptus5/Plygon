@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "name": "guaranteed-OHKO-bolt-vs-1hp-gyarados",
+      "source": "hand-analysis",
+      "justification": "Gyarados (4x weak to Electric) at 1 HP; Thunderbolt (slot 0) always KOs, Splash (slot 1) never does. Levels/abilities/EVs pinned so the OHKO is deterministic.",
+      "side0": {"species": 25, "level": 50, "ability": 9, "item": 0, "moves": [85, 150, 0, 0], "evs": [85,85,85,85,85,85]},
+      "side1": {"species": 130, "level": 50, "ability": 22, "item": 0, "moves": [58, 0, 0, 0], "evs": [85,85,85,85,85,85]},
+      "overrides": {"side1_active_hp": 1},
+      "correct_action": 0
+    },
+    {
+      "name": "accuracy-discipline-bolt-vs-thunder-1hp-snorlax",
+      "source": "hand-analysis",
+      "justification": "Snorlax (Normal, neutral to Electric: type_chart[Electric=3][Normal=0]=4=1x) at 1 HP. Slot 0 Thunderbolt (move 85): 100% accuracy, BP 90, Electric/Special -> connects every time and any neutral Electric hit KOs a 1-HP target. Slot 1 Thunder (move 87): only 70% accuracy (no rain set, so the rain-bypass does not apply), BP 110, also KOs on hit but misses 30% of the time. Both moves KO when they connect, so the only difference is hit probability; the 100%-accuracy Thunderbolt strictly dominates the 70% Thunder. Snorlax ability Immunity (17, legal) blocks only poison status and never touches Electric damage; Pikachu ability Static (9) has no effect on its own outgoing damage; no Electric-immunity ability (Volt Absorb/Lightning Rod/Motor Drive) is present. correct_action = 0.",
+      "side0": {"species": 25, "level": 50, "ability": 9, "item": 0, "moves": [85, 87, 0, 0], "evs": [85,85,85,85,85,85]},
+      "side1": {"species": 143, "level": 50, "ability": 17, "item": 0, "moves": [150, 0, 0, 0], "evs": [85,85,85,85,85,85]},
+      "overrides": {"side1_active_hp": 1},
+      "correct_action": 0
+    },
+    {
+      "name": "accuracy-discipline-reversed-blizzard-vs-icebeam-1hp-snorlax",
+      "source": "hand-analysis",
+      "justification": "Reversed-slot twin of the accuracy case to prove the runner honors per-case correct_action and is not slot-0 biased. Lapras attacks a 1-HP Snorlax (Normal, neutral to Ice: type_chart[Ice=5][Normal=0]=4=1x). Slot 0 Blizzard (move 59): only 70% accuracy (no hail/snow auto-hit set), BP 110, KOs on hit but misses 30%. Slot 1 Ice Beam (move 58): 100% accuracy, BP 90, also KOs on hit and never misses. Both KO when they connect, so the sure-hit Ice Beam in slot 1 strictly dominates the missable Blizzard in slot 0 -> correct_action = 1. Snorlax ability Immunity (17, legal) blocks only poison; Lapras ability Shell Armor (75, legal) only protects the holder from crits and has no effect on its outgoing Ice damage. No Ice-immunity exists in the type chart. correct_action = 1.",
+      "side0": {"species": 131, "level": 50, "ability": 75, "item": 0, "moves": [59, 58, 0, 0], "evs": [85,85,85,85,85,85]},
+      "side1": {"species": 143, "level": 50, "ability": 17, "item": 0, "moves": [150, 0, 0, 0], "evs": [85,85,85,85,85,85]},
+      "overrides": {"side1_active_hp": 1},
+      "correct_action": 1
+    },
+    {
+      "name": "speed-priority-quickattack-vs-tackle-both-1hp",
+      "source": "hand-analysis",
+      "justification": "Both active mons at 1 HP. We are Snorlax (143, base Spe 30 -> L50 Spe 61); the opponent is Pikachu (25, base Spe 90 -> L50 Spe 121), strictly faster (no speed tie). All matchups are neutral 1x: Normal vs Electric = type_chart[Normal=0][Electric=3]=4 (our Quick Attack/Tackle KO the 1-HP Pikachu) and Electric vs Normal = type_chart[Electric=3][Normal=0]=4 (Pikachu Thunderbolt KOs the 1-HP Snorlax). Slot 0 Quick Attack (move 98): +1 priority, 100% accuracy, BP 40 -> we always move first and KO before Pikachu can act = guaranteed win. Slot 1 Tackle (move 33): 0 priority, 100% accuracy, BP 40 -> Pikachu (121) outspeeds us (61) and its 100%-accuracy Thunderbolt KOs us first, so we faint before acting = guaranteed loss. Quick Attack therefore strictly dominates. Abilities are inert here: Snorlax Immunity (17) blocks only poison; Pikachu Static (9) at most paralyzes on contact, which cannot occur before our priority KO and cannot undo it. correct_action = 0.",
+      "side0": {"species": 143, "level": 50, "ability": 17, "item": 0, "moves": [98, 33, 0, 0], "evs": [85,85,85,85,85,85]},
+      "side1": {"species": 25, "level": 50, "ability": 9, "item": 0, "moves": [85, 0, 0, 0], "evs": [85,85,85,85,85,85]},
+      "overrides": {"side0_active_hp": 1, "side1_active_hp": 1},
+      "correct_action": 0
+    }
+  ]
+}

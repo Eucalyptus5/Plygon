@@ -1,0 +1,1724 @@
+{
+ "_comment": "Reconstructed from ladder-20260615-081058.log blunder turns. Levels approximate (~randbats); our-side abilities/items left 0 (neutral for the move-ranking diagnostic). Opp ability/item/bench are determinized by RandomBattle from real randbats sets. our_boosts index order = [Atk,Def,SpA,SpD,Spe,Acc,Eva]. blunder/better_action are move-slot bytes (0-3). | T0-00-Exp1 added 6 missed-KO fixtures (+bench) reconstructed from showdown-bridge/logs/ladder-20260615-081058.log; our & opp EVs 85x6, IV 31, neutral nature/ability/item, levels~randbats. G0 status is recorded per-case in note. VALID: t53/t7/t17/t5; INVALID (no KO asymmetry): t6, t15. | THEME-04-G1 substrate (analytic-root lever): 5 NEW fixtures (+bench) authored by raising opp HP into the better move's marginal band (Type-M/MT) and via a last_mon flag. last_mon=true is consumed ONLY by blunder_probe's LastMonRandomBattle wrapper (faints the determinized opp bench so a root KO empties the opp team -> terminal winner_value; RandomBattle always fills the bench to 6, so the fixture cannot encode last-mon alone). G0 ALL VALID full-conf (better k in [1,15] marginal or 16; blunder k=0; marginal verdict stable across +-2 opp level; crit k_crit=16 -> G2 two-grid). Open-loop @seeds{177,178,179} PROBE_WORLDS=8 PROBE_MS=4000: Type-M marginal-dachsbun flips 6/6 (bare+bench), marginal-armarouge bare 3/3 / bench 0/3; Type-MT mt-armarouge(damaging blunder) flips 6/6 strongly (KO avg~0.78 terminal), mt-necrozma(boost blunder Calm Mind) bare REPRODUCES blunder 3/3 (KO Photon Geyser under-priced avg~0.21 vs Calm Mind boost-eval 0.62) -> the GOLD analytic-flip target; Type-T lastmon-necrozma(16/16 terminal) KO avg 0.79-0.99 ~winner_value, picked 5/6. Terminality verified: same 16/16 KO move avg 0.16/0.45 (non-terminal existing t5) -> 0.80/0.98 (last_mon terminal).",
+ "cases": [
+  {
+   "name": "g04-t25-manaphy-capped-tailglow",
+   "note": "Manaphy already +6 SpA (Tail Glow used t4/t21/t23) keeps using Tail Glow (a no-op at +6) vs Ursaring 33%, instead of Ice Beam/Hydro Pump which KO. blunder=Tail Glow(no-op), better=Ice Beam.",
+   "our": [
+    {
+     "species": 490,
+     "level": 80,
+     "moves": [
+      294,
+      58,
+      56,
+      412
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    6,
+    0,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 217,
+    "level": 84,
+    "hp_num": 33,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     34,
+     156
+    ]
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "g04-CONTROL-manaphy-NO-boost",
+   "note": "CONTROL for state-fidelity hypothesis: same Manaphy/Ursaring position but with NO SpA boost in the state (boosts=0). If Tail Glow now clears the filter / is picked, the live blunder is explained by the +6 boost being ABSENT from the live search state, not by eval/pick.",
+   "our": [
+    {
+     "species": 490,
+     "level": 80,
+     "moves": [
+      294,
+      58,
+      56,
+      412
+     ]
+    }
+   ],
+   "opp": {
+    "species": 217,
+    "level": 84,
+    "hp_num": 33,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     34,
+     156
+    ]
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "g16-t20-granbull-twave-into-par",
+   "note": "Granbull uses Thunder Wave into Slowbro that is ALREADY paralyzed (opp belief shows 'slowbro 69% par'), a guaranteed no-op, instead of Play Rough/Earthquake which deal damage. blunder=Thunder Wave(no-op), better=Play Rough.",
+   "our": [
+    {
+     "species": 210,
+     "level": 84,
+     "moves": [
+      86,
+      583,
+      89,
+      242
+     ]
+    }
+   ],
+   "opp": {
+    "species": 80,
+    "level": 84,
+    "hp_num": 69,
+    "hp_den": 100,
+    "status": "par",
+    "moves_revealed": []
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "g16-t20-granbull-twave-WITH-BENCH",
+   "note": "Same Granbull-into-paralyzed-Slowbro turn but with our real game-16 bench (Kilowattrel, Klawf) so it is not an artificial 1-vs-6. Robustness check for the visit-vs-value pathology.",
+   "our": [
+    {
+     "species": 210,
+     "level": 84,
+     "moves": [
+      86,
+      583,
+      89,
+      242
+     ]
+    },
+    {
+     "species": 941,
+     "level": 84,
+     "moves": [
+      435,
+      542,
+      355,
+      369
+     ]
+    },
+    {
+     "species": 950,
+     "level": 84,
+     "moves": [
+      152,
+      667,
+      14,
+      89
+     ]
+    }
+   ],
+   "opp": {
+    "species": 80,
+    "level": 84,
+    "hp_num": 69,
+    "hp_den": 100,
+    "status": "par",
+    "moves_revealed": []
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "g14-t20-snorlax-rest-at-full-hp",
+   "note": "Snorlax at FULL HP uses Rest (heals 0, just sleeps itself) vs Minior 33%, instead of Body Slam. blunder=Rest(no-op heal), better=Body Slam.",
+   "our": [
+    {
+     "species": 143,
+     "level": 84,
+     "moves": [
+      156,
+      34,
+      174,
+      89
+     ]
+    }
+   ],
+   "opp": {
+    "species": 774,
+    "level": 80,
+    "hp_num": 33,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": []
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "missed-ko-2632535352-t6",
+   "note": "Metagross t6 (g2632535352): blunder=Knock Off(slot1), better=Earthquake(slot2). G0 INVALID (no asymmetry): vs Duraludon 100% (cur 249) Earthquake 0/16 KO (noncrit 124-148, crit 188-222) and Knock Off 0/16 (41-49) - it is a 2HKO, not a 1-turn KO. The live KO needed Knock Off chip (->74%) then Earthquake at t8. EXCLUDED from G1/G2 pass count.",
+   "our": [
+    {
+     "species": 376,
+     "level": 79,
+     "moves": [
+      484,
+      282,
+      89,
+      706
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 884,
+    "level": 82,
+    "hp_num": 100,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     430
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 2
+  },
+  {
+   "name": "missed-ko-2632535352-t6-bench",
+   "note": "+bench variant (real living bench mons). Metagross t6 (g2632535352): blunder=Knock Off(slot1), better=Earthquake(slot2). G0 INVALID (no asymmetry): vs Duraludon 100% (cur 249) Earthquake 0/16 KO (noncrit 124-148, crit 188-222) and Knock Off 0/16 (41-49) - it is a 2HKO, not a 1-turn KO. The live KO needed Knock Off chip (->74%) then Earthquake at t8. EXCLUDED from G1/G2 pass count.",
+   "our": [
+    {
+     "species": 376,
+     "level": 79,
+     "moves": [
+      484,
+      282,
+      89,
+      706
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 409,
+     "level": 90,
+     "moves": [
+      89,
+      7,
+      457,
+      157
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 442,
+     "level": 89,
+     "moves": [
+      492,
+      220,
+      809,
+      425
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 9,
+     "level": 80,
+     "moves": [
+      89,
+      56,
+      58,
+      504
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 884,
+    "level": 82,
+    "hp_num": 100,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     430
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 2
+  },
+  {
+   "name": "missed-ko-2632539350-t15",
+   "note": "Incineroar t15 (g2632539350): blunder=Trailblaze(slot3), better=Flare Blitz(slot0). +2 Atk from Swords Dance(t13). G0 INVALID (no asymmetry) under faithful boost: vs Ursaring 24% (cur 69) Flare Blitz 16/16 (283-334) AND Trailblaze 16/16 (79-94) both KO. (Without the SD boost Trailblaze is 0/16 -> would be valid, but the +2 is faithful.) EXCLUDED from G1/G2 pass count.",
+   "our": [
+    {
+     "species": 727,
+     "level": 82,
+     "moves": [
+      394,
+      282,
+      14,
+      885
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 217,
+    "level": 84,
+    "hp_num": 24,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     34
+    ]
+   },
+   "blunder_action": 3,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632539350-t15-bench",
+   "note": "+bench variant (real living bench mons). Incineroar t15 (g2632539350): blunder=Trailblaze(slot3), better=Flare Blitz(slot0). +2 Atk from Swords Dance(t13). G0 INVALID (no asymmetry) under faithful boost: vs Ursaring 24% (cur 69) Flare Blitz 16/16 (283-334) AND Trailblaze 16/16 (79-94) both KO. (Without the SD boost Trailblaze is 0/16 -> would be valid, but the +2 is faithful.) EXCLUDED from G1/G2 pass count.",
+   "our": [
+    {
+     "species": 727,
+     "level": 82,
+     "moves": [
+      394,
+      282,
+      14,
+      885
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 490,
+     "level": 78,
+     "moves": [
+      412,
+      56,
+      58,
+      57
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 211,
+     "level": 86,
+     "moves": [
+      194,
+      441,
+      191,
+      269
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 467,
+     "level": 88,
+     "moves": [
+      126,
+      411,
+      282,
+      815
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 217,
+    "level": 84,
+    "hp_num": 24,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     34
+    ]
+   },
+   "blunder_action": 3,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632547624-t53",
+   "note": "Armarouge t53 (g2632547624): blunder=Psyshock(slot1), better=Armor Cannon(slot0). G0 VALID: vs Tropius 63% (cur 207) Armor Cannon 16/16 (246-290, 2x) KO vs Psyshock 0/16 (84-100). CAVEAT: live Tropius had a Substitute up (t50); fixture+probe do not model the opp sub so the live KO was partly sub-blocked, but the KO asymmetry is robust.",
+   "our": [
+    {
+     "species": 936,
+     "level": 80,
+     "moves": [
+      890,
+      473,
+      396,
+      412
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 357,
+    "level": 91,
+    "hp_num": 63,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     73,
+     182,
+     164,
+     403
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632547624-t53-bench",
+   "note": "+bench variant (real living bench mons). Armarouge t53 (g2632547624): blunder=Psyshock(slot1), better=Armor Cannon(slot0). G0 VALID: vs Tropius 63% (cur 207) Armor Cannon 16/16 (246-290, 2x) KO vs Psyshock 0/16 (84-100). CAVEAT: live Tropius had a Substitute up (t50); fixture+probe do not model the opp sub so the live KO was partly sub-blocked, but the KO asymmetry is robust.",
+   "our": [
+    {
+     "species": 936,
+     "level": 80,
+     "moves": [
+      890,
+      473,
+      396,
+      412
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 956,
+     "level": 80,
+     "moves": [
+      605,
+      855,
+      247,
+      369
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 357,
+    "level": 91,
+    "hp_num": 63,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     73,
+     182,
+     164,
+     403
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632556633-t7",
+   "note": "Tentacruel t7 (g2632556633): blunder=switch to Sunflora, better=Surf(slot0). G0 VALID: vs Chien-Pao 4% (cur 9) Surf 16/16 (109-129); blunder switch = 0 dmg by construction. Bare 1-v-1 cannot represent the switch (tests 'pick Surf when no switch is offered'); bench variant places Sunflora at team slot 3 (switch byte 7).",
+   "our": [
+    {
+     "species": 73,
+     "level": 84,
+     "moves": [
+      57,
+      188,
+      282,
+      812
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 1002,
+    "level": 72,
+    "hp_num": 4,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     389,
+     556,
+     14,
+     675
+    ]
+   },
+   "blunder_action": 7,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632556633-t7-bench",
+   "note": "+bench variant (real living bench mons). Tentacruel t7 (g2632556633): blunder=switch to Sunflora, better=Surf(slot0). G0 VALID: vs Chien-Pao 4% (cur 9) Surf 16/16 (109-129); blunder switch = 0 dmg by construction. Bare 1-v-1 cannot represent the switch (tests 'pick Surf when no switch is offered'); bench variant places Sunflora at team slot 3 (switch byte 7).",
+   "our": [
+    {
+     "species": 73,
+     "level": 84,
+     "moves": [
+      57,
+      188,
+      282,
+      812
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 326,
+     "level": 92,
+     "moves": [
+      605,
+      414,
+      417,
+      94
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 905,
+     "level": 79,
+     "moves": [
+      583,
+      164,
+      276,
+      269
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 192,
+     "level": 100,
+     "moves": [
+      605,
+      414,
+      437,
+      188
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      349,
+      89,
+      282,
+      722
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 1002,
+    "level": 72,
+    "hp_num": 4,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     389,
+     556,
+     14,
+     675
+    ]
+   },
+   "blunder_action": 7,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632561091-t17",
+   "note": "Dachsbun t17 (g2632561091): blunder=Body Press(slot0), better=Play Rough(slot1). G0 VALID, stable under +-2 level sweep (attacker L90-94, defender L78-82): vs Heracross 76% brn (cur 197) Play Rough 16/16 (212-252, 2x) KO vs Body Press 0/16 (41-49, crit max 73).",
+   "our": [
+    {
+     "species": 927,
+     "level": 92,
+     "moves": [
+      776,
+      583,
+      182,
+      273
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 214,
+    "level": 80,
+    "hp_num": 76,
+    "hp_den": 100,
+    "status": "brn",
+    "moves_revealed": [
+     370,
+     282,
+     263,
+     885
+    ]
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "missed-ko-2632561091-t17-bench",
+   "note": "+bench variant (real living bench mons). Dachsbun t17 (g2632561091): blunder=Body Press(slot0), better=Play Rough(slot1). G0 VALID, stable under +-2 level sweep (attacker L90-94, defender L78-82): vs Heracross 76% brn (cur 197) Play Rough 16/16 (212-252, 2x) KO vs Body Press 0/16 (41-49, crit max 73).",
+   "our": [
+    {
+     "species": 927,
+     "level": 92,
+     "moves": [
+      776,
+      583,
+      182,
+      273
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 855,
+     "level": 78,
+     "moves": [
+      247,
+      504,
+      500,
+      668
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 199,
+     "level": 88,
+     "moves": [
+      881,
+      917,
+      473,
+      503
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 765,
+     "level": 92,
+     "moves": [
+      411,
+      417,
+      94,
+      473
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 586,
+     "level": 88,
+     "moves": [
+      38,
+      667,
+      532,
+      14
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 214,
+    "level": 80,
+    "hp_num": 76,
+    "hp_den": 100,
+    "status": "brn",
+    "moves_revealed": [
+     370,
+     282,
+     263,
+     885
+    ]
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "missed-ko-2632575742-t5",
+   "note": "Necrozma t5 (g2632575742): blunder=Calm Mind(slot1), better=Photon Geyser(slot0). +1 SpA/+1 SpD from Calm Mind(t3). G0 VALID: vs Drifblim 41% (cur 163) Photon Geyser 16/16 (229-270); blunder Calm Mind = status 0 dmg by construction.",
+   "our": [
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      722,
+      347,
+      236,
+      257
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 426,
+    "level": 86,
+    "hp_num": 41,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     247
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-2632575742-t5-bench",
+   "note": "+bench variant (real living bench mons). Necrozma t5 (g2632575742): blunder=Calm Mind(slot1), better=Photon Geyser(slot0). +1 SpA/+1 SpD from Calm Mind(t3). G0 VALID: vs Drifblim 41% (cur 163) Photon Geyser 16/16 (229-270); blunder Calm Mind = status 0 dmg by construction.",
+   "our": [
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      722,
+      347,
+      236,
+      257
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 973,
+     "level": 82,
+     "moves": [
+      413,
+      370,
+      675,
+      369
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 1023,
+     "level": 78,
+     "moves": [
+      347,
+      411,
+      473,
+      911
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 625,
+     "level": 79,
+     "moves": [
+      442,
+      446,
+      389,
+      14
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 652,
+     "level": 84,
+     "moves": [
+      776,
+      282,
+      191,
+      235
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 1021,
+     "level": 78,
+     "moves": [
+      435,
+      434,
+      85,
+      909
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 426,
+    "level": 86,
+    "hp_num": 41,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     247
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-marginal-armarouge-t53",
+   "note": "Type-M (roll-axis control, opp NOT last mon). Derived from t53 by raising Tropius 63%->82% (cur 269/328) into Armor Cannon's marginal band. G0 VALID (full-conf): better=Armor Cannon(slot0) k=8/16 noncrit(246-290), blunder=Psyshock(slot1) k=0/16 noncrit(84-100). Stable marginal across +-2 opp level (k 4-12, never 0/16). Crit k_crit=16 so G2 true-KO-prob uses two-grid (1-crit)*k/16+crit. Grid cross-checked vs run_scenario calc_damage (exact match).",
+   "our": [
+    {
+     "species": 936,
+     "level": 80,
+     "moves": [
+      890,
+      473,
+      396,
+      412
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 357,
+    "level": 91,
+    "hp_num": 82,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     73,
+     182,
+     164,
+     403
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-marginal-armarouge-t53-bench",
+   "note": "+bench variant. Type-M (roll-axis control, opp NOT last mon). Armarouge vs Tropius raised into Armor Cannon's marginal band. blunder=Psyshock(k=0), better=Armor Cannon(MARGINAL).",
+   "our": [
+    {
+     "species": 936,
+     "level": 80,
+     "moves": [
+      890,
+      473,
+      396,
+      412
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 956,
+     "level": 80,
+     "moves": [
+      605,
+      855,
+      247,
+      369
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 357,
+    "level": 91,
+    "hp_num": 82,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     73,
+     182,
+     164,
+     403
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0
+  },
+  {
+   "name": "missed-ko-marginal-dachsbun-t17",
+   "note": "Type-M (roll-axis control, opp NOT last mon). Derived from t17 by raising Heracross(brn) HP into Play Rough's marginal band. blunder=Body Press(slot0,k=0), better=Play Rough(slot1,MARGINAL).",
+   "our": [
+    {
+     "species": 927,
+     "level": 92,
+     "moves": [
+      776,
+      583,
+      182,
+      273
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 214,
+    "level": 80,
+    "hp_num": 90,
+    "hp_den": 100,
+    "status": "brn",
+    "moves_revealed": [
+     370,
+     282,
+     263,
+     885
+    ]
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "missed-ko-marginal-dachsbun-t17-bench",
+   "note": "+bench variant. Type-M (roll-axis control, opp NOT last mon). Dachsbun vs Heracross(brn) raised into Play Rough's marginal band. blunder=Body Press(k=0), better=Play Rough(MARGINAL).",
+   "our": [
+    {
+     "species": 927,
+     "level": 92,
+     "moves": [
+      776,
+      583,
+      182,
+      273
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 855,
+     "level": 78,
+     "moves": [
+      247,
+      504,
+      500,
+      668
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 199,
+     "level": 88,
+     "moves": [
+      881,
+      917,
+      473,
+      503
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 765,
+     "level": 92,
+     "moves": [
+      411,
+      417,
+      94,
+      473
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 586,
+     "level": 88,
+     "moves": [
+      38,
+      667,
+      532,
+      14
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 214,
+    "level": 80,
+    "hp_num": 90,
+    "hp_den": 100,
+    "status": "brn",
+    "moves_revealed": [
+     370,
+     282,
+     263,
+     885
+    ]
+   },
+   "blunder_action": 0,
+   "better_action": 1
+  },
+  {
+   "name": "missed-ko-mt-necrozma-t5",
+   "note": "Type-MT (GOLD: MARGINAL KO + opp on LAST mon -> terminal). last_mon=true faints the determinized opp bench so the KO empties the team (winner_value). Derived from t5 by raising Drifblim HP into Photon Geyser's marginal band. blunder=Calm Mind(slot1,status,k=0), better=Photon Geyser(slot0,MARGINAL). +1 SpA/+1 SpD faithful from Calm Mind(t3).",
+   "our": [
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      722,
+      347,
+      236,
+      257
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 426,
+    "level": 86,
+    "hp_num": 63,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     247
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0,
+   "last_mon": true
+  },
+  {
+   "name": "missed-ko-mt-necrozma-t5-bench",
+   "note": "+bench variant. Type-MT (GOLD: MARGINAL KO + opp on LAST mon -> terminal). last_mon=true faints the determinized opp bench. Our real bench present; opp on its last mon. blunder=Calm Mind(status,k=0), better=Photon Geyser(MARGINAL).",
+   "our": [
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      722,
+      347,
+      236,
+      257
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 973,
+     "level": 82,
+     "moves": [
+      413,
+      370,
+      675,
+      369
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 1023,
+     "level": 78,
+     "moves": [
+      347,
+      411,
+      473,
+      911
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 625,
+     "level": 79,
+     "moves": [
+      442,
+      446,
+      389,
+      14
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 652,
+     "level": 84,
+     "moves": [
+      776,
+      282,
+      191,
+      235
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 1021,
+     "level": 78,
+     "moves": [
+      435,
+      434,
+      85,
+      909
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 426,
+    "level": 86,
+    "hp_num": 63,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     247
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0,
+   "last_mon": true
+  },
+  {
+   "name": "missed-ko-mt-armarouge-t53",
+   "note": "Type-MT (GOLD: MARGINAL KO + opp on LAST mon -> terminal, with a DAMAGING blunder). last_mon=true faints the determinized opp bench. Same position as missed-ko-marginal-armarouge-t53 but terminal. blunder=Psyshock(slot1,k=0 damaging), better=Armor Cannon(slot0,MARGINAL).",
+   "our": [
+    {
+     "species": 936,
+     "level": 80,
+     "moves": [
+      890,
+      473,
+      396,
+      412
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 357,
+    "level": 91,
+    "hp_num": 82,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     73,
+     182,
+     164,
+     403
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0,
+   "last_mon": true
+  },
+  {
+   "name": "missed-ko-mt-armarouge-t53-bench",
+   "note": "+bench variant. Type-MT (GOLD: MARGINAL KO + opp on LAST mon -> terminal, DAMAGING blunder). last_mon=true faints the determinized opp bench. blunder=Psyshock(k=0 damaging), better=Armor Cannon(MARGINAL).",
+   "our": [
+    {
+     "species": 936,
+     "level": 80,
+     "moves": [
+      890,
+      473,
+      396,
+      412
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 956,
+     "level": 80,
+     "moves": [
+      605,
+      855,
+      247,
+      369
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "opp": {
+    "species": 357,
+    "level": 91,
+    "hp_num": 82,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     73,
+     182,
+     164,
+     403
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0,
+   "last_mon": true
+  },
+  {
+   "name": "missed-ko-lastmon-necrozma-t5",
+   "note": "Type-T (terminal control: GUARANTEED 16/16 KO + opp on LAST mon -> terminal). last_mon=true faints the determinized opp bench. Same as t5 (Drifblim 41%) but terminal. blunder=Calm Mind(slot1,status,k=0), better=Photon Geyser(slot0,16/16).",
+   "our": [
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      722,
+      347,
+      236,
+      257
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 426,
+    "level": 86,
+    "hp_num": 41,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     247
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0,
+   "last_mon": true
+  },
+  {
+   "name": "missed-ko-lastmon-necrozma-t5-bench",
+   "note": "+bench variant. Type-T (terminal control: GUARANTEED 16/16 KO + opp on LAST mon -> terminal). last_mon=true faints the determinized opp bench. blunder=Calm Mind(status,k=0), better=Photon Geyser(16/16).",
+   "our": [
+    {
+     "species": 800,
+     "level": 80,
+     "moves": [
+      722,
+      347,
+      236,
+      257
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 973,
+     "level": 82,
+     "moves": [
+      413,
+      370,
+      675,
+      369
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 1023,
+     "level": 78,
+     "moves": [
+      347,
+      411,
+      473,
+      911
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 625,
+     "level": 79,
+     "moves": [
+      442,
+      446,
+      389,
+      14
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 652,
+     "level": 84,
+     "moves": [
+      776,
+      282,
+      191,
+      235
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    },
+    {
+     "species": 1021,
+     "level": 78,
+     "moves": [
+      435,
+      434,
+      85,
+      909
+     ],
+     "evs": [
+      85,
+      85,
+      85,
+      85,
+      85,
+      85
+     ]
+    }
+   ],
+   "our_boosts": [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0
+   ],
+   "opp": {
+    "species": 426,
+    "level": 86,
+    "hp_num": 41,
+    "hp_den": 100,
+    "status": "none",
+    "moves_revealed": [
+     247
+    ]
+   },
+   "blunder_action": 1,
+   "better_action": 0,
+   "last_mon": true
+  }
+ ]
+}

@@ -1,0 +1,5203 @@
+use crate::action_features::ACTION_DENSE_DIM;
+use crate::eval::Evaluator;
+use crate::features::{self, DENSE_DIM, FEATURE_SPEC_VERSION, NUM_SEGMENTS};
+use pkmn_engine::data::base_stats::species as species_row;
+use pkmn_engine::data::{GEN_MOVES, TOTAL_SPECIES};
+use pkmn_engine::state::BattleState;
+
+const SIDE_BOTH: u8 = 2;
+
+const NUM_TYPES: usize = 18;
+
+pub const NUM_ACTIONS: usize = 14;
+
+pub struct LearnedEval {
+    acc_width: usize,
+    multiplier: f32,
+    emb: Vec<f32>,
+    layers: Vec<Fc>,
+    side: Vec<u8>,
+}
+
+struct Fc {
+    inp: usize,
+    out: usize,
+    w: Vec<f32>,
+    b: Vec<f32>,
+}
+
+impl Fc {
+    fn apply(&self, x: &[f32], relu: bool) -> Vec<f32> {
+        debug_assert_eq!(x.len(), self.inp);
+        let mut y = vec![0.0f32; self.out];
+        for (o, yv) in y.iter_mut().enumerate() {
+            let w = &self.w[o * self.inp..(o + 1) * self.inp];
+            let mut s = self.b[o];
+            for k in 0..self.inp {
+                s += x[k] * w[k];
+            }
+            *yv = if relu && s < 0.0 { 0.0 } else { s };
+        }
+        y
+    }
+}
+
+fn run_head(layers: &[Fc], x: Vec<f32>) -> Vec<f32> {
+    let last = layers.len() - 1;
+    let mut cur = x;
+    for (i, fc) in layers.iter().enumerate() {
+        cur = fc.apply(&cur, i < last);
+    }
+    cur
+}
+
+fn transpose(src: &[f32], rows: usize, cols: usize) -> Vec<f32> {
+    debug_assert_eq!(src.len(), rows * cols);
+    let mut out = vec![0.0f32; rows * cols];
+    for r in 0..rows {
+        for c in 0..cols {
+            out[c * rows + r] = src[r * cols + c];
+        }
+    }
+    out
+}
+
+// One weight row serves the whole batch before the next is touched, and the batch
+// index is the innermost axis so the lanes are independent accumulators. Each
+// element still sums over k in `Fc::apply`'s order, so it is bit-identical.
+fn apply_batch_t(fc: &Fc, xt: &[f32], n: usize, relu: bool) -> Vec<f32> {
+    let inp = fc.inp;
+    debug_assert_eq!(xt.len(), n * inp);
+    let mut y = vec![0.0f32; fc.out * n];
+    for o in 0..fc.out {
+        let w = &fc.w[o * inp..(o + 1) * inp];
+        let yo = &mut y[o * n..(o + 1) * n];
+        yo.fill(fc.b[o]);
+        for k in 0..inp {
+            let wk = w[k];
+            let xk = &xt[k * n..(k + 1) * n];
+            for m in 0..n {
+                yo[m] += xk[m] * wk;
+            }
+        }
+        if relu {
+            for v in yo.iter_mut() {
+                if *v < 0.0 {
+                    *v = 0.0;
+                }
+            }
+        }
+    }
+    y
+}
+
+fn head_scalar_batch(layers: &[Fc], xs: &[f32], n: usize, inp: usize) -> Vec<f32> {
+    let last = layers.len() - 1;
+    let mut cur = transpose(xs, n, inp);
+    for (i, fc) in layers.iter().enumerate() {
+        cur = apply_batch_t(fc, &cur, n, i < last);
+    }
+    debug_assert_eq!(cur.len(), n);
+    cur
+}
+
+// single-output head chain over a borrowed input, so one buffer serves every slot
+fn head_scalar(layers: &[Fc], x: &[f32]) -> f32 {
+    let last = layers.len() - 1;
+    let mut cur = layers[0].apply(x, last > 0);
+    for (i, fc) in layers.iter().enumerate().skip(1) {
+        cur = fc.apply(&cur, i < last);
+    }
+    cur[0]
+}
+
+#[inline(always)]
+fn dot(w: &[f32], x: &[f32]) -> f32 {
+    debug_assert_eq!(w.len(), x.len());
+    w.iter().zip(x).map(|(a, b)| a * b).sum()
+}
+
+// value-path fork of the fc reader: writes into a caller-owned row so the
+// chain reuses two buffers instead of allocating per layer
+fn value_fc_apply(fc: &Fc, x: &[f32], y: &mut [f32], relu: bool) {
+    // 32 accumulators is 8 NEON registers, so the whole k loop runs without
+    // touching y and still leaves the register file room for the weight loads
+    const BLK: usize = 32;
+    debug_assert_eq!(x.len(), fc.inp);
+    debug_assert_eq!(y.len(), fc.out);
+    let (w, b, inp, out) = (&fc.w[..], &fc.b[..], fc.inp, fc.out);
+    let blocks = out / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        acc.copy_from_slice(&b[base..base + BLK]);
+        for k in 0..inp {
+            let xk = x[k];
+            let wk = &w[k * out + base..k * out + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(wk) {
+                *a += xk * *wv;
+            }
+        }
+        if relu {
+            for v in acc.iter_mut() {
+                if *v < 0.0 {
+                    *v = 0.0;
+                }
+            }
+        }
+        y[base..base + BLK].copy_from_slice(&acc);
+    }
+    for o in blocks * BLK..out {
+        let mut s = b[o];
+        for k in 0..inp {
+            s += x[k] * w[k * out + o];
+        }
+        y[o] = if relu && s < 0.0 { 0.0 } else { s };
+    }
+}
+
+fn value_web_project(wt: &[f32], t: &[f32], out: &mut [f32]) {
+    // no bias, and every output is written by a block or the tail, so no pre-zero
+    const BLK: usize = 32;
+    let r = out.len();
+    debug_assert_eq!(wt.len(), t.len() * r);
+    let blocks = r / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        for k in 0..t.len() {
+            let tk = t[k];
+            let w = &wt[k * r + base..k * r + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(w) {
+                *a += *wv * tk;
+            }
+        }
+        out[base..base + BLK].copy_from_slice(&acc);
+    }
+    for o in blocks * BLK..r {
+        let mut s = 0.0f32;
+        for k in 0..t.len() {
+            s += wt[k * r + o] * t[k];
+        }
+        out[o] = s;
+    }
+}
+
+// buffers arrive as parameters so each slice carries the no-alias guarantee a
+// fresh allocation used to provide, which is what keeps these vectorized
+fn add_into(dst: &mut [f32], src: &[f32]) {
+    debug_assert_eq!(dst.len(), src.len());
+    for k in 0..dst.len() {
+        dst[k] += src[k];
+    }
+}
+
+fn add_pair_into(dst: &mut [f32], x: &[f32], y: &[f32]) {
+    debug_assert_eq!(dst.len(), x.len());
+    debug_assert_eq!(dst.len(), y.len());
+    for k in 0..dst.len() {
+        dst[k] += x[k] + y[k];
+    }
+}
+
+fn relu_into(dst: &mut [f32], src: &[f32]) {
+    debug_assert_eq!(dst.len(), src.len());
+    for k in 0..dst.len() {
+        dst[k] = src[k].max(0.0);
+    }
+}
+
+fn value_head_scalar(layers: &[Fc], x: &[f32], h0: &mut [f32], h1: &mut [f32]) -> f32 {
+    let last = layers.len() - 1;
+    value_fc_apply(&layers[0], x, &mut h0[..layers[0].out], last > 0);
+    let mut src_is_h0 = true;
+    for (i, fc) in layers.iter().enumerate().skip(1) {
+        if src_is_h0 {
+            let (cur, dst) = (&h0[..layers[i - 1].out], &mut h1[..fc.out]);
+            value_fc_apply(fc, cur, dst, i < last);
+        } else {
+            let (cur, dst) = (&h1[..layers[i - 1].out], &mut h0[..fc.out]);
+            value_fc_apply(fc, cur, dst, i < last);
+        }
+        src_is_h0 = !src_is_h0;
+    }
+    if src_is_h0 {
+        h0[0]
+    } else {
+        h1[0]
+    }
+}
+
+// which fc layers the scope quantizes; `All` and `Hidden` resolve against the
+// loaded chain's length, `Bits` names layers explicitly and is checked against it
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum FcSel {
+    #[default]
+    None,
+    All,
+    Hidden,
+    Bits(u32),
+}
+
+impl FcSel {
+    fn mask(&self, layers: usize) -> Result<u32, String> {
+        let full = if layers >= 32 { u32::MAX } else { (1u32 << layers) - 1 };
+        match *self {
+            Self::None => Ok(0),
+            Self::All => Ok(full),
+            Self::Hidden => Ok(full >> 1),
+            Self::Bits(b) if b & !full == 0 => Ok(b),
+            Self::Bits(b) => Err(format!("int8 fc mask {b:#b} names a layer past the chain's {layers}")),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct Int8Scope {
+    emb: bool,
+    web: bool,
+    fc: FcSel,
+    act: bool,
+}
+
+impl Int8Scope {
+    fn parse(spec: &str) -> Result<Self, String> {
+        let mut s = Self::default();
+        for tok in spec.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+            match tok {
+                "none" => {}
+                "emb" => s.emb = true,
+                "web" => s.web = true,
+                "fc" => s.fc = FcSel::All,
+                "fchid" => s.fc = FcSel::Hidden,
+                "act" => s.act = true,
+                "all" => s = Self { emb: true, web: true, fc: FcSel::All, act: true },
+                other => {
+                    let l = other
+                        .strip_prefix("fc")
+                        .filter(|d| d.bytes().all(|c| c.is_ascii_digit()))
+                        .and_then(|d| d.parse::<u32>().ok())
+                        .filter(|l| *l < 32)
+                        .ok_or_else(|| format!("unknown int8 tensor {other}"))?;
+                    let bits = match s.fc {
+                        FcSel::Bits(b) => b,
+                        FcSel::None => 0,
+                        _ => return Err("int8 fc layer list cannot follow fc or fchid".into()),
+                    };
+                    s.fc = FcSel::Bits(bits | 1 << l);
+                }
+            }
+        }
+        if s.act && s.fc == FcSel::None {
+            return Err("int8 act needs fc: quantized activations only feed the integer fc chain".into());
+        }
+        Ok(s)
+    }
+
+    fn any(&self) -> bool {
+        self.emb || self.web || self.fc != FcSel::None
+    }
+
+    fn canonical(&self) -> String {
+        let mut v: Vec<String> = Vec::new();
+        if self.emb {
+            v.push("emb".into());
+        }
+        if self.web {
+            v.push("web".into());
+        }
+        match self.fc {
+            FcSel::None => {}
+            FcSel::All => v.push("fc".into()),
+            FcSel::Hidden => v.push("fchid".into()),
+            FcSel::Bits(b) => v.extend((0..32).filter(|l| b >> l & 1 == 1).map(|l| format!("fc{l}"))),
+        }
+        if self.act {
+            v.push("act".into());
+        }
+        if v.is_empty() {
+            "none".to_string()
+        } else {
+            v.join(",")
+        }
+    }
+}
+
+fn quantize_rows(src: &[f32], rows: usize, cols: usize) -> (Vec<i8>, Vec<f32>) {
+    debug_assert_eq!(src.len(), rows * cols);
+    let mut q = vec![0i8; rows * cols];
+    let mut sc = vec![0.0f32; rows];
+    for r in 0..rows {
+        let row = &src[r * cols..(r + 1) * cols];
+        let m = row.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+        let s = m / 127.0;
+        sc[r] = s;
+        if s > 0.0 {
+            let inv = 1.0 / s;
+            for (c, v) in row.iter().enumerate() {
+                q[r * cols + c] = (v * inv).round().clamp(-127.0, 127.0) as i8;
+            }
+        }
+    }
+    (q, sc)
+}
+
+// the served web and fc tensors are held transposed as w[k * outs + o], so a
+// row is a stride-`outs` column and the scale still belongs to `o`
+fn quantize_cols(src: &[f32], ins: usize, outs: usize) -> (Vec<i8>, Vec<f32>) {
+    debug_assert_eq!(src.len(), ins * outs);
+    let mut q = vec![0i8; ins * outs];
+    let mut sc = vec![0.0f32; outs];
+    for o in 0..outs {
+        let m = (0..ins).fold(0.0f32, |a, k| a.max(src[k * outs + o].abs()));
+        let s = m / 127.0;
+        sc[o] = s;
+        if s > 0.0 {
+            let inv = 1.0 / s;
+            for k in 0..ins {
+                q[k * outs + o] = (src[k * outs + o] * inv).round().clamp(-127.0, 127.0) as i8;
+            }
+        }
+    }
+    (q, sc)
+}
+
+fn value_web_project_q8(wq: &[i8], ws: &[f32], t: &[f32], out: &mut [f32]) {
+    const BLK: usize = 32;
+    let r = out.len();
+    debug_assert_eq!(wq.len(), t.len() * r);
+    let blocks = r / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        for k in 0..t.len() {
+            let tk = t[k];
+            let w = &wq[k * r + base..k * r + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(w) {
+                *a += f32::from(*wv) * tk;
+            }
+        }
+        for (o, a) in acc.iter().enumerate() {
+            out[base + o] = ws[base + o] * *a;
+        }
+    }
+    for o in blocks * BLK..r {
+        let mut s = 0.0f32;
+        for k in 0..t.len() {
+            s += f32::from(wq[k * r + o]) * t[k];
+        }
+        out[o] = ws[o] * s;
+    }
+}
+
+fn value_fc_apply_q8(fc: &Fc, wq: &[i8], ws: &[f32], x: &[f32], y: &mut [f32], relu: bool) {
+    const BLK: usize = 32;
+    debug_assert_eq!(x.len(), fc.inp);
+    debug_assert_eq!(y.len(), fc.out);
+    let (b, inp, out) = (&fc.b[..], fc.inp, fc.out);
+    let blocks = out / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0.0f32; BLK];
+        for k in 0..inp {
+            let xk = x[k];
+            let wk = &wq[k * out + base..k * out + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(wk) {
+                *a += xk * f32::from(*wv);
+            }
+        }
+        for (o, a) in acc.iter().enumerate() {
+            let v = b[base + o] + ws[base + o] * *a;
+            y[base + o] = if relu && v < 0.0 { 0.0 } else { v };
+        }
+    }
+    for o in blocks * BLK..out {
+        let mut s = 0.0f32;
+        for k in 0..inp {
+            s += x[k] * f32::from(wq[k * out + o]);
+        }
+        let v = b[o] + ws[o] * s;
+        y[o] = if relu && v < 0.0 { 0.0 } else { v };
+    }
+}
+
+// int8 x int8 into i32: inp <= 327 and both factors are bounded by 127, so the
+// worst-case magnitude is 5.27e6 and the accumulator cannot overflow
+fn value_fc_apply_q8a(
+    fc: &Fc,
+    wq: &[i8],
+    ws: &[f32],
+    x: &[f32],
+    xq: &mut [i8],
+    y: &mut [f32],
+    relu: bool,
+) {
+    const BLK: usize = 32;
+    debug_assert_eq!(x.len(), fc.inp);
+    debug_assert_eq!(y.len(), fc.out);
+    let (b, inp, out) = (&fc.b[..], fc.inp, fc.out);
+    let m = x.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+    let sx = m / 127.0;
+    let inv = if sx > 0.0 { 1.0 / sx } else { 0.0 };
+    for (q, v) in xq[..inp].iter_mut().zip(x) {
+        *q = (*v * inv).round().clamp(-127.0, 127.0) as i8;
+    }
+    let blocks = out / BLK;
+    for blk in 0..blocks {
+        let base = blk * BLK;
+        let mut acc = [0i32; BLK];
+        for k in 0..inp {
+            let xk = i32::from(xq[k]);
+            let wk = &wq[k * out + base..k * out + base + BLK];
+            for (a, wv) in acc.iter_mut().zip(wk) {
+                *a += xk * i32::from(*wv);
+            }
+        }
+        for (o, a) in acc.iter().enumerate() {
+            let v = b[base + o] + sx * ws[base + o] * *a as f32;
+            y[base + o] = if relu && v < 0.0 { 0.0 } else { v };
+        }
+    }
+    for o in blocks * BLK..out {
+        let mut s = 0i32;
+        for k in 0..inp {
+            s += i32::from(xq[k]) * i32::from(wq[k * out + o]);
+        }
+        let v = b[o] + sx * ws[o] * s as f32;
+        y[o] = if relu && v < 0.0 { 0.0 } else { v };
+    }
+}
+
+#[inline(always)]
+fn species_types(id: usize) -> (usize, usize) {
+    let s = species_row(id);
+    (s.type1 as usize, s.type2 as usize)
+}
+
+// Mirrors learned-eval/model.py build_side_table: F1..F10 half-split on the
+// side axis, F11 = used-bit pair then two 19-type blocks, F12/F13 feed both
+// accumulators.
+fn side_table(vocab: usize) -> Vec<u8> {
+    let mut t = vec![u8::MAX; vocab];
+    for g in features::spec() {
+        let off = g.offset as usize;
+        let size = g.size as usize;
+        match g.name.split(' ').next().unwrap_or("") {
+            "F12" | "F13" => t[off..off + size].fill(SIDE_BOTH),
+            "F11" => {
+                t[off] = 0;
+                t[off + 1] = 1;
+                for k in 0..size - 2 {
+                    t[off + 2 + k] = (k / 19) as u8;
+                }
+            }
+            _ => {
+                let half = size / 2;
+                t[off..off + half].fill(0);
+                t[off + half..off + size].fill(1);
+            }
+        }
+    }
+    debug_assert!(t.iter().all(|&v| v != u8::MAX));
+    t
+}
+
+struct Cursor<'a> {
+    buf: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> Cursor<'a> {
+    fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
+        let end = self.pos + n;
+        if end > self.buf.len() {
+            return Err(format!("truncated weights file at byte {}", self.pos));
+        }
+        let s = &self.buf[self.pos..end];
+        self.pos = end;
+        Ok(s)
+    }
+
+    fn u32(&mut self) -> Result<u32, String> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    fn f32(&mut self) -> Result<f32, String> {
+        Ok(f32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    fn f32_vec(&mut self, n: usize) -> Result<Vec<f32>, String> {
+        let bytes = self.take(n * 4)?;
+        Ok(bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect())
+    }
+}
+
+impl LearnedEval {
+    pub fn from_env() -> Self {
+        let path = std::env::var("BRIDGE_EVAL_WEIGHTS")
+            .expect("BRIDGE_EVAL_WEIGHTS must point at a learned-eval weights file");
+        match Self::load(&path) {
+            Ok(e) => e,
+            Err(m) => panic!("bad weights file {path}: {m}"),
+        }
+    }
+
+    pub fn load(path: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let mut c = Cursor { buf: bytes, pos: 0 };
+        if c.take(4)? != b"LVE1" {
+            return Err("bad magic (want LVE1)".into());
+        }
+        let spec = c.u32()?;
+        if spec != FEATURE_SPEC_VERSION {
+            return Err(format!(
+                "FEATURE_SPEC_VERSION mismatch: weights {spec}, extractor {FEATURE_SPEC_VERSION}"
+            ));
+        }
+        let vocab = c.u32()? as usize;
+        if vocab != features::vocab_size() as usize {
+            return Err(format!("vocab mismatch: weights {vocab}, extractor {}", features::vocab_size()));
+        }
+        let acc_width = c.u32()? as usize;
+        let n_fc = c.u32()? as usize;
+        let mut dims = Vec::with_capacity(n_fc);
+        for _ in 0..n_fc {
+            let inp = c.u32()? as usize;
+            let out = c.u32()? as usize;
+            dims.push((inp, out));
+        }
+        let multiplier = c.f32()?;
+        if dims.first().map(|d| d.0) != Some(2 * acc_width + DENSE_DIM) {
+            return Err(format!("fc1 input dim: want {}, got {:?}", 2 * acc_width + DENSE_DIM, dims.first()));
+        }
+        if dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("last fc output dim: want 1, got {:?}", dims.last()));
+        }
+        for pair in dims.windows(2) {
+            if pair[0].1 != pair[1].0 {
+                return Err(format!("fc dim chain break: {:?} -> {:?}", pair[0], pair[1]));
+            }
+        }
+        let emb = c.f32_vec(vocab * acc_width)?;
+        let mut layers = Vec::with_capacity(n_fc);
+        for (inp, out) in dims {
+            let w = c.f32_vec(inp * out)?;
+            let b = c.f32_vec(out)?;
+            layers.push(Fc { inp, out, w, b });
+        }
+        if c.pos != bytes.len() {
+            return Err(format!("{} trailing bytes after tensors", bytes.len() - c.pos));
+        }
+        Ok(Self { acc_width, multiplier, emb, layers, side: side_table(vocab) })
+    }
+
+    pub fn export_multiplier(&self) -> f32 {
+        self.multiplier
+    }
+
+    pub fn natural_logit(&self, ids: &[u32], dense: &[f32; DENSE_DIM]) -> f32 {
+        let aw = self.acc_width;
+        let mut x = vec![0.0f32; 2 * aw + DENSE_DIM];
+        for &id in ids {
+            let id = id as usize;
+            let row = &self.emb[id * aw..(id + 1) * aw];
+            let side = self.side[id];
+            if side != 1 {
+                for k in 0..aw {
+                    x[k] += row[k];
+                }
+            }
+            if side != 0 {
+                for k in 0..aw {
+                    x[aw + k] += row[k];
+                }
+            }
+        }
+        // ReLU covers the accumulators only; the dense channel enters raw
+        for v in &mut x[..2 * aw] {
+            if *v < 0.0 {
+                *v = 0.0;
+            }
+        }
+        x[2 * aw..].copy_from_slice(dense);
+        let mut cur = x;
+        for (li, fc) in self.layers.iter().enumerate() {
+            let mut next = vec![0.0f32; fc.out];
+            for (o, nv) in next.iter_mut().enumerate() {
+                let w = &fc.w[o * fc.inp..(o + 1) * fc.inp];
+                let mut s = fc.b[o];
+                for k in 0..fc.inp {
+                    s += cur[k] * w[k];
+                }
+                *nv = if li + 1 < self.layers.len() && s < 0.0 { 0.0 } else { s };
+            }
+            cur = next;
+        }
+        cur[0]
+    }
+}
+
+pub struct LearnedPolicy {
+    acc_width: usize,
+    web_rank: usize,
+    multiplier: f32,
+    move_emb_dim: usize,
+    emb: Vec<f32>,
+    web_a: Vec<f32>,
+    web_b: Vec<f32>,
+    fc: Vec<Fc>,
+    sw: Vec<Fc>,
+    move_emb: Vec<f32>,
+    mv: Vec<Fc>,
+}
+
+fn read_dims(c: &mut Cursor, n: usize) -> Result<Vec<(usize, usize)>, String> {
+    let mut dims = Vec::with_capacity(n);
+    for _ in 0..n {
+        let inp = c.u32()? as usize;
+        let out = c.u32()? as usize;
+        dims.push((inp, out));
+    }
+    Ok(dims)
+}
+
+fn check_chain(dims: &[(usize, usize)], what: &str) -> Result<(), String> {
+    for pair in dims.windows(2) {
+        if pair[0].1 != pair[1].0 {
+            return Err(format!("{what} dim chain break: {:?} -> {:?}", pair[0], pair[1]));
+        }
+    }
+    Ok(())
+}
+
+fn read_layers(c: &mut Cursor, dims: &[(usize, usize)]) -> Result<Vec<Fc>, String> {
+    let mut layers = Vec::with_capacity(dims.len());
+    for &(inp, out) in dims {
+        let w = c.f32_vec(inp * out)?;
+        let b = c.f32_vec(out)?;
+        layers.push(Fc { inp, out, w, b });
+    }
+    Ok(layers)
+}
+
+impl LearnedPolicy {
+    pub fn load(path: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let mut c = Cursor { buf: bytes, pos: 0 };
+        if c.take(4)? != b"LVP1" {
+            return Err("bad magic (want LVP1)".into());
+        }
+        let spec = c.u32()?;
+        if spec != FEATURE_SPEC_VERSION {
+            return Err(format!(
+                "FEATURE_SPEC_VERSION mismatch: weights {spec}, extractor {FEATURE_SPEC_VERSION}"
+            ));
+        }
+        let vocab = c.u32()? as usize;
+        if vocab != features::vocab_size() as usize {
+            return Err(format!("vocab mismatch: weights {vocab}, extractor {}", features::vocab_size()));
+        }
+        let acc_width = c.u32()? as usize;
+        let segments = c.u32()? as usize;
+        if segments != NUM_SEGMENTS {
+            return Err(format!("segment count mismatch: weights {segments}, extractor {NUM_SEGMENTS}"));
+        }
+        let web_rank = c.u32()? as usize;
+        let tables = c.u32()?;
+        let pair_rows = c.u32()? as usize;
+        let type_rows = c.u32()? as usize;
+        if tables != 0 {
+            return Err(format!("tables arm not supported by the f32 port (tables flag {tables})"));
+        }
+        if pair_rows != 0 || type_rows != 0 {
+            return Err(format!("table dims present with tables off: pair {pair_rows}, type {type_rows}"));
+        }
+        let n_fc = c.u32()? as usize;
+        let fc_dims = read_dims(&mut c, n_fc)?;
+        let multiplier = c.f32()?;
+        if n_fc < 2 {
+            return Err(format!("fc chain needs >= 2 layers (penultimate feeds the heads), got {n_fc}"));
+        }
+        let want_fc1 = 2 * acc_width + 2 * web_rank + DENSE_DIM;
+        if fc_dims.first().map(|d| d.0) != Some(want_fc1) {
+            return Err(format!("fc1 input dim: want {want_fc1}, got {:?}", fc_dims.first()));
+        }
+        if fc_dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("last fc output dim: want 1, got {:?}", fc_dims.last()));
+        }
+        check_chain(&fc_dims, "fc")?;
+        let g_dim = fc_dims[fc_dims.len() - 1].0;
+        let sw_n = c.u32()? as usize;
+        let sw_dims = read_dims(&mut c, sw_n)?;
+        if sw_n == 0 {
+            return Err("switch head needs >= 1 layer".into());
+        }
+        let want_sw = acc_width + web_rank + g_dim;
+        if sw_dims.first().map(|d| d.0) != Some(want_sw) {
+            return Err(format!("switch head input dim: want {want_sw}, got {:?}", sw_dims.first()));
+        }
+        if sw_dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("switch head output dim: want 1, got {:?}", sw_dims.last()));
+        }
+        check_chain(&sw_dims, "switch head")?;
+        let move_vocab = c.u32()? as usize;
+        if move_vocab != GEN_MOVES.len() {
+            return Err(format!("move vocab mismatch: weights {move_vocab}, engine {}", GEN_MOVES.len()));
+        }
+        let move_emb_dim = c.u32()? as usize;
+        let mv_n = c.u32()? as usize;
+        let mv_dims = read_dims(&mut c, mv_n)?;
+        if mv_n == 0 {
+            return Err("move head needs >= 1 layer".into());
+        }
+        let want_mv = acc_width + web_rank + move_emb_dim + g_dim;
+        if mv_dims.first().map(|d| d.0) != Some(want_mv) {
+            return Err(format!("move head input dim: want {want_mv}, got {:?}", mv_dims.first()));
+        }
+        if mv_dims.last().map(|d| d.1) != Some(2) {
+            return Err(format!("move head output dim: want 2 (move, tera), got {:?}", mv_dims.last()));
+        }
+        check_chain(&mv_dims, "move head")?;
+        let emb = c.f32_vec(vocab * acc_width)?;
+        let web_a = c.f32_vec(web_rank * acc_width)?;
+        let web_b = c.f32_vec(web_rank * acc_width)?;
+        let fc = read_layers(&mut c, &fc_dims)?;
+        let sw = read_layers(&mut c, &sw_dims)?;
+        let move_emb = c.f32_vec(move_vocab * move_emb_dim)?;
+        let mv = read_layers(&mut c, &mv_dims)?;
+        if c.pos != bytes.len() {
+            return Err(format!("{} trailing bytes after tensors", bytes.len() - c.pos));
+        }
+        Ok(Self {
+            acc_width,
+            web_rank,
+            multiplier,
+            move_emb_dim,
+            emb,
+            web_a,
+            web_b,
+            fc,
+            sw,
+            move_emb,
+            mv,
+        })
+    }
+
+    pub fn export_multiplier(&self) -> f32 {
+        self.multiplier
+    }
+
+    pub fn policy_logits(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        move_ids: &[u16; 4],
+    ) -> [f32; NUM_ACTIONS] {
+        self.forward(ids, seg_lens, dense, move_ids).0
+    }
+
+    // Raw natural logits over action bytes 0-13; legality mask + softmax live
+    // outside (masked_softmax). Value tail is computed and returned untouched.
+    pub fn forward(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        move_ids: &[u16; 4],
+    ) -> ([f32; NUM_ACTIONS], f32) {
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let species = TOTAL_SPECIES;
+        let f1_vocab = 4 * species;
+        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let tok_off = seg * aw;
+            for &id in &ids[pos..pos + len as usize] {
+                let idu = id as usize;
+                let row = &self.emb[idu * aw..(idu + 1) * aw];
+                for k in 0..aw {
+                    tokens[tok_off + k] += row[k];
+                }
+                if seg < 12 && idu < f1_vocab && (idu / species) % 2 == 0 {
+                    if seg < 6 {
+                        active0 = seg as i32;
+                    } else {
+                        active1 = (seg - 6) as i32;
+                    }
+                }
+            }
+            pos += len as usize;
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        let mut x = vec![0.0f32; 2 * aw + 2 * r + DENSE_DIM];
+        for s in 0..6 {
+            for k in 0..aw {
+                x[k] += tokens[s * aw + k];
+                x[aw + k] += tokens[(6 + s) * aw + k];
+            }
+        }
+        for k in 0..aw {
+            x[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
+            x[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
+        }
+        for v in &mut x[..2 * aw] {
+            if *v < 0.0 {
+                *v = 0.0;
+            }
+        }
+        let mut a = vec![0.0f32; 6 * r];
+        let mut b = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            for o in 0..r {
+                let wa = &self.web_a[o * aw..(o + 1) * aw];
+                let wb = &self.web_b[o * aw..(o + 1) * aw];
+                let mut sa = 0.0f32;
+                let mut sb = 0.0f32;
+                for k in 0..aw {
+                    sa += tokens[i * aw + k] * wa[k];
+                    sb += tokens[(6 + i) * aw + k] * wb[k];
+                }
+                a[i * r + o] = sa;
+                b[i * r + o] = sb;
+            }
+        }
+        let mut h_i = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            for j in 0..6 {
+                for o in 0..r {
+                    let p = a[i * r + o] * b[j * r + o];
+                    let p = if p < 0.0 { 0.0 } else { p };
+                    h_i[i * r + o] += p;
+                    x[2 * aw + o] += p;
+                    if i as i32 == active0 && j as i32 == active1 {
+                        x[2 * aw + r + o] = p;
+                    }
+                }
+            }
+        }
+        x[2 * aw + 2 * r..].copy_from_slice(dense);
+        let mut cur = x;
+        for fc in &self.fc[..self.fc.len() - 1] {
+            cur = fc.apply(&cur, true);
+        }
+        let g = cur;
+        let value = self.fc[self.fc.len() - 1].apply(&g, false)[0];
+        let mut logits = [0.0f32; NUM_ACTIONS];
+        for k in 0..6 {
+            let mut sin = Vec::with_capacity(aw + r + g.len());
+            sin.extend_from_slice(&tokens[k * aw..(k + 1) * aw]);
+            sin.extend_from_slice(&h_i[k * r..(k + 1) * r]);
+            sin.extend_from_slice(&g);
+            logits[4 + k] = run_head(&self.sw, sin)[0];
+        }
+        if active0 >= 0 {
+            let ak = active0 as usize;
+            let ed = self.move_emb_dim;
+            for (j, &mid) in move_ids.iter().enumerate() {
+                let mid = mid as usize;
+                let mut min = Vec::with_capacity(aw + r + ed + g.len());
+                min.extend_from_slice(&tokens[ak * aw..(ak + 1) * aw]);
+                min.extend_from_slice(&h_i[ak * r..(ak + 1) * r]);
+                min.extend_from_slice(&self.move_emb[mid * ed..(mid + 1) * ed]);
+                min.extend_from_slice(&g);
+                let out = run_head(&self.mv, min);
+                logits[j] = out[0];
+                logits[10 + j] = out[1];
+            }
+        }
+        (logits, value)
+    }
+}
+
+struct Prep {
+    tokens: Vec<f32>,
+    p: Vec<f32>,
+    h_sum: Vec<f32>,
+    h_max: Vec<f32>,
+    ctx_in: Vec<f32>,
+    active0: i32,
+    active1: i32,
+}
+
+/// One member of a batched policy forward; the fields are `forward`'s arguments.
+pub struct ForwardInput<'a> {
+    pub ids: &'a [u32],
+    pub seg_lens: &'a [u16; NUM_SEGMENTS],
+    pub dense: &'a [f32; DENSE_DIM],
+    pub move_ids: &'a [u16; 4],
+    pub action_dense: Option<&'a [[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>,
+}
+
+pub struct LearnedPolicyV2 {
+    acc_width: usize,
+    web_rank: usize,
+    ctx_dim: usize,
+    move_emb_dim: usize,
+    pair_rows: usize,
+    type_rows: usize,
+    table_rank: usize,
+    attn_dk: usize,
+    action_dense_dim: usize,
+    emb: Vec<f32>,
+    web_a: Vec<f32>,
+    web_b: Vec<f32>,
+    pair_tab: Vec<f32>,
+    type_tab: Vec<f32>,
+    w_tab: Vec<f32>,
+    attn_q: Vec<f32>,
+    attn_k: Vec<f32>,
+    attn_v: Vec<f32>,
+    attn_out: Vec<f32>,
+    ctx: Vec<Fc>,
+    sw: Vec<Fc>,
+    move_emb: Vec<f32>,
+    mv: Vec<Fc>,
+}
+
+impl LearnedPolicyV2 {
+    pub fn load(path: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let mut c = Cursor { buf: bytes, pos: 0 };
+        if c.take(4)? != b"LVP2" {
+            return Err("bad magic (want LVP2)".into());
+        }
+        let spec = c.u32()?;
+        if spec != FEATURE_SPEC_VERSION {
+            return Err(format!(
+                "FEATURE_SPEC_VERSION mismatch: weights {spec}, extractor {FEATURE_SPEC_VERSION}"
+            ));
+        }
+        let vocab = c.u32()? as usize;
+        if vocab != features::vocab_size() as usize {
+            return Err(format!("vocab mismatch: weights {vocab}, extractor {}", features::vocab_size()));
+        }
+        let acc_width = c.u32()? as usize;
+        let segments = c.u32()? as usize;
+        if segments != NUM_SEGMENTS {
+            return Err(format!("segment count mismatch: weights {segments}, extractor {NUM_SEGMENTS}"));
+        }
+        let web_rank = c.u32()? as usize;
+        let tables = c.u32()?;
+        let pair_rows = c.u32()? as usize;
+        let type_rows = c.u32()? as usize;
+        let table_rank = c.u32()? as usize;
+        if tables != 0 && (pair_rows == 0 || type_rows == 0 || table_rank == 0) {
+            return Err(format!(
+                "table dims incomplete with tables on: pair {pair_rows}, type {type_rows}, rank {table_rank}"
+            ));
+        }
+        if tables == 0 && (pair_rows != 0 || type_rows != 0 || table_rank != 0) {
+            return Err(format!(
+                "table dims present with tables off: pair {pair_rows}, type {type_rows}, rank {table_rank}"
+            ));
+        }
+        let attn = c.u32()?;
+        let attn_dk = c.u32()? as usize;
+        if attn != 0 && attn_dk == 0 {
+            return Err("attn on with attn_dk 0".into());
+        }
+        if attn == 0 && attn_dk != 0 {
+            return Err(format!("attn_dk present with attn off: {attn_dk}"));
+        }
+        let action_dense = c.u32()?;
+        let action_dense_dim = c.u32()? as usize;
+        if action_dense != 0 && action_dense_dim != ACTION_DENSE_DIM {
+            return Err(format!(
+                "action_dense_dim mismatch: weights {action_dense_dim}, engine {ACTION_DENSE_DIM}"
+            ));
+        }
+        if action_dense == 0 && action_dense_dim != 0 {
+            return Err(format!(
+                "action_dense_dim present with action_dense off: {action_dense_dim}"
+            ));
+        }
+        let ctx_dim = c.u32()? as usize;
+        let n_ctx = c.u32()? as usize;
+        let ctx_dims = read_dims(&mut c, n_ctx)?;
+        let want_ctx = 2 * acc_width + 2 * web_rank + DENSE_DIM;
+        if ctx_dims.first().map(|d| d.0) != Some(want_ctx) {
+            return Err(format!("ctx input dim: want {want_ctx}, got {:?}", ctx_dims.first()));
+        }
+        check_chain(&ctx_dims, "ctx")?;
+        if ctx_dims.last().map(|d| d.1) != Some(ctx_dim) {
+            return Err(format!("ctx output dim: want ctx_dim {ctx_dim}, got {:?}", ctx_dims.last()));
+        }
+        let sw_n = c.u32()? as usize;
+        let sw_dims = read_dims(&mut c, sw_n)?;
+        let want_sw = 2 * acc_width + 3 * web_rank + ctx_dim + action_dense_dim;
+        if sw_dims.first().map(|d| d.0) != Some(want_sw) {
+            return Err(format!("switch head input dim: want {want_sw}, got {:?}", sw_dims.first()));
+        }
+        if sw_dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("switch head output dim: want 1, got {:?}", sw_dims.last()));
+        }
+        check_chain(&sw_dims, "switch head")?;
+        let move_vocab = c.u32()? as usize;
+        if move_vocab != GEN_MOVES.len() {
+            return Err(format!("move vocab mismatch: weights {move_vocab}, engine {}", GEN_MOVES.len()));
+        }
+        let move_emb_dim = c.u32()? as usize;
+        let mv_n = c.u32()? as usize;
+        let mv_dims = read_dims(&mut c, mv_n)?;
+        let want_mv = acc_width + 2 * web_rank + move_emb_dim + ctx_dim + action_dense_dim;
+        if mv_dims.first().map(|d| d.0) != Some(want_mv) {
+            return Err(format!("move head input dim: want {want_mv}, got {:?}", mv_dims.first()));
+        }
+        // plain and tera are two evaluations of one output here, not LVP1's one evaluation with two
+        if mv_dims.last().map(|d| d.1) != Some(1) {
+            return Err(format!("move head output dim: want 1, got {:?}", mv_dims.last()));
+        }
+        check_chain(&mv_dims, "move head")?;
+        let emb = c.f32_vec(vocab * acc_width)?;
+        let web_a = c.f32_vec(web_rank * acc_width)?;
+        let web_b = c.f32_vec(web_rank * acc_width)?;
+        let (pair_tab, type_tab, w_tab) = if tables != 0 {
+            (
+                c.f32_vec(pair_rows * table_rank)?,
+                c.f32_vec(type_rows * table_rank)?,
+                c.f32_vec(web_rank * table_rank)?,
+            )
+        } else {
+            (Vec::new(), Vec::new(), Vec::new())
+        };
+        let (attn_q, attn_k, attn_v, attn_out) = if attn_dk != 0 {
+            (
+                c.f32_vec(attn_dk * acc_width)?,
+                c.f32_vec(attn_dk * acc_width)?,
+                c.f32_vec(attn_dk * acc_width)?,
+                c.f32_vec(acc_width * attn_dk)?,
+            )
+        } else {
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+        };
+        let ctx = read_layers(&mut c, &ctx_dims)?;
+        let sw = read_layers(&mut c, &sw_dims)?;
+        let move_emb = c.f32_vec(move_vocab * move_emb_dim)?;
+        let mv = read_layers(&mut c, &mv_dims)?;
+        if c.pos != bytes.len() {
+            return Err(format!("{} trailing bytes after tensors", bytes.len() - c.pos));
+        }
+        Ok(Self {
+            acc_width,
+            web_rank,
+            ctx_dim,
+            move_emb_dim,
+            pair_rows,
+            type_rows,
+            table_rank,
+            attn_dk,
+            action_dense_dim,
+            emb,
+            web_a,
+            web_b,
+            pair_tab,
+            type_tab,
+            w_tab,
+            attn_q,
+            attn_k,
+            attn_v,
+            attn_out,
+            ctx,
+            sw,
+            move_emb,
+            mv,
+        })
+    }
+
+    pub fn action_dense_dim(&self) -> usize {
+        self.action_dense_dim
+    }
+
+    fn attend(&self, tokens: &[f32]) -> Vec<f32> {
+        let aw = self.acc_width;
+        let dk = self.attn_dk;
+        let mut present = [false; NUM_SEGMENTS];
+        for (s, flag) in present.iter_mut().enumerate() {
+            *flag = tokens[s * aw..(s + 1) * aw].iter().map(|v| v.abs()).sum::<f32>() > 0.0;
+        }
+        let mut q = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut key = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut val = vec![0.0f32; NUM_SEGMENTS * dk];
+        for s in 0..NUM_SEGMENTS {
+            let t = &tokens[s * aw..(s + 1) * aw];
+            for o in 0..dk {
+                let w = o * aw..(o + 1) * aw;
+                q[s * dk + o] = dot(&self.attn_q[w.clone()], t);
+                key[s * dk + o] = dot(&self.attn_k[w.clone()], t);
+                val[s * dk + o] = dot(&self.attn_v[w], t);
+            }
+        }
+        let scale = (dk as f32).sqrt();
+        let mut out = tokens.to_vec();
+        let mut w = [0.0f32; NUM_SEGMENTS];
+        let mut mix = vec![0.0f32; dk];
+        for i in 0..NUM_SEGMENTS {
+            if !present[i] {
+                continue;
+            }
+            let qi = &q[i * dk..(i + 1) * dk];
+            let mut mx = f32::NEG_INFINITY;
+            for j in 0..NUM_SEGMENTS {
+                if present[j] {
+                    w[j] = dot(qi, &key[j * dk..(j + 1) * dk]) / scale;
+                    if w[j] > mx {
+                        mx = w[j];
+                    }
+                }
+            }
+            let mut sum = 0.0f32;
+            for j in 0..NUM_SEGMENTS {
+                w[j] = if present[j] { (w[j] - mx).exp() } else { 0.0 };
+                sum += w[j];
+            }
+            for v in mix.iter_mut() {
+                *v = 0.0;
+            }
+            for j in 0..NUM_SEGMENTS {
+                if !present[j] {
+                    continue;
+                }
+                let wj = w[j] / sum;
+                for o in 0..dk {
+                    mix[o] += wj * val[j * dk + o];
+                }
+            }
+            for o in 0..aw {
+                out[i * aw + o] += dot(&self.attn_out[o * dk..(o + 1) * dk], &mix);
+            }
+        }
+        out
+    }
+
+    fn cell_bias(&self, si: i32, sj: i32, low: &mut [f32], out: &mut [f32]) {
+        if si < 0 || sj < 0 {
+            out.fill(0.0);
+            return;
+        }
+        let tr = self.table_rank;
+        let (si, sj) = (si as usize, sj as usize);
+        let pair = si * TOTAL_SPECIES + sj;
+        debug_assert!(pair < self.pair_rows, "pair row {pair} beyond {}", self.pair_rows);
+        let pv = &self.pair_tab[pair * tr..(pair + 1) * tr];
+        let (t1a, t2a) = species_types(si);
+        let (t1b, t2b) = species_types(sj);
+        let rows = [
+            t1a * NUM_TYPES + t1b,
+            t1a * NUM_TYPES + t2b,
+            t2a * NUM_TYPES + t1b,
+            t2a * NUM_TYPES + t2b,
+        ];
+        debug_assert!(rows.iter().all(|&t| t < self.type_rows), "type row beyond {}", self.type_rows);
+        for o in 0..tr {
+            let mut s = 0.0f32;
+            for &row in &rows {
+                s += self.type_tab[row * tr + o];
+            }
+            low[o] = pv[o] + s / 4.0;
+        }
+        for o in 0..self.web_rank {
+            out[o] = dot(&self.w_tab[o * tr..(o + 1) * tr], low);
+        }
+    }
+
+    // Batched sibling of `forward`: the ctx trunk and both heads stream their weights
+    // once across the whole batch while every output element keeps the single-forward
+    // accumulation order, so each row is bit-identical to `forward` on that input.
+    pub fn forward_batch(&self, batch: &[ForwardInput<'_>]) -> Vec<[f32; NUM_ACTIONS]> {
+        let ad = self.action_dense_dim;
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let n = batch.len();
+        let mut out = vec![[0.0f32; NUM_ACTIONS]; n];
+        if n == 0 {
+            return out;
+        }
+        let preps: Vec<Prep> = batch
+            .iter()
+            .map(|it| {
+                assert_eq!(
+                    ad != 0,
+                    it.action_dense.is_some(),
+                    "the per-action block must be given exactly when the header sets action_dense"
+                );
+                self.prep(it.ids, it.seg_lens, it.dense)
+            })
+            .collect();
+
+        let mut rows = Vec::with_capacity(n * self.ctx[0].inp);
+        for pr in &preps {
+            rows.extend_from_slice(&pr.ctx_in);
+        }
+        let mut cur = transpose(&rows, n, self.ctx[0].inp);
+        for fc in &self.ctx {
+            cur = apply_batch_t(fc, &cur, n, true);
+        }
+        let gd = self.ctx_dim;
+        let g = transpose(&cur, gd, n);
+
+        let sw_in = self.sw[0].inp;
+        let mut srows = Vec::with_capacity(n * 6 * sw_in);
+        for (m, pr) in preps.iter().enumerate() {
+            for k in 0..6 {
+                srows.extend_from_slice(&pr.tokens[k * aw..(k + 1) * aw]);
+                srows.extend_from_slice(&pr.h_sum[k * r..(k + 1) * r]);
+                srows.extend_from_slice(&pr.h_max[k * r..(k + 1) * r]);
+                if pr.active1 >= 0 {
+                    let a1 = pr.active1 as usize;
+                    let idx = (k * 6 + a1) * r;
+                    srows.extend_from_slice(&pr.p[idx..idx + r]);
+                    srows.extend_from_slice(&pr.tokens[(6 + a1) * aw..(7 + a1) * aw]);
+                } else {
+                    srows.resize(srows.len() + r + aw, 0.0);
+                }
+                srows.extend_from_slice(&g[m * gd..(m + 1) * gd]);
+                if ad != 0 {
+                    srows.extend_from_slice(&batch[m].action_dense.unwrap()[4 + k]);
+                }
+            }
+        }
+        let sout = head_scalar_batch(&self.sw, &srows, n * 6, sw_in);
+        for (m, row) in out.iter_mut().enumerate() {
+            for k in 0..6 {
+                row[4 + k] = sout[m * 6 + k];
+            }
+        }
+
+        let mv_in = self.mv[0].inp;
+        let mut mrows: Vec<f32> = Vec::new();
+        let mut slots: Vec<(usize, usize)> = Vec::new();
+        for (m, pr) in preps.iter().enumerate() {
+            if pr.active0 < 0 {
+                continue;
+            }
+            for (j, &mid) in batch[m].move_ids.iter().enumerate() {
+                let mid = mid as usize;
+                match batch[m].action_dense {
+                    None => {
+                        self.push_move_row(&mut mrows, pr, mid, &g[m * gd..(m + 1) * gd]);
+                        slots.push((m, j));
+                    }
+                    Some(block) => {
+                        self.push_move_row(&mut mrows, pr, mid, &g[m * gd..(m + 1) * gd]);
+                        mrows.extend_from_slice(&block[j]);
+                        slots.push((m, j));
+                        self.push_move_row(&mut mrows, pr, mid, &g[m * gd..(m + 1) * gd]);
+                        mrows.extend_from_slice(&block[10 + j]);
+                        slots.push((m, 10 + j));
+                    }
+                }
+            }
+        }
+        if !slots.is_empty() {
+            let mout = head_scalar_batch(&self.mv, &mrows, slots.len(), mv_in);
+            for (i, &(m, slot)) in slots.iter().enumerate() {
+                out[m][slot] = mout[i];
+                if ad == 0 {
+                    out[m][10 + slot] = mout[i];
+                }
+            }
+        }
+        out
+    }
+
+    fn push_move_row(&self, rows: &mut Vec<f32>, pr: &Prep, mid: usize, g_row: &[f32]) {
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let ed = self.move_emb_dim;
+        let a0 = pr.active0 as usize;
+        rows.extend_from_slice(&pr.tokens[a0 * aw..(a0 + 1) * aw]);
+        rows.extend_from_slice(&pr.h_sum[a0 * r..(a0 + 1) * r]);
+        if pr.active1 >= 0 {
+            let idx = (a0 * 6 + pr.active1 as usize) * r;
+            rows.extend_from_slice(&pr.p[idx..idx + r]);
+        } else {
+            rows.resize(rows.len() + r, 0.0);
+        }
+        rows.extend_from_slice(&self.move_emb[mid * ed..(mid + 1) * ed]);
+        rows.extend_from_slice(g_row);
+    }
+
+    // Everything both forward paths share, up to the context MLP's input.
+    fn prep(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> Prep {
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        let mut species = [-1i32; 12];
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        let f1_vocab = 4 * TOTAL_SPECIES;
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let tok_off = seg * aw;
+            for &id in &ids[pos..pos + len as usize] {
+                let idu = id as usize;
+                let row = &self.emb[idu * aw..(idu + 1) * aw];
+                for k in 0..aw {
+                    tokens[tok_off + k] += row[k];
+                }
+                if seg < 12 && idu < f1_vocab {
+                    species[seg] = (idu % TOTAL_SPECIES) as i32;
+                    if (idu / TOTAL_SPECIES) % 2 == 0 {
+                        if seg < 6 {
+                            active0 = seg as i32;
+                        } else {
+                            active1 = (seg - 6) as i32;
+                        }
+                    }
+                }
+            }
+            pos += len as usize;
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        if self.attn_dk != 0 {
+            tokens = self.attend(&tokens);
+        }
+
+        // the v2 accumulators reach the context MLP raw, unlike the v1 tail's ReLU
+        let mut ctx_in = vec![0.0f32; 2 * aw + 2 * r + DENSE_DIM];
+        for s in 0..6 {
+            for k in 0..aw {
+                ctx_in[k] += tokens[s * aw + k];
+                ctx_in[aw + k] += tokens[(6 + s) * aw + k];
+            }
+        }
+        for k in 0..aw {
+            ctx_in[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
+            ctx_in[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
+        }
+
+        let mut a = vec![0.0f32; 6 * r];
+        let mut b = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            let ti = &tokens[i * aw..(i + 1) * aw];
+            let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+            for o in 0..r {
+                a[i * r + o] = dot(&self.web_a[o * aw..(o + 1) * aw], ti);
+                b[i * r + o] = dot(&self.web_b[o * aw..(o + 1) * aw], tj);
+            }
+        }
+        let mut p = vec![0.0f32; 36 * r];
+        let mut bias = vec![0.0f32; if self.table_rank != 0 { r } else { 0 }];
+        let mut low = vec![0.0f32; self.table_rank];
+        for i in 0..6 {
+            for j in 0..6 {
+                let cell = &mut p[(i * 6 + j) * r..(i * 6 + j + 1) * r];
+                for o in 0..r {
+                    cell[o] = a[i * r + o] * b[j * r + o];
+                }
+                if self.table_rank != 0 {
+                    self.cell_bias(species[i], species[6 + j], &mut low, &mut bias);
+                    for o in 0..r {
+                        cell[o] += bias[o];
+                    }
+                }
+                for v in cell.iter_mut() {
+                    if *v < 0.0 {
+                        *v = 0.0;
+                    }
+                }
+            }
+        }
+        let mut h_sum = vec![0.0f32; 6 * r];
+        let mut h_max = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            for j in 0..6 {
+                let cell = &p[(i * 6 + j) * r..(i * 6 + j + 1) * r];
+                for o in 0..r {
+                    h_sum[i * r + o] += cell[o];
+                    ctx_in[2 * aw + o] += cell[o];
+                    if cell[o] > h_max[i * r + o] {
+                        h_max[i * r + o] = cell[o];
+                    }
+                }
+            }
+        }
+        if active0 >= 0 && active1 >= 0 {
+            let idx = (active0 as usize * 6 + active1 as usize) * r;
+            ctx_in[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&p[idx..idx + r]);
+        }
+        ctx_in[2 * aw + 2 * r..].copy_from_slice(dense);
+        Prep { tokens, p, h_sum, h_max, ctx_in, active0, active1 }
+    }
+
+    // Raw natural logits over bytes 0-13 as [plain, switch, tera]; masking and
+    // softmax live outside. The block is an argument because at seat 1 the
+    // caller's ids are mirrored while the block must come from the unmirrored root.
+    pub fn forward(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        move_ids: &[u16; 4],
+        action_dense: Option<&[[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>,
+    ) -> [f32; NUM_ACTIONS] {
+        let ad = self.action_dense_dim;
+        assert_eq!(
+            ad != 0,
+            action_dense.is_some(),
+            "the per-action block must be given exactly when the header sets action_dense"
+        );
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        let Prep { tokens, p, h_sum, h_max, ctx_in, active0, active1 } =
+            self.prep(ids, seg_lens, dense);
+        let mut g = ctx_in;
+        for fc in &self.ctx {
+            g = fc.apply(&g, true);
+        }
+        let mut logits = [0.0f32; NUM_ACTIONS];
+        let mut sin = Vec::with_capacity(self.sw[0].inp);
+        for k in 0..6 {
+            sin.clear();
+            sin.extend_from_slice(&tokens[k * aw..(k + 1) * aw]);
+            sin.extend_from_slice(&h_sum[k * r..(k + 1) * r]);
+            sin.extend_from_slice(&h_max[k * r..(k + 1) * r]);
+            if active1 >= 0 {
+                let a1 = active1 as usize;
+                let idx = (k * 6 + a1) * r;
+                sin.extend_from_slice(&p[idx..idx + r]);
+                sin.extend_from_slice(&tokens[(6 + a1) * aw..(7 + a1) * aw]);
+            } else {
+                sin.resize(sin.len() + r + aw, 0.0);
+            }
+            sin.extend_from_slice(&g);
+            if ad != 0 {
+                sin.extend_from_slice(&action_dense.unwrap()[4 + k]);
+            }
+            logits[4 + k] = head_scalar(&self.sw, &sin);
+        }
+
+        if active0 >= 0 {
+            let a0 = active0 as usize;
+            let ed = self.move_emb_dim;
+            let base_len = aw + 2 * r + ed + self.ctx_dim;
+            let mut min = Vec::with_capacity(base_len + ad);
+            for (j, &mid) in move_ids.iter().enumerate() {
+                let mid = mid as usize;
+                min.clear();
+                min.extend_from_slice(&tokens[a0 * aw..(a0 + 1) * aw]);
+                min.extend_from_slice(&h_sum[a0 * r..(a0 + 1) * r]);
+                if active1 >= 0 {
+                    let idx = (a0 * 6 + active1 as usize) * r;
+                    min.extend_from_slice(&p[idx..idx + r]);
+                } else {
+                    min.resize(min.len() + r, 0.0);
+                }
+                min.extend_from_slice(&self.move_emb[mid * ed..(mid + 1) * ed]);
+                min.extend_from_slice(&g);
+                match action_dense {
+                    None => {
+                        let plain = head_scalar(&self.mv, &min);
+                        logits[j] = plain;
+                        logits[10 + j] = plain;
+                    }
+                    Some(block) => {
+                        min.extend_from_slice(&block[j]);
+                        logits[j] = head_scalar(&self.mv, &min);
+                        min.truncate(base_len);
+                        min.extend_from_slice(&block[10 + j]);
+                        logits[10 + j] = head_scalar(&self.mv, &min);
+                    }
+                }
+            }
+        }
+        logits
+    }
+}
+
+// -inf on illegal actions then a stable softmax; all-illegal returns zeros.
+pub fn masked_softmax(logits: &[f32; NUM_ACTIONS], legal: &[bool; NUM_ACTIONS]) -> [f32; NUM_ACTIONS] {
+    let mut out = [0.0f32; NUM_ACTIONS];
+    let mut mx = f32::NEG_INFINITY;
+    for i in 0..NUM_ACTIONS {
+        if legal[i] && logits[i] > mx {
+            mx = logits[i];
+        }
+    }
+    if mx == f32::NEG_INFINITY {
+        return out;
+    }
+    let mut sum = 0.0f32;
+    for i in 0..NUM_ACTIONS {
+        if legal[i] {
+            let e = (logits[i] - mx).exp();
+            out[i] = e;
+            sum += e;
+        }
+    }
+    for v in &mut out {
+        *v /= sum;
+    }
+    out
+}
+
+impl Evaluator for LearnedEval {
+    fn eval(&self, state: &BattleState) -> f32 {
+        let mut ids = Vec::with_capacity(192);
+        features::extract(state, &mut ids);
+        let dense = features::extract_dense(state);
+        self.natural_logit(&ids, &dense) * self.multiplier
+    }
+}
+
+pub fn value_v2_input_len(acc_width: usize, web_rank: usize) -> usize {
+    2 * acc_width + 2 * web_rank + DENSE_DIM
+}
+
+pub const INT8_SCOPE_ENV: &str = "BRIDGE_VALUE_INT8";
+
+// nonzero, so a cache that has never been bound cannot claim to hold this net
+static NEXT_VALUE_NET_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+pub struct LearnedValueV2 {
+    net_id: u64,
+    acc_width: usize,
+    web_rank: usize,
+    attn_dk: usize,
+    multiplier: f32,
+    emb: Vec<f32>,
+    web_a: Vec<f32>,
+    web_b: Vec<f32>,
+    attn_q: Vec<f32>,
+    attn_k: Vec<f32>,
+    attn_v: Vec<f32>,
+    attn_out: Vec<f32>,
+    fc: Vec<Fc>,
+    q: Option<Q8>,
+    reference: frozen_value_ref::RefWeights,
+}
+
+// the float originals are retained beside these, so the frozen reference never
+// reads a quantized weight
+struct Q8 {
+    scope: Int8Scope,
+    fc_mask: u32,
+    emb: Vec<i8>,
+    emb_s: Vec<f32>,
+    web_a: Vec<i8>,
+    web_a_s: Vec<f32>,
+    web_b: Vec<i8>,
+    web_b_s: Vec<f32>,
+    fc: Vec<Option<(Vec<i8>, Vec<f32>)>>,
+}
+
+#[derive(Default)]
+struct ValueForward {
+    acc: Vec<f32>,
+    web_total: Vec<f32>,
+    active_cell: Vec<f32>,
+    cell: Vec<f32>,
+    x: Vec<f32>,
+    h0: Vec<f32>,
+    h1: Vec<f32>,
+    xq: Vec<i8>,
+}
+
+// above every width the extractor can emit; a longer segment is recomputed each
+// call rather than growing the key store
+const SEG_KEY_CAP: usize = 48;
+
+// staged prefixes of the value forward; each stage runs everything below it
+pub mod value_stage {
+    pub const S_TLS: u8 = 0;
+    pub const S_ZERO: u8 = 1;
+    pub const S_KEY: u8 = 2;
+    pub const S_TOKFILL: u8 = 3;
+    pub const S_GATHER0: u8 = 4;
+    pub const S_GATHER: u8 = 5;
+    pub const S_ACC: u8 = 6;
+    pub const S_PROJ: u8 = 7;
+    pub const S_CELL0: u8 = 8;
+    pub const S_CELL: u8 = 9;
+    pub const S_XASM: u8 = 10;
+    pub const S_FULL: u8 = 11;
+    pub const S_FULL_ND: u8 = 12;
+    pub const S_FULL_2FC: u8 = 13;
+    pub const S_FULL_2PROJ: u8 = 14;
+}
+
+// keyed by each segment's exact ordered id list, and owner of the buffers the
+// forward reads, so an unchanged segment costs a key compare and nothing else
+#[derive(Default)]
+struct SegCache {
+    net_id: u64,
+    tokens: Vec<f32>,
+    proj: Vec<f32>,
+    keys: Vec<u32>,
+    key_lens: [u16; NUM_SEGMENTS],
+    live: [bool; NUM_SEGMENTS],
+    active: [bool; NUM_SEGMENTS],
+}
+
+impl SegCache {
+    fn bind(&mut self, net: &LearnedValueV2) {
+        if self.net_id == net.net_id {
+            return;
+        }
+        self.net_id = net.net_id;
+        fit(&mut self.tokens, NUM_SEGMENTS * net.acc_width);
+        fit(&mut self.proj, 12 * net.web_rank);
+        self.keys.clear();
+        self.keys.resize(NUM_SEGMENTS * SEG_KEY_CAP, 0);
+        self.key_lens = [0; NUM_SEGMENTS];
+        self.live = [false; NUM_SEGMENTS];
+        self.active = [false; NUM_SEGMENTS];
+    }
+}
+
+#[derive(Default)]
+struct ValueScratch {
+    ids: Vec<u32>,
+    fwd: ValueForward,
+    cache: SegCache,
+}
+
+thread_local! {
+    static VALUE_SCRATCH: std::cell::RefCell<ValueScratch> =
+        std::cell::RefCell::new(ValueScratch::default());
+}
+
+fn fit(v: &mut Vec<f32>, n: usize) {
+    v.clear();
+    v.resize(n, 0.0);
+}
+
+// sizes a buffer the caller fully overwrites before reading, so the zeroing dies
+fn fit_dirty(v: &mut Vec<f32>, n: usize) {
+    if v.len() != n {
+        v.resize(n, 0.0);
+    }
+}
+
+fn fit_dirty_i8(v: &mut Vec<i8>, n: usize) {
+    if v.len() != n {
+        v.resize(n, 0);
+    }
+}
+
+fn value_stage_sink(fwd: &ValueForward) -> f32 {
+    fwd.x.first().copied().unwrap_or(0.0) + fwd.acc.first().copied().unwrap_or(0.0)
+}
+
+pub fn reset_value_scratch() {
+    VALUE_SCRATCH.with(|c| *c.borrow_mut() = ValueScratch::default());
+}
+
+impl LearnedValueV2 {
+    pub fn from_env() -> Self {
+        match Self::try_from_env() {
+            Ok(e) => e,
+            Err(m) => panic!("BRIDGE_EVAL_WEIGHTS_V2: {m}"),
+        }
+    }
+
+    /// Same resolution as `from_env`, but reports why it failed instead of aborting, so a
+    /// caller that binds this evaluator by default can degrade rather than kill the process.
+    pub fn try_from_env() -> Result<Self, String> {
+        let path = std::env::var("BRIDGE_EVAL_WEIGHTS_V2")
+            .map_err(|_| "unset (must point at a learned-value-v2 weights file)".to_string())?;
+        let scope = std::env::var(INT8_SCOPE_ENV).unwrap_or_default();
+        Self::load_quantized(&path, &scope).map_err(|m| format!("bad weights file {path}: {m}"))
+    }
+
+    pub fn load(path: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes(&bytes)
+    }
+
+    /// Loads the artifact and quantizes the named tensors. `scope` is a comma-separated list
+    /// drawn from `emb`, `web`, `act`, and one of `fc` (the whole chain), `fchid` (all but its
+    /// output layer) or an explicit `fc0`/`fc1`/... list; empty or `none` loads the float net.
+    pub fn load_quantized(path: &str, scope: &str) -> Result<Self, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Self::from_bytes_scoped(&bytes, Int8Scope::parse(scope)?)
+    }
+
+    /// The scope actually armed, canonicalised; `none` when the served kernel is float.
+    pub fn int8_scope(&self) -> String {
+        self.q.as_ref().map_or_else(|| "none".to_string(), |q| q.scope.canonical())
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        Self::from_bytes_scoped(bytes, Int8Scope::default())
+    }
+
+    fn from_bytes_scoped(bytes: &[u8], scope: Int8Scope) -> Result<Self, String> {
+        let mut c = Cursor { buf: bytes, pos: 0 };
+        if c.take(4)? != b"LVV2" {
+            return Err("bad magic: not an LVV2 file".into());
+        }
+        let spec = c.u32()?;
+        if spec != FEATURE_SPEC_VERSION {
+            return Err(format!("LVV2 spec {spec} != compiled {FEATURE_SPEC_VERSION}"));
+        }
+        let vocab = c.u32()? as usize;
+        if vocab != features::vocab_size() as usize {
+            return Err(format!("vocab mismatch: weights {vocab}, extractor {}", features::vocab_size()));
+        }
+        let (aw, seg, r) = (c.u32()? as usize, c.u32()? as usize, c.u32()? as usize);
+        if seg != NUM_SEGMENTS {
+            return Err(format!("LVV2 token_segments {seg} != {NUM_SEGMENTS}"));
+        }
+        let tables = c.u32()?;
+        let (prow, trow, trank) = (c.u32()?, c.u32()?, c.u32()?);
+        if tables != 0 {
+            return Err("LVV2 carries no pair table; tables flag must be 0".into());
+        }
+        if prow != 0 || trow != 0 || trank != 0 {
+            return Err(format!(
+                "LVV2 table dims present with tables off: pair {prow}, type {trow}, rank {trank}"
+            ));
+        }
+        let attn = c.u32()?;
+        let dk = c.u32()? as usize;
+        if (attn != 0) != (dk != 0) {
+            return Err("LVV2 attn flag and attn_dk disagree".into());
+        }
+        let vdim = c.u32()? as usize;
+        // no serving-side extractor exists for the sidecar width
+        if vdim != 0 {
+            return Err(format!("LVV2 value_dense_dim {vdim} != 0; the value forward has no sidecar input"));
+        }
+        let n_fc = c.u32()? as usize;
+        if n_fc < 2 {
+            return Err(format!("LVV2 fc chain needs >= 2 layers, got {n_fc}"));
+        }
+        let dims = read_dims(&mut c, n_fc)?;
+        check_chain(&dims, "LVV2 fc")?;
+        let want = value_v2_input_len(aw, r);
+        if dims[0].0 != want {
+            return Err(format!("LVV2 fc1 in {} != {want}", dims[0].0));
+        }
+        if dims[dims.len() - 1].1 != 1 {
+            return Err("LVV2 fc chain must end in 1 output".into());
+        }
+        let multiplier = c.f32()?;
+        let emb = c.f32_vec(vocab * aw)?;
+        let web_a = c.f32_vec(r * aw)?;
+        let web_b = c.f32_vec(r * aw)?;
+        let (mut q, mut k, mut v, mut o) = (vec![], vec![], vec![], vec![]);
+        if attn != 0 {
+            q = c.f32_vec(dk * aw)?;
+            k = c.f32_vec(dk * aw)?;
+            v = c.f32_vec(dk * aw)?;
+            o = c.f32_vec(aw * dk)?;
+        }
+        let fc = read_layers(&mut c, &dims)?;
+        if c.pos != bytes.len() {
+            return Err("LVV2 trailing bytes after the last tensor".into());
+        }
+        // taken from this read, ahead of any in-place relayout of the served tensors
+        let reference = frozen_value_ref::RefWeights::snapshot(&web_a, &web_b, &fc);
+        // served tensors are relaid out so the kernel lanes over contiguous output neurons
+        let web_a = transpose(&web_a, r, aw);
+        let web_b = transpose(&web_b, r, aw);
+        let fc: Vec<Fc> = fc
+            .into_iter()
+            .map(|l| Fc { w: transpose(&l.w, l.out, l.inp), ..l })
+            .collect();
+        let fc_mask = scope.fc.mask(fc.len())?;
+        let q8 = (scope.any() && (scope.emb || scope.web || fc_mask != 0)).then(|| {
+            let (emb_q, emb_s) =
+                if scope.emb { quantize_rows(&emb, vocab, aw) } else { (vec![], vec![]) };
+            let (wa, wa_s) =
+                if scope.web { quantize_cols(&web_a, aw, r) } else { (vec![], vec![]) };
+            let (wb, wb_s) =
+                if scope.web { quantize_cols(&web_b, aw, r) } else { (vec![], vec![]) };
+            let fcq = fc
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (fc_mask >> i & 1 == 1).then(|| quantize_cols(&l.w, l.inp, l.out)))
+                .collect();
+            Q8 {
+                scope,
+                fc_mask,
+                emb: emb_q,
+                emb_s,
+                web_a: wa,
+                web_a_s: wa_s,
+                web_b: wb,
+                web_b_s: wb_s,
+                fc: fcq,
+            }
+        });
+        Ok(Self {
+            net_id: NEXT_VALUE_NET_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            acc_width: aw,
+            web_rank: r,
+            attn_dk: dk,
+            multiplier,
+            emb,
+            web_a,
+            web_b,
+            attn_q: q,
+            attn_k: k,
+            attn_v: v,
+            attn_out: o,
+            fc,
+            q: q8,
+            reference,
+        })
+    }
+
+    pub fn fc1_input(&self) -> usize {
+        self.fc[0].inp
+    }
+
+    fn attend(&self, tokens: &[f32]) -> Vec<f32> {
+        let aw = self.acc_width;
+        let dk = self.attn_dk;
+        let mut present = [false; NUM_SEGMENTS];
+        for (s, flag) in present.iter_mut().enumerate() {
+            *flag = tokens[s * aw..(s + 1) * aw].iter().map(|v| v.abs()).sum::<f32>() > 0.0;
+        }
+        let mut q = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut key = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut val = vec![0.0f32; NUM_SEGMENTS * dk];
+        for s in 0..NUM_SEGMENTS {
+            let t = &tokens[s * aw..(s + 1) * aw];
+            for o in 0..dk {
+                let w = o * aw..(o + 1) * aw;
+                q[s * dk + o] = dot(&self.attn_q[w.clone()], t);
+                key[s * dk + o] = dot(&self.attn_k[w.clone()], t);
+                val[s * dk + o] = dot(&self.attn_v[w], t);
+            }
+        }
+        let scale = (dk as f32).sqrt();
+        let mut out = tokens.to_vec();
+        let mut w = [0.0f32; NUM_SEGMENTS];
+        let mut mix = vec![0.0f32; dk];
+        for i in 0..NUM_SEGMENTS {
+            if !present[i] {
+                continue;
+            }
+            let qi = &q[i * dk..(i + 1) * dk];
+            let mut mx = f32::NEG_INFINITY;
+            for j in 0..NUM_SEGMENTS {
+                if present[j] {
+                    w[j] = dot(qi, &key[j * dk..(j + 1) * dk]) / scale;
+                    if w[j] > mx {
+                        mx = w[j];
+                    }
+                }
+            }
+            let mut sum = 0.0f32;
+            for j in 0..NUM_SEGMENTS {
+                w[j] = if present[j] { (w[j] - mx).exp() } else { 0.0 };
+                sum += w[j];
+            }
+            for v in mix.iter_mut() {
+                *v = 0.0;
+            }
+            for j in 0..NUM_SEGMENTS {
+                if !present[j] {
+                    continue;
+                }
+                let wj = w[j] / sum;
+                for o in 0..dk {
+                    mix[o] += wj * val[j * dk + o];
+                }
+            }
+            for o in 0..aw {
+                out[i * aw + o] += dot(&self.attn_out[o * dk..(o + 1) * dk], &mix);
+            }
+        }
+        out
+    }
+
+    fn value_input_into<const STAGE: u8>(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        fwd: &mut ValueForward,
+        cache: &mut SegCache,
+    ) -> (i32, i32) {
+        use value_stage::*;
+        if STAGE < S_ZERO {
+            std::hint::black_box(&*fwd);
+            std::hint::black_box(&*cache);
+            return (-1, -1);
+        }
+        let aw = self.acc_width;
+        let r = self.web_rank;
+        fit(&mut fwd.acc, 2 * aw);
+        fit(&mut fwd.web_total, r);
+        fit(&mut fwd.active_cell, r);
+        fit_dirty(&mut fwd.cell, r);
+        fit_dirty(&mut fwd.x, value_v2_input_len(aw, r));
+        let hmax = self.fc.iter().map(|l| l.out).max().unwrap();
+        fit_dirty(&mut fwd.h0, hmax);
+        fit_dirty(&mut fwd.h1, hmax);
+        fit_dirty_i8(&mut fwd.xq, self.fc.iter().map(|l| l.inp).max().unwrap());
+        cache.bind(self);
+        // attention mixes every token before the projections, so no segment's
+        // block is a function of that segment alone and nothing may be reused
+        let armed = self.attn_dk == 0;
+        let f1_vocab = 4 * TOTAL_SPECIES;
+        if STAGE < S_KEY {
+            std::hint::black_box(&*fwd);
+            std::hint::black_box(&*cache);
+            return (-1, -1);
+        }
+        let ValueForward { acc, web_total, active_cell, cell, x, .. } = fwd;
+        let SegCache { tokens, proj, keys, key_lens, live, active, .. } = cache;
+        let embq = self.q.as_ref().filter(|q| q.scope.emb);
+        let webq = self.q.as_ref().filter(|q| q.scope.web);
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let len = len as usize;
+            let seg_ids = &ids[pos..pos + len];
+            pos += len;
+            if armed
+                && live[seg]
+                && len <= SEG_KEY_CAP
+                && key_lens[seg] as usize == len
+                && keys[seg * SEG_KEY_CAP..seg * SEG_KEY_CAP + len] == *seg_ids
+            {
+                continue;
+            }
+            live[seg] = false;
+            if STAGE < S_TOKFILL {
+                continue;
+            }
+            let tok = &mut tokens[seg * aw..(seg + 1) * aw];
+            // the gather's first row seeds the token, so only a segment with no
+            // rows to seed it still needs the zero fill
+            if seg_ids.is_empty() {
+                tok.fill(0.0);
+            }
+            if STAGE < S_GATHER0 {
+                continue;
+            }
+            let mut act = false;
+            for (n, &id) in seg_ids.iter().enumerate() {
+                let idu = id as usize;
+                match embq {
+                    None => {
+                        let row = &self.emb[idu * aw..(idu + 1) * aw];
+                        if n == 0 {
+                            tok.copy_from_slice(row);
+                        } else {
+                            add_into(tok, row);
+                        }
+                    }
+                    Some(q) => {
+                        let sc = q.emb_s[idu];
+                        let row = &q.emb[idu * aw..(idu + 1) * aw];
+                        if n == 0 {
+                            for (t, wv) in tok.iter_mut().zip(row) {
+                                *t = sc * f32::from(*wv);
+                            }
+                        } else {
+                            for (t, wv) in tok.iter_mut().zip(row) {
+                                *t += sc * f32::from(*wv);
+                            }
+                        }
+                    }
+                }
+                if STAGE >= S_GATHER && seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0
+                {
+                    act = true;
+                }
+            }
+            if STAGE >= S_GATHER {
+                active[seg] = act;
+            }
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        // the id loop assigns the highest matching slot per side, so replaying it
+        // over the per-segment bits reproduces the same pair
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        for seg in 0..6 {
+            if active[seg] {
+                active0 = seg as i32;
+            }
+            if active[6 + seg] {
+                active1 = seg as i32;
+            }
+        }
+        // leaving early through the label keeps the key writeback below on the
+        // path of every stage that owns the hit test
+        'mix: {
+            if STAGE < S_ACC {
+                break 'mix;
+            }
+            if self.attn_dk != 0 {
+                let mixed = self.attend(tokens);
+                tokens.copy_from_slice(&mixed);
+            }
+
+            let (acc0, acc1) = acc.split_at_mut(aw);
+            for s in 0..6 {
+                add_into(acc0, &tokens[s * aw..(s + 1) * aw]);
+                add_into(acc1, &tokens[(6 + s) * aw..(7 + s) * aw]);
+            }
+            add_pair_into(acc0, &tokens[12 * aw..13 * aw], &tokens[14 * aw..15 * aw]);
+            add_pair_into(acc1, &tokens[13 * aw..14 * aw], &tokens[14 * aw..15 * aw]);
+
+            if STAGE < S_PROJ {
+                break 'mix;
+            }
+            for i in 0..6 {
+                if !live[i] {
+                    let ti = &tokens[i * aw..(i + 1) * aw];
+                    let dst = &mut proj[i * r..(i + 1) * r];
+                    match webq {
+                        None => value_web_project(&self.web_a, ti, dst),
+                        Some(q) => value_web_project_q8(&q.web_a, &q.web_a_s, ti, dst),
+                    }
+                }
+                if !live[6 + i] {
+                    let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+                    let dst = &mut proj[(6 + i) * r..(7 + i) * r];
+                    match webq {
+                        None => value_web_project(&self.web_b, tj, dst),
+                        Some(q) => value_web_project_q8(&q.web_b, &q.web_b_s, tj, dst),
+                    }
+                }
+            }
+        }
+        // an entry goes live only once both its token and its projection are written
+        if armed {
+            let mut start = 0usize;
+            for (seg, &len) in seg_lens.iter().enumerate() {
+                let len = len as usize;
+                if !live[seg] && len <= SEG_KEY_CAP {
+                    let koff = seg * SEG_KEY_CAP;
+                    keys[koff..koff + len].copy_from_slice(&ids[start..start + len]);
+                    key_lens[seg] = len as u16;
+                    live[seg] = true;
+                }
+                start += len;
+            }
+        }
+        if STAGE < S_CELL0 {
+            std::hint::black_box((&*acc, &*web_total, &*active_cell, &*cell, &*x));
+            std::hint::black_box((&*tokens, &*proj, &*keys, &*key_lens, &*live, &*active));
+            return (-1, -1);
+        }
+        // one accumulator block spans all 36 cells, so the running total never
+        // round-trips through memory, and the read cell is rebuilt once at the end
+        const BLK: usize = 32;
+        let (a, b) = proj.split_at(6 * r);
+        let blocks = r / BLK;
+        for blk in 0..blocks {
+            let base = blk * BLK;
+            let mut tot = [0.0f32; BLK];
+            for i in 0..6 {
+                let ai = &a[i * r + base..i * r + base + BLK];
+                for j in 0..6 {
+                    let bj = &b[j * r + base..j * r + base + BLK];
+                    for o in 0..BLK {
+                        tot[o] += (ai[o] * bj[o]).max(0.0);
+                    }
+                }
+            }
+            web_total[base..base + BLK].copy_from_slice(&tot);
+        }
+        for o in blocks * BLK..r {
+            let mut t = 0.0f32;
+            for i in 0..6 {
+                for j in 0..6 {
+                    t += (a[i * r + o] * b[j * r + o]).max(0.0);
+                }
+            }
+            web_total[o] = t;
+        }
+        if STAGE >= S_CELL && active0 >= 0 && active1 >= 0 {
+            let ai = &a[active0 as usize * r..(active0 as usize + 1) * r];
+            let bj = &b[active1 as usize * r..(active1 as usize + 1) * r];
+            for o in 0..r {
+                active_cell[o] = (ai[o] * bj[o]).max(0.0);
+            }
+        }
+        if STAGE < S_XASM {
+            std::hint::black_box((&*acc, &*web_total, &*active_cell, &*cell, &*x));
+            std::hint::black_box((&*tokens, &*proj, &*keys, &*key_lens, &*live, &*active));
+            return (-1, -1);
+        }
+
+        // the value tail ReLUs the accumulators; the v2 policy trunk feeds them raw
+        relu_into(&mut x[..2 * aw], &acc[..2 * aw]);
+        x[2 * aw..2 * aw + r].copy_from_slice(web_total);
+        x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(active_cell);
+        x[2 * aw + 2 * r..].copy_from_slice(dense);
+        if STAGE == S_FULL_2PROJ {
+            for i in 0..6 {
+                let ti = &tokens[i * aw..(i + 1) * aw];
+                let da = &mut proj[i * r..(i + 1) * r];
+                match webq {
+                    None => value_web_project(&self.web_a, ti, da),
+                    Some(q) => value_web_project_q8(&q.web_a, &q.web_a_s, ti, da),
+                }
+                let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+                let db = &mut proj[(6 + i) * r..(7 + i) * r];
+                match webq {
+                    None => value_web_project(&self.web_b, tj, db),
+                    Some(q) => value_web_project_q8(&q.web_b, &q.web_b_s, tj, db),
+                }
+            }
+            std::hint::black_box(&*proj);
+        }
+        (active0, active1)
+    }
+
+    pub fn value_cache_probe(&self, trace: &[(Vec<u32>, [u16; NUM_SEGMENTS])]) -> (u64, u64) {
+        let (hits, misses, _, _) = self.value_cache_probe_detail(trace);
+        (hits, misses)
+    }
+
+    // holds its own key store so the hit condition above can be diffed by eye;
+    // never reached from the served path
+    pub fn value_cache_probe_detail(
+        &self,
+        trace: &[(Vec<u32>, [u16; NUM_SEGMENTS])],
+    ) -> (u64, u64, [u64; NUM_SEGMENTS], u64) {
+        let armed = self.attn_dk == 0;
+        let mut keys = vec![0u32; NUM_SEGMENTS * SEG_KEY_CAP];
+        let mut key_lens = [0u16; NUM_SEGMENTS];
+        let mut live = [false; NUM_SEGMENTS];
+        let (mut hits, mut misses) = (0u64, 0u64);
+        let mut seg_misses = [0u64; NUM_SEGMENTS];
+        let mut missed_ids = 0u64;
+        for (ids, seg_lens) in trace {
+            let mut pos = 0usize;
+            for (seg, &len) in seg_lens.iter().enumerate() {
+                let len = len as usize;
+                let seg_ids = &ids[pos..pos + len];
+                pos += len;
+                if armed
+                    && live[seg]
+                    && len <= SEG_KEY_CAP
+                    && key_lens[seg] as usize == len
+                    && keys[seg * SEG_KEY_CAP..seg * SEG_KEY_CAP + len] == *seg_ids
+                {
+                    hits += 1;
+                    continue;
+                }
+                misses += 1;
+                seg_misses[seg] += 1;
+                missed_ids += len as u64;
+                live[seg] = false;
+            }
+            if armed {
+                let mut start = 0usize;
+                for (seg, &len) in seg_lens.iter().enumerate() {
+                    let len = len as usize;
+                    if !live[seg] && len <= SEG_KEY_CAP {
+                        let koff = seg * SEG_KEY_CAP;
+                        keys[koff..koff + len].copy_from_slice(&ids[start..start + len]);
+                        key_lens[seg] = len as u16;
+                        live[seg] = true;
+                    }
+                    start += len;
+                }
+            }
+        }
+        (hits, misses, seg_misses, missed_ids)
+    }
+
+    #[cfg(test)]
+    fn value_input(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> (Vec<f32>, i32, i32) {
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let ValueScratch { fwd, cache, .. } = &mut *s;
+            let (active0, active1) =
+                self.value_input_into::<{ value_stage::S_FULL }>(ids, seg_lens, dense, fwd, cache);
+            (fwd.x.clone(), active0, active1)
+        })
+    }
+
+    pub fn export_multiplier(&self) -> f32 {
+        self.multiplier
+    }
+
+    fn logit_with<const STAGE: u8>(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        fwd: &mut ValueForward,
+        cache: &mut SegCache,
+    ) -> f32 {
+        self.value_input_into::<STAGE>(ids, seg_lens, dense, fwd, cache);
+        if STAGE < value_stage::S_FULL {
+            return value_stage_sink(fwd);
+        }
+        let ValueForward { x, h0, h1, xq, .. } = fwd;
+        let out = self.value_head(x, h0, h1, xq);
+        if STAGE == value_stage::S_FULL_2FC {
+            std::hint::black_box(self.value_head(x, h0, h1, xq));
+        }
+        out
+    }
+
+    fn value_head(&self, x: &[f32], h0: &mut [f32], h1: &mut [f32], xq: &mut [i8]) -> f32 {
+        let Some(q) = self.q.as_ref().filter(|q| q.fc_mask != 0) else {
+            return value_head_scalar(&self.fc, x, h0, h1);
+        };
+        let last = self.fc.len() - 1;
+        let apply = |fc: &Fc, l: usize, src: &[f32], dst: &mut [f32], xq: &mut [i8], relu: bool| {
+            let Some((wq, ws)) = q.fc[l].as_ref() else {
+                return value_fc_apply(fc, src, dst, relu);
+            };
+            if q.scope.act {
+                value_fc_apply_q8a(fc, wq, ws, src, xq, dst, relu);
+            } else {
+                value_fc_apply_q8(fc, wq, ws, src, dst, relu);
+            }
+        };
+        apply(&self.fc[0], 0, x, &mut h0[..self.fc[0].out], xq, last > 0);
+        let mut src_is_h0 = true;
+        for (i, fc) in self.fc.iter().enumerate().skip(1) {
+            if src_is_h0 {
+                let (cur, dst) = (&h0[..self.fc[i - 1].out], &mut h1[..fc.out]);
+                apply(fc, i, cur, dst, xq, i < last);
+            } else {
+                let (cur, dst) = (&h1[..self.fc[i - 1].out], &mut h0[..fc.out]);
+                apply(fc, i, cur, dst, xq, i < last);
+            }
+            src_is_h0 = !src_is_h0;
+        }
+        if src_is_h0 {
+            h0[0]
+        } else {
+            h1[0]
+        }
+    }
+
+    pub fn staged_logit(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+        stage: u8,
+    ) -> f32 {
+        use value_stage::*;
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let ValueScratch { fwd, cache, .. } = &mut *s;
+            match stage {
+                S_TLS => self.logit_with::<{ S_TLS }>(ids, seg_lens, dense, fwd, cache),
+                S_ZERO => self.logit_with::<{ S_ZERO }>(ids, seg_lens, dense, fwd, cache),
+                S_KEY => self.logit_with::<{ S_KEY }>(ids, seg_lens, dense, fwd, cache),
+                S_TOKFILL => self.logit_with::<{ S_TOKFILL }>(ids, seg_lens, dense, fwd, cache),
+                S_GATHER0 => self.logit_with::<{ S_GATHER0 }>(ids, seg_lens, dense, fwd, cache),
+                S_GATHER => self.logit_with::<{ S_GATHER }>(ids, seg_lens, dense, fwd, cache),
+                S_ACC => self.logit_with::<{ S_ACC }>(ids, seg_lens, dense, fwd, cache),
+                S_PROJ => self.logit_with::<{ S_PROJ }>(ids, seg_lens, dense, fwd, cache),
+                S_CELL0 => self.logit_with::<{ S_CELL0 }>(ids, seg_lens, dense, fwd, cache),
+                S_CELL => self.logit_with::<{ S_CELL }>(ids, seg_lens, dense, fwd, cache),
+                S_XASM => self.logit_with::<{ S_XASM }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL => self.logit_with::<{ S_FULL }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL_ND => self.logit_with::<{ S_FULL_ND }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL_2FC => self.logit_with::<{ S_FULL_2FC }>(ids, seg_lens, dense, fwd, cache),
+                S_FULL_2PROJ => {
+                    self.logit_with::<{ S_FULL_2PROJ }>(ids, seg_lens, dense, fwd, cache)
+                }
+                _ => panic!("unknown value stage {stage}"),
+            }
+        })
+    }
+
+    pub fn natural_logit(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> f32 {
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let ValueScratch { fwd, cache, .. } = &mut *s;
+            self.logit_with::<{ value_stage::S_FULL }>(ids, seg_lens, dense, fwd, cache)
+        })
+    }
+
+    pub fn natural_logit_reference(
+        &self,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> f32 {
+        frozen_value_ref::ref_logit(self, ids, seg_lens, dense)
+    }
+
+    pub fn reference_evaluator(&self) -> impl Evaluator + '_ {
+        frozen_value_ref::RefEvaluator::new(self)
+    }
+}
+
+impl Evaluator for LearnedValueV2 {
+    fn eval(&self, state: &BattleState) -> f32 {
+        VALUE_SCRATCH.with(|c| {
+            let mut s = c.borrow_mut();
+            let ValueScratch { ids, fwd, cache } = &mut *s;
+            ids.clear();
+            let seg_lens = features::extract_segmented(state, ids);
+            let dense = features::extract_dense(state);
+            self.logit_with::<{ value_stage::S_FULL }>(ids, &seg_lens, &dense, fwd, cache)
+                * self.multiplier
+        })
+    }
+}
+
+// Frozen scalar copy of the value forward, held as the bit-equality bar for the
+// served kernels. It duplicates `dot`, `Fc::apply`, `head_scalar`, `attend` and
+// `value_input` instead of calling them, so an edit to those moves the served
+// path alone; nothing here may be changed to track such an edit.
+mod frozen_value_ref {
+    use super::{value_v2_input_len, Fc, LearnedValueV2};
+    use crate::eval::Evaluator;
+    use crate::features::{self, DENSE_DIM, NUM_SEGMENTS};
+    use pkmn_engine::data::TOTAL_SPECIES;
+    use pkmn_engine::state::BattleState;
+
+    pub(super) struct RefFc {
+        inp: usize,
+        out: usize,
+        w: Vec<f32>,
+        b: Vec<f32>,
+    }
+
+    impl RefFc {
+        pub(super) fn new(inp: usize, out: usize, w: Vec<f32>, b: Vec<f32>) -> Self {
+            Self { inp, out, w, b }
+        }
+
+        pub(super) fn apply(&self, x: &[f32], relu: bool) -> Vec<f32> {
+            debug_assert_eq!(x.len(), self.inp);
+            let mut y = vec![0.0f32; self.out];
+            for (o, yv) in y.iter_mut().enumerate() {
+                let w = &self.w[o * self.inp..(o + 1) * self.inp];
+                let mut s = self.b[o];
+                for k in 0..self.inp {
+                    s += x[k] * w[k];
+                }
+                *yv = if relu && s < 0.0 { 0.0 } else { s };
+            }
+            y
+        }
+    }
+
+    pub(super) fn ref_dot(w: &[f32], x: &[f32]) -> f32 {
+        debug_assert_eq!(w.len(), x.len());
+        w.iter().zip(x).map(|(a, b)| a * b).sum()
+    }
+
+    fn ref_head_scalar(layers: &[RefFc], x: &[f32]) -> f32 {
+        let last = layers.len() - 1;
+        let mut cur = layers[0].apply(x, last > 0);
+        for (i, fc) in layers.iter().enumerate().skip(1) {
+            cur = fc.apply(&cur, i < last);
+        }
+        cur[0]
+    }
+
+    // the embedding table is 99.7% of the artifact and stays shared; only the
+    // tensors a later relayout moves are held privately
+    pub(super) struct RefWeights {
+        web_a: Vec<f32>,
+        web_b: Vec<f32>,
+        fc: Vec<RefFc>,
+    }
+
+    impl RefWeights {
+        pub(super) fn snapshot(web_a: &[f32], web_b: &[f32], fc: &[Fc]) -> Self {
+            Self {
+                web_a: web_a.to_vec(),
+                web_b: web_b.to_vec(),
+                fc: fc.iter().map(|l| RefFc::new(l.inp, l.out, l.w.clone(), l.b.clone())).collect(),
+            }
+        }
+    }
+
+    fn ref_attend(net: &LearnedValueV2, tokens: &[f32]) -> Vec<f32> {
+        let aw = net.acc_width;
+        let dk = net.attn_dk;
+        let mut present = [false; NUM_SEGMENTS];
+        for (s, flag) in present.iter_mut().enumerate() {
+            *flag = tokens[s * aw..(s + 1) * aw].iter().map(|v| v.abs()).sum::<f32>() > 0.0;
+        }
+        let mut q = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut key = vec![0.0f32; NUM_SEGMENTS * dk];
+        let mut val = vec![0.0f32; NUM_SEGMENTS * dk];
+        for s in 0..NUM_SEGMENTS {
+            let t = &tokens[s * aw..(s + 1) * aw];
+            for o in 0..dk {
+                let w = o * aw..(o + 1) * aw;
+                q[s * dk + o] = ref_dot(&net.attn_q[w.clone()], t);
+                key[s * dk + o] = ref_dot(&net.attn_k[w.clone()], t);
+                val[s * dk + o] = ref_dot(&net.attn_v[w], t);
+            }
+        }
+        let scale = (dk as f32).sqrt();
+        let mut out = tokens.to_vec();
+        let mut w = [0.0f32; NUM_SEGMENTS];
+        let mut mix = vec![0.0f32; dk];
+        for i in 0..NUM_SEGMENTS {
+            if !present[i] {
+                continue;
+            }
+            let qi = &q[i * dk..(i + 1) * dk];
+            let mut mx = f32::NEG_INFINITY;
+            for j in 0..NUM_SEGMENTS {
+                if present[j] {
+                    w[j] = ref_dot(qi, &key[j * dk..(j + 1) * dk]) / scale;
+                    if w[j] > mx {
+                        mx = w[j];
+                    }
+                }
+            }
+            let mut sum = 0.0f32;
+            for j in 0..NUM_SEGMENTS {
+                w[j] = if present[j] { (w[j] - mx).exp() } else { 0.0 };
+                sum += w[j];
+            }
+            for v in mix.iter_mut() {
+                *v = 0.0;
+            }
+            for j in 0..NUM_SEGMENTS {
+                if !present[j] {
+                    continue;
+                }
+                let wj = w[j] / sum;
+                for o in 0..dk {
+                    mix[o] += wj * val[j * dk + o];
+                }
+            }
+            for o in 0..aw {
+                out[i * aw + o] += ref_dot(&net.attn_out[o * dk..(o + 1) * dk], &mix);
+            }
+        }
+        out
+    }
+
+    fn ref_value_input(
+        net: &LearnedValueV2,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> (Vec<f32>, i32, i32) {
+        let aw = net.acc_width;
+        let r = net.web_rank;
+        let mut tokens = vec![0.0f32; NUM_SEGMENTS * aw];
+        let mut active0: i32 = -1;
+        let mut active1: i32 = -1;
+        let f1_vocab = 4 * TOTAL_SPECIES;
+        let mut pos = 0usize;
+        for (seg, &len) in seg_lens.iter().enumerate() {
+            let tok_off = seg * aw;
+            for &id in &ids[pos..pos + len as usize] {
+                let idu = id as usize;
+                let row = &net.emb[idu * aw..(idu + 1) * aw];
+                for k in 0..aw {
+                    tokens[tok_off + k] += row[k];
+                }
+                if seg < 12 && idu < f1_vocab && (idu / TOTAL_SPECIES) % 2 == 0 {
+                    if seg < 6 {
+                        active0 = seg as i32;
+                    } else {
+                        active1 = (seg - 6) as i32;
+                    }
+                }
+            }
+            pos += len as usize;
+        }
+        debug_assert_eq!(pos, ids.len(), "segment lengths must cover the id stream");
+        if net.attn_dk != 0 {
+            tokens = ref_attend(net, &tokens);
+        }
+
+        let mut acc = vec![0.0f32; 2 * aw];
+        for s in 0..6 {
+            for k in 0..aw {
+                acc[k] += tokens[s * aw + k];
+                acc[aw + k] += tokens[(6 + s) * aw + k];
+            }
+        }
+        for k in 0..aw {
+            acc[k] += tokens[12 * aw + k] + tokens[14 * aw + k];
+            acc[aw + k] += tokens[13 * aw + k] + tokens[14 * aw + k];
+        }
+
+        let mut a = vec![0.0f32; 6 * r];
+        let mut b = vec![0.0f32; 6 * r];
+        for i in 0..6 {
+            let ti = &tokens[i * aw..(i + 1) * aw];
+            let tj = &tokens[(6 + i) * aw..(7 + i) * aw];
+            for o in 0..r {
+                a[i * r + o] = ref_dot(&net.reference.web_a[o * aw..(o + 1) * aw], ti);
+                b[i * r + o] = ref_dot(&net.reference.web_b[o * aw..(o + 1) * aw], tj);
+            }
+        }
+        let mut web_total = vec![0.0f32; r];
+        let mut active_cell = vec![0.0f32; r];
+        let mut cell = vec![0.0f32; r];
+        for i in 0..6 {
+            for j in 0..6 {
+                for o in 0..r {
+                    cell[o] = (a[i * r + o] * b[j * r + o]).max(0.0);
+                    web_total[o] += cell[o];
+                }
+                if active0 == i as i32 && active1 == j as i32 {
+                    active_cell.copy_from_slice(&cell);
+                }
+            }
+        }
+
+        let mut x = vec![0.0f32; value_v2_input_len(aw, r)];
+        for k in 0..2 * aw {
+            x[k] = acc[k].max(0.0);
+        }
+        x[2 * aw..2 * aw + r].copy_from_slice(&web_total);
+        x[2 * aw + r..2 * aw + 2 * r].copy_from_slice(&active_cell);
+        x[2 * aw + 2 * r..].copy_from_slice(dense);
+        (x, active0, active1)
+    }
+
+    pub(super) fn ref_logit(
+        net: &LearnedValueV2,
+        ids: &[u32],
+        seg_lens: &[u16; NUM_SEGMENTS],
+        dense: &[f32; DENSE_DIM],
+    ) -> f32 {
+        let (x, _, _) = ref_value_input(net, ids, seg_lens, dense);
+        ref_head_scalar(&net.reference.fc, &x)
+    }
+
+    pub(super) struct RefEvaluator<'a> {
+        net: &'a LearnedValueV2,
+    }
+
+    impl<'a> RefEvaluator<'a> {
+        pub(super) fn new(net: &'a LearnedValueV2) -> Self {
+            Self { net }
+        }
+    }
+
+    impl Evaluator for RefEvaluator<'_> {
+        fn eval(&self, state: &BattleState) -> f32 {
+            let mut ids = Vec::with_capacity(192);
+            let seg_lens = features::extract_segmented(state, &mut ids);
+            let dense = features::extract_dense(state);
+            ref_logit(self.net, &ids, &seg_lens, &dense) * self.net.multiplier
+        }
+    }
+}
+
+pub const LVV2_WEIGHTS_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.bin");
+pub const LVV2_FIXTURES_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.fixtures.json");
+
+// the extended rows are minted from this exact net, so any other artifact
+// makes the comparison meaningless
+pub const LVV2_EXT_WEIGHTS_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-7863b28d2c91.bin");
+pub const LVV2_EXT_FIXTURES_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/lvv2-ext.fixtures.json");
+
+// LVV2_REQUIRE arms every artifact prefix at once, so an absent export fails
+// the parity gates instead of skipping inside a passing run
+pub fn artifacts_required() -> bool {
+    std::env::var("LVV2_REQUIRE").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+// either override set means an operator named a specific export, so a path
+// that will not read is a typo to surface, never an absent artifact to skip
+pub fn resolve_artifact_paths(
+    magic: &str,
+    w_override: Option<String>,
+    f_override: Option<String>,
+    w_default: &str,
+    f_default: &str,
+    require: bool,
+) -> Option<(Vec<u8>, String)> {
+    let strict = w_override.is_some() || f_override.is_some() || require;
+    let w = w_override.unwrap_or_else(|| w_default.to_string());
+    let f = f_override.unwrap_or_else(|| f_default.to_string());
+    if !strict {
+        return Some((std::fs::read(&w).ok()?, std::fs::read_to_string(&f).ok()?));
+    }
+    let bin = std::fs::read(&w).unwrap_or_else(|e| panic!("{magic}_WEIGHTS resolved to {w}: {e}"));
+    let fx = std::fs::read_to_string(&f)
+        .unwrap_or_else(|e| panic!("{magic}_FIXTURES resolved to {f}: {e}"));
+    Some((bin, fx))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testutil::{build_state, mon};
+
+    const WEIGHTS: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvp1-ff8e8651f6b5.bin");
+    const FIXTURES: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../learned-eval/weights/lvp1-ff8e8651f6b5.fixtures.json"
+    );
+    const WEIGHTS_V2: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin");
+    const FIXTURES_V2: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../learned-eval/weights/lvp2-6f1e0facfcc4.fixtures.json"
+    );
+    const SPEC3_WEIGHTS: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lv1-db937c18c028.bin");
+    const LVV2_ATTN_WEIGHTS_PATH: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0-attn.bin");
+    const LVV2_ATTN_FIXTURES_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../learned-eval/weights/lvv2-phase0-attn.fixtures.json"
+    );
+
+    // weights/ is a gitignored per-net artifact dir: absence skips, a
+    // present-but-unloadable file fails
+    fn artifacts_from(weights: &str, fixtures: &str) -> Option<(LearnedPolicy, serde_json::Value)> {
+        let bin = std::fs::read(weights).ok()?;
+        let fx = std::fs::read_to_string(fixtures).ok()?;
+        Some((
+            LearnedPolicy::from_bytes(&bin).expect("weights must load"),
+            serde_json::from_str(&fx).expect("fixtures must parse"),
+        ))
+    }
+
+    // LVP1_WEIGHTS/LVP1_FIXTURES point the parity gate at another export
+    // (e.g. a freshly trained arm) without touching the pinned artifacts
+    fn artifacts() -> (Option<(LearnedPolicy, serde_json::Value)>, String, String) {
+        let w_env = std::env::var("LVP1_WEIGHTS").ok();
+        let f_env = std::env::var("LVP1_FIXTURES").ok();
+        let wp = w_env.clone().unwrap_or_else(|| WEIGHTS.to_string());
+        let fp = f_env.clone().unwrap_or_else(|| FIXTURES.to_string());
+        let loaded =
+            resolve_artifact_paths("LVP1", w_env, f_env, WEIGHTS, FIXTURES, artifacts_required())
+                .map(|(bin, fx)| {
+                    (
+                        LearnedPolicy::from_bytes(&bin).expect("LVP1 weights must load"),
+                        serde_json::from_str(&fx).expect("LVP1 fixtures must parse"),
+                    )
+                });
+        (loaded, wp, fp)
+    }
+
+    // the resolved paths ride along so the ledger row shows which export was
+    // read, including on the skip path
+    fn artifacts_v2() -> (Option<(LearnedPolicyV2, serde_json::Value)>, String, String) {
+        let w_env = std::env::var("LVP2_WEIGHTS").ok();
+        let f_env = std::env::var("LVP2_FIXTURES").ok();
+        let wp = w_env.clone().unwrap_or_else(|| WEIGHTS_V2.to_string());
+        let fp = f_env.clone().unwrap_or_else(|| FIXTURES_V2.to_string());
+        let require = artifacts_required();
+        let loaded = resolve_artifact_paths("LVP2", w_env, f_env, WEIGHTS_V2, FIXTURES_V2, require)
+            .map(|(bin, fx)| {
+                (
+                    LearnedPolicyV2::from_bytes(&bin).expect("LVP2 weights must load"),
+                    serde_json::from_str(&fx).expect("LVP2 fixtures must parse"),
+                )
+            });
+        (loaded, wp, fp)
+    }
+
+    // sibling of artifacts_v2 for the value net; the magic doubles as the env
+    // prefix so the bare and attention arms share one resolver
+    fn artifacts_v2_value(
+        magic: &str,
+        w_default: &str,
+        f_default: &str,
+    ) -> (Option<(LearnedValueV2, serde_json::Value)>, String, String) {
+        let w_env = std::env::var(format!("{magic}_WEIGHTS")).ok();
+        let f_env = std::env::var(format!("{magic}_FIXTURES")).ok();
+        let wp = w_env.clone().unwrap_or_else(|| w_default.to_string());
+        let fp = f_env.clone().unwrap_or_else(|| f_default.to_string());
+        let require = artifacts_required();
+        let loaded = resolve_artifact_paths(magic, w_env, f_env, w_default, f_default, require).map(
+            |(bin, fx)| {
+                let spec = std::env::var(INT8_SCOPE_ENV).unwrap_or_default();
+                let scope = Int8Scope::parse(&spec).expect("BRIDGE_VALUE_INT8 must name tensors");
+                (
+                    LearnedValueV2::from_bytes_scoped(&bin, scope).expect("LVV2 weights must load"),
+                    serde_json::from_str(&fx).expect("LVV2 fixtures must parse"),
+                )
+            },
+        );
+        (loaded, wp, fp)
+    }
+
+    fn readable_tmp(tag: &str) -> String {
+        let dir = std::env::temp_dir().join(format!("poke_mcts_resolve_{tag}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("present");
+        std::fs::write(&p, b"present").unwrap();
+        p.to_str().unwrap().to_string()
+    }
+
+    fn resolve_panic(
+        magic: &'static str,
+        w_override: Option<String>,
+        f_override: Option<String>,
+        w_default: String,
+        f_default: String,
+        require: bool,
+    ) -> String {
+        let err = std::panic::catch_unwind(move || {
+            resolve_artifact_paths(magic, w_override, f_override, &w_default, &f_default, require)
+        })
+        .expect_err("a set override pointing at a missing path must fail, not skip");
+        err.downcast_ref::<String>().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn lvp1_weights_override_missing_fails() {
+        let msg = resolve_panic(
+            "LVP1",
+            Some("/nonexistent/lvp1-w.bin".to_string()),
+            None,
+            readable_tmp("lvp1_w"),
+            readable_tmp("lvp1_w"),
+            false,
+        );
+        assert!(msg.contains("LVP1"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp1_fixtures_override_missing_fails_with_weights_unset() {
+        let msg = resolve_panic(
+            "LVP1",
+            None,
+            Some("/nonexistent/lvp1-f.json".to_string()),
+            readable_tmp("lvp1_f"),
+            readable_tmp("lvp1_f"),
+            false,
+        );
+        assert!(msg.contains("LVP1"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp1_defaults_absent_skips() {
+        assert!(resolve_artifact_paths(
+            "LVP1",
+            None,
+            None,
+            "/nonexistent/lvp1-w.bin",
+            "/nonexistent/lvp1-f.json",
+            false
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn lvp2_weights_override_missing_fails() {
+        let msg = resolve_panic(
+            "LVP2",
+            Some("/nonexistent/lvp2-w.bin".to_string()),
+            None,
+            readable_tmp("lvp2_w"),
+            readable_tmp("lvp2_w"),
+            false,
+        );
+        assert!(msg.contains("LVP2"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp2_fixtures_override_missing_fails_with_weights_unset() {
+        let msg = resolve_panic(
+            "LVP2",
+            None,
+            Some("/nonexistent/lvp2-f.json".to_string()),
+            readable_tmp("lvp2_f"),
+            readable_tmp("lvp2_f"),
+            false,
+        );
+        assert!(msg.contains("LVP2"), "failure must name its own magic: {msg}");
+    }
+
+    #[test]
+    fn lvp2_defaults_absent_skips() {
+        assert!(resolve_artifact_paths(
+            "LVP2",
+            None,
+            None,
+            "/nonexistent/lvp2-w.bin",
+            "/nonexistent/lvp2-f.json",
+            false
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn require_fails_on_absent_defaults_for_every_prefix() {
+        for magic in ["LVV2", "LVV2_EXT", "LVV2_ATTN", "LVP1", "LVP2"] {
+            let msg = resolve_panic(
+                magic,
+                None,
+                None,
+                "/nonexistent/require-w.bin".to_string(),
+                "/nonexistent/require-f.json".to_string(),
+                true,
+            );
+            assert!(msg.contains(magic), "failure must name its own magic: {msg}");
+        }
+    }
+
+    #[test]
+    fn require_reads_present_defaults() {
+        let p = readable_tmp("require_present");
+        assert!(resolve_artifact_paths("LVV2", None, None, &p, &p, true).is_some());
+    }
+
+    #[test]
+    fn artifacts_absence_skips() {
+        assert!(artifacts_from("/nonexistent/w.bin", "/nonexistent/f.json").is_none());
+    }
+
+    #[test]
+    fn artifacts_present_but_unloadable_fails() {
+        let dir = std::env::temp_dir().join("poke_mcts_artifacts_corrupt_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let w = dir.join("w.bin");
+        let f = dir.join("f.json");
+        std::fs::write(&w, b"not a weights file").unwrap();
+        std::fs::write(&f, b"{}").unwrap();
+        let bad_weights = std::panic::catch_unwind(|| {
+            artifacts_from(w.to_str().unwrap(), f.to_str().unwrap())
+        });
+        assert!(bad_weights.is_err(), "corrupt weights must fail, not skip");
+        let valid = PolicyFile::small().bytes();
+        std::fs::write(&w, &valid).unwrap();
+        std::fs::write(&f, b"not json").unwrap();
+        let bad_fixtures = std::panic::catch_unwind(|| {
+            artifacts_from(w.to_str().unwrap(), f.to_str().unwrap())
+        });
+        assert!(bad_fixtures.is_err(), "corrupt fixtures must fail, not skip");
+    }
+
+    #[test]
+    fn spec3_weights_refused_at_current_spec() {
+        let Ok(bin) = std::fs::read(SPEC3_WEIGHTS) else {
+            eprintln!("SKIP spec3 refusal: weights artifacts not present");
+            return;
+        };
+        let err = match LearnedEval::from_bytes(&bin) {
+            Ok(_) => panic!("archived spec-3 weights must be refused at the current spec"),
+            Err(e) => e,
+        };
+        let want =
+            format!("FEATURE_SPEC_VERSION mismatch: weights 3, extractor {FEATURE_SPEC_VERSION}");
+        assert_eq!(err, want);
+    }
+
+    #[test]
+    fn spec_version_mismatch_refused() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"LVE1");
+        bytes.extend_from_slice(&(FEATURE_SPEC_VERSION + 1).to_le_bytes());
+        bytes.extend_from_slice(&features::vocab_size().to_le_bytes());
+        bytes.extend_from_slice(&128u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&1.0f32.to_le_bytes());
+        let err = match LearnedEval::from_bytes(&bytes) {
+            Ok(_) => panic!("mismatched spec version must be refused"),
+            Err(e) => e,
+        };
+        assert!(err.contains("FEATURE_SPEC_VERSION"), "{err}");
+    }
+
+    struct PolicyFile {
+        magic: [u8; 4],
+        spec: u32,
+        vocab: u32,
+        acc: u32,
+        segments: u32,
+        web_rank: u32,
+        tables: u32,
+        pair_rows: u32,
+        type_rows: u32,
+        fc: Vec<(u32, u32)>,
+        multiplier: f32,
+        sw: Vec<(u32, u32)>,
+        move_vocab: u32,
+        move_emb_dim: u32,
+        mv: Vec<(u32, u32)>,
+        truncate: usize,
+        trailing: usize,
+    }
+
+    impl PolicyFile {
+        fn small() -> Self {
+            let acc = 1u32;
+            let r = 1u32;
+            let g = 2u32;
+            PolicyFile {
+                magic: *b"LVP1",
+                spec: FEATURE_SPEC_VERSION,
+                vocab: features::vocab_size(),
+                acc,
+                segments: NUM_SEGMENTS as u32,
+                web_rank: r,
+                tables: 0,
+                pair_rows: 0,
+                type_rows: 0,
+                fc: vec![(2 * acc + 2 * r + DENSE_DIM as u32, g), (g, 1)],
+                multiplier: 1.0,
+                sw: vec![(acc + r + g, 2), (2, 1)],
+                move_vocab: GEN_MOVES.len() as u32,
+                move_emb_dim: 1,
+                mv: vec![(acc + r + 1 + g, 2), (2, 2)],
+                truncate: 0,
+                trailing: 0,
+            }
+        }
+
+        fn bytes(&self) -> Vec<u8> {
+            let mut v = Vec::new();
+            v.extend_from_slice(&self.magic);
+            for u in [
+                self.spec,
+                self.vocab,
+                self.acc,
+                self.segments,
+                self.web_rank,
+                self.tables,
+                self.pair_rows,
+                self.type_rows,
+                self.fc.len() as u32,
+            ] {
+                v.extend_from_slice(&u.to_le_bytes());
+            }
+            for &(i, o) in &self.fc {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&self.multiplier.to_le_bytes());
+            v.extend_from_slice(&(self.sw.len() as u32).to_le_bytes());
+            for &(i, o) in &self.sw {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&self.move_vocab.to_le_bytes());
+            v.extend_from_slice(&self.move_emb_dim.to_le_bytes());
+            v.extend_from_slice(&(self.mv.len() as u32).to_le_bytes());
+            for &(i, o) in &self.mv {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            let mut n_f32 = (self.vocab * self.acc + 2 * self.web_rank * self.acc) as usize;
+            n_f32 += self.move_vocab as usize * self.move_emb_dim as usize;
+            for dims in [&self.fc, &self.sw, &self.mv] {
+                for &(i, o) in dims.iter() {
+                    n_f32 += (i * o + o) as usize;
+                }
+            }
+            for k in 0..n_f32 {
+                let val = ((k % 13) as f32 - 6.0) * 0.01;
+                v.extend_from_slice(&val.to_le_bytes());
+            }
+            if self.truncate > 0 {
+                v.truncate(v.len() - self.truncate);
+            }
+            for _ in 0..self.trailing {
+                v.push(0);
+            }
+            v
+        }
+
+        fn err(&self) -> String {
+            match LearnedPolicy::from_bytes(&self.bytes()) {
+                Ok(_) => panic!("malformed policy weights must be refused"),
+                Err(e) => e,
+            }
+        }
+    }
+
+    #[test]
+    fn policy_valid_synthetic_loads_and_forwards() {
+        let net = LearnedPolicy::from_bytes(&PolicyFile::small().bytes()).expect("must load");
+        let (s, _t) = build_state(
+            vec![mon(445, 24, [89, 14, 200, 328]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        let mut ids = Vec::new();
+        let lens = features::extract_segmented(&s, &mut ids);
+        let dense = features::extract_dense(&s);
+        let move_ids = s.sides[0].team[s.sides[0].active_index as usize].moves;
+        let (logits, value) = net.forward(&ids, &lens, &dense, &move_ids);
+        assert!(logits.iter().all(|v| v.is_finite()));
+        assert!(value.is_finite());
+        let mut legal = [false; NUM_ACTIONS];
+        legal[0] = true;
+        legal[4] = true;
+        legal[5] = true;
+        let p = masked_softmax(&logits, &legal);
+        let sum: f32 = p.iter().sum();
+        assert!((sum - 1.0).abs() < 1e-6, "legal mass must sum to 1, got {sum}");
+        assert_eq!(p[1], 0.0);
+        assert_eq!(p[10], 0.0);
+    }
+
+    #[test]
+    fn masked_softmax_all_illegal_is_zero() {
+        let p = masked_softmax(&[1.0; NUM_ACTIONS], &[false; NUM_ACTIONS]);
+        assert!(p.iter().all(|&v| v == 0.0));
+    }
+
+    #[test]
+    fn policy_bad_magic_refused() {
+        let mut f = PolicyFile::small();
+        f.magic = *b"LVE1";
+        assert_eq!(f.err(), "bad magic (want LVP1)");
+    }
+
+    #[test]
+    fn policy_spec_mismatch_refused() {
+        let mut f = PolicyFile::small();
+        f.spec = 3;
+        assert!(f.err().contains("FEATURE_SPEC_VERSION mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_vocab_mismatch_refused() {
+        let mut f = PolicyFile::small();
+        f.vocab += 1;
+        assert!(f.err().contains("vocab mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_segment_count_mismatch_refused() {
+        let mut f = PolicyFile::small();
+        f.segments = 14;
+        assert!(f.err().contains("segment count mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_tables_arm_refused() {
+        let mut f = PolicyFile::small();
+        f.tables = 1;
+        f.pair_rows = 1454 * 1454;
+        f.type_rows = 18 * 18;
+        assert!(f.err().contains("tables arm not supported"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_table_dims_without_tables_refused() {
+        let mut f = PolicyFile::small();
+        f.pair_rows = 1454 * 1454;
+        assert!(f.err().contains("table dims present with tables off"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_fc1_input_dim_refused() {
+        let mut f = PolicyFile::small();
+        f.fc[0].0 += 1;
+        assert!(f.err().contains("fc1 input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_last_fc_output_dim_refused() {
+        let mut f = PolicyFile::small();
+        f.fc.last_mut().unwrap().1 = 2;
+        assert!(f.err().contains("last fc output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_fc_chain_break_refused() {
+        let mut f = PolicyFile::small();
+        f.fc[0].1 += 1;
+        assert!(f.err().contains("fc dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_single_fc_layer_refused() {
+        let mut f = PolicyFile::small();
+        f.fc = vec![(2 + 2 + DENSE_DIM as u32, 1)];
+        assert!(f.err().contains("fc chain needs >= 2 layers"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_switch_head_input_dim_refused() {
+        let mut f = PolicyFile::small();
+        f.sw[0].0 += 1;
+        assert!(f.err().contains("switch head input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_switch_head_output_dim_refused() {
+        let mut f = PolicyFile::small();
+        f.sw.last_mut().unwrap().1 = 2;
+        assert!(f.err().contains("switch head output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_switch_head_chain_break_refused() {
+        let mut f = PolicyFile::small();
+        f.sw[0].1 += 1;
+        assert!(f.err().contains("switch head dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_move_vocab_mismatch_refused() {
+        let mut f = PolicyFile::small();
+        f.move_vocab -= 1;
+        assert!(f.err().contains("move vocab mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_move_head_input_dim_refused() {
+        let mut f = PolicyFile::small();
+        f.mv[0].0 += 1;
+        assert!(f.err().contains("move head input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_move_head_output_dim_refused() {
+        let mut f = PolicyFile::small();
+        f.mv.last_mut().unwrap().1 = 1;
+        assert!(f.err().contains("move head output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_move_head_chain_break_refused() {
+        let mut f = PolicyFile::small();
+        f.mv[0].1 += 1;
+        assert!(f.err().contains("move head dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_truncated_refused() {
+        let mut f = PolicyFile::small();
+        f.truncate = 4;
+        assert!(f.err().contains("truncated weights file"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_trailing_bytes_refused() {
+        let mut f = PolicyFile::small();
+        f.trailing = 4;
+        assert!(f.err().contains("trailing bytes"), "{}", f.err());
+    }
+
+    struct PolicyFileV2 {
+        magic: [u8; 4],
+        spec: u32,
+        vocab: u32,
+        acc: u32,
+        segments: u32,
+        web_rank: u32,
+        tables: u32,
+        pair_rows: u32,
+        type_rows: u32,
+        table_rank: u32,
+        attn: u32,
+        attn_dk: u32,
+        action_dense: u32,
+        action_dense_dim: u32,
+        ctx_dim: u32,
+        ctx: Vec<(u32, u32)>,
+        sw: Vec<(u32, u32)>,
+        move_vocab: u32,
+        move_emb_dim: u32,
+        mv: Vec<(u32, u32)>,
+        truncate: usize,
+        trailing: usize,
+    }
+
+    impl PolicyFileV2 {
+        fn small() -> Self {
+            let acc = 1u32;
+            let r = 1u32;
+            let ctx_dim = 2u32;
+            let ad = ACTION_DENSE_DIM as u32;
+            let med = 1u32;
+            PolicyFileV2 {
+                magic: *b"LVP2",
+                spec: FEATURE_SPEC_VERSION,
+                vocab: features::vocab_size(),
+                acc,
+                segments: NUM_SEGMENTS as u32,
+                web_rank: r,
+                tables: 0,
+                pair_rows: 0,
+                type_rows: 0,
+                table_rank: 0,
+                attn: 0,
+                attn_dk: 0,
+                action_dense: 1,
+                action_dense_dim: ad,
+                ctx_dim,
+                ctx: vec![(2 * acc + 2 * r + DENSE_DIM as u32, ctx_dim), (ctx_dim, ctx_dim)],
+                sw: vec![(2 * acc + 3 * r + ctx_dim + ad, 2), (2, 1)],
+                move_vocab: GEN_MOVES.len() as u32,
+                move_emb_dim: med,
+                mv: vec![(acc + 2 * r + med + ctx_dim + ad, 2), (2, 1)],
+                truncate: 0,
+                trailing: 0,
+            }
+        }
+
+        fn bytes(&self) -> Vec<u8> {
+            let mut v = Vec::new();
+            v.extend_from_slice(&self.magic);
+            for u in [
+                self.spec,
+                self.vocab,
+                self.acc,
+                self.segments,
+                self.web_rank,
+                self.tables,
+                self.pair_rows,
+                self.type_rows,
+                self.table_rank,
+                self.attn,
+                self.attn_dk,
+                self.action_dense,
+                self.action_dense_dim,
+                self.ctx_dim,
+                self.ctx.len() as u32,
+            ] {
+                v.extend_from_slice(&u.to_le_bytes());
+            }
+            for &(i, o) in &self.ctx {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&(self.sw.len() as u32).to_le_bytes());
+            for &(i, o) in &self.sw {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&self.move_vocab.to_le_bytes());
+            v.extend_from_slice(&self.move_emb_dim.to_le_bytes());
+            v.extend_from_slice(&(self.mv.len() as u32).to_le_bytes());
+            for &(i, o) in &self.mv {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            let mut n_f32 = (self.vocab * self.acc + 2 * self.web_rank * self.acc) as usize;
+            if self.tables != 0 {
+                n_f32 += ((self.pair_rows + self.type_rows + self.web_rank) * self.table_rank) as usize;
+            }
+            if self.attn != 0 {
+                n_f32 += 4 * (self.attn_dk * self.acc) as usize;
+            }
+            n_f32 += self.move_vocab as usize * self.move_emb_dim as usize;
+            for dims in [&self.ctx, &self.sw, &self.mv] {
+                for &(i, o) in dims.iter() {
+                    n_f32 += (i * o + o) as usize;
+                }
+            }
+            for k in 0..n_f32 {
+                let val = ((k % 13) as f32 - 6.0) * 0.01;
+                v.extend_from_slice(&val.to_le_bytes());
+            }
+            if self.truncate > 0 {
+                v.truncate(v.len() - self.truncate);
+            }
+            for _ in 0..self.trailing {
+                v.push(0);
+            }
+            v
+        }
+
+        fn err(&self) -> String {
+            match LearnedPolicyV2::from_bytes(&self.bytes()) {
+                Ok(_) => panic!("malformed v2 policy weights must be refused"),
+                Err(e) => e,
+            }
+        }
+    }
+
+    #[test]
+    fn policy_v2_valid_synthetic_loads() {
+        let f = PolicyFileV2::small();
+        let net = LearnedPolicyV2::from_bytes(&f.bytes()).expect("synthetic LVP2 must load");
+        assert_eq!(net.acc_width, f.acc as usize);
+        assert_eq!(net.web_rank, f.web_rank as usize);
+        assert_eq!(net.ctx_dim, f.ctx_dim as usize);
+        assert_eq!(net.action_dense_dim, ACTION_DENSE_DIM);
+        assert_eq!(net.ctx.len(), f.ctx.len());
+        assert_eq!(net.sw.len(), f.sw.len());
+        assert_eq!(net.mv.len(), f.mv.len());
+    }
+
+    #[test]
+    fn policy_v2_bad_magic_refused() {
+        let mut f = PolicyFileV2::small();
+        f.magic = *b"LVP1";
+        assert_eq!(f.err(), "bad magic (want LVP2)");
+    }
+
+    #[test]
+    fn policy_v2_spec_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.spec = 3;
+        assert!(f.err().contains("FEATURE_SPEC_VERSION mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_vocab_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.vocab += 1;
+        assert!(f.err().contains("vocab mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_segment_count_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.segments = NUM_SEGMENTS as u32 - 1;
+        assert!(f.err().contains("segment count mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_tables_without_pair_rows_refused() {
+        let mut f = PolicyFileV2::small();
+        f.tables = 1;
+        f.pair_rows = 0;
+        f.type_rows = 3;
+        f.table_rank = 2;
+        assert!(f.err().contains("table dims incomplete with tables on"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_tables_without_type_rows_refused() {
+        let mut f = PolicyFileV2::small();
+        f.tables = 1;
+        f.pair_rows = 4;
+        f.type_rows = 0;
+        f.table_rank = 2;
+        assert!(f.err().contains("table dims incomplete with tables on"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_tables_without_table_rank_refused() {
+        let mut f = PolicyFileV2::small();
+        f.tables = 1;
+        f.pair_rows = 4;
+        f.type_rows = 3;
+        f.table_rank = 0;
+        assert!(f.err().contains("table dims incomplete with tables on"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_table_dims_without_tables_refused() {
+        let mut f = PolicyFileV2::small();
+        f.pair_rows = 4;
+        assert!(f.err().contains("table dims present with tables off"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_attn_without_dk_refused() {
+        let mut f = PolicyFileV2::small();
+        f.attn = 1;
+        assert!(f.err().contains("attn on with attn_dk 0"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_attn_dk_without_attn_refused() {
+        let mut f = PolicyFileV2::small();
+        f.attn_dk = 4;
+        assert!(f.err().contains("attn_dk present with attn off"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_action_dense_dim_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.action_dense_dim += 1;
+        assert!(f.err().contains("action_dense_dim mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_action_dense_dim_without_flag_refused() {
+        let mut f = PolicyFileV2::small();
+        f.action_dense = 0;
+        assert!(
+            f.err().contains("action_dense_dim present with action_dense off"),
+            "{}",
+            f.err()
+        );
+    }
+
+    #[test]
+    fn policy_v2_ctx_input_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.ctx[0].0 += 1;
+        assert!(f.err().contains("ctx input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_ctx_chain_break_refused() {
+        let mut f = PolicyFileV2::small();
+        f.ctx[0].1 += 1;
+        assert!(f.err().contains("ctx dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_ctx_output_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.ctx.last_mut().unwrap().1 += 1;
+        assert!(f.err().contains("ctx output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_switch_head_input_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.sw[0].0 += 1;
+        assert!(f.err().contains("switch head input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_switch_head_output_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.sw.last_mut().unwrap().1 = 2;
+        assert!(f.err().contains("switch head output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_switch_head_chain_break_refused() {
+        let mut f = PolicyFileV2::small();
+        f.sw[0].1 += 1;
+        assert!(f.err().contains("switch head dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_vocab_mismatch_refused() {
+        let mut f = PolicyFileV2::small();
+        f.move_vocab -= 1;
+        assert!(f.err().contains("move vocab mismatch"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_head_input_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.mv[0].0 += 1;
+        assert!(f.err().contains("move head input dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_head_output_dim_refused() {
+        let mut f = PolicyFileV2::small();
+        f.mv.last_mut().unwrap().1 = 2;
+        assert!(f.err().contains("move head output dim"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_move_head_chain_break_refused() {
+        let mut f = PolicyFileV2::small();
+        f.mv[0].1 += 1;
+        assert!(f.err().contains("move head dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_truncated_refused() {
+        let mut f = PolicyFileV2::small();
+        f.truncate = 4;
+        assert!(f.err().contains("truncated weights file"), "{}", f.err());
+    }
+
+    #[test]
+    fn policy_v2_trailing_bytes_refused() {
+        let mut f = PolicyFileV2::small();
+        f.trailing = 4;
+        assert!(f.err().contains("trailing bytes"), "{}", f.err());
+    }
+
+    // run id, web_rank, ctx_dim, head hidden, action_dense_dim, pair_rows,
+    // type_rows, table_rank, attn_dk
+    const V2_ARTIFACTS: [(&str, usize, usize, &[usize], usize, usize, usize, usize, usize); 6] = [
+        ("6f1e0facfcc4", 128, 256, &[256, 128], 8, 0, 0, 0, 32),
+        ("0beb036c5111", 128, 256, &[256, 128], 0, 0, 0, 0, 0),
+        ("f397e133cee9", 32, 64, &[64], 8, 0, 0, 0, 0),
+        ("bd3341316553", 128, 256, &[256, 128], 8, 0, 0, 0, 0),
+        ("0b7a57e97325", 128, 256, &[256, 128], 8, 2114116, 324, 16, 0),
+        ("0ccd9c8c3288", 128, 256, &[256, 128], 8, 0, 0, 0, 32),
+    ];
+
+    fn hidden(layers: &[Fc]) -> Vec<usize> {
+        layers[..layers.len() - 1].iter().map(|l| l.out).collect()
+    }
+
+    #[test]
+    fn policy_v2_real_artifacts_load() {
+        for (id, web_rank, ctx_dim, head, ad, pair_rows, type_rows, table_rank, attn_dk) in
+            V2_ARTIFACTS
+        {
+            let path = format!(
+                "{}/../learned-eval/weights/lvp2-{id}.bin",
+                env!("CARGO_MANIFEST_DIR")
+            );
+            let Ok(bin) = std::fs::read(&path) else {
+                eprintln!("SKIP lvp2 load {id}: weights artifact not present");
+                continue;
+            };
+            let net = LearnedPolicyV2::from_bytes(&bin)
+                .unwrap_or_else(|e| panic!("lvp2-{id}.bin must load: {e}"));
+            assert_eq!(net.web_rank, web_rank, "{id}: web_rank");
+            assert_eq!(net.ctx_dim, ctx_dim, "{id}: ctx_dim");
+            assert_eq!(hidden(&net.sw), head, "{id}: switch head hidden");
+            assert_eq!(hidden(&net.mv), head, "{id}: move head hidden");
+            assert_eq!(net.action_dense_dim, ad, "{id}: action_dense_dim");
+            assert_eq!(net.pair_rows, pair_rows, "{id}: pair_rows");
+            assert_eq!(net.type_rows, type_rows, "{id}: type_rows");
+            assert_eq!(net.table_rank, table_rank, "{id}: table_rank");
+            assert_eq!(net.attn_dk, attn_dk, "{id}: attn_dk");
+            eprintln!(
+                "lvp2 {id}: acc {} web_rank {} ctx_dim {} move_emb {} ad {} tables {}/{}/{} attn_dk {} ctx_in {} sw_in {} mv_in {}",
+                net.acc_width,
+                net.web_rank,
+                net.ctx_dim,
+                net.move_emb_dim,
+                net.action_dense_dim,
+                net.pair_rows,
+                net.type_rows,
+                net.table_rank,
+                net.attn_dk,
+                net.ctx[0].inp,
+                net.sw[0].inp,
+                net.mv[0].inp
+            );
+        }
+    }
+
+    fn fixture_inputs(f: &serde_json::Value) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4]) {
+        let ids: Vec<u32> =
+            f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+        let mut lens = [0u16; NUM_SEGMENTS];
+        for (k, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+            lens[k] = v.as_u64().unwrap() as u16;
+        }
+        let mut dense = [0f32; DENSE_DIM];
+        for (k, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+            dense[k] = v.as_f64().unwrap() as f32;
+        }
+        let mut move_ids = [0u16; 4];
+        for (k, v) in f["move_ids"].as_array().unwrap().iter().enumerate() {
+            move_ids[k] = v.as_u64().unwrap() as u16;
+        }
+        (ids, lens, dense, move_ids)
+    }
+
+    type BlockOf = Option<[[f32; ACTION_DENSE_DIM]; NUM_ACTIONS]>;
+
+    // sibling of fixture_inputs: same four inputs plus the per-action block,
+    // which LVP1's pinned gate has no reader for
+    fn fixture_inputs_v2(
+        f: &serde_json::Value,
+    ) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], BlockOf) {
+        let (ids, lens, dense, move_ids) = fixture_inputs(f);
+        let block = f.get("action_dense").map(|rows| {
+            let rows = rows.as_array().expect("action_dense array");
+            assert_eq!(rows.len(), NUM_ACTIONS, "action_dense rows");
+            let mut out = [[0.0f32; ACTION_DENSE_DIM]; NUM_ACTIONS];
+            for (r, row) in rows.iter().enumerate() {
+                let cols = row.as_array().expect("action_dense row");
+                assert_eq!(cols.len(), ACTION_DENSE_DIM, "action_dense row {r} width");
+                for (c, v) in cols.iter().enumerate() {
+                    out[r][c] = v.as_f64().expect("action_dense float") as f32;
+                }
+            }
+            out
+        });
+        (ids, lens, dense, move_ids, block)
+    }
+
+    #[test]
+    fn policy_v2_parity_64_fixtures() {
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP policy v2 parity: fixtures_compared=0 max_abs_diff=inf \
+                 action_dense_field=0/0 action_dense_nonzero=0/0 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        let mut present = 0usize;
+        let mut nonzero = 0usize;
+        for (k, f) in fixtures.iter().enumerate() {
+            let (ids, lens, dense, move_ids, block) = fixture_inputs_v2(f);
+            assert!(
+                net.action_dense_dim == 0 || block.is_some(),
+                "fixture {k}: the header consumes a per-action block but the fixtures carry none"
+            );
+            if let Some(b) = &block {
+                present += 1;
+                if b.iter().flatten().any(|v| *v != 0.0) {
+                    nonzero += 1;
+                }
+            }
+            let arg = if net.action_dense_dim == 0 { None } else { block.as_ref() };
+            let logits = net.forward(&ids, &lens, &dense, &move_ids, arg);
+            let want = f["logits"].as_array().expect("14 logits");
+            assert_eq!(want.len(), NUM_ACTIONS);
+            for (i, w) in want.iter().enumerate() {
+                let d = (logits[i] as f64 - w.as_f64().unwrap()).abs();
+                if d > max_diff {
+                    max_diff = d;
+                }
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "policy v2 parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             action_dense_field={present}/{compared} action_dense_nonzero={nonzero}/{compared}={:.4} \
+             weights={wpath} fixtures={fpath}",
+            nonzero as f64 / compared as f64
+        );
+        assert!(max_diff <= 1e-4, "v2 logit parity {max_diff:e} exceeds 1e-4");
+    }
+
+    fn value_v2_parity(label: &str, magic: &str, w_default: &str, f_default: &str) {
+        let (loaded, wpath, fpath) = artifacts_v2_value(magic, w_default, f_default);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP {label} parity: fixtures_compared=0 max_abs_diff=inf distinct=0 \
+                 active0_ok=0 active1_ok=0 web_total_nz=0 active_cell_nz=0 \
+                 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let aw = net.acc_width;
+        let r = net.web_rank;
+        let mut seen: Vec<Vec<u32>> = Vec::new();
+        let mut active0_ok = 0usize;
+        let mut active1_ok = 0usize;
+        let mut web_total_nz = 0usize;
+        let mut active_cell_nz = 0usize;
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        for f in fixtures {
+            let ids: Vec<u32> =
+                f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+            let mut seg = [0u16; NUM_SEGMENTS];
+            for (i, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+                seg[i] = v.as_u64().unwrap() as u16;
+            }
+            let mut dense = [0f32; DENSE_DIM];
+            for (i, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+                dense[i] = v.as_f64().unwrap() as f32;
+            }
+            let (x, active0, active1) = net.value_input(&ids, &seg, &dense);
+            if !seen.contains(&ids) {
+                seen.push(ids.clone());
+            }
+            active0_ok += usize::from(active0 >= 0);
+            active1_ok += usize::from(active1 >= 0);
+            web_total_nz += usize::from(x[2 * aw..2 * aw + r].iter().any(|v| *v != 0.0));
+            active_cell_nz += usize::from(x[2 * aw + r..2 * aw + 2 * r].iter().any(|v| *v != 0.0));
+            let got = net.natural_logit(&ids, &seg, &dense);
+            let d = (got as f64 - f["logit"].as_f64().unwrap()).abs();
+            if d > max_diff {
+                max_diff = d;
+            }
+            compared += 1;
+        }
+        let distinct = seen.len();
+        eprintln!(
+            "{label} parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             distinct={distinct} active0_ok={active0_ok} active1_ok={active1_ok} \
+             web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} int8={} \
+             weights={wpath} fixtures={fpath}",
+            net.int8_scope()
+        );
+        assert_eq!(distinct, 64, "{label}: fixtures must be 64 distinct positions");
+        assert_eq!(active0_ok, 64, "{label}: every fixture needs an active seat 0");
+        assert_eq!(active1_ok, 64, "{label}: every fixture needs an active seat 1");
+        assert_eq!(web_total_nz, 64, "{label}: every fixture needs a nonzero web total");
+        assert!(active_cell_nz >= 32, "{label}: active cell nonzero on {active_cell_nz} < 32");
+        assert_eq!(compared, 64, "{label}: 64 fixtures compared");
+        let bar = value_parity_bar(&net);
+        assert!(max_diff <= bar, "{label} parity {max_diff:e} > {bar:e}");
+    }
+
+    // the value gates score the served logit, so a quantized kernel is read
+    // against the quantization budget
+    fn value_parity_bar(net: &LearnedValueV2) -> f64 {
+        if net.int8_scope() == "none" {
+            1e-4
+        } else {
+            0.02
+        }
+    }
+
+    #[test]
+    fn value_v2_parity_64_fixtures() {
+        value_v2_parity("value v2", "LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+    }
+
+    // sibling of the 64-row gate: the extended corpus is sized by its own file,
+    // and it carries the zero-length and multi-id segment shapes the 64 rows
+    // cannot be relied on to cover
+    #[test]
+    fn value_v2_parity_ext() {
+        let (loaded, wpath, fpath) =
+            artifacts_v2_value("LVV2_EXT", LVV2_EXT_WEIGHTS_PATH, LVV2_EXT_FIXTURES_PATH);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP value v2 ext parity: fixtures_compared=0 max_abs_diff=inf distinct=0 \
+                 active0_ok=0 active1_ok=0 web_total_nz=0 active_cell_nz=0 zero_len_rows=0 \
+                 multi_id_rows=0 seg_lens_present=[] weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let aw = net.acc_width;
+        let r = net.web_rank;
+        let mut seen: Vec<Vec<u32>> = Vec::new();
+        let mut active0_ok = 0usize;
+        let mut active1_ok = 0usize;
+        let mut web_total_nz = 0usize;
+        let mut active_cell_nz = 0usize;
+        let mut zero_len_rows = 0usize;
+        let mut multi_id_rows = 0usize;
+        let mut seg_lens_present: Vec<u16> = Vec::new();
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        for f in fixtures {
+            let ids: Vec<u32> =
+                f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+            let mut seg = [0u16; NUM_SEGMENTS];
+            for (i, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+                seg[i] = v.as_u64().unwrap() as u16;
+            }
+            let mut dense = [0f32; DENSE_DIM];
+            for (i, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+                dense[i] = v.as_f64().unwrap() as f32;
+            }
+            zero_len_rows += usize::from(seg.iter().any(|&l| l == 0));
+            multi_id_rows += usize::from(seg.iter().any(|&l| l >= 2));
+            for &l in seg.iter() {
+                if !seg_lens_present.contains(&l) {
+                    seg_lens_present.push(l);
+                }
+            }
+            let (x, active0, active1) = net.value_input(&ids, &seg, &dense);
+            if !seen.contains(&ids) {
+                seen.push(ids.clone());
+            }
+            active0_ok += usize::from(active0 >= 0);
+            active1_ok += usize::from(active1 >= 0);
+            web_total_nz += usize::from(x[2 * aw..2 * aw + r].iter().any(|v| *v != 0.0));
+            active_cell_nz += usize::from(x[2 * aw + r..2 * aw + 2 * r].iter().any(|v| *v != 0.0));
+            let got = net.natural_logit(&ids, &seg, &dense);
+            let d = (got as f64 - f["logit"].as_f64().unwrap()).abs();
+            if d > max_diff {
+                max_diff = d;
+            }
+            compared += 1;
+        }
+        seg_lens_present.sort_unstable();
+        let distinct = seen.len();
+        eprintln!(
+            "value v2 ext parity: int8={} fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             distinct={distinct} active0_ok={active0_ok} active1_ok={active1_ok} \
+             web_total_nz={web_total_nz} active_cell_nz={active_cell_nz} \
+             zero_len_rows={zero_len_rows} multi_id_rows={multi_id_rows} \
+             seg_lens_present={seg_lens_present:?} weights={wpath} fixtures={fpath}",
+            net.int8_scope()
+        );
+        assert!(compared >= 256, "ext corpus must carry at least 256 rows, got {compared}");
+        assert!(zero_len_rows > 0, "ext corpus must carry a zero-length segment");
+        assert!(multi_id_rows > 0, "ext corpus must carry a multi-id segment");
+        assert_eq!(distinct, compared, "ext fixtures must be distinct positions");
+        // the forward zeroes the active cell and then reads it back unconditionally, so a seat
+        // with no occupant is the only shape that can tell the zero apart from a stale buffer
+        assert_eq!(compared - active0_ok, 1, "ext corpus must carry one empty active seat 0");
+        assert_eq!(active1_ok, compared, "every ext fixture needs an active seat 1");
+        assert_eq!(web_total_nz, compared, "every ext fixture needs a nonzero web total");
+        assert!(
+            active_cell_nz * 2 >= compared,
+            "ext active cell nonzero on {active_cell_nz} < {}",
+            compared / 2
+        );
+        let bar = value_parity_bar(&net);
+        assert!(max_diff <= bar, "value v2 ext parity {max_diff:e} > {bar:e}");
+    }
+
+    #[test]
+    fn value_v2_parity_64_fixtures_attn() {
+        value_v2_parity(
+            "value v2 attn",
+            "LVV2_ATTN",
+            LVV2_ATTN_WEIGHTS_PATH,
+            LVV2_ATTN_FIXTURES_PATH,
+        );
+    }
+
+    fn value_fixture_row(f: &serde_json::Value) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM]) {
+        let ids: Vec<u32> =
+            f["ids"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+        let mut seg = [0u16; NUM_SEGMENTS];
+        for (i, v) in f["seg_lens"].as_array().unwrap().iter().enumerate() {
+            seg[i] = v.as_u64().unwrap() as u16;
+        }
+        let mut dense = [0f32; DENSE_DIM];
+        for (i, v) in f["dense"].as_array().unwrap().iter().enumerate() {
+            dense[i] = v.as_f64().unwrap() as f32;
+        }
+        (ids, seg, dense)
+    }
+
+    // bits, not floats: a stored-logit tolerance cannot see the ~1e-6 an
+    // arithmetic rewrite moves, and NaN or -0.0 would pass a float compare
+    fn value_v2_reference_bits(arm: &str, magic: &str, w_default: &str, f_default: &str) {
+        let (loaded, wpath, fpath) = artifacts_v2_value(magic, w_default, f_default);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP value v2 reference bits {arm}: rows_compared=0 rows_differing=0 \
+                 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let mut compared = 0usize;
+        let mut differing = 0usize;
+        for f in fixtures {
+            let (ids, seg, dense) = value_fixture_row(f);
+            let served = net.natural_logit(&ids, &seg, &dense);
+            let reference = net.natural_logit_reference(&ids, &seg, &dense);
+            if served.to_bits() != reference.to_bits() {
+                differing += 1;
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "value v2 reference bits {arm}: rows_compared={compared} rows_differing={differing} \
+             weights={wpath} fixtures={fpath}"
+        );
+        assert_eq!(compared, 64, "{arm}: reference bit gate is 64 fixtures");
+        assert_eq!(differing, 0, "{arm}: served logit left the frozen reference on {differing} rows");
+    }
+
+    #[test]
+    fn value_v2_reference_bits_bare() {
+        value_v2_reference_bits("bare", "LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+    }
+
+    #[test]
+    fn value_v2_reference_bits_attn() {
+        value_v2_reference_bits("attn", "LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+    }
+
+    // nothing carried between calls may outlive the net that produced it
+    #[test]
+    fn value_v2_interleaved_nets_bits() {
+        let (bare, wb, fb) = artifacts_v2_value("LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+        let (attn, wa, fa) =
+            artifacts_v2_value("LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+        let (Some((bare_net, bx)), Some((attn_net, ax))) = (bare, attn) else {
+            eprintln!(
+                "SKIP value v2 interleaved nets: rows_compared=0 rows_differing=0 \
+                 weights={wb},{wa} fixtures={fb},{fa}"
+            );
+            return;
+        };
+        let row_list = |fx: &serde_json::Value| -> Vec<_> {
+            fx["fixtures"].as_array().expect("fixtures array").iter().map(value_fixture_row).collect()
+        };
+        let brows: Vec<_> = row_list(&bx);
+        let arows: Vec<_> = row_list(&ax);
+        let mut compared = 0usize;
+        let mut differing = 0usize;
+        for i in 0..brows.len().min(arows.len()) {
+            for (net, (ids, seg, dense)) in [(&bare_net, &brows[i]), (&attn_net, &arows[i])] {
+                let served = net.natural_logit(ids, seg, dense);
+                if served.to_bits() != net.natural_logit_reference(ids, seg, dense).to_bits() {
+                    differing += 1;
+                }
+                compared += 1;
+            }
+        }
+        eprintln!(
+            "value v2 interleaved nets: rows_compared={compared} rows_differing={differing} \
+             weights={wb},{wa} fixtures={fb},{fa}"
+        );
+        assert!(compared > 0, "interleaving needs rows from both exports");
+        assert_eq!(differing, 0, "served left its own reference on {differing} interleaved rows");
+    }
+
+    // a row scored after a different one must still hold the reference's bits
+    #[test]
+    fn value_v2_attn_order_bits() {
+        let (loaded, wpath, fpath) =
+            artifacts_v2_value("LVV2_ATTN", LVV2_ATTN_WEIGHTS_PATH, LVV2_ATTN_FIXTURES_PATH);
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP value v2 attn order bits: rows_compared=0 replays_compared=0 \
+                 replays_differing=0 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let rows: Vec<_> =
+            fx["fixtures"].as_array().expect("fixtures array").iter().map(value_fixture_row).collect();
+        let cold: Vec<u32> = rows
+            .iter()
+            .map(|(ids, seg, dense)| net.natural_logit_reference(ids, seg, dense).to_bits())
+            .collect();
+        assert!(rows.len() > 1, "the replay needs a row other than the one under test");
+        let mut compared = 0usize;
+        let mut differing = 0usize;
+        for (i, (ids, seg, dense)) in rows.iter().enumerate() {
+            let (pids, pseg, pdense) = &rows[(i + 1) % rows.len()];
+            net.natural_logit(pids, pseg, pdense);
+            if net.natural_logit(ids, seg, dense).to_bits() != cold[i] {
+                differing += 1;
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "value v2 attn order bits: rows_compared={} replays_compared={compared} \
+             replays_differing={differing} weights={wpath} fixtures={fpath}",
+            rows.len()
+        );
+        assert_eq!(differing, 0, "served logit moved with call history on {differing} replays");
+    }
+
+    fn staged_stage_list() -> [u8; 15] {
+        use value_stage::*;
+        [
+            S_TLS, S_ZERO, S_KEY, S_TOKFILL, S_GATHER0, S_GATHER, S_ACC, S_PROJ, S_CELL0, S_CELL,
+            S_XASM, S_FULL, S_FULL_ND, S_FULL_2FC, S_FULL_2PROJ,
+        ]
+    }
+
+    fn staged_rows(
+        label: &str,
+    ) -> Option<(LearnedValueV2, Vec<(Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM])>)> {
+        let (loaded, wpath, fpath) =
+            artifacts_v2_value("LVV2", LVV2_WEIGHTS_PATH, LVV2_FIXTURES_PATH);
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP {label}: rows_compared=0 weights={wpath} fixtures={fpath}");
+            return None;
+        };
+        let rows: Vec<_> =
+            fx["fixtures"].as_array().expect("fixtures array").iter().map(value_fixture_row).collect();
+        eprintln!("{label}: weights={wpath} fixtures={fpath}");
+        Some((net, rows))
+    }
+
+    #[test]
+    fn staged_logit_full_matches_natural_logit_bitwise() {
+        let Some((net, rows)) = staged_rows("staged logit full bits") else { return };
+        reset_value_scratch();
+        let served: Vec<u32> =
+            rows.iter().map(|(i, s, d)| net.natural_logit(i, s, d).to_bits()).collect();
+        reset_value_scratch();
+        let staged: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL).to_bits())
+            .collect();
+        let differing = served.iter().zip(&staged).filter(|(a, b)| a != b).count();
+        eprintln!("staged logit full bits: rows_compared={} rows_differing={differing}", rows.len());
+        assert_eq!(rows.len(), 64, "staged full gate is 64 fixtures");
+        assert_eq!(differing, 0, "staged full left the served logit on {differing} rows");
+    }
+
+    #[test]
+    fn staged_logit_full_nodeadzero_matches_full_bitwise() {
+        let Some((net, rows)) = staged_rows("staged logit nodeadzero bits") else { return };
+        reset_value_scratch();
+        let full: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL).to_bits())
+            .collect();
+        reset_value_scratch();
+        let nd: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL_ND).to_bits())
+            .collect();
+        let differing = full.iter().zip(&nd).filter(|(a, b)| a != b).count();
+        eprintln!(
+            "staged logit nodeadzero bits: rows_compared={} rows_differing={differing}",
+            rows.len()
+        );
+        assert_eq!(rows.len(), 64, "nodeadzero gate is 64 fixtures");
+        assert_eq!(differing, 0, "skipping the dead zeroing moved {differing} rows");
+    }
+
+    #[test]
+    fn staged_duplicate_stages_match_full_bitwise() {
+        let Some((net, rows)) = staged_rows("staged logit duplicate bits") else { return };
+        reset_value_scratch();
+        let full: Vec<u32> = rows
+            .iter()
+            .map(|(i, s, d)| net.staged_logit(i, s, d, value_stage::S_FULL).to_bits())
+            .collect();
+        for (label, stage) in
+            [("2fc", value_stage::S_FULL_2FC), ("2proj", value_stage::S_FULL_2PROJ)]
+        {
+            reset_value_scratch();
+            let dup: Vec<u32> =
+                rows.iter().map(|(i, s, d)| net.staged_logit(i, s, d, stage).to_bits()).collect();
+            let differing = full.iter().zip(&dup).filter(|(a, b)| a != b).count();
+            eprintln!(
+                "staged logit duplicate bits {label}: rows_compared={} rows_differing={differing}",
+                rows.len()
+            );
+            assert_eq!(rows.len(), 64, "duplicate gate is 64 fixtures");
+            assert_eq!(differing, 0, "the {label} duplicate moved {differing} rows");
+        }
+    }
+
+    // the even slots replay one anchor row, so every buffer a prefix stage leaves
+    // behind is either correct for that row or keyed to a row that must miss
+    #[test]
+    fn staged_prefixes_do_not_disturb_the_full_result() {
+        let Some((net, rows)) = staged_rows("staged prefix isolation") else { return };
+        assert!(rows.len() > 2, "the interleave needs rows beyond the anchor");
+        let stages = staged_stage_list();
+        let steps = 48usize;
+        let (aids, aseg, adense) = &rows[0];
+        reset_value_scratch();
+        let reference: Vec<u32> = (0..steps / 2)
+            .map(|_| net.staged_logit(aids, aseg, adense, value_stage::S_FULL).to_bits())
+            .collect();
+        reset_value_scratch();
+        let mut mixed = Vec::new();
+        let mut used = std::collections::BTreeSet::new();
+        for i in 0..steps {
+            if i % 2 == 0 {
+                mixed.push(net.staged_logit(aids, aseg, adense, value_stage::S_FULL).to_bits());
+            } else {
+                let stage = stages[(i / 2) % stages.len()];
+                used.insert(stage);
+                let (ids, seg, dense) = &rows[1 + (i / 2) % (rows.len() - 1)];
+                net.staged_logit(ids, seg, dense, stage);
+            }
+        }
+        let differing = reference.iter().zip(&mixed).filter(|(a, b)| a != b).count();
+        eprintln!(
+            "staged prefix isolation: rows_compared={} stages_used={} rows_differing={differing}",
+            mixed.len(),
+            used.len()
+        );
+        assert_eq!(mixed.len(), steps / 2, "every even slot must be scored");
+        assert_eq!(used.len(), stages.len(), "every stage must appear in the interleave");
+        assert_eq!(differing, 0, "a prefix stage moved {differing} full results");
+    }
+
+    #[test]
+    fn value_cache_probe_matches_segment_reuse() {
+        let net = LearnedValueV2::from_bytes(&ValueFileV2::small().bytes())
+            .expect("synthetic LVV2 must load");
+        let seg = [1u16; NUM_SEGMENTS];
+        let base: Vec<u32> = (0..NUM_SEGMENTS as u32).collect();
+        let mut changed = base.clone();
+        changed[3] += 1;
+        let trace = vec![(base.clone(), seg), (base.clone(), seg), (changed, seg)];
+        let (hits, misses) = net.value_cache_probe(&trace);
+        eprintln!("value cache probe: hits={hits} misses={misses}");
+        assert_eq!(hits, (2 * NUM_SEGMENTS - 1) as u64, "only the edited segment may miss on replay");
+        assert_eq!(misses, (NUM_SEGMENTS + 1) as u64, "the cold pass plus the edited segment miss");
+        assert_eq!(hits + misses, (trace.len() * NUM_SEGMENTS) as u64);
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown value stage")]
+    fn staged_logit_rejects_unknown_stage() {
+        let net = LearnedValueV2::from_bytes(&ValueFileV2::small().bytes())
+            .expect("synthetic LVV2 must load");
+        net.staged_logit(&[], &[0u16; NUM_SEGMENTS], &[0f32; DENSE_DIM], 15);
+    }
+
+    struct KernelLcg(u64);
+
+    impl KernelLcg {
+        // varied signs and exponents; all-ones vectors would hide reassociation
+        fn next(&mut self) -> f32 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let m = ((self.0 >> 40) as u32) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0;
+            let e = ((self.0 >> 33) & 7) as i32 - 4;
+            m * 2f32.powi(e)
+        }
+    }
+
+    // takes no artifact, so it cannot skip: the shared kernels the policy nets
+    // also read are pinned to the frozen copies at the serving widths
+    #[test]
+    fn shared_kernel_bits() {
+        let aw = 128usize;
+        let fc_in = 327usize;
+        let fc_out = 64usize;
+        let mut g = KernelLcg(0x9E3779B97F4A7C15);
+        let mut dot_compared = 0usize;
+        let mut dot_differing = 0usize;
+        for _ in 0..256 {
+            let w: Vec<f32> = (0..aw).map(|_| g.next()).collect();
+            let x: Vec<f32> = (0..aw).map(|_| g.next()).collect();
+            if dot(&w, &x).to_bits() != frozen_value_ref::ref_dot(&w, &x).to_bits() {
+                dot_differing += 1;
+            }
+            dot_compared += 1;
+        }
+        let w: Vec<f32> = (0..fc_in * fc_out).map(|_| g.next()).collect();
+        let b: Vec<f32> = (0..fc_out).map(|_| g.next()).collect();
+        let served = Fc { inp: fc_in, out: fc_out, w: w.clone(), b: b.clone() };
+        let reference = frozen_value_ref::RefFc::new(fc_in, fc_out, w, b);
+        let mut fc_compared = 0usize;
+        let mut fc_differing = 0usize;
+        for _ in 0..64 {
+            let x: Vec<f32> = (0..fc_in).map(|_| g.next()).collect();
+            let ys = served.apply(&x, false);
+            let yr = reference.apply(&x, false);
+            for (a, c) in ys.iter().zip(yr.iter()) {
+                if a.to_bits() != c.to_bits() {
+                    fc_differing += 1;
+                }
+                fc_compared += 1;
+            }
+        }
+        eprintln!(
+            "shared kernel bits: dot_compared={dot_compared} dot_differing={dot_differing} \
+             fc_outputs_compared={fc_compared} fc_outputs_differing={fc_differing}"
+        );
+        assert_eq!(dot_compared, 256, "dot gate is 256 vectors");
+        assert_eq!(fc_compared, 4096, "fc gate is 64 outputs over 64 rows");
+        assert_eq!(dot_differing, 0, "shared dot left the frozen copy on {dot_differing} vectors");
+        assert_eq!(fc_differing, 0, "shared Fc::apply left the frozen copy on {fc_differing} outputs");
+    }
+
+    // eight varied roots, both orientations, so the batch exercises the
+    // active0/active1 branches rather than one repeated position
+    fn batch_states() -> Vec<BattleState> {
+        let specs: [(u16, u16, [u16; 4]); 4] = [
+            (25, 9, [85, 150, 33, 34]),
+            (445, 24, [89, 14, 33, 0]),
+            (130, 22, [57, 85, 0, 0]),
+            (143, 47, [34, 89, 0, 0]),
+        ];
+        let mut out = Vec::new();
+        for k in 0..4 {
+            let (a, b, c) = specs[k];
+            let (d, e, f) = specs[(k + 1) % 4];
+            let (s, _t) = build_state(vec![mon(a, b, c)], vec![mon(d, e, f)]);
+            out.push(s);
+            out.push(features::mirror(&s));
+        }
+        out
+    }
+
+    fn single_inputs(
+        state: &BattleState,
+    ) -> (Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], [[f32; ACTION_DENSE_DIM]; NUM_ACTIONS])
+    {
+        let mut ids = Vec::new();
+        let lens = features::extract_segmented(state, &mut ids);
+        let dense = features::extract_dense(state);
+        let side = &state.sides[0];
+        let move_ids = side.team[side.active_index as usize].moves;
+        let block = crate::action_features::action_features(state, 0);
+        (ids, lens, dense, move_ids, block)
+    }
+
+    fn assert_batch_matches_single(
+        net: &LearnedPolicyV2,
+        rows: &[(Vec<u32>, [u16; NUM_SEGMENTS], [f32; DENSE_DIM], [u16; 4], BlockOf)],
+        tag: &str,
+    ) -> f64 {
+        let items: Vec<ForwardInput> = rows
+            .iter()
+            .map(|(ids, lens, dense, move_ids, block)| ForwardInput {
+                ids,
+                seg_lens: lens,
+                dense,
+                move_ids,
+                action_dense: if net.action_dense_dim == 0 { None } else { block.as_ref() },
+            })
+            .collect();
+        let batched = net.forward_batch(&items);
+        assert_eq!(batched.len(), items.len(), "{tag}: one output row per input");
+        let mut max_diff = 0f64;
+        for (k, it) in items.iter().enumerate() {
+            let single =
+                net.forward(it.ids, it.seg_lens, it.dense, it.move_ids, it.action_dense);
+            for i in 0..NUM_ACTIONS {
+                let d = (batched[k][i] as f64 - single[i] as f64).abs();
+                if d > max_diff {
+                    max_diff = d;
+                }
+                assert_eq!(
+                    batched[k][i].to_bits(),
+                    single[i].to_bits(),
+                    "{tag}: batch row {k} logit {i} is not bit-identical to the single forward"
+                );
+            }
+        }
+        max_diff
+    }
+
+    #[test]
+    fn policy_v2_batched_forward_matches_single_synthetic() {
+        let f = PolicyFileV2::small();
+        let net = LearnedPolicyV2::from_bytes(&f.bytes()).expect("synthetic LVP2 must load");
+        let states = batch_states();
+        let rows: Vec<_> = states
+            .iter()
+            .map(|s| {
+                let (ids, lens, dense, move_ids, block) = single_inputs(s);
+                (ids, lens, dense, move_ids, Some(block))
+            })
+            .collect();
+        assert_eq!(rows.len(), 8, "batch is the eight-world serve shape");
+        assert_batch_matches_single(&net, &rows, "synthetic");
+    }
+
+    #[test]
+    fn policy_v2_batched_forward_matches_single_on_fixtures() {
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP policy v2 batched forward: fixtures_compared=0 max_abs_diff=inf \
+                 weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let mut max_diff = 0f64;
+        let mut compared = 0usize;
+        for (c, chunk) in fixtures.chunks(8).enumerate() {
+            let rows: Vec<_> = chunk.iter().map(fixture_inputs_v2).collect();
+            let d = assert_batch_matches_single(&net, &rows, &format!("fixtures chunk {c}"));
+            if d > max_diff {
+                max_diff = d;
+            }
+            compared += rows.len();
+        }
+        eprintln!(
+            "policy v2 batched forward: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             weights={wpath} fixtures={fpath}"
+        );
+    }
+
+    // Measurement only: the eight-world per-turn cost as one batched call against
+    // eight single calls. Release build; the ratio is a reported fact, not a gate.
+    #[test]
+    #[ignore]
+    fn policy_v2_batch_speedup() {
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP policy v2 batch speedup: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let rows: Vec<_> = fixtures[..8].iter().map(fixture_inputs_v2).collect();
+        let items: Vec<ForwardInput> = rows
+            .iter()
+            .map(|(ids, lens, dense, move_ids, block)| ForwardInput {
+                ids,
+                seg_lens: lens,
+                dense,
+                move_ids,
+                action_dense: if net.action_dense_dim == 0 { None } else { block.as_ref() },
+            })
+            .collect();
+        let reps = 5usize;
+        let iters = 100u32;
+        let mut single = Vec::with_capacity(reps);
+        let mut batched = Vec::with_capacity(reps);
+        for _ in 0..5 {
+            std::hint::black_box(net.forward_batch(&items));
+        }
+        for _ in 0..reps {
+            let t0 = std::time::Instant::now();
+            for _ in 0..iters {
+                for it in &items {
+                    std::hint::black_box(net.forward(
+                        it.ids,
+                        it.seg_lens,
+                        it.dense,
+                        it.move_ids,
+                        it.action_dense,
+                    ));
+                }
+            }
+            single.push(t0.elapsed().as_secs_f64() * 1e6 / iters as f64);
+            let t1 = std::time::Instant::now();
+            for _ in 0..iters {
+                std::hint::black_box(net.forward_batch(&items));
+            }
+            batched.push(t1.elapsed().as_secs_f64() * 1e6 / iters as f64);
+        }
+        let raw = |v: &[f64]| v.iter().map(|t| format!("{t:.1}")).collect::<Vec<_>>().join(", ");
+        let (sr, br) = (raw(&single), raw(&batched));
+        let s = median_us(single);
+        let b = median_us(batched);
+        eprintln!(
+            "policy v2 batch: worlds=8 single={s:.1} us batched={b:.1} us factor={:.3}x \
+             single_raw=[{sr}] batched_raw=[{br}] weights={wpath}",
+            s / b
+        );
+    }
+
+    // Measurement only: the per-action block's two denominators, over fixtures
+    // and over legal action bytes, plus the cause of every zero block.
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn action_dense_block_census() {
+        use crate::policy_label::read_records_guarded;
+        use pkmn_engine::state::legal_actions;
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((_net, fx)) = loaded else {
+            eprintln!("SKIP action_dense census: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let dir = fx["source"]["source_dir"].as_str().expect("source_dir");
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        let (mut legal_bytes, mut legal_nonzero, mut fixture_nonzero) = (0usize, 0usize, 0usize);
+        for (k, f) in fixtures.iter().enumerate() {
+            let block = fixture_inputs_v2(f).4.expect("census needs the per-action block");
+            let name = f["file"].as_str().unwrap();
+            let idx = f["index"].as_u64().unwrap() as usize;
+            let recs = read_records_guarded(&format!("{dir}/{name}")).expect("guarded read");
+            let state = &recs[idx].state;
+            let legal: Vec<usize> = legal_actions(state, 0)
+                .as_slice()
+                .iter()
+                .map(|&a| a as usize)
+                .filter(|&a| a < NUM_ACTIONS)
+                .collect();
+            let mut zero_legal = Vec::new();
+            for &a in &legal {
+                legal_bytes += 1;
+                if block[a].iter().any(|v| *v != 0.0) {
+                    legal_nonzero += 1;
+                } else {
+                    zero_legal.push(a);
+                }
+            }
+            if block.iter().flatten().any(|v| *v != 0.0) {
+                fixture_nonzero += 1;
+            } else {
+                eprintln!("census zero block: fixture {k} {name} #{idx} phase {} legal {legal:?}", state.phase);
+            }
+            if !zero_legal.is_empty() {
+                eprintln!("census zero legal bytes: fixture {k} {zero_legal:?}");
+            }
+        }
+        let n = fixtures.len();
+        eprintln!(
+            "action_dense census: fixture_level={fixture_nonzero}/{n}={:.4} legal_byte_level={legal_nonzero}/{legal_bytes}={:.4} fixtures={fpath}",
+            fixture_nonzero as f64 / n as f64,
+            legal_nonzero as f64 / legal_bytes as f64
+        );
+    }
+
+    #[test]
+    fn policy_parity_64_fixtures() {
+        let (loaded, wpath, fpath) = artifacts();
+        let Some((net, fx)) = loaded else {
+            eprintln!(
+                "SKIP policy parity: fixtures_compared=0 max_abs_diff=inf \
+                 value_max_abs_diff=inf weights={wpath} fixtures={fpath}"
+            );
+            return;
+        };
+        let fixtures = fx["fixtures"].as_array().expect("fixtures array");
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        let mut max_diff = 0f64;
+        let mut max_vdiff = 0f64;
+        let mut compared = 0usize;
+        for f in fixtures {
+            let (ids, lens, dense, move_ids) = fixture_inputs(f);
+            let (logits, value) = net.forward(&ids, &lens, &dense, &move_ids);
+            let want = f["logits"].as_array().expect("14 logits");
+            assert_eq!(want.len(), NUM_ACTIONS);
+            for (k, w) in want.iter().enumerate() {
+                let d = (logits[k] as f64 - w.as_f64().unwrap()).abs();
+                if d > max_diff {
+                    max_diff = d;
+                }
+            }
+            let vd = (value as f64 - f["value_logit"].as_f64().unwrap()).abs();
+            if vd > max_vdiff {
+                max_vdiff = vd;
+            }
+            compared += 1;
+        }
+        eprintln!(
+            "policy parity: fixtures_compared={compared} max_abs_diff={max_diff:.3e} \
+             value_max_abs_diff={max_vdiff:.3e} weights={wpath} fixtures={fpath}"
+        );
+        assert!(max_diff <= 1e-4, "logit parity {max_diff:e} exceeds 1e-4");
+        assert!(max_vdiff <= 1e-4, "value parity {max_vdiff:e} exceeds 1e-4");
+    }
+
+    #[test]
+    #[ignore]
+    fn policy_forward_throughput() {
+        let (loaded, wpath, fpath) = artifacts();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP throughput: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let f = &fx["fixtures"].as_array().unwrap()[0];
+        let (ids, lens, dense, move_ids) = fixture_inputs(f);
+        let mut sink = 0f32;
+        for _ in 0..1_000 {
+            sink += net.forward(&ids, &lens, &dense, &move_ids).0[0];
+        }
+        let iters = 100_000u32;
+        let t0 = std::time::Instant::now();
+        for _ in 0..iters {
+            let (l, _) = net.forward(&ids, &lens, &dense, &move_ids);
+            sink += std::hint::black_box(l)[0];
+        }
+        let el = t0.elapsed();
+        eprintln!("policy forward: {:.3} us/forward ({} iters, sink {sink})", el.as_secs_f64() * 1e6 / iters as f64, iters);
+    }
+
+    fn median_us(mut v: Vec<f64>) -> f64 {
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v[v.len() / 2]
+    }
+
+    #[cfg(feature = "train_value")]
+    fn timed_us(label: &str, reps: usize, iters: u32, mut body: impl FnMut()) -> f64 {
+        let mut takes = Vec::with_capacity(reps);
+        for _ in 0..reps {
+            let t0 = std::time::Instant::now();
+            for _ in 0..iters {
+                body();
+            }
+            takes.push(t0.elapsed().as_secs_f64() * 1e6 / iters as f64);
+        }
+        let raw: Vec<String> = takes.iter().map(|t| format!("{t:.3}")).collect();
+        let med = median_us(takes);
+        eprintln!("  {label}: median={med:.3} us raw=[{}]", raw.join(", "));
+        med
+    }
+
+    // The wall-fairness quantity is everything the serve path runs per world,
+    // so the extractors are inside the measured region, not beside it.
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn policy_v2_serve_path_per_forward() {
+        use crate::action_features::action_features;
+        use crate::policy_label::read_records_guarded;
+        let (loaded, wpath, fpath) = artifacts_v2();
+        let Some((net, fx)) = loaded else {
+            eprintln!("SKIP policy v2 serve path: weights={wpath} fixtures={fpath}");
+            return;
+        };
+        let dir = fx["source"]["source_dir"].as_str().expect("source_dir");
+        let f = &fx["fixtures"].as_array().expect("fixtures array")[0];
+        let name = f["file"].as_str().unwrap();
+        let idx = f["index"].as_u64().unwrap() as usize;
+        let recs = read_records_guarded(&format!("{dir}/{name}")).expect("guarded read");
+        let state = recs[idx].state;
+
+        let reps = 5usize;
+        let iters = 100_000u32;
+        let mut ids = Vec::with_capacity(512);
+        let mut sink = 0f32;
+
+        let serve = |ids: &mut Vec<u32>| -> f32 {
+            ids.clear();
+            let lens = features::extract_segmented(&state, ids);
+            let dense = features::extract_dense(&state);
+            let block = action_features(&state, 0);
+            let side = &state.sides[0];
+            let move_ids = side.team[side.active_index as usize].moves;
+            let arg = if net.action_dense_dim == 0 { None } else { Some(&block) };
+            let logits = net.forward(ids, &lens, &dense, &move_ids, arg);
+            std::hint::black_box(logits)[0]
+        };
+        for _ in 0..1_000 {
+            sink += serve(&mut ids);
+        }
+
+        eprintln!("policy v2 serve path: reps={reps} iters={iters} weights={wpath}");
+        let mut whole = Vec::with_capacity(reps);
+        for _ in 0..reps {
+            let t0 = std::time::Instant::now();
+            for _ in 0..iters {
+                sink += serve(&mut ids);
+            }
+            let us = t0.elapsed().as_secs_f64() * 1e6 / iters as f64;
+            eprintln!("  serve rep: {us:.3} us");
+            whole.push(us);
+        }
+        let raw: Vec<String> = whole.iter().map(|t| format!("{t:.3}")).collect();
+        let whole_med = median_us(whole);
+
+        let seg = timed_us("extract_segmented", reps, iters, || {
+            ids.clear();
+            std::hint::black_box(features::extract_segmented(&state, &mut ids));
+        });
+        let dn = timed_us("extract_dense", reps, iters, || {
+            std::hint::black_box(features::extract_dense(&state));
+        });
+        let af = timed_us("action_features", reps, iters, || {
+            std::hint::black_box(action_features(&state, 0));
+        });
+
+        ids.clear();
+        let lens = features::extract_segmented(&state, &mut ids);
+        let dense = features::extract_dense(&state);
+        let block = action_features(&state, 0);
+        let side = &state.sides[0];
+        let move_ids = side.team[side.active_index as usize].moves;
+        let arg = if net.action_dense_dim == 0 { None } else { Some(&block) };
+        let fwd = timed_us("net_forward", reps, iters, || {
+            std::hint::black_box(net.forward(&ids, &lens, &dense, &move_ids, arg));
+        });
+
+        eprintln!(
+            "policy v2 serve path: median={whole_med:.3} us raw=[{}] \
+             extract_segmented={seg:.3} extract_dense={dn:.3} action_features={af:.3} \
+             net_forward={fwd:.3} parts_sum={:.3} sink={sink} weights={wpath} fixtures={fpath}",
+            raw.join(", "),
+            seg + dn + af + fwd
+        );
+    }
+
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn dump_policy_fixture_inputs() {
+        use crate::policy_label::read_records_guarded;
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../full_cp07_vlabel/s0");
+        let mut files: Vec<String> = std::fs::read_dir(dir)
+            .expect("full_cp07_vlabel/s0 must be present")
+            .filter_map(|e| {
+                let name = e.unwrap().file_name().into_string().unwrap();
+                name.ends_with(".records.bin").then_some(name)
+            })
+            .collect();
+        files.sort();
+        files.truncate(8);
+        let mut recs = Vec::new();
+        for name in &files {
+            let path = format!("{dir}/{name}");
+            for (i, r) in read_records_guarded(&path).expect("guarded read").into_iter().enumerate() {
+                recs.push((name.clone(), i, r));
+            }
+        }
+        let total = recs.len();
+        assert!(total >= 64, "need >= 64 records, got {total}");
+        let mut fixtures = Vec::new();
+        for k in 0..64 {
+            let (name, idx, rec) = &recs[k * total / 64];
+            let mut ids = Vec::new();
+            let lens = features::extract_segmented(&rec.state, &mut ids);
+            let dense = features::extract_dense(&rec.state);
+            let side = &rec.state.sides[0];
+            let move_ids = side.team[side.active_index as usize].moves;
+            fixtures.push(serde_json::json!({
+                "file": name,
+                "index": idx,
+                "ids": ids,
+                "seg_lens": lens.to_vec(),
+                "dense": dense.to_vec(),
+                "move_ids": move_ids.to_vec(),
+            }));
+        }
+        let doc = serde_json::json!({
+            "source_dir": dir,
+            "files": files,
+            "selection": format!("stride 64 over {total} records"),
+            "fixtures": fixtures,
+        });
+        let out = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../learned-eval/weights/policy-fixture-inputs.json"
+        );
+        std::fs::create_dir_all(std::path::Path::new(out).parent().unwrap()).unwrap();
+        std::fs::write(out, serde_json::to_string(&doc).unwrap()).unwrap();
+        eprintln!("wrote {out}: 64 fixtures from {total} records / {} files", files.len());
+    }
+
+    #[cfg(feature = "train_value")]
+    #[test]
+    #[ignore]
+    fn dump_policy_fixture_inputs_v2() {
+        use crate::action_features::{action_features, ACTION_DENSE_DIM};
+        use crate::policy_label::read_records_guarded;
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../full_cp07_vlabel/s0");
+        let mut files: Vec<String> = std::fs::read_dir(dir)
+            .expect("full_cp07_vlabel/s0 must be present")
+            .filter_map(|e| {
+                let name = e.unwrap().file_name().into_string().unwrap();
+                name.ends_with(".records.bin").then_some(name)
+            })
+            .collect();
+        files.sort();
+        files.truncate(8);
+        let mut recs = Vec::new();
+        for name in &files {
+            let path = format!("{dir}/{name}");
+            for (i, r) in read_records_guarded(&path).expect("guarded read").into_iter().enumerate() {
+                recs.push((name.clone(), i, r));
+            }
+        }
+        let total = recs.len();
+        assert!(total >= 64, "need >= 64 records, got {total}");
+        let mut fixtures = Vec::new();
+        let mut nonzero = 0usize;
+        for k in 0..64 {
+            let (name, idx, rec) = &recs[k * total / 64];
+            let mut ids = Vec::new();
+            let lens = features::extract_segmented(&rec.state, &mut ids);
+            let dense = features::extract_dense(&rec.state);
+            let side = &rec.state.sides[0];
+            let move_ids = side.team[side.active_index as usize].moves;
+            let block = action_features(&rec.state, 0);
+            if block.iter().flatten().any(|v| *v != 0.0) {
+                nonzero += 1;
+            }
+            let action_dense: Vec<Vec<f32>> = block.iter().map(|row| row.to_vec()).collect();
+            fixtures.push(serde_json::json!({
+                "file": name,
+                "index": idx,
+                "ids": ids,
+                "seg_lens": lens.to_vec(),
+                "dense": dense.to_vec(),
+                "move_ids": move_ids.to_vec(),
+                "action_dense": action_dense,
+            }));
+        }
+        assert_eq!(fixtures.len(), 64, "parity gate is 64 fixtures");
+        for (k, f) in fixtures.iter().enumerate() {
+            let rows = f["action_dense"].as_array().expect("action_dense array");
+            assert_eq!(rows.len(), NUM_ACTIONS, "fixture {k}: action_dense rows");
+            for (r, row) in rows.iter().enumerate() {
+                let cols = row.as_array().expect("action_dense row");
+                assert_eq!(cols.len(), ACTION_DENSE_DIM, "fixture {k} row {r}: width");
+                for c in cols {
+                    assert!(c.is_f64(), "fixture {k} row {r}: non-float entry {c}");
+                }
+            }
+        }
+
+        let v1_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../learned-eval/weights/policy-fixture-inputs.json"
+        );
+        let v1: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(v1_path).expect("v1 fixture inputs must be present"),
+        )
+        .expect("v1 fixture inputs must parse");
+        let v1_fixtures = v1["fixtures"].as_array().expect("v1 fixtures array");
+        assert_eq!(v1_fixtures.len(), 64, "v1 fixture inputs must carry 64 fixtures");
+        for (k, (new, old)) in fixtures.iter().zip(v1_fixtures).enumerate() {
+            for key in ["file", "index", "ids", "seg_lens", "move_ids"] {
+                assert_eq!(
+                    serde_json::to_string(&new[key]).unwrap(),
+                    serde_json::to_string(&old[key]).unwrap(),
+                    "fixture {k}: {key} diverges from the v1 selection"
+                );
+            }
+            // serde_json's parser is not correctly rounded, so the f32 payload
+            // is compared at f32 width rather than through the parsed f64.
+            let want = old["dense"].as_array().expect("v1 dense array");
+            let got = new["dense"].as_array().expect("dense array");
+            assert_eq!(got.len(), want.len(), "fixture {k}: dense width");
+            for (i, (g, w)) in got.iter().zip(want).enumerate() {
+                assert_eq!(
+                    g.as_f64().unwrap() as f32,
+                    w.as_f64().unwrap() as f32,
+                    "fixture {k}: dense[{i}] diverges from the v1 selection"
+                );
+            }
+        }
+
+        let doc = serde_json::json!({
+            "source_dir": dir,
+            "files": files,
+            "selection": format!("stride 64 over {total} records"),
+            "fixtures": fixtures,
+        });
+        let out = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../learned-eval/weights/policy-fixture-inputs-v2.json"
+        );
+        std::fs::create_dir_all(std::path::Path::new(out).parent().unwrap()).unwrap();
+        std::fs::write(out, serde_json::to_string(&doc).unwrap()).unwrap();
+        eprintln!("wrote {out}: 64 fixtures from {total} records / {} files", files.len());
+        eprintln!("action_dense non-zero fraction: {nonzero}/64 = {:.4}", nonzero as f64 / 64.0);
+    }
+
+    #[test]
+    fn side_table_matches_frozen_v1_routing() {
+        let vocab = features::vocab_size() as usize;
+        let t = side_table(vocab);
+        let half_split: [(usize, usize); 11] = [
+            (0, 5816),
+            (5816, 49436),
+            (55252, 17448),
+            (72700, 3684),
+            (76384, 3048),
+            (79432, 1280),
+            (80712, 120),
+            (80832, 52),
+            (80884, 2),
+            (80886, 14),
+            (80900, 12),
+        ];
+        for (off, size) in half_split {
+            for k in 0..size {
+                assert_eq!(t[off + k], (k >= size / 2) as u8, "id {}", off + k);
+            }
+        }
+        assert_eq!(t[80912], 0);
+        assert_eq!(t[80913], 1);
+        for k in 0..38 {
+            assert_eq!(t[80914 + k], (k / 19) as u8, "F11 type id {}", 80914 + k);
+        }
+        for id in 80952..vocab {
+            assert_eq!(t[id], SIDE_BOTH, "id {id}");
+        }
+    }
+
+    #[test]
+    fn eval_is_scaled_forward_of_extracted_features() {
+        let vocab = features::vocab_size();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"LVE1");
+        bytes.extend_from_slice(&FEATURE_SPEC_VERSION.to_le_bytes());
+        bytes.extend_from_slice(&vocab.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&(2 + DENSE_DIM as u32).to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&2.5f32.to_le_bytes());
+        let n_f32 = vocab as usize + (2 + DENSE_DIM) + 1;
+        for k in 0..n_f32 {
+            let val = ((k % 13) as f32 - 6.0) * 0.01;
+            bytes.extend_from_slice(&val.to_le_bytes());
+        }
+        let net = LearnedEval::from_bytes(&bytes).expect("synthetic LVE1 must load");
+        let (s, _t) = build_state(
+            vec![mon(445, 24, [89, 14, 200, 328]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        let mut ids = Vec::new();
+        features::extract(&s, &mut ids);
+        let dense = features::extract_dense(&s);
+        let want = net.natural_logit(&ids, &dense) * net.export_multiplier();
+        assert!(want.is_finite());
+        assert_ne!(want, 0.0, "forward must produce a real logit on a live state");
+        assert_eq!(net.eval(&s), want);
+    }
+
+    struct ValueFileV2 {
+        magic: [u8; 4],
+        spec: u32,
+        vocab: u32,
+        acc: u32,
+        segments: u32,
+        web_rank: u32,
+        tables: u32,
+        pair_rows: u32,
+        type_rows: u32,
+        table_rank: u32,
+        attn: u32,
+        attn_dk: u32,
+        value_dense_dim: u32,
+        fc: Vec<(u32, u32)>,
+        multiplier: f32,
+        truncate: usize,
+        trailing: usize,
+    }
+
+    impl ValueFileV2 {
+        fn small() -> Self {
+            let acc = 3u32;
+            let r = 2u32;
+            let want = 2 * acc + 2 * r + DENSE_DIM as u32;
+            ValueFileV2 {
+                magic: *b"LVV2",
+                spec: FEATURE_SPEC_VERSION,
+                vocab: features::vocab_size(),
+                acc,
+                segments: NUM_SEGMENTS as u32,
+                web_rank: r,
+                tables: 0,
+                pair_rows: 0,
+                type_rows: 0,
+                table_rank: 0,
+                attn: 0,
+                attn_dk: 0,
+                value_dense_dim: 0,
+                fc: vec![(want, 4), (4, 1)],
+                multiplier: 2.5,
+                truncate: 0,
+                trailing: 0,
+            }
+        }
+
+        // acc_width and attn_dk differ so a wrongly squared attn_out size cannot pass
+        fn attention() -> Self {
+            let acc = 6u32;
+            let r = 2u32;
+            let want = 2 * acc + 2 * r + DENSE_DIM as u32;
+            ValueFileV2 {
+                acc,
+                attn: 1,
+                attn_dk: 5,
+                fc: vec![(want, 3), (3, 2), (2, 1)],
+                ..ValueFileV2::small()
+            }
+        }
+
+        fn bytes(&self) -> Vec<u8> {
+            let mut v = Vec::new();
+            v.extend_from_slice(&self.magic);
+            for u in [
+                self.spec,
+                self.vocab,
+                self.acc,
+                self.segments,
+                self.web_rank,
+                self.tables,
+                self.pair_rows,
+                self.type_rows,
+                self.table_rank,
+                self.attn,
+                self.attn_dk,
+                self.value_dense_dim,
+                self.fc.len() as u32,
+            ] {
+                v.extend_from_slice(&u.to_le_bytes());
+            }
+            for &(i, o) in &self.fc {
+                v.extend_from_slice(&i.to_le_bytes());
+                v.extend_from_slice(&o.to_le_bytes());
+            }
+            v.extend_from_slice(&self.multiplier.to_le_bytes());
+            let mut n_f32 = (self.vocab * self.acc + 2 * self.web_rank * self.acc) as usize;
+            if self.attn != 0 {
+                n_f32 += 4 * (self.attn_dk * self.acc) as usize;
+            }
+            for &(i, o) in &self.fc {
+                n_f32 += (i * o + o) as usize;
+            }
+            for k in 0..n_f32 {
+                v.extend_from_slice(&lvv2_payload(k).to_le_bytes());
+            }
+            if self.truncate > 0 {
+                v.truncate(v.len() - self.truncate);
+            }
+            for _ in 0..self.trailing {
+                v.push(0);
+            }
+            v
+        }
+
+        fn err(&self) -> String {
+            match LearnedValueV2::from_bytes(&self.bytes()) {
+                Ok(_) => panic!("malformed value weights must be refused"),
+                Err(e) => e,
+            }
+        }
+    }
+
+    fn lvv2_payload(k: usize) -> f32 {
+        ((k % 13) as f32 - 6.0) * 0.01
+    }
+
+    fn lvv2_slice(start: usize, len: usize) -> Vec<f32> {
+        (start..start + len).map(lvv2_payload).collect()
+    }
+
+    fn lvv2_header_bytes(acc: u32, web_rank: u32, fc0_in: u32) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(b"LVV2");
+        for u in [
+            FEATURE_SPEC_VERSION,
+            features::vocab_size(),
+            acc,
+            NUM_SEGMENTS as u32,
+            web_rank,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+        ] {
+            v.extend_from_slice(&u.to_le_bytes());
+        }
+        for (i, o) in [(fc0_in, 4u32), (4, 1)] {
+            v.extend_from_slice(&i.to_le_bytes());
+            v.extend_from_slice(&o.to_le_bytes());
+        }
+        v
+    }
+
+    fn lvv2_header_err(acc: u32, web_rank: u32, fc0_in: u32) -> String {
+        match LearnedValueV2::from_bytes(&lvv2_header_bytes(acc, web_rank, fc0_in)) {
+            Ok(_) => panic!("a tensorless header must be refused"),
+            Err(e) => e,
+        }
+    }
+
+    #[test]
+    fn value_v2_input_len_matches_exported_widths() {
+        assert_eq!(value_v2_input_len(8, 2), 27);
+        assert_eq!(value_v2_input_len(128, 32), 327);
+        assert_eq!(value_v2_input_len(128, 64), 391);
+    }
+
+    #[test]
+    fn value_v2_loader_wants_input_len_at_exported_widths() {
+        for (acc, r, want) in [(8u32, 2u32, 27u32), (128, 32, 327), (128, 64, 391)] {
+            let short = lvv2_header_err(acc, r, want - 1);
+            assert_eq!(short, format!("LVV2 fc1 in {} != {want}", want - 1));
+            let exact = lvv2_header_err(acc, r, want);
+            assert!(exact.starts_with("truncated weights file at byte"), "{exact}");
+        }
+    }
+
+    #[test]
+    fn value_v2_bare_arm_loads_tensors_in_order() {
+        let f = ValueFileV2::small();
+        let net = LearnedValueV2::from_bytes(&f.bytes()).expect("synthetic LVV2 must load");
+        let (vocab, acc, r) = (f.vocab as usize, f.acc as usize, f.web_rank as usize);
+        assert_eq!(net.acc_width, acc);
+        assert_eq!(net.web_rank, r);
+        assert_eq!(net.attn_dk, 0);
+        assert_eq!(net.multiplier, f.multiplier);
+        assert!(net.attn_q.is_empty(), "bare arm must carry no attn_q");
+        assert!(net.attn_k.is_empty(), "bare arm must carry no attn_k");
+        assert!(net.attn_v.is_empty(), "bare arm must carry no attn_v");
+        assert!(net.attn_out.is_empty(), "bare arm must carry no attn_out");
+        let mut off = 0;
+        assert_eq!(net.emb, lvv2_slice(off, vocab * acc));
+        off += vocab * acc;
+        assert_eq!(net.web_a, transpose(&lvv2_slice(off, r * acc), r, acc));
+        off += r * acc;
+        assert_eq!(net.web_b, transpose(&lvv2_slice(off, r * acc), r, acc));
+        off += r * acc;
+        assert_eq!(net.fc.len(), f.fc.len());
+        for (li, &(i, o)) in f.fc.iter().enumerate() {
+            let (i, o) = (i as usize, o as usize);
+            assert_eq!(net.fc[li].w, transpose(&lvv2_slice(off, i * o), o, i), "fc{li} weight");
+            off += i * o;
+            assert_eq!(net.fc[li].b, lvv2_slice(off, o), "fc{li} bias");
+            off += o;
+        }
+        assert_eq!(net.fc1_input(), value_v2_input_len(net.acc_width, net.web_rank));
+    }
+
+    #[test]
+    fn value_v2_attention_arm_loads_tensors_in_order() {
+        let f = ValueFileV2::attention();
+        let net = LearnedValueV2::from_bytes(&f.bytes()).expect("synthetic attention LVV2 must load");
+        let (vocab, acc, r, dk) =
+            (f.vocab as usize, f.acc as usize, f.web_rank as usize, f.attn_dk as usize);
+        assert_ne!(acc, dk, "a square attn block would hide a wrong attn_out size");
+        assert_eq!(net.acc_width, acc);
+        assert_eq!(net.attn_dk, dk);
+        let mut off = vocab * acc + 2 * r * acc;
+        assert_eq!(net.attn_q, lvv2_slice(off, dk * acc));
+        off += dk * acc;
+        assert_eq!(net.attn_k, lvv2_slice(off, dk * acc));
+        off += dk * acc;
+        assert_eq!(net.attn_v, lvv2_slice(off, dk * acc));
+        off += dk * acc;
+        assert_eq!(net.attn_out, lvv2_slice(off, acc * dk));
+        assert_eq!(net.attn_out.len(), acc * dk);
+        off += acc * dk;
+        assert_ne!(net.attn_q, net.attn_k, "the fixture must separate q from k");
+        assert_ne!(net.attn_k, net.attn_v, "the fixture must separate k from v");
+        assert_ne!(net.attn_q, net.attn_v, "the fixture must separate q from v");
+        assert_eq!(net.fc.len(), f.fc.len());
+        for (li, &(i, o)) in f.fc.iter().enumerate() {
+            let (i, o) = (i as usize, o as usize);
+            assert_eq!(net.fc[li].w, transpose(&lvv2_slice(off, i * o), o, i), "fc{li} weight");
+            off += i * o;
+            assert_eq!(net.fc[li].b, lvv2_slice(off, o), "fc{li} bias");
+            off += o;
+        }
+        assert_eq!(net.fc1_input(), value_v2_input_len(net.acc_width, net.web_rank));
+    }
+
+    #[test]
+    fn value_v2_eval_is_scaled_forward_of_extracted_features() {
+        let f = ValueFileV2 { multiplier: 7.5, ..ValueFileV2::small() };
+        let net = LearnedValueV2::from_bytes(&f.bytes()).expect("synthetic LVV2 must load");
+        let (s, _t) = build_state(
+            vec![mon(445, 24, [89, 14, 200, 328]), mon(25, 9, [85, 150, 0, 0])],
+            vec![mon(248, 45, [89, 242, 0, 0])],
+        );
+        let mut ids = Vec::new();
+        let seg_lens = features::extract_segmented(&s, &mut ids);
+        let dense = features::extract_dense(&s);
+        let raw = net.natural_logit(&ids, &seg_lens, &dense);
+        assert!(raw.is_finite());
+        assert_ne!(raw, 0.0, "forward must produce a real logit on a live state");
+        assert_eq!(net.eval(&s), raw * 7.5, "eval must apply the export multiplier");
+        assert_eq!(crate::driver::EvalKind::LearnedV2(&net).name(), "learned_v2");
+    }
+
+    #[test]
+    fn value_v2_bad_magic_refused() {
+        let mut f = ValueFileV2::small();
+        f.magic = *b"LVP2";
+        assert_eq!(f.err(), "bad magic: not an LVV2 file");
+    }
+
+    #[test]
+    fn value_v2_spec_mismatch_refused() {
+        let mut f = ValueFileV2::small();
+        f.spec = FEATURE_SPEC_VERSION - 1;
+        assert_eq!(f.err(), format!("LVV2 spec {} != compiled {FEATURE_SPEC_VERSION}", f.spec));
+    }
+
+    #[test]
+    fn value_v2_vocab_mismatch_refused() {
+        let mut f = ValueFileV2::small();
+        f.vocab += 1;
+        assert_eq!(
+            f.err(),
+            format!("vocab mismatch: weights {}, extractor {}", f.vocab, features::vocab_size())
+        );
+    }
+
+    #[test]
+    fn value_v2_segment_count_mismatch_refused() {
+        let mut f = ValueFileV2::small();
+        f.segments = NUM_SEGMENTS as u32 - 1;
+        assert_eq!(f.err(), format!("LVV2 token_segments {} != {NUM_SEGMENTS}", f.segments));
+    }
+
+    #[test]
+    fn value_v2_tables_flag_refused() {
+        let mut f = ValueFileV2::small();
+        f.tables = 1;
+        assert_eq!(f.err(), "LVV2 carries no pair table; tables flag must be 0");
+    }
+
+    #[test]
+    fn value_v2_pair_rows_without_tables_refused() {
+        let mut f = ValueFileV2::small();
+        f.pair_rows = 4;
+        assert_eq!(f.err(), "LVV2 table dims present with tables off: pair 4, type 0, rank 0");
+    }
+
+    #[test]
+    fn value_v2_type_rows_without_tables_refused() {
+        let mut f = ValueFileV2::small();
+        f.type_rows = 3;
+        assert_eq!(f.err(), "LVV2 table dims present with tables off: pair 0, type 3, rank 0");
+    }
+
+    #[test]
+    fn value_v2_table_rank_without_tables_refused() {
+        let mut f = ValueFileV2::small();
+        f.table_rank = 2;
+        assert_eq!(f.err(), "LVV2 table dims present with tables off: pair 0, type 0, rank 2");
+    }
+
+    #[test]
+    fn value_v2_attn_without_dk_refused() {
+        let mut f = ValueFileV2::small();
+        f.attn = 1;
+        assert_eq!(f.err(), "LVV2 attn flag and attn_dk disagree");
+    }
+
+    #[test]
+    fn value_v2_attn_dk_without_attn_refused() {
+        let mut f = ValueFileV2::small();
+        f.attn_dk = 4;
+        assert_eq!(f.err(), "LVV2 attn flag and attn_dk disagree");
+    }
+
+    #[test]
+    fn value_v2_value_dense_dim_refused() {
+        let mut f = ValueFileV2::small();
+        f.value_dense_dim = DENSE_DIM as u32;
+        assert_eq!(
+            f.err(),
+            format!(
+                "LVV2 value_dense_dim {DENSE_DIM} != 0; the value forward has no sidecar input"
+            )
+        );
+    }
+
+    #[test]
+    fn value_v2_single_fc_layer_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc = vec![(f.fc[0].0, 1)];
+        assert_eq!(f.err(), "LVV2 fc chain needs >= 2 layers, got 1");
+    }
+
+    #[test]
+    fn value_v2_zero_fc_layers_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc = vec![];
+        assert_eq!(f.err(), "LVV2 fc chain needs >= 2 layers, got 0");
+    }
+
+    #[test]
+    fn value_v2_fc1_input_dim_refused() {
+        let mut f = ValueFileV2::small();
+        let want = f.fc[0].0;
+        f.fc[0].0 += 1;
+        assert_eq!(f.err(), format!("LVV2 fc1 in {} != {want}", want + 1));
+    }
+
+    #[test]
+    fn value_v2_fc_chain_break_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc[0].1 += 1;
+        assert!(f.err().starts_with("LVV2 fc dim chain break"), "{}", f.err());
+    }
+
+    #[test]
+    fn value_v2_fc_output_dim_refused() {
+        let mut f = ValueFileV2::small();
+        f.fc.last_mut().unwrap().1 = 2;
+        assert_eq!(f.err(), "LVV2 fc chain must end in 1 output");
+    }
+
+    #[test]
+    fn value_v2_trailing_bytes_refused() {
+        let mut f = ValueFileV2::small();
+        f.trailing = 4;
+        assert_eq!(f.err(), "LVV2 trailing bytes after the last tensor");
+    }
+
+    #[test]
+    fn value_v2_truncated_refused() {
+        let mut f = ValueFileV2::small();
+        f.truncate = 4;
+        assert!(f.err().starts_with("truncated weights file at byte"), "{}", f.err());
+    }
+}
