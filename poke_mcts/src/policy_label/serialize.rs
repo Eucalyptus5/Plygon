@@ -31,22 +31,22 @@ fn inverted(json: &str) -> HashMap<u16, String> {
 
 fn species_name_table() -> &'static HashMap<u16, String> {
     static MAP: OnceLock<HashMap<u16, String>> = OnceLock::new();
-    MAP.get_or_init(|| inverted(include_str!("../../../testing_plan/id_maps/species_map.json")))
+    MAP.get_or_init(|| inverted(include_str!("../../data/id_maps/species_map.json")))
 }
 
 fn move_name_table() -> &'static HashMap<u16, String> {
     static MAP: OnceLock<HashMap<u16, String>> = OnceLock::new();
-    MAP.get_or_init(|| inverted(include_str!("../../../testing_plan/id_maps/move_map.json")))
+    MAP.get_or_init(|| inverted(include_str!("../../data/id_maps/move_map.json")))
 }
 
 fn ability_name_table() -> &'static HashMap<u16, String> {
     static MAP: OnceLock<HashMap<u16, String>> = OnceLock::new();
-    MAP.get_or_init(|| inverted(include_str!("../../../testing_plan/id_maps/ability_map.json")))
+    MAP.get_or_init(|| inverted(include_str!("../../data/id_maps/ability_map.json")))
 }
 
 fn item_name_table() -> &'static HashMap<u16, String> {
     static MAP: OnceLock<HashMap<u16, String>> = OnceLock::new();
-    MAP.get_or_init(|| inverted(include_str!("../../../testing_plan/id_maps/item_map.json")))
+    MAP.get_or_init(|| inverted(include_str!("../../data/id_maps/item_map.json")))
 }
 
 const TYPE_TOKENS: [&str; 19] = [
@@ -434,10 +434,10 @@ mod tests {
             m[k]
         };
         MonBuildInput {
-            species_id: by_name(include_str!("../../../testing_plan/id_maps/species_map.json"), species),
-            ability_id: by_name(include_str!("../../../testing_plan/id_maps/ability_map.json"), ability),
-            item_id: by_name(include_str!("../../../testing_plan/id_maps/item_map.json"), item),
-            moves: moves.map(|n| by_name(include_str!("../../../testing_plan/id_maps/move_map.json"), n)),
+            species_id: by_name(include_str!("../../data/id_maps/species_map.json"), species),
+            ability_id: by_name(include_str!("../../data/id_maps/ability_map.json"), ability),
+            item_id: by_name(include_str!("../../data/id_maps/item_map.json"), item),
+            moves: moves.map(|n| by_name(include_str!("../../data/id_maps/move_map.json"), n)),
             ivs: [31; 6],
             evs: [85; 6],
             nature: 24,
@@ -719,13 +719,13 @@ HEADLONGRUSH;false;8,CLOSECOMBAT;false;8,RAPIDSPIN;false;64,KNOCKOFF;false;32,fa
     #[test]
     fn alias_ids_resolve_to_the_smallest_name_deterministically() {
         let by_name: HashMap<String, u16> =
-            serde_json::from_str(include_str!("../../../testing_plan/id_maps/species_map.json"))
+            serde_json::from_str(include_str!("../../data/id_maps/species_map.json"))
                 .unwrap();
         assert_eq!(species_token(by_name["gastrodoneast"]), "GASTRODON");
         assert_eq!(species_token(by_name["vivillonicysnow"]), "VIVILLON");
         assert_eq!(species_token(by_name["alcremierubycream"]), "ALCREMIE");
         let abilities: HashMap<String, u16> =
-            serde_json::from_str(include_str!("../../../testing_plan/id_maps/ability_map.json"))
+            serde_json::from_str(include_str!("../../data/id_maps/ability_map.json"))
                 .unwrap();
         assert_eq!(ability_token(abilities["vesselofruin"]), "BEADSOFRUIN");
     }

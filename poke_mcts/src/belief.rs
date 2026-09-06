@@ -150,7 +150,8 @@ pub fn scarf_forced(opp_sid: u16, opp_level: u8, mult_num: u32, mult_den: u32, o
     opp_eff < our_eff_speed
 }
 
-// Runtime +1 priority sources absent from the static move_hot().priority field. Without this guard a slow Prankster status-move lead reads as
+// Runtime +1 priority sources absent from the static move_hot().priority field.
+// Without this guard a slow Prankster status-move lead reads as
 // equal-priority-opp-first and false-pins choice-scarf. Takes the move the species used; the live
 // terrain and the engine's Grassy Glide move id are supplied by the caller (no engine const exists for
 // Grassy Glide, and only the caller knows the field).

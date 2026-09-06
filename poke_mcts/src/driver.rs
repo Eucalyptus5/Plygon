@@ -846,7 +846,7 @@ mod tests {
     fn choose_action_with_a_prior_is_legal_and_reproducible() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin"
+            "/weights/lvp2-6f1e0facfcc4.bin"
         );
         let Ok(bin) = std::fs::read(path) else {
             eprintln!("SKIP prior end-to-end: {path} absent");
@@ -869,7 +869,7 @@ mod tests {
 
     const SEAT_PAIR_WEIGHTS: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin"
+        "/weights/lvp2-6f1e0facfcc4.bin"
     );
 
     // Two different teams under a side-symmetric phase with symmetric pending_actions,

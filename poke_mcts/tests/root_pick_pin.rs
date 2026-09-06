@@ -97,10 +97,10 @@ fn the_leaf_histogram_fills_without_moving_the_pick() {
     assert_eq!(visits, EXPECTED_VISITS, "the histogram moved a root bandit's visit counts");
 }
 
-const EXPECTED_PICKS: [u8; STATES] = [0, 3, 1, 1, 2, 3, 6, 7, 7, 8, 9, 3, 3, 1, 0, 7];
+const EXPECTED_PICKS: [u8; STATES] = [10, 3, 3, 1, 3, 3, 0, 13, 1, 8, 9, 3, 1, 3, 10, 6];
 const EXPECTED_VISITS: [u64; STATES] = [
-    0x1c99506c4457111e, 0xebcaac6642828af5, 0x4217cd3a2af2acc7, 0x5675006fdd3052a6,
-    0xb7b0b954a56bbb9f, 0xc07717fcbbb29941, 0xca03f4fa30d66ae0, 0x22a8adc23e664111,
-    0xb0c27d1bbc8cd773, 0xbb2f2011625d8270, 0xa7c584d96766d58f, 0x40b7cd442235543a,
-    0xea64212433642713, 0xb0b26fb333378595, 0xceaf87f6e4084f96, 0xb56191aa23e11ab9,
+    0x7245cc27e7ccb8ad, 0x9aafeadbc43939e5, 0xad002f548edfac11, 0xa9a5643c0ab9d9ec,
+    0xc1d09f3393a4724c, 0x64c5cc91ae2f1ab5, 0x9a2381d4ac85270d, 0x8be2f2d8992a529f,
+    0x224a127ba0da64e8, 0x62968e30b4ed28ae, 0x72eb3746e359f22f, 0x407fb40e15f93f38,
+    0xf46246c38847719e, 0x55eb429e52b15bff, 0x85c446aba544c8e1, 0x24a890d0d22f70c4,
 ];

@@ -1,0 +1,8 @@
+This project embeds data files derived from Pokemon Showdown
+(https://pokemonshowdown.com/), used under the MIT License:
+
+  Copyright (c) 2011-2026 Guangcong Luo and other contributors
+
+The vendored files are under pkmn-engine/src/showdown_data/
+(abilities.ts, items.ts, moves.ts). Their full license text is available at
+https://github.com/smogon/pokemon-showdown/blob/master/LICENSE

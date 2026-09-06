@@ -474,7 +474,7 @@ fn species_types(id: usize) -> (usize, usize) {
     (s.type1 as usize, s.type2 as usize)
 }
 
-// Mirrors learned-eval/model.py build_side_table: F1..F10 half-split on the
+// Mirrors the trainer's build_side_table: F1..F10 half-split on the
 // side axis, F11 = used-bit pair then two 19-type blocks, F12/F13 feed both
 // accumulators.
 fn side_table(vocab: usize) -> Vec<u8> {
@@ -2614,14 +2614,14 @@ mod frozen_value_ref {
 }
 
 pub const LVV2_WEIGHTS_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.bin");
+    concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lvv2-phase0.bin");
 pub const LVV2_FIXTURES_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0.fixtures.json");
+    concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lvv2-phase0.fixtures.json");
 
 // the extended rows are minted from this exact net, so any other artifact
 // makes the comparison meaningless
 pub const LVV2_EXT_WEIGHTS_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-7863b28d2c91.bin");
+    concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lvv2-7863b28d2c91.bin");
 pub const LVV2_EXT_FIXTURES_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/lvv2-ext.fixtures.json");
 
@@ -2659,24 +2659,24 @@ mod tests {
     use crate::testutil::{build_state, mon};
 
     const WEIGHTS: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvp1-ff8e8651f6b5.bin");
+        concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lvp1-ff8e8651f6b5.bin");
     const FIXTURES: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../learned-eval/weights/lvp1-ff8e8651f6b5.fixtures.json"
+        "/weights/lvp1-ff8e8651f6b5.fixtures.json"
     );
     const WEIGHTS_V2: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvp2-6f1e0facfcc4.bin");
+        concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lvp2-6f1e0facfcc4.bin");
     const FIXTURES_V2: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../learned-eval/weights/lvp2-6f1e0facfcc4.fixtures.json"
+        "/weights/lvp2-6f1e0facfcc4.fixtures.json"
     );
     const SPEC3_WEIGHTS: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lv1-db937c18c028.bin");
+        concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lv1-db937c18c028.bin");
     const LVV2_ATTN_WEIGHTS_PATH: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../learned-eval/weights/lvv2-phase0-attn.bin");
+        concat!(env!("CARGO_MANIFEST_DIR"), "/weights/lvv2-phase0-attn.bin");
     const LVV2_ATTN_FIXTURES_PATH: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../learned-eval/weights/lvv2-phase0-attn.fixtures.json"
+        "/weights/lvv2-phase0-attn.fixtures.json"
     );
 
     // weights/ is a gitignored per-net artifact dir: absence skips, a
@@ -3548,7 +3548,7 @@ mod tests {
             V2_ARTIFACTS
         {
             let path = format!(
-                "{}/../learned-eval/weights/lvp2-{id}.bin",
+                "{}/weights/lvp2-{id}.bin",
                 env!("CARGO_MANIFEST_DIR")
             );
             let Ok(bin) = std::fs::read(&path) else {
@@ -4633,7 +4633,7 @@ mod tests {
         });
         let out = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../learned-eval/weights/policy-fixture-inputs.json"
+            "/weights/policy-fixture-inputs.json"
         );
         std::fs::create_dir_all(std::path::Path::new(out).parent().unwrap()).unwrap();
         std::fs::write(out, serde_json::to_string(&doc).unwrap()).unwrap();
@@ -4704,7 +4704,7 @@ mod tests {
 
         let v1_path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../learned-eval/weights/policy-fixture-inputs.json"
+            "/weights/policy-fixture-inputs.json"
         );
         let v1: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(v1_path).expect("v1 fixture inputs must be present"),
@@ -4742,7 +4742,7 @@ mod tests {
         });
         let out = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../learned-eval/weights/policy-fixture-inputs-v2.json"
+            "/weights/policy-fixture-inputs-v2.json"
         );
         std::fs::create_dir_all(std::path::Path::new(out).parent().unwrap()).unwrap();
         std::fs::write(out, serde_json::to_string(&doc).unwrap()).unwrap();

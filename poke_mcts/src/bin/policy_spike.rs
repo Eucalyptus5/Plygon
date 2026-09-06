@@ -263,7 +263,7 @@ fn main() {
         }
         Some("basestats") => {
             let by_name: HashMap<String, u16> = serde_json::from_str(include_str!(
-                "../../../testing_plan/id_maps/species_map.json"
+                "../../data/id_maps/species_map.json"
             ))
             .unwrap();
             for name in &args[2..] {

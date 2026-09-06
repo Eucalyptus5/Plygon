@@ -230,8 +230,8 @@ fn possible_pool_mask_respects_word_boundaries() {
 // Name->id is resolved from the SAME id_maps JSON the generator's convert.js writes SetEntry ids
 // from, so item/ability ids here equal SetEntry.item_id/ability_id (never hand-numbered).
 fn id_maps() -> (HashMap<String, u16>, HashMap<String, u16>) {
-    static ITEM_MAP_JSON: &str = include_str!("../../testing_plan/id_maps/item_map.json");
-    static ABILITY_MAP_JSON: &str = include_str!("../../testing_plan/id_maps/ability_map.json");
+    static ITEM_MAP_JSON: &str = include_str!("../data/id_maps/item_map.json");
+    static ABILITY_MAP_JSON: &str = include_str!("../data/id_maps/ability_map.json");
     (
         serde_json::from_str(ITEM_MAP_JSON).unwrap(),
         serde_json::from_str(ABILITY_MAP_JSON).unwrap(),
@@ -240,7 +240,7 @@ fn id_maps() -> (HashMap<String, u16>, HashMap<String, u16>) {
 
 // move name->id from the SAME map the tracker resolves move ids through (no hand-numbered ids).
 fn move_ids() -> HashMap<String, u16> {
-    static MOVE_MAP_JSON: &str = include_str!("../../testing_plan/id_maps/move_map.json");
+    static MOVE_MAP_JSON: &str = include_str!("../data/id_maps/move_map.json");
     serde_json::from_str(MOVE_MAP_JSON).unwrap()
 }
 

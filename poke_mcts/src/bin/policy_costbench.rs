@@ -850,7 +850,7 @@ fn usage() {
     println!("--per-action");
     println!("  --iters <N>     iterations per timed primitive (default 200000)");
     println!("  --records-dir <path>    shard dir (default <crate>/../full_cp07_vlabel/s0)");
-    println!("  --converted-dir <path>  corpus dir (default <crate>/../learned-eval/policy_main/converted)");
+    println!("  --converted-dir <path>  corpus dir (default <crate>/data/corpus/converted)");
     println!();
     println!("  --help          this text");
 }
@@ -1280,7 +1280,7 @@ fn corpus_profile(args: &Args) {
     let dir = args
         .converted_dir
         .clone()
-        .unwrap_or_else(|| format!("{}/../learned-eval/policy_main/converted", env!("CARGO_MANIFEST_DIR")));
+        .unwrap_or_else(|| format!("{}/data/corpus/converted", env!("CARGO_MANIFEST_DIR")));
     println!("converted dir: {dir}");
     let meta_path = format!("{dir}/meta.json");
     let meta_txt = match std::fs::read_to_string(&meta_path) {
