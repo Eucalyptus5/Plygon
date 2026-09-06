@@ -485,6 +485,10 @@ fn part_mismatch(n: &mut Node, p: &mut BlindPart, cur: &BattleState, blinded: bo
         init_true_part(n, cur, decider_side);
         return true;
     }
+    // the opponent's bandit here has no blinded statistics yet: a true rollout stops as at a leaf
+    if !blinded && p.phase == NO_PART {
+        return true;
+    }
     let (phase, us) = if blinded { (p.phase, &p.us) } else { (n.phase, side_of(n, decider_side)) };
     let hit = phase != cur.phase
         || !same_actions(us, &legal_actions(cur, decider_side))
