@@ -575,6 +575,9 @@ struct WorldCell {
     opp_species: u16,
     top: [Option<u8>; 3],
     iters: [u64; 3],
+    // per arm (shipped, Declairvoyant, salted): the principal line and what its opponent bytes name
+    principal: [[(u8, u8); 3]; 3],
+    opp_named: [[Named; 3]; 3],
 }
 
 #[derive(Default)]
@@ -615,10 +618,21 @@ fn run_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig)
     for t in [&a, &b, &f] {
         assert_eq!(t.per_world.len(), worlds, "root {position}: world count");
     }
+    let opp = 1 - side;
+    // the shipped arms' draw replayed for the sampled sets the trace omits; Declairvoyant draws the opponent's side first from the same stream, so its worlds share them
+    let sampled = RandomBattle.sample_worlds(&obs, belief, worlds, &mut Lcg::new(splitmix64(cfg.seed)));
     let mut run = Run { seed, pick: [a.picked, b.picked, f.picked], pick_ab: a.picked != b.picked, pick_af: a.picked != f.picked, min_iters: u64::MAX, ..Default::default() };
     for k in 0..worlds {
         let (wa, wb, wf) = (&a.per_world[k], &b.per_world[k], &f.per_world[k]);
         assert!(opp_key(wa) == opp_key(wb) && opp_key(wa) == opp_key(wf), "root {position} world {k}: opponent slot differs between runs");
+        let ws = &sampled[k].state;
+        let am = ws.active_mon(opp);
+        assert!(
+            (am.species_id, am.item_id, am.ability_id, am.current_hp, am.max_hp, am.status) == opp_key(wa),
+            "root {position} world {k}: the replayed world is not the searched one"
+        );
+        let principal = [wa.principal, wb.principal, wf.principal];
+        let opp_named = principal.map(|p| opp_meaning_path(ws, opp, &p));
         let top = [top_arm(&wa.s2), top_arm(&wb.s2), top_arm(&wf.s2)];
         let (flip_ab, flip_af) = (top[0] != top[1], top[0] != top[2]);
         let tera_ab = flip_ab && (is_tera(top[0]) || is_tera(top[1]));
@@ -639,9 +653,138 @@ fn run_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig)
         let iters = [wa.iterations, wb.iterations, wf.iterations];
         run.short += iters.iter().filter(|&&i| i < cfg.max_iters_per_world).count() as u32;
         run.min_iters = run.min_iters.min(*iters.iter().min().unwrap());
-        run.worlds.push(WorldCell { opp_species: wa.opp_species, top, iters });
+        run.worlds.push(WorldCell { opp_species: wa.opp_species, top, iters, principal, opp_named });
     }
     run
+}
+
+// The opponent's action at ply d of two principal lines: None where either line has no ply
+// there (both bytes NO_ARM), else whether the named actions differ.
+fn off_root_flip(x: &[(u8, u8); 3], nx: &[Named; 3], y: &[(u8, u8); 3], ny: &[Named; 3], d: usize) -> Option<bool> {
+    if x[d] == (NO_ARM, NO_ARM) || y[d] == (NO_ARM, NO_ARM) { return None; }
+    Some(nx[d] != ny[d])
+}
+
+#[derive(Default, Clone, Copy)]
+struct PlyTally {
+    n: u64,
+    flips: u64,
+    tera: u64,
+    switch: u64,
+    ts: u64,
+    absent: u64,
+    trunc: u64,
+    same1_n: u64,
+    same1_flips: u64,
+}
+
+#[derive(Default, Clone, Copy)]
+struct OffRoot {
+    ply: [PlyTally; 3],
+    trunc_worlds: u64,
+    offroot_flip: bool,
+    pick_same: bool,
+}
+
+// arms x and y of a Run's cells (0 shipped, 1 Declairvoyant, 2 salted); off-root means plies 2 and 3,
+// and same1 restricts a ply to worlds whose ply-1 joint action is the same in both arms
+fn off_root(run: &Run, x: usize, y: usize) -> OffRoot {
+    let mut o = OffRoot { pick_same: run.pick[x] == run.pick[y], ..Default::default() };
+    for w in &run.worlds {
+        let (px, py) = (&w.principal[x], &w.principal[y]);
+        let (nx, ny) = (&w.opp_named[x], &w.opp_named[y]);
+        let same1 = px[0].0 == py[0].0 && nx[0] == ny[0];
+        let mut trunc = false;
+        for d in 0..3 {
+            let t = &mut o.ply[d];
+            match off_root_flip(px, nx, py, ny, d) {
+                None => {
+                    t.trunc += 1;
+                    trunc |= d > 0;
+                }
+                Some(flip) => {
+                    t.n += 1;
+                    t.flips += flip as u64;
+                    if flip {
+                        let tera = matches!(nx[d], Named::Move(_, true)) || matches!(ny[d], Named::Move(_, true));
+                        let switch = matches!(nx[d], Named::Switch(_)) || matches!(ny[d], Named::Switch(_));
+                        t.tera += tera as u64;
+                        t.switch += switch as u64;
+                        t.ts += (tera || switch) as u64;
+                        t.absent += ((nx[d] == Named::Absent) != (ny[d] == Named::Absent)) as u64;
+                        o.offroot_flip |= d > 0;
+                    }
+                    if same1 && d > 0 {
+                        t.same1_n += 1;
+                        t.same1_flips += flip as u64;
+                    }
+                }
+            }
+        }
+        o.trunc_worlds += trunc as u64;
+    }
+    o
+}
+
+fn offroot_rows(label: &str, per_root: &[Vec<&Run>], worlds: usize) -> String {
+    let per_cell: Vec<Vec<[OffRoot; 2]>> = per_root.iter().map(|rs| rs.iter().map(|r| [off_root(r, 0, 1), off_root(r, 0, 2)]).collect()).collect();
+    let cells: usize = per_cell.iter().map(|c| c.len()).sum();
+    let mut tot = [[PlyTally::default(); 3]; 2];
+    let mut trunc_worlds = [0u64; 2];
+    let mut flip_cells = [0u64; 2];
+    let mut pick_same = [0u64; 2];
+    let mut both = [0u64; 2];
+    for o in per_cell.iter().flatten() {
+        for c in 0..2 {
+            for d in 0..3 {
+                let (t, u) = (&mut tot[c][d], &o[c].ply[d]);
+                t.n += u.n;
+                t.flips += u.flips;
+                t.tera += u.tera;
+                t.switch += u.switch;
+                t.ts += u.ts;
+                t.absent += u.absent;
+                t.trunc += u.trunc;
+                t.same1_n += u.same1_n;
+                t.same1_flips += u.same1_flips;
+            }
+            trunc_worlds[c] += o[c].trunc_worlds;
+            flip_cells[c] += o[c].offroot_flip as u64;
+            pick_same[c] += o[c].pick_same as u64;
+            both[c] += (o[c].pick_same && o[c].offroot_flip) as u64;
+        }
+    }
+    let share = |k: u64, n: u64| if n > 0 { format!("{:.6}", k as f64 / n as f64) } else { "-".to_string() };
+    // ab minus af at ply d: pooled rates, and the standard error over roots of the per-root rate difference
+    let diff = |d: usize| {
+        let rate = |rs: &[[OffRoot; 2]], c: usize| {
+            let (f, n) = rs.iter().fold((0u64, 0u64), |(f, n), o| (f + o[c].ply[d].flips, n + o[c].ply[d].n));
+            (n > 0).then(|| f as f64 / n as f64)
+        };
+        let x: Vec<f64> = per_cell.iter().filter_map(|rs| Some(rate(rs, 0)? - rate(rs, 1)?)).collect();
+        let k = x.len();
+        let m = x.iter().sum::<f64>() / k.max(1) as f64;
+        let se = if k < 2 { 0.0 } else { (x.iter().map(|v| (v - m).powi(2)).sum::<f64>() / (k - 1) as f64).sqrt() / (k as f64).sqrt() };
+        let pooled = match (tot[0][d].n, tot[1][d].n) {
+            (a, f) if a > 0 && f > 0 => format!("{:.4}", (tot[0][d].flips as f64 / a as f64 - tot[1][d].flips as f64 / f as f64) * 100.0),
+            _ => "-".to_string(),
+        };
+        format!("{pooled}\t{:.4}\t{k}", se * 100.0)
+    };
+    let mut s = String::new();
+    for (c, cmp) in ["ab", "af"].into_iter().enumerate() {
+        for d in 0..3 {
+            let t = &tot[c][d];
+            s.push_str(&format!(
+                "{label}\t{cmp}\t{}\t{}\t{cells}\t{worlds}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                d + 1, per_root.len(), t.n, t.flips, share(t.flips, t.n), t.trunc, t.tera, t.switch, share(t.ts, t.flips), t.absent,
+                t.same1_n, t.same1_flips, share(t.same1_flips, t.same1_n),
+                trunc_worlds[c], flip_cells[c], pick_same[c], both[c], share(both[c], cells as u64),
+                if c == 0 { diff(d) } else { "-\t-\t-".to_string() }
+            ));
+        }
+    }
+    s
 }
 
 // per_root holds one Run per seed for a per-seed row and every seed's Run for the pooled row
@@ -688,6 +831,7 @@ fn declairvoyance(args: &[String]) {
     let threads: usize = parse(args, "--threads", &std::thread::available_parallelism().map_or(1, |n| n.get()).to_string());
     let out = arg(args, "--out", "results/0.7.diff.tsv");
     let dump = arg(args, "--dump", "results/0.7.worlds.tsv");
+    let offroot = arg(args, "--offroot", "results/0.7.offroot.tsv");
     let roots_file: String;
     let roots = if args.iter().any(|a| a == "--roots") {
         roots_file = arg(args, "--roots", "");
@@ -709,13 +853,13 @@ fn declairvoyance(args: &[String]) {
         s.roots
     };
     assert!(!roots.is_empty(), "no roots kept");
-    for p in [&out, &dump] {
+    for p in [&out, &dump, &offroot] {
         if let Some(dir) = std::path::Path::new(p).parent() {
             std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
         }
     }
     println!(
-        "declairvoyance: roots={} seeds={seeds:?} worlds={worlds} iters={iters} time_ms={time_ms} evaluator=Handcrafted determinizer_a=RandomBattle determinizer_b=Declairvoyant(RandomBattle) chance=OpenLoop pick=Argmax filter={PICK_FILTER} raw_root=false explore_coeff={EXPLORE_COEFF} value_temp=1.0 search_salt=0x{SEARCH_SALT:x} top_arm=max_visits_lowest_byte_on_ties threads={threads}",
+        "declairvoyance: roots={} seeds={seeds:?} worlds={worlds} iters={iters} time_ms={time_ms} evaluator=Handcrafted determinizer_a=RandomBattle determinizer_b=Declairvoyant(RandomBattle) chance=OpenLoop pick=Argmax filter={PICK_FILTER} raw_root=false explore_coeff={EXPLORE_COEFF} value_temp=1.0 search_salt=0x{SEARCH_SALT:x} top_arm=max_visits_lowest_byte_on_ties principal=max_visit_joint_path_3_plies threads={threads}",
         roots.len()
     );
     let cfg = |seed: u64| PimcConfig {
@@ -762,19 +906,49 @@ fn declairvoyance(args: &[String]) {
     );
 
     let fmt = |o: Option<u8>| o.map_or("-".to_string(), |p| p.to_string());
-    let mut s = String::from("position\tgame\tturn\tside\tseed\tworld\topp_species\ttop_a\ttop_b\ttop_f\tflip_ab\tflip_af\tl1_ab\tl1_af\titers_a\titers_b\titers_f\tpick_a\tpick_b\tpick_f\n");
+    let byte = |b: u8| if b == NO_ARM { "-".to_string() } else { b.to_string() };
+    let off = |o: Option<bool>| o.map_or("-".to_string(), |f| (f as u8).to_string());
+    let mut s = String::from("position\tgame\tturn\tside\tseed\tworld\topp_species\ttop_a\ttop_b\ttop_f\tflip_ab\tflip_af\tl1_ab\tl1_af\titers_a\titers_b\titers_f\tpick_a\tpick_b\tpick_f\ta_p1_ours\ta_p1_opp\ta_p2_ours\ta_p2_opp\ta_p3_ours\ta_p3_opp\tb_p1_ours\tb_p1_opp\tb_p2_ours\tb_p2_opp\tb_p3_ours\tb_p3_opp\tf_p1_ours\tf_p1_opp\tf_p2_ours\tf_p2_opp\tf_p3_ours\tf_p3_opp\ta_p1_opp_named\ta_p2_opp_named\ta_p3_opp_named\tb_p1_opp_named\tb_p2_opp_named\tb_p3_opp_named\tf_p1_opp_named\tf_p2_opp_named\tf_p3_opp_named\toff_ab_p2\toff_af_p2\toff_ab_p3\toff_af_p3\n");
     for (root, rs) in roots.iter().zip(&runs) {
         for r in rs {
             for (k, w) in r.worlds.iter().enumerate() {
                 s.push_str(&format!(
-                    "{}\t{}\t{}\t{}\t{}\t{k}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.6}\t{:.6}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    "{}\t{}\t{}\t{}\t{}\t{k}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.6}\t{:.6}\t{}\t{}\t{}\t{}\t{}\t{}",
                     root.position, root.game, root.turn, root.side, r.seed, w.opp_species, fmt(w.top[0]), fmt(w.top[1]), fmt(w.top[2]),
                     (w.top[0] != w.top[1]) as u8, (w.top[0] != w.top[2]) as u8, r.l1_ab[k], r.l1_af[k], w.iters[0], w.iters[1], w.iters[2], r.pick[0], r.pick[1], r.pick[2]
                 ));
+                for p in &w.principal {
+                    for &(x, y) in p {
+                        s.push_str(&format!("\t{}\t{}", byte(x), byte(y)));
+                    }
+                }
+                for n in &w.opp_named {
+                    for m in n {
+                        s.push('\t');
+                        s.push_str(&m.label());
+                    }
+                }
+                for d in 1..3 {
+                    for y in 1..3 {
+                        s.push('\t');
+                        s.push_str(&off(off_root_flip(&w.principal[0], &w.opp_named[0], &w.principal[y], &w.opp_named[y], d)));
+                    }
+                }
+                s.push('\n');
             }
         }
     }
     std::fs::write(&dump, s).unwrap_or_else(|e| panic!("write {dump}: {e}"));
+
+    let mut o = String::from("seed\tcmp\tply\troots\tcells\tworlds\tn_plies\tflips\trate\ttrunc_plies\ttera_flips\tswitch_flips\tts_share\tabsent_flips\tsame1_n\tsame1_flips\tsame1_rate\ttrunc_worlds\toffroot_flip_cells\tpick_same_cells\tpick_same_offroot_flip_cells\tpick_same_offroot_flip_frac\tdiff_pp\tdiff_se_pp\tdiff_roots\n");
+    for (i, seed) in seeds.iter().enumerate() {
+        let per_root: Vec<Vec<&Run>> = runs.iter().map(|rs| vec![&rs[i]]).collect();
+        o.push_str(&offroot_rows(&seed.to_string(), &per_root, worlds));
+    }
+    let per_root: Vec<Vec<&Run>> = runs.iter().map(|rs| rs.iter().collect()).collect();
+    o.push_str(&offroot_rows("pooled", &per_root, worlds));
+    print!("{o}");
+    std::fs::write(&offroot, o).unwrap_or_else(|e| panic!("write {offroot}: {e}"));
 
     let mut t = String::from("seed\troots\tworlds\tab_flips\tab_rate\taf_flips\taf_rate\tdiff_pp\tdiff_se_pp\tab_flips_tera\tab_flips_switch\tab_flips_tera_or_switch\ttera_share\tswitch_share\ttera_or_switch_share\taf_flips_tera_or_switch\taf_tera_or_switch_share\tl1_ab_mean\tl1_ab_median\tl1_af_mean\tl1_af_median\tpick_ab_flips\tpick_ab_rate\tpick_af_flips\tpick_af_rate\tshort_searches\topp_arms_lt2\n");
     for (i, seed) in seeds.iter().enumerate() {
@@ -785,7 +959,7 @@ fn declairvoyance(args: &[String]) {
     t.push_str(&summary_row("pooled", &per_root, worlds));
     print!("{t}");
     std::fs::write(&out, t).unwrap_or_else(|e| panic!("write {out}: {e}"));
-    println!("declairvoyance-out summary={out} dump={dump} roots={roots_file}");
+    println!("declairvoyance-out summary={out} dump={dump} offroot={offroot} roots={roots_file}");
 }
 
 // What one side's action byte names in one world: a move by id with the Tera flag carried, or a
@@ -2009,7 +2183,7 @@ fn main() {
         eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll | --leaf-dispersion | --world-dups) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
         eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
         eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
-        eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv]");
+        eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv] [--offroot results/0.7.offroot.tsv]");
         eprintln!("  --support-sharing [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.11.sharing.tsv] [--dump results/0.11.paths.tsv]");
         eprintln!("  --worlds-flip [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--arm-a 8x8192] [--arm-b 64x1024] [--arm-c 64x8192] [--floor 8x8192] [--time-ms 600000] [--threads T] [--out results/0.9.worlds.tsv] [--dump PICKS.tsv]");
         eprintln!("  --prior-nll [--snapshots PATH] [--roots results/0.7.roots.tsv] [--out results/0.9.nll.tsv] [--dump ROWS.tsv]");
@@ -2053,6 +2227,40 @@ mod tests {
         assert!(is_tera(Some(10)) && !is_switch(Some(10)));
         assert!(is_tera(Some(13)) && !is_switch(Some(13)));
         assert!(!is_tera(None) && !is_switch(None));
+    }
+
+    #[test]
+    fn off_root_flips_compare_names_and_skip_truncated_plies() {
+        let full = [(0u8, 1u8), (2, 3), (4, 5)];
+        let short = [(0u8, 1u8), (2, 3), (NO_ARM, NO_ARM)];
+        let one_sided = [(0u8, 1u8), (2, NO_ARM), (4, 5)];
+        let nx = [Named::Move(10, false), Named::Move(11, false), Named::Switch(7)];
+        let ny = [Named::Move(10, false), Named::Move(11, true), Named::Switch(7)];
+        let nz = [Named::Move(10, false), Named::Absent, Named::Switch(7)];
+        assert_eq!(off_root_flip(&full, &nx, &full, &nx, 1), Some(false));
+        assert_eq!(off_root_flip(&full, &nx, &full, &ny, 1), Some(true));
+        assert_eq!(off_root_flip(&full, &nx, &short, &nx, 2), None);
+        assert_eq!(off_root_flip(&short, &nx, &full, &nx, 2), None);
+        assert_eq!(off_root_flip(&full, &nx, &one_sided, &nz, 1), Some(true));
+        let cell = |principal, opp_named| WorldCell { opp_species: 0, top: [None; 3], iters: [0; 3], principal, opp_named };
+        let run = Run {
+            pick: [0, 0, 1],
+            worlds: vec![cell([full, full, full], [nx, ny, nx]), cell([full, short, one_sided], [nx, nx, nz])],
+            ..Default::default()
+        };
+        let ab = off_root(&run, 0, 1);
+        assert_eq!((ab.ply[1].n, ab.ply[1].flips, ab.ply[1].tera, ab.ply[1].ts, ab.ply[1].trunc), (2, 1, 1, 1, 0));
+        assert_eq!((ab.ply[2].n, ab.ply[2].flips, ab.ply[2].trunc), (1, 0, 1));
+        assert_eq!((ab.ply[1].same1_n, ab.ply[1].same1_flips), (2, 1));
+        assert!(ab.pick_same && ab.offroot_flip && ab.trunc_worlds == 1);
+        let af = off_root(&run, 0, 2);
+        assert_eq!((af.ply[1].n, af.ply[1].flips, af.ply[1].absent), (2, 1, 1));
+        assert!(!af.pick_same && af.offroot_flip && af.trunc_worlds == 0);
+        let rows = offroot_rows("1", &[vec![&run]], 2);
+        assert_eq!(rows.lines().count(), 6);
+        let ab_p2: Vec<&str> = rows.lines().nth(1).unwrap().split('\t').collect();
+        assert_eq!(&ab_p2[..9], &["1", "ab", "2", "1", "1", "2", "2", "1", "0.500000"]);
+        assert_eq!(ab_p2[22], "0.0000");
     }
 
     #[test]
