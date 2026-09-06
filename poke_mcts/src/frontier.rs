@@ -72,31 +72,37 @@ pub struct Declairvoyant<D: Determinizer> {
 impl<D: Determinizer> Determinizer for Declairvoyant<D> {
     fn sample_worlds(&self, obs: &Observation, belief: &Belief, n: usize, rng: &mut Lcg) -> Vec<World> {
         let mut worlds = self.inner.sample_worlds(obs, belief, n, rng);
-        let us = obs.our_side;
-        let team = &obs.state.sides[us].team;
-        let active = obs.state.sides[us].active_index as usize;
-        let screen = self.opp_view.screen;
-        let seen = |slot: usize| slot == active || known_slot(&self.opp_view, team[slot].species_id).is_some();
         for w in worlds.iter_mut() {
-            let mut taken: Vec<u16> = Vec::with_capacity(6);
-            for slot in (0..6).filter(|&s| team[s].species_id != 0 && seen(s)) {
-                let mb = known_slot(&self.opp_view, team[slot].species_id)
-                    .copied()
-                    .unwrap_or(MonBelief { species_id: team[slot].species_id, ..Default::default() });
-                let input = sample_set(team[slot].species_id, &mb, screen, rng);
-                install(&mut w.state, &mut w.teams, us, slot, &input, Some(&team[slot]), None);
-                copy_true_pp(&mut w.state.sides[us].team[slot], &team[slot]);
-                taken.push(input.species_id);
-            }
-            for slot in (0..6).filter(|&s| team[s].species_id != 0 && !seen(s)) {
-                let sp = sample_unrevealed_species(&taken, screen, rng);
-                taken.push(sp);
-                let input = sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, screen, rng);
-                install(&mut w.state, &mut w.teams, us, slot, &input, Some(&team[slot]), None);
-                copy_true_pp(&mut w.state.sides[us].team[slot], &team[slot]);
-            }
+            blind_our_side(&mut w.state, &mut w.teams, obs, &self.opp_view, rng);
         }
         worlds
+    }
+}
+
+/// Re-samples the decider's side of one world from the opponent's belief, keeping each slot's
+/// public facts (HP, status, Tera state, PP left); one `Declairvoyant` world's draw.
+pub fn blind_our_side(state: &mut BattleState, teams: &mut TeamData, obs: &Observation, opp_view: &Belief, rng: &mut Lcg) {
+    let us = obs.our_side;
+    let team = &obs.state.sides[us].team;
+    let active = obs.state.sides[us].active_index as usize;
+    let screen = opp_view.screen;
+    let seen = |slot: usize| slot == active || known_slot(opp_view, team[slot].species_id).is_some();
+    let mut taken: Vec<u16> = Vec::with_capacity(6);
+    for slot in (0..6).filter(|&s| team[s].species_id != 0 && seen(s)) {
+        let mb = known_slot(opp_view, team[slot].species_id)
+            .copied()
+            .unwrap_or(MonBelief { species_id: team[slot].species_id, ..Default::default() });
+        let input = sample_set(team[slot].species_id, &mb, screen, rng);
+        install(state, teams, us, slot, &input, Some(&team[slot]), None);
+        copy_true_pp(&mut state.sides[us].team[slot], &team[slot]);
+        taken.push(input.species_id);
+    }
+    for slot in (0..6).filter(|&s| team[s].species_id != 0 && !seen(s)) {
+        let sp = sample_unrevealed_species(&taken, screen, rng);
+        taken.push(sp);
+        let input = sample_set(sp, &MonBelief { species_id: sp, ..Default::default() }, screen, rng);
+        install(state, teams, us, slot, &input, Some(&team[slot]), None);
+        copy_true_pp(&mut state.sides[us].team[slot], &team[slot]);
     }
 }
 

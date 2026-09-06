@@ -8,7 +8,7 @@ use crate::action_features::{action_features, ACTION_DENSE_DIM};
 use crate::eval_learned::{masked_softmax, ForwardInput, LearnedEval, LearnedPolicyV2, LearnedValueV2, NUM_ACTIONS};
 use crate::features::{self, DENSE_DIM, NUM_SEGMENTS};
 use crate::rng::{splitmix64, Lcg};
-use crate::search::{closed_loop_max_nodes, search_world, ArmStat, ChanceMode, SearchParams, SearchResult};
+use crate::search::{closed_loop_max_nodes, same_root_shape, search_world, search_world_blind, ArmStat, BlindMode, ChanceMode, SearchParams, SearchResult};
 use pkmn_engine::state::*;
 use rayon::prelude::*;
 
@@ -47,6 +47,7 @@ pub struct PimcConfig {
     pub raw_root: bool,
     pub explore_coeff: f64, // UCB sqrt coefficient (c²); 2.0 = textbook c=√2
     pub value_temp: f32,
+    pub blind_opponent: bool,
 }
 
 /// (action_byte, aggregated visit fraction), sorted desc — exposed for tests/logging.
@@ -236,6 +237,27 @@ fn search_eval(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn search_eval_blind(
+    w: &World,
+    blind_state: &BattleState,
+    blind_teams: &TeamData,
+    eval: EvalKind<'_>,
+    params: &SearchParams,
+    seed: u64,
+    decider_side: usize,
+    prior: Option<&[f32]>,
+) -> SearchResult {
+    match eval {
+        EvalKind::Handcrafted =>
+            search_world_blind(&w.state, &w.teams, blind_state, blind_teams, BlindMode::Split, &Handcrafted, &OpenLoop, params, seed, decider_side, prior),
+        EvalKind::Learned(le) =>
+            search_world_blind(&w.state, &w.teams, blind_state, blind_teams, BlindMode::Split, le, &OpenLoop, params, seed, decider_side, prior),
+        EvalKind::LearnedV2(lv) =>
+            search_world_blind(&w.state, &w.teams, blind_state, blind_teams, BlindMode::Split, lv, &OpenLoop, params, seed, decider_side, prior),
+    }
+}
+
 pub fn choose_action(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig) -> u8 {
     choose_action_eval(obs, belief, det, cfg, EvalKind::Handcrafted, None)
 }
@@ -254,18 +276,28 @@ pub fn choose_action_eval_iters(obs: &Observation, belief: &Belief, det: &impl D
 /// `choose_action_eval_iters` plus the picked action's visit-weighted root value and the
 /// side-0 root value averaged over the searched worlds (both `None` without `train_value`).
 pub fn choose_action_eval_iters_value(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64, Option<f64>, Option<f64>) {
-    let (action, iters, v, vabs, _) = choose_action_eval_iters_value_dist(obs, belief, det, cfg, eval, prior);
+    let (action, iters, v, vabs, _) = choose_action_eval_iters_value_dist(obs, belief, None, det, cfg, eval, prior);
     (action, iters, v, vabs)
 }
 
 /// `choose_action_eval_iters_value` plus the aggregated root distribution (from `aggregate`,
 /// sorted desc); a decision that returns before any search carries its one action at 1.0.
-pub fn choose_action_eval_iters_value_dist(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64, Option<f64>, Option<f64>, Vec<(u8, f64)>) {
+#[allow(clippy::too_many_arguments)]
+pub fn choose_action_eval_iters_value_dist(obs: &Observation, belief: &Belief, opp_view: Option<&Belief>, det: &impl Determinizer, cfg: &PimcConfig, eval: EvalKind<'_>, prior: Option<&LearnedPolicyV2>) -> (u8, u64, Option<f64>, Option<f64>, Vec<(u8, f64)>) {
     let legal = legal_actions(obs.state, obs.our_side);
     if legal.count == 0 { return (ACTION_STRUGGLE, 0, None, None, vec![(ACTION_STRUGGLE, 1.0)]); }
     if legal.count == 1 { return (legal.actions[0], 0, None, None, vec![(legal.actions[0], 1.0)]); }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
+    let blinds: Vec<Option<(BattleState, TeamData, u8)>> = if cfg.blind_opponent {
+        assert!(opp_view.is_some(), "the blinded search needs the opponent's view of our side");
+        assert!(cfg.chance_mode == ChanceMode::OpenLoop, "the blinded search runs under OpenLoop only");
+        let ov = opp_view.unwrap();
+        let mut brng = Lcg(rng.0);
+        worlds.iter().enumerate().map(|(k, w)| blind_world(w, obs, ov, &mut brng, cfg.seed, k)).collect()
+    } else {
+        Vec::new()
+    };
     #[cfg(not(feature = "train_value"))]
     crate::train_dump::maybe_dump_worlds(&worlds, obs.our_side, obs.state.field.turn);
     let mut params = SearchParams {
@@ -283,10 +315,13 @@ pub fn choose_action_eval_iters_value_dist(obs: &Observation, belief: &Belief, d
     let searched: Vec<(SearchResult, f64)> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15));
         let p = priors.as_ref().map(|v| &v[k][..]);
-        let r = match eval {
-            EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed, obs.our_side, p),
-            EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed, obs.our_side, p),
-            EvalKind::LearnedV2(lv) => search_eval(w, lv, cfg, &params, seed, obs.our_side, p),
+        let r = match blinds.get(k).and_then(Option::as_ref) {
+            Some((bs, bt, _)) => search_eval_blind(w, bs, bt, eval, &params, seed, obs.our_side, p),
+            None => match eval {
+                EvalKind::Handcrafted => search_eval(w, &Handcrafted, cfg, &params, seed, obs.our_side, p),
+                EvalKind::Learned(le) => search_eval(w, le, cfg, &params, seed, obs.our_side, p),
+                EvalKind::LearnedV2(lv) => search_eval(w, lv, cfg, &params, seed, obs.our_side, p),
+            },
         };
         (r, w.weight)
     }).collect();
@@ -344,6 +379,8 @@ pub struct WorldTrace {
     pub s2: Vec<ArmStat>,
     // oriented like `arms`/`s2`: (our byte, the opponent's), not side 0's then side 1's
     pub principal: [(u8, u8); 3],
+    // Some(redraws) when the world searched with a blinded root, None when it searched unblinded
+    pub blind: Option<u8>,
 }
 
 #[derive(Clone)]
@@ -360,6 +397,49 @@ pub fn choose_action_traced(obs: &Observation, belief: &Belief, det: &impl Deter
 }
 
 pub fn choose_action_traced_salted(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, search_salt: u64) -> DecisionTrace {
+    traced(obs, belief, det, cfg, search_salt, None)
+}
+
+/// `choose_action_traced_salted` with the two-root search: every world's opponent bandits learn
+/// from a copy whose decider side is re-sampled from `opp_view` (the first draw continues the
+/// world stream as `Declairvoyant` would). A copy whose root arms differ from the world's is
+/// redrawn from a side stream up to `BLIND_REDRAWS` times, after which the world searches
+/// unblinded; `WorldTrace::blind` records which.
+pub fn choose_action_traced_blind(obs: &Observation, belief: &Belief, det: &impl Determinizer, opp_view: &Belief, cfg: &PimcConfig, search_salt: u64, mode: BlindMode) -> DecisionTrace {
+    traced(obs, belief, det, cfg, search_salt, Some((obs, opp_view, mode)))
+}
+
+/// Diagnostic twin of `choose_action_traced_blind`: the worlds and our bandits come from
+/// `obs_swap` (the same observation with the decider's side replaced), while every blinded copy
+/// is drawn exactly as it would be for `obs`, so only the true side differs between the two runs.
+pub fn choose_action_traced_blind_swapped(obs: &Observation, obs_swap: &Observation, belief: &Belief, det: &impl Determinizer, opp_view: &Belief, cfg: &PimcConfig, search_salt: u64, mode: BlindMode) -> DecisionTrace {
+    traced(obs_swap, belief, det, cfg, search_salt, Some((obs, opp_view, mode)))
+}
+
+pub const BLIND_REDRAWS: u8 = 8;
+const BLIND_SALT: u64 = 0x7C15_9E37_79B9_7F4A;
+
+fn blind_world(w: &World, obs: &Observation, opp_view: &Belief, rng: &mut Lcg, seed: u64, k: usize) -> Option<(BattleState, TeamData, u8)> {
+    let draw = |rng: &mut Lcg| {
+        let (mut s, mut t) = (w.state, w.teams.clone());
+        crate::frontier::blind_our_side(&mut s, &mut t, obs, opp_view, rng);
+        (s, t)
+    };
+    let (s, t) = draw(rng);
+    if same_root_shape(&w.state, &s) {
+        return Some((s, t, 0));
+    }
+    for attempt in 1..=BLIND_REDRAWS {
+        let mut side = Lcg::new(splitmix64(seed ^ BLIND_SALT ^ ((k as u64) << 8) ^ attempt as u64));
+        let (s, t) = draw(&mut side);
+        if same_root_shape(&w.state, &s) {
+            return Some((s, t, attempt));
+        }
+    }
+    None
+}
+
+fn traced(obs: &Observation, belief: &Belief, det: &impl Determinizer, cfg: &PimcConfig, search_salt: u64, blind: Option<(&Observation, &Belief, BlindMode)>) -> DecisionTrace {
     let legal = legal_actions(obs.state, obs.our_side);
     let legal_vec: Vec<u8> = legal.as_slice().to_vec();
     if legal.count <= 1 {
@@ -368,6 +448,14 @@ pub fn choose_action_traced_salted(obs: &Observation, belief: &Belief, det: &imp
     }
     let mut rng = Lcg::new(splitmix64(cfg.seed));
     let worlds = det.sample_worlds(obs, belief, cfg.num_worlds, &mut rng);
+    let blinds: Vec<Option<(BattleState, TeamData, u8)>> = match blind {
+        None => worlds.iter().map(|_| None).collect(),
+        Some((facts, ov, _)) => {
+            let mut brng = Lcg(rng.0);
+            worlds.iter().enumerate().map(|(k, w)| blind_world(w, facts, ov, &mut brng, cfg.seed, k)).collect()
+        }
+    };
+    let mode = blind.map_or(BlindMode::Shared, |b| b.2);
     let opp = 1 - obs.our_side;
     let mut params = SearchParams {
         time_ms: cfg.time_ms_per_world,
@@ -381,13 +469,19 @@ pub fn choose_action_traced_salted(obs: &Observation, belief: &Belief, det: &imp
     }
     let traced: Vec<WorldTrace> = worlds.par_iter().enumerate().map(|(k, w)| {
         let seed = splitmix64(cfg.seed ^ (k as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ search_salt);
-        let r = match cfg.chance_mode {
-            ChanceMode::OpenLoop =>
-                search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed, obs.our_side, None),
-            ChanceMode::ClosedLoop =>
-                search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
-            ChanceMode::AnalyticRoot =>
-                search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed, obs.our_side, None),
+        let bw = &blinds[k];
+        let r = if let Some((bs, bt, _)) = bw {
+            assert!(cfg.chance_mode == ChanceMode::OpenLoop, "the blinded search runs under OpenLoop only");
+            search_world_blind(&w.state, &w.teams, bs, bt, mode, &Handcrafted, &OpenLoop, &params, seed, obs.our_side, None)
+        } else {
+            match cfg.chance_mode {
+                ChanceMode::OpenLoop =>
+                    search_world(&w.state, &w.teams, &Handcrafted, &OpenLoop, &params, seed, obs.our_side, None),
+                ChanceMode::ClosedLoop =>
+                    search_world_closed(&w.state, &w.teams, &Handcrafted, &params, seed),
+                ChanceMode::AnalyticRoot =>
+                    search_world(&w.state, &w.teams, &Handcrafted, &AnalyticRoot, &params, seed, obs.our_side, None),
+            }
         };
         let ai = w.state.sides[opp].active_index as usize;
         let om = &w.state.sides[opp].team[ai];
@@ -398,6 +492,7 @@ pub fn choose_action_traced_salted(obs: &Observation, belief: &Belief, det: &imp
             arms: r.side(obs.our_side).to_vec(),
             s2: r.side(opp).to_vec(),
             principal: if obs.our_side == 0 { r.principal } else { r.principal.map(|(a, b)| (b, a)) },
+            blind: bw.as_ref().map(|(_, _, redraws)| *redraws),
         }
     }).collect();
     let per_world_stats: Vec<(Vec<ArmStat>, f64)> =
@@ -453,6 +548,7 @@ mod tests {
                 num_worlds: 4, time_ms_per_world: 10_000, max_iters_per_world: 4_000,
                 seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax,
                 filter_threshold: 0.75, raw_root: false, explore_coeff: 0.49, value_temp: 1.0,
+                blind_opponent: false,
             };
             let tr = choose_action_traced(&obs, &belief, &RandomBattle, &cfg);
             assert_eq!(tr.per_world.len(), 4);
@@ -532,6 +628,7 @@ mod tests {
             raw_root: false,
             explore_coeff: 2.0,
             value_temp: 1.0,
+            blind_opponent: false,
         }
     }
 
@@ -581,6 +678,7 @@ mod tests {
             raw_root: false,
             explore_coeff: 2.0,
             value_temp: 1.0,
+            blind_opponent: false,
         };
         let (_action, served) =
             choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
@@ -606,6 +704,7 @@ mod tests {
             raw_root: false,
             explore_coeff: 2.0,
             value_temp: 1.0,
+            blind_opponent: false,
         };
         let (_action, served) =
             choose_action_eval_iters(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
@@ -721,7 +820,7 @@ mod tests {
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
         // Iteration-bounded; the clock is only a safety ceiling.
-        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0, blind_opponent: false };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
@@ -737,7 +836,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
+        let cfg = PimcConfig { num_worlds: 4, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0, blind_opponent: false };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None);
         assert_eq!(a, b, "4-arg form must delegate to the eval-carrying form unchanged");
@@ -761,7 +860,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 2, time_ms_per_world: 1000, max_iters_per_world: 200, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
+        let cfg = PimcConfig { num_worlds: 2, time_ms_per_world: 1000, max_iters_per_world: 200, seed: 9, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Argmax, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0, blind_opponent: false };
         let a = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, Some(&net));
         assert!(legal_actions(&s, 0).as_slice().contains(&a));
         let b = choose_action_eval(&obs, &belief, &RandomBattle, &cfg, EvalKind::Handcrafted, Some(&net));
@@ -885,7 +984,7 @@ mod tests {
         let mut belief = Belief::default();
         belief.note_species(445, s.sides[1].team[0].level);
         let obs = Observation { state: &s, our_side: 0, teams: &t };
-        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0 };
+        let cfg = PimcConfig { num_worlds: 16, time_ms_per_world: 1000, max_iters_per_world: 2000, seed: 42, chance_mode: ChanceMode::OpenLoop, pick_mode: PickMode::Weighted, filter_threshold: 0.75, raw_root: false, explore_coeff: 2.0, value_temp: 1.0, blind_opponent: false };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);
         assert_eq!(a, b, "par_iter order preserved -> same seed -> same choice");
@@ -903,6 +1002,7 @@ mod tests {
             raw_root: false,
             explore_coeff: 2.0,
             value_temp,
+            blind_opponent: false,
         }
     }
 
@@ -1037,5 +1137,60 @@ mod tests {
                 assert_ne!(av(&w.arms), av(&w.s2), "us={us}");
             }
         }
+    }
+
+    // the fixture's mons carry no Tera type, but every drawn set does, so give our side one
+    fn blind_fixture() -> (BattleState, TeamData, Belief, Belief) {
+        let (mut s, t) = salt_root();
+        for m in s.sides[0].team.iter_mut().filter(|m| m.species_id != 0) {
+            m.tera_type = 1;
+        }
+        let mut belief = Belief::default();
+        belief.note_species(445, s.sides[1].team[0].level);
+        let mut opp_view = Belief::default();
+        opp_view.note_species(25, s.sides[0].team[0].level);
+        (s, t, belief, opp_view)
+    }
+
+    #[test]
+    fn blind_our_side_draws_one_declairvoyant_world() {
+        use crate::frontier::{blind_our_side, Declairvoyant};
+        let (s, t, belief, opp_view) = blind_fixture();
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let denied = Declairvoyant { inner: RandomBattle, opp_view };
+        let want = denied.sample_worlds(&obs, &belief, 4, &mut Lcg::new(splitmix64(17)));
+        let mut rng = Lcg::new(splitmix64(17));
+        let mut got = RandomBattle.sample_worlds(&obs, &belief, 4, &mut rng);
+        for w in got.iter_mut() {
+            blind_our_side(&mut w.state, &mut w.teams, &obs, &opp_view, &mut rng);
+        }
+        assert_eq!(want.len(), got.len());
+        for (a, b) in want.iter().zip(&got) {
+            assert!(a.state == b.state, "the same world, drawn either way");
+            assert_eq!(a.teams, b.teams);
+        }
+        assert!(want.iter().any(|w| w.state.sides[0] != s.sides[0]), "fixture: the blinded side really changes");
+    }
+
+    #[test]
+    fn a_blinded_trace_keeps_our_root_arms_and_moves_the_opponents() {
+        let (s, t, belief, opp_view) = blind_fixture();
+        let obs = Observation { state: &s, our_side: 0, teams: &t };
+        let cfg = temp_cfg(17, 1.0);
+        let plain = choose_action_traced_salted(&obs, &belief, &RandomBattle, &cfg, 0);
+        let blind = choose_action_traced_blind(&obs, &belief, &RandomBattle, &opp_view, &cfg, 0, BlindMode::Shared);
+        assert_eq!(plain.per_world.len(), blind.per_world.len());
+        let legal: Vec<u8> = legal_actions(&s, 0).as_slice().to_vec();
+        let mut moved = false;
+        for (x, y) in plain.per_world.iter().zip(&blind.per_world) {
+            assert_eq!(x.blind, None);
+            assert!(y.blind.is_some(), "every world of the fixture blinds");
+            assert_eq!(y.arms.iter().map(|a| a.action).collect::<Vec<_>>(), legal, "our root arms keep their bytes");
+            assert_eq!(x.iterations, y.iterations);
+            assert_eq!((x.opp_species, x.opp_item, x.opp_ability), (y.opp_species, y.opp_item, y.opp_ability));
+            assert_eq!(y.arms.iter().map(|a| a.visits as u64).sum::<u64>(), y.iterations.div_ceil(2));
+            moved |= av(&x.s2) != av(&y.s2);
+        }
+        assert!(moved, "the opponent's root statistics must come from the blinded roots");
     }
 }

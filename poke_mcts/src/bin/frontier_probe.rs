@@ -3,13 +3,13 @@ use pkmn_engine::state::{data_bridge, effective_moves, legal_actions, move_base_
 use poke_mcts::belief::{possible, species_sets_with_base_fallback, Belief, MonBelief};
 use poke_mcts::chance::OpenLoop;
 use poke_mcts::determinize::{Determinizer, Observation, RandomBattle};
-use poke_mcts::driver::{aggregate, choose_action_traced, choose_action_traced_salted, pick_from, PickMode, PimcConfig, WorldTrace};
+use poke_mcts::driver::{aggregate, choose_action_traced, choose_action_traced_blind, choose_action_traced_blind_swapped, choose_action_traced_salted, pick_from, PickMode, PimcConfig, WorldTrace};
 use poke_mcts::eval::{Evaluator, Handcrafted};
 use poke_mcts::eval_learned::LearnedValueV2;
-use poke_mcts::frontier::{gen_team, read_all, read_rows, Declairvoyant, NativeSnapshot, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
+use poke_mcts::frontier::{blind_our_side, gen_team, read_all, read_rows, Declairvoyant, NativeSnapshot, PlayoutEval, PlayoutPolicy, Row, PLAYOUT_STEP_CAP};
 use poke_mcts::gen_sets::{SetEntry, GEN9_SET_POOL};
 use poke_mcts::rng::{splitmix64, Lcg};
-use poke_mcts::search::{search_world, ArmStat, ChanceMode, SearchParams, NO_ARM};
+use poke_mcts::search::{same_root_shape, search_world, ArmStat, BlindMode, ChanceMode, SearchParams, NO_ARM};
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
@@ -598,6 +598,10 @@ struct Run {
     pick_af: bool,
     short: u32,
     arms_lt2: u32,
+    arms_identical: u32,
+    blind_fallback: u32,
+    blind_redraws: u32,
+    swap_fallback: u32,
     min_iters: u64,
     worlds: Vec<WorldCell>,
 }
@@ -606,14 +610,46 @@ fn opp_key(w: &WorldTrace) -> (u16, u16, u16, u16, u16, u8) {
     (w.opp_species, w.opp_item, w.opp_ability, w.opp_hp, w.opp_max_hp, w.opp_status)
 }
 
-fn run_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig) -> Run {
+const SWAP_SALT: u64 = 0x2545_F491_4F6C_DD1D;
+const SWAP_REDRAWS: u64 = 16;
+
+// the root with our side replaced by a draw from the opponent's belief, redrawn until both sides'
+// legal arms match the true root's; None when no draw matches
+fn swapped_truth(snap: &NativeSnapshot, cfg_seed: u64) -> Option<(BattleState, TeamData)> {
+    let side = snap.side as usize;
+    let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
+    for attempt in 0..SWAP_REDRAWS {
+        let (mut s, mut t) = (snap.state, snap.teams.clone());
+        blind_our_side(&mut s, &mut t, &obs, &snap.beliefs[1 - side], &mut Lcg::new(splitmix64(cfg_seed ^ SWAP_SALT ^ attempt)));
+        if same_root_shape(&snap.state, &s) {
+            return Some((s, t));
+        }
+    }
+    None
+}
+
+// mode: arms A and F search with the blinded prototype in that mode; swap (needs a mode): arm B is
+// the prototype on a swapped truth with the same blinded copies instead of Declairvoyant
+fn run_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig, mode: Option<BlindMode>, swap: bool) -> Run {
     let side = snap.side as usize;
     let obs = Observation { state: &snap.state, teams: &snap.teams, our_side: side };
     let belief = &snap.beliefs[side];
     let denied = Declairvoyant { inner: RandomBattle, opp_view: snap.beliefs[1 - side] };
-    let a = choose_action_traced_salted(&obs, belief, &RandomBattle, cfg, 0);
-    let b = choose_action_traced_salted(&obs, belief, &denied, cfg, 0);
-    let f = choose_action_traced_salted(&obs, belief, &RandomBattle, cfg, SEARCH_SALT);
+    let arm_a = |salt: u64| match mode {
+        Some(m) => choose_action_traced_blind(&obs, belief, &RandomBattle, &snap.beliefs[1 - side], cfg, salt, m),
+        None => choose_action_traced_salted(&obs, belief, &RandomBattle, cfg, salt),
+    };
+    let a = arm_a(0);
+    let swapped = if swap { swapped_truth(snap, cfg.seed) } else { None };
+    let b = match (&swapped, mode) {
+        (Some((s, t)), Some(m)) => {
+            let obs_swap = Observation { state: s, teams: t, our_side: side };
+            choose_action_traced_blind_swapped(&obs, &obs_swap, belief, &RandomBattle, &snap.beliefs[1 - side], cfg, 0, m)
+        }
+        (None, _) if swap => arm_a(0),
+        _ => choose_action_traced_salted(&obs, belief, &denied, cfg, 0),
+    };
+    let f = arm_a(SEARCH_SALT);
     let worlds = cfg.num_worlds;
     for t in [&a, &b, &f] {
         assert_eq!(t.per_world.len(), worlds, "root {position}: world count");
@@ -621,7 +657,7 @@ fn run_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig)
     let opp = 1 - side;
     // the shipped arms' draw replayed for the sampled sets the trace omits; Declairvoyant draws the opponent's side first from the same stream, so its worlds share them
     let sampled = RandomBattle.sample_worlds(&obs, belief, worlds, &mut Lcg::new(splitmix64(cfg.seed)));
-    let mut run = Run { seed, pick: [a.picked, b.picked, f.picked], pick_ab: a.picked != b.picked, pick_af: a.picked != f.picked, min_iters: u64::MAX, ..Default::default() };
+    let mut run = Run { seed, pick: [a.picked, b.picked, f.picked], pick_ab: a.picked != b.picked, pick_af: a.picked != f.picked, min_iters: u64::MAX, swap_fallback: (swap && swapped.is_none()) as u32, ..Default::default() };
     for k in 0..worlds {
         let (wa, wb, wf) = (&a.per_world[k], &b.per_world[k], &f.per_world[k]);
         assert!(opp_key(wa) == opp_key(wb) && opp_key(wa) == opp_key(wf), "root {position} world {k}: opponent slot differs between runs");
@@ -650,6 +686,9 @@ fn run_root(snap: &NativeSnapshot, position: usize, seed: u64, cfg: &PimcConfig)
         run.l1_ab.push(l1(&wa.s2, &wb.s2));
         run.l1_af.push(l1(&wa.s2, &wf.s2));
         run.arms_lt2 += (wa.s2.len() < 2) as u32;
+        run.arms_identical += wa.arms.iter().map(|x| x.action).eq(legal_actions(ws, side).as_slice().iter().copied()) as u32;
+        run.blind_fallback += (mode.is_some() && wa.blind.is_none()) as u32;
+        run.blind_redraws += wa.blind.unwrap_or(0) as u32;
         let iters = [wa.iterations, wb.iterations, wf.iterations];
         run.short += iters.iter().filter(|&&i| i < cfg.max_iters_per_world).count() as u32;
         run.min_iters = run.min_iters.min(*iters.iter().min().unwrap());
@@ -858,9 +897,24 @@ fn declairvoyance(args: &[String]) {
             std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
         }
     }
+    let has = |flag: &str| args.iter().any(|a| a == flag);
+    let swap = has("--proto-swap") || has("--proto-split-swap");
+    let mode = if has("--proto-split") || has("--proto-split-swap") {
+        Some(BlindMode::Split)
+    } else if swap || has("--proto-blind") {
+        Some(BlindMode::Shared)
+    } else {
+        None
+    };
     println!(
-        "declairvoyance: roots={} seeds={seeds:?} worlds={worlds} iters={iters} time_ms={time_ms} evaluator=Handcrafted determinizer_a=RandomBattle determinizer_b=Declairvoyant(RandomBattle) chance=OpenLoop pick=Argmax filter={PICK_FILTER} raw_root=false explore_coeff={EXPLORE_COEFF} value_temp=1.0 search_salt=0x{SEARCH_SALT:x} top_arm=max_visits_lowest_byte_on_ties principal=max_visit_joint_path_3_plies threads={threads}",
-        roots.len()
+        "declairvoyance: roots={} seeds={seeds:?} worlds={worlds} iters={iters} time_ms={time_ms} evaluator=Handcrafted determinizer_a=RandomBattle determinizer_b=Declairvoyant(RandomBattle) chance=OpenLoop pick=Argmax filter={PICK_FILTER} raw_root=false explore_coeff={EXPLORE_COEFF} value_temp=1.0 search_salt=0x{SEARCH_SALT:x} top_arm=max_visits_lowest_byte_on_ties principal=max_visit_joint_path_3_plies threads={threads} arm_a_search={} arm_b_search={}",
+        roots.len(),
+        match mode {
+            None => "shipped",
+            Some(BlindMode::Shared) => "blind_proto_shared(opp_view=beliefs[opp],alternating_rollouts)",
+            Some(BlindMode::Split) => "blind_proto_split(opp_view=beliefs[opp],alternating_rollouts,own_decider_bandit_phase_dice)",
+        },
+        if swap { "blind_proto_on_swapped_truth(same_mode,same_blinded_copies,redraw_salt=0x2545f4914f6cdd1d)" } else { "shipped_on_Declairvoyant_worlds" }
     );
     let cfg = |seed: u64| PimcConfig {
         num_worlds: worlds,
@@ -873,6 +927,7 @@ fn declairvoyance(args: &[String]) {
         raw_root: false,
         explore_coeff: EXPLORE_COEFF,
         value_temp: 1.0,
+        blind_opponent: false,
     };
 
     let done = AtomicU64::new(0);
@@ -883,7 +938,7 @@ fn declairvoyance(args: &[String]) {
     let runs: Vec<Vec<Run>> = pool.install(|| {
         roots.par_iter().map(|root| {
             let snap = &snaps[root.position];
-            let runs: Vec<Run> = seeds.iter().map(|&s| run_root(snap, root.position, s, &cfg(row_seed(s, root.position)))).collect();
+            let runs: Vec<Run> = seeds.iter().map(|&s| run_root(snap, root.position, s, &cfg(row_seed(s, root.position)), mode, swap)).collect();
             let total: u64 = runs.iter().flat_map(|r| &r.worlds).map(|w| w.iters.iter().sum::<u64>()).sum();
             iters_total.fetch_add(total, Ordering::Relaxed);
             if !first.swap(true, Ordering::Relaxed) {
@@ -900,9 +955,13 @@ fn declairvoyance(args: &[String]) {
     let total = iters_total.load(Ordering::Relaxed);
     let short: u64 = runs.iter().flatten().map(|r| r.short as u64).sum();
     let lt2: u64 = runs.iter().flatten().map(|r| r.arms_lt2 as u64).sum();
+    let identical: u64 = runs.iter().flatten().map(|r| r.arms_identical as u64).sum();
+    let fallback: u64 = runs.iter().flatten().map(|r| r.blind_fallback as u64).sum();
+    let redraws: u64 = runs.iter().flatten().map(|r| r.blind_redraws as u64).sum();
+    let swap_fallback: u64 = runs.iter().flatten().map(|r| r.swap_fallback as u64).sum();
     println!(
-        "declairvoyance-done roots={} seeds={} wall_s={wall_s:.1} iters={total} iters_per_s={:.0} iters_per_s_per_thread={:.0} short_searches={short} opp_arms_lt2={lt2}",
-        roots.len(), seeds.len(), total as f64 / wall_s, total as f64 / wall_s / threads as f64
+        "declairvoyance-done roots={} seeds={} wall_s={wall_s:.1} iters={total} iters_per_s={:.0} iters_per_s_per_thread={:.0} short_searches={short} opp_arms_lt2={lt2} root_arms_worlds={} root_arms_identical={identical} blind_fallback_worlds={fallback} blind_redraws={redraws} swap_fallback_cells={swap_fallback}",
+        roots.len(), seeds.len(), total as f64 / wall_s, total as f64 / wall_s / threads as f64, roots.len() * seeds.len() * worlds
     );
 
     let fmt = |o: Option<u8>| o.map_or("-".to_string(), |p| p.to_string());
@@ -1220,6 +1279,7 @@ fn support_sharing(args: &[String]) {
         raw_root: false,
         explore_coeff: EXPLORE_COEFF,
         value_temp: 1.0,
+        blind_opponent: false,
     };
 
     let done = AtomicU64::new(0);
@@ -1357,6 +1417,7 @@ fn flip_root(snap: &NativeSnapshot, position: usize, run_seed: u64, specs: &[Arm
             raw_root: false,
             explore_coeff: EXPLORE_COEFF,
             value_temp: 1.0,
+            blind_opponent: false,
         };
         let t = choose_action_traced_salted(&obs, belief, &RandomBattle, &cfg, sp.salt);
         assert_eq!(t.per_world.len(), sp.worlds, "root {position} arm {}: world count", sp.label);
@@ -2183,7 +2244,7 @@ fn main() {
         eprintln!("usage: frontier_probe (--count | --flip-fields | --cost | --signal | --declairvoyance | --support-sharing | --worlds-flip | --prior-nll | --leaf-dispersion | --world-dups) [--rows A,B] [--limit N] [--budgets 1024,32768] [--seeds 1,2,3] [--threads T] [--out ROWS.tsv] [--summary FLIPS.tsv]");
         eprintln!("  --cost [--turn-lo 5] [--turn-hi 25] [--n 2000] [--repeats 3] [--seed 1] [--out results/0.3.cost.tsv]");
         eprintln!("  --signal [--k 8,32] [--seed 1] [--threads T] [--out results/0.3.values.tsv]  (needs BRIDGE_EVAL_WEIGHTS_V2)");
-        eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv] [--offroot results/0.7.offroot.tsv]");
+        eprintln!("  --declairvoyance [--snapshots PATH] [--roots FILE] [--roots-out FILE] [--n 3000] [--turn-lo 2] [--turn-hi 20] [--sample-seed 11] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--proto-blind | --proto-swap | --proto-split | --proto-split-swap] [--out results/0.7.diff.tsv] [--dump results/0.7.worlds.tsv] [--offroot results/0.7.offroot.tsv]");
         eprintln!("  --support-sharing [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--worlds 8] [--iters 35199] [--time-ms 600000] [--threads T] [--out results/0.11.sharing.tsv] [--dump results/0.11.paths.tsv]");
         eprintln!("  --worlds-flip [--snapshots PATH] [--roots results/0.7.roots.tsv] [--seeds 1,2,3] [--arm-a 8x8192] [--arm-b 64x1024] [--arm-c 64x8192] [--floor 8x8192] [--time-ms 600000] [--threads T] [--out results/0.9.worlds.tsv] [--dump PICKS.tsv]");
         eprintln!("  --prior-nll [--snapshots PATH] [--roots results/0.7.roots.tsv] [--out results/0.9.nll.tsv] [--dump ROWS.tsv]");

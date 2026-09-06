@@ -1,6 +1,6 @@
 use crate::chance::ChanceModel;
 use crate::eval::{sigmoid, winner_value, Evaluator};
-use crate::node::{child_key, Node, NO_CHILD};
+use crate::node::{child_key, Bandit, Node, NO_CHILD};
 use crate::rng::Lcg;
 use crate::select::select_arm;
 use pkmn_engine::state::*;
@@ -98,9 +98,57 @@ struct PathStep { node: usize, a1: u8, a2: u8 } // arm indices; 255 = side had n
 pub const NO_ARM: u8 = 255;
 pub const NO_PRINCIPAL: [(u8, u8); 3] = [(NO_ARM, NO_ARM); 3];
 
+// Shared: one tree; blinded rollouts pick our action from our true bandit and credit only the
+// opponent's. Split: blinded rollouts carry their own decider bandit, phase and dice, so the
+// opponent's statistics are a function of the blinded root alone; the two parts of a node share
+// only the child index array, and a rollout reaching a node whose part is missing initialises it
+// and stops, as an expansion.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BlindMode { Shared, Split }
+const NO_PART: u8 = 255;
+const BLIND_RNG_SALT: u64 = 0x5851_F42D_4C95_7F2D;
+
+struct BlindPart { phase: u8, us: Bandit }
+
 pub fn search_world(
     root_state: &BattleState,
     teams: &TeamData,
+    evaluator: &impl Evaluator,
+    chance: &impl ChanceModel,
+    params: &SearchParams,
+    seed: u64,
+    decider_side: usize,
+    prior: Option<&[f32]>,
+) -> SearchResult {
+    search_world_inner(root_state, teams, None, evaluator, chance, params, seed, decider_side, prior)
+}
+
+/// Two-root search: odd iterations roll out the blinded root (the same world with the decider's
+/// side re-sampled from the opponent's belief) and credit only the opponent's bandits; even
+/// iterations roll out `root_state` and credit only the decider's. A blinded root whose legal
+/// arms differ from the true root's is ignored.
+#[allow(clippy::too_many_arguments)]
+pub fn search_world_blind(
+    root_state: &BattleState,
+    teams: &TeamData,
+    blind_state: &BattleState,
+    blind_teams: &TeamData,
+    mode: BlindMode,
+    evaluator: &impl Evaluator,
+    chance: &impl ChanceModel,
+    params: &SearchParams,
+    seed: u64,
+    decider_side: usize,
+    prior: Option<&[f32]>,
+) -> SearchResult {
+    search_world_inner(root_state, teams, Some((blind_state, blind_teams, mode)), evaluator, chance, params, seed, decider_side, prior)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn search_world_inner(
+    root_state: &BattleState,
+    teams: &TeamData,
+    blind: Option<(&BattleState, &TeamData, BlindMode)>,
     evaluator: &impl Evaluator,
     chance: &impl ChanceModel,
     params: &SearchParams,
@@ -115,6 +163,16 @@ pub fn search_world(
         return harvest(&tree, 0, 0, 0);
     }
     let root_eval = evaluator.eval(root_state) as f32;
+    let blind = blind.filter(|(b, _, _)| same_root_shape(root_state, b));
+    let blind_eval = blind.map_or(root_eval, |(b, _, _)| evaluator.eval(b) as f32);
+    let split = matches!(blind, Some((_, _, BlindMode::Split)));
+    let mut parts: Vec<BlindPart> = Vec::new();
+    if let Some((b, _, BlindMode::Split)) = blind {
+        parts.reserve(4096);
+        parts.push(BlindPart { phase: NO_PART, us: Bandit::default() });
+        init_blind_part(&mut tree[0], &mut parts[0], b, decider_side);
+    }
+    let mut brng = Lcg::new(seed ^ BLIND_RNG_SALT);
     let start = Instant::now();
     let mut iters: u64 = 0;
     let mut guard_hits: u64 = 0;
@@ -134,7 +192,13 @@ pub fn search_world(
             break 'outer;
         }
         path.clear();
-        let mut cur = *root_state;
+        let blinded = blind.is_some() && iters & 1 == 1;
+        let (start_state, teams, root_eval) = match blind {
+            Some((bs, bt, _)) if blinded => (bs, bt, blind_eval),
+            _ => (root_state, teams, root_eval),
+        };
+        let dice: &mut Lcg = if split && blinded { &mut brng } else { &mut rng };
+        let mut cur = *start_state;
         let mut idx = 0usize;
         let value: f64;
         #[cfg(feature = "train_value")]
@@ -143,8 +207,15 @@ pub fn search_world(
         loop {
             // arm-mismatch guard: this sample diverged from the node's recorded shape
             // (provably never fires at the root, where cur is the untouched root state)
-            if idx != 0 && (tree[idx].phase != cur.phase || !arms_match(&tree[idx], &cur)) {
-                guard_hits += 1;
+            let stop = idx != 0
+                && if split {
+                    part_mismatch(&mut tree[idx], &mut parts[idx], &cur, blinded, decider_side, &mut guard_hits)
+                } else {
+                    let hit = tree[idx].phase != cur.phase || !arms_match(&tree[idx], &cur);
+                    guard_hits += hit as u64;
+                    hit
+                };
+            if stop {
                 #[cfg(not(feature = "train_value"))]
                 {
                     value = leaf(&cur, evaluator, root_eval, params.value_temp);
@@ -160,8 +231,15 @@ pub fn search_world(
             }
             let node = &tree[idx];
             let (p1, p2) = bandit_priors(idx, decider_side, prior);
-            let (a1, b1) = pick_with(&node.s1, node.visits, params.explore_coeff, p1);
-            let (a2, b2) = pick_with(&node.s2, node.visits, params.explore_coeff, p2);
+            let (n1, n2) = parent_visits(node, blind.is_some(), decider_side);
+            let (a1, b1) = pick_with(&node.s1, n1, params.explore_coeff, p1);
+            let (a2, b2) = pick_with(&node.s2, n2, params.explore_coeff, p2);
+            let (a1, b1, a2, b2) = if split && blinded {
+                let (af, bf) = pick_with(&parts[idx].us, node.blind_visits, params.explore_coeff, None);
+                if decider_side == 0 { (af, bf, a2, b2) } else { (a1, b1, af, bf) }
+            } else {
+                (a1, b1, a2, b2)
+            };
             if a1 == NO_ARM && a2 == NO_ARM {
                 #[cfg(not(feature = "train_value"))]
                 {
@@ -194,13 +272,13 @@ pub fn search_world(
                             if a2 != NO_ARM { win_s2[a2 as usize] = ko.0; }
                         }
                     }
-                    let r = rng.roll(crate::chance_analytic::WEIGHT_SCALE);
+                    let r = dice.roll(crate::chance_analytic::WEIGHT_SCALE);
                     crate::chance_analytic::pick_weighted(&children, r)
                 } else {
-                    chance.transition(&cur, teams, b1, b2, &mut |m| rng.roll(m))
+                    chance.transition(&cur, teams, b1, b2, &mut |m| dice.roll(m))
                 }
             } else {
-                chance.transition(&cur, teams, b1, b2, &mut |m| rng.roll(m))
+                chance.transition(&cur, teams, b1, b2, &mut |m| dice.roll(m))
             };
             path.push(PathStep { node: idx, a1, a2 });
 
@@ -224,6 +302,9 @@ pub fn search_world(
                 }
                 if (tree.len() as u32) < params.max_nodes && !cur.is_game_over() {
                     tree.push(Node::from_state(&cur));
+                    if split {
+                        parts.push(own_part(tree.last_mut().unwrap(), blinded, decider_side));
+                    }
                     let new_idx = (tree.len() - 1) as u32;
                     tree[idx].children[key] = new_idx;
                 }
@@ -247,15 +328,25 @@ pub fn search_world(
             value_sum += value_abs;
             value_count += 1;
         }
+        let (credit_s1, credit_s2) = if blind.is_none() {
+            (true, true)
+        } else {
+            let c = blinded ^ (decider_side == 0);
+            (c, !c)
+        };
         for step in path.iter() {
             let n = &mut tree[step.node];
-            n.visits += 1;
-            if step.a1 != NO_ARM {
+            if split && blinded {
+                credit_blind_part(n, &mut parts[step.node], step, value, decider_side);
+                continue;
+            }
+            if blinded { n.blind_visits += 1; } else { n.visits += 1; }
+            if step.a1 != NO_ARM && credit_s1 {
                 let arm = &mut n.s1.arms[step.a1 as usize];
                 arm.visits += 1;
                 arm.total_score += value;
             }
-            if step.a2 != NO_ARM {
+            if step.a2 != NO_ARM && credit_s2 {
                 let arm = &mut n.s2.arms[step.a2 as usize];
                 arm.visits += 1;
                 arm.total_score += 1.0 - value;
@@ -340,6 +431,85 @@ fn arms_match(node: &Node, state: &BattleState) -> bool {
 fn same_actions(b: &crate::node::Bandit, l: &ActionList) -> bool {
     if b.len != l.count { return false; }
     (0..b.len as usize).all(|i| b.arms[i].action == l.actions[i])
+}
+
+#[inline]
+fn parent_visits(node: &Node, blind: bool, decider_side: usize) -> (u32, u32) {
+    match (blind, decider_side) {
+        (false, _) => (node.visits, node.visits),
+        (true, 0) => (node.visits, node.blind_visits),
+        (true, _) => (node.blind_visits, node.visits),
+    }
+}
+
+pub fn same_root_shape(a: &BattleState, b: &BattleState) -> bool {
+    a.phase == b.phase && (0..2).all(|s| legal_actions(a, s).as_slice() == legal_actions(b, s).as_slice())
+}
+
+fn side_mut(n: &mut Node, side: usize) -> &mut Bandit {
+    if side == 0 { &mut n.s1 } else { &mut n.s2 }
+}
+
+// the opponent's bandit belongs to the blind part: its arms come from the blinded state
+fn init_blind_part(n: &mut Node, p: &mut BlindPart, state: &BattleState, decider_side: usize) {
+    p.phase = state.phase;
+    p.us = Bandit::from_actions(&legal_actions(state, decider_side));
+    *side_mut(n, 1 - decider_side) = Bandit::from_actions(&legal_actions(state, 1 - decider_side));
+}
+
+fn init_true_part(n: &mut Node, state: &BattleState, decider_side: usize) {
+    n.phase = state.phase;
+    *side_mut(n, decider_side) = Bandit::from_actions(&legal_actions(state, decider_side));
+}
+
+// a node a blinded rollout creates owns only the blind part; one a true rollout creates only the true part
+fn own_part(n: &mut Node, blinded: bool, decider_side: usize) -> BlindPart {
+    if blinded {
+        let p = BlindPart { phase: n.phase, us: *side_mut(n, decider_side) };
+        n.phase = NO_PART;
+        p
+    } else {
+        BlindPart { phase: NO_PART, us: Bandit::default() }
+    }
+}
+
+// whether this rollout stops at `n`: its part was missing (initialised here, as an expansion) or
+// the part's shape differs from `cur` (a guard hit)
+fn part_mismatch(n: &mut Node, p: &mut BlindPart, cur: &BattleState, blinded: bool, decider_side: usize, guard_hits: &mut u64) -> bool {
+    let o = 1 - decider_side;
+    if blinded && p.phase == NO_PART {
+        init_blind_part(n, p, cur, decider_side);
+        return true;
+    }
+    if !blinded && n.phase == NO_PART {
+        init_true_part(n, cur, decider_side);
+        return true;
+    }
+    let (phase, us) = if blinded { (p.phase, &p.us) } else { (n.phase, side_of(n, decider_side)) };
+    let hit = phase != cur.phase
+        || !same_actions(us, &legal_actions(cur, decider_side))
+        || !same_actions(side_of(n, o), &legal_actions(cur, o));
+    *guard_hits += hit as u64;
+    hit
+}
+
+fn side_of(n: &Node, side: usize) -> &Bandit {
+    if side == 0 { &n.s1 } else { &n.s2 }
+}
+
+fn credit_blind_part(n: &mut Node, p: &mut BlindPart, step: &PathStep, value: f64, decider_side: usize) {
+    n.blind_visits += 1;
+    let (ad, ao, vd) = if decider_side == 0 { (step.a1, step.a2, value) } else { (step.a2, step.a1, 1.0 - value) };
+    if ad != NO_ARM {
+        let arm = &mut p.us.arms[ad as usize];
+        arm.visits += 1;
+        arm.total_score += vd;
+    }
+    if ao != NO_ARM {
+        let arm = &mut side_mut(n, 1 - decider_side).arms[ao as usize];
+        arm.visits += 1;
+        arm.total_score += 1.0 - vd;
+    }
 }
 
 pub(crate) fn harvest_bandits(s1: &crate::node::Bandit, s2: &crate::node::Bandit, iterations: u64, guard_hits: u64, depth_sum: u64) -> SearchResult {
@@ -672,5 +842,127 @@ mod tests {
         s.phase = PHASE_GAME_OVER;
         let r = run(&s, &t, 10, 100, 1);
         assert_eq!(r.iterations, 0, "no legal arms at a terminal root");
+    }
+
+    fn bytes(arms: &[ArmStat]) -> Vec<u8> {
+        arms.iter().map(|a| a.action).collect()
+    }
+
+    fn visits(arms: &[ArmStat]) -> Vec<(u8, u32)> {
+        arms.iter().map(|a| (a.action, a.visits)).collect()
+    }
+
+    fn total_visits(arms: &[ArmStat]) -> u64 {
+        arms.iter().map(|a| a.visits as u64).sum()
+    }
+
+    // the blinded root re-samples one side's moves (same counts, so both roots expose the same arms)
+    fn blinded_root(side: usize) -> (BattleState, TeamData) {
+        let ours = vec![mon(143, 47, [85, 150, 57, 0]), mon(25, 9, [34, 89, 0, 0])];
+        let theirs = vec![mon(130, 22, [14, 89, 85, 0]), mon(445, 24, [57, 33, 0, 0])];
+        let (truth, _) = benched_root();
+        let (p1, p2) = if side == 0 {
+            (ours, vec![mon(130, 22, [57, 85, 33, 0]), mon(445, 24, [89, 14, 0, 0])])
+        } else {
+            (vec![mon(143, 47, [34, 89, 33, 0]), mon(25, 9, [85, 150, 0, 0])], theirs)
+        };
+        let out = build_state(p1, p2);
+        assert!(same_root_shape(&truth, &out.0), "fixture: both roots expose the same arms");
+        assert_ne!(truth.sides[side].team[0].moves, out.0.sides[side].team[0].moves, "fixture: side {side} differs");
+        assert!(truth.sides[1 - side] == out.0.sides[1 - side], "fixture: side {} is unchanged", 1 - side);
+        out
+    }
+
+    #[test]
+    fn blinded_search_keeps_the_deciders_root_arms_and_splits_the_rollouts() {
+        let (s, t) = benched_root();
+        let (bs, bt) = blinded_root(0);
+        let p = SearchParams { time_ms: 10_000, max_iters: 2_000, ..Default::default() };
+        let plain = search_world(&s, &t, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        let blind = search_world_blind(&s, &t, &bs, &bt, BlindMode::Shared, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        assert_eq!(blind.iterations, 2_000);
+        assert_eq!(bytes(&blind.s1), bytes(&plain.s1), "our root arms keep their bytes");
+        assert_eq!(bytes(&blind.s1), legal_actions(&s, 0).as_slice());
+        assert_eq!(bytes(&blind.s2), bytes(&plain.s2));
+        assert_eq!(total_visits(&blind.s1), 1_000, "the true rollouts credit our arms");
+        assert_eq!(total_visits(&blind.s2), 1_000, "the blinded rollouts credit the opponent's");
+        assert_ne!(visits(&blind.s2), visits(&plain.s2), "the opponent's statistics come from the blinded root");
+    }
+
+    #[test]
+    fn the_decider_at_seat_one_is_credited_by_the_true_rollouts() {
+        let (s, t) = benched_root();
+        let (bs, bt) = blinded_root(1);
+        let p = SearchParams { time_ms: 10_000, max_iters: 2_001, ..Default::default() };
+        let plain = search_world(&s, &t, &Handcrafted, &OpenLoop, &p, 5, 1, None);
+        let blind = search_world_blind(&s, &t, &bs, &bt, BlindMode::Shared, &Handcrafted, &OpenLoop, &p, 5, 1, None);
+        assert_eq!(blind.iterations, 2_001);
+        assert_eq!(bytes(&blind.s2), bytes(&plain.s2));
+        assert_eq!(bytes(&blind.s2), legal_actions(&s, 1).as_slice());
+        assert_eq!(total_visits(&blind.s2), 1_001, "even iterations are true rollouts and credit the decider");
+        assert_eq!(total_visits(&blind.s1), 1_000, "odd iterations are blinded and credit the opponent");
+        assert_ne!(visits(&blind.s1), visits(&plain.s1));
+    }
+
+    #[test]
+    fn a_blinded_root_of_another_shape_is_ignored() {
+        let (s, t) = benched_root();
+        let (mut bs, bt) = blinded_root(0);
+        bs.sides[0].team[1].current_hp = 0;
+        assert!(!same_root_shape(&s, &bs), "fixture: the fainted bench mon removes a switch arm");
+        let p = SearchParams { time_ms: 10_000, max_iters: 2_000, ..Default::default() };
+        let plain = search_world(&s, &t, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        for mode in [BlindMode::Shared, BlindMode::Split] {
+            let blind = search_world_blind(&s, &t, &bs, &bt, mode, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+            assert_eq!(blind.iterations, plain.iterations);
+            assert_eq!(visits(&blind.s1), visits(&plain.s1), "{mode:?}");
+            assert_eq!(visits(&blind.s2), visits(&plain.s2), "{mode:?}");
+            assert_eq!(blind.principal, plain.principal);
+        }
+    }
+
+    // a third side-0 team of the same shape, for the blinded root of the split tests
+    fn third_root() -> (BattleState, TeamData) {
+        let out = build_state(
+            vec![mon(143, 47, [85, 33, 89, 0]), mon(25, 9, [150, 34, 0, 0])],
+            vec![mon(130, 22, [57, 85, 33, 0]), mon(445, 24, [89, 14, 0, 0])],
+        );
+        assert!(same_root_shape(&benched_root().0, &out.0));
+        out
+    }
+
+    #[test]
+    fn split_blinding_makes_the_opponents_statistics_a_function_of_the_blinded_root() {
+        let (s, t) = benched_root();
+        let (s2, t2) = blinded_root(0);
+        let (b, bt) = third_root();
+        let p = SearchParams { time_ms: 10_000, max_iters: 2_000, ..Default::default() };
+        let r1 = search_world_blind(&s, &t, &b, &bt, BlindMode::Split, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        let r2 = search_world_blind(&s2, &t2, &b, &bt, BlindMode::Split, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        assert_eq!(r1.iterations, 2_000);
+        assert_eq!(bytes(&r1.s1), legal_actions(&s, 0).as_slice(), "our root arms keep their bytes");
+        assert_eq!(total_visits(&r1.s1), 1_000);
+        assert_eq!(total_visits(&r1.s2), 1_000);
+        assert_eq!(visits(&r1.s2), visits(&r2.s2), "the opponent's root statistics do not move when our true side changes");
+        for (x, y) in r1.s2.iter().zip(&r2.s2) {
+            assert_eq!(x.avg_score.to_bits(), y.avg_score.to_bits());
+        }
+        assert_ne!(visits(&r1.s1), visits(&r2.s1), "our own statistics do");
+        let h1 = search_world_blind(&s, &t, &b, &bt, BlindMode::Shared, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        let h2 = search_world_blind(&s2, &t2, &b, &bt, BlindMode::Shared, &Handcrafted, &OpenLoop, &p, 5, 0, None);
+        assert_ne!(visits(&h1.s2), visits(&h2.s2), "in the shared mode our true side still reaches the opponent");
+    }
+
+    #[test]
+    fn split_blinding_at_seat_one_credits_each_part_from_its_own_rollouts() {
+        let (s, t) = benched_root();
+        let (bs, bt) = blinded_root(1);
+        let p = SearchParams { time_ms: 10_000, max_iters: 2_001, ..Default::default() };
+        let plain = search_world(&s, &t, &Handcrafted, &OpenLoop, &p, 5, 1, None);
+        let blind = search_world_blind(&s, &t, &bs, &bt, BlindMode::Split, &Handcrafted, &OpenLoop, &p, 5, 1, None);
+        assert_eq!(bytes(&blind.s2), legal_actions(&s, 1).as_slice());
+        assert_eq!(total_visits(&blind.s2), 1_001);
+        assert_eq!(total_visits(&blind.s1), 1_000);
+        assert_ne!(visits(&blind.s1), visits(&plain.s1));
     }
 }

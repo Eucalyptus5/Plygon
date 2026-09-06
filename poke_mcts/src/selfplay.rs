@@ -83,6 +83,7 @@ fn decide(
                 raw_root: false,
                 explore_coeff: 2.0,
                 value_temp: 1.0,
+                blind_opponent: false,
             };
             choose_action(&obs, &beliefs[side], &RandomBattle, &cfg)
         }

@@ -181,6 +181,7 @@ fn run_one(c: &Case, mode: ChanceMode, worlds: usize, ms: u64, iters: u64, seed:
         chance_mode: mode, pick_mode, filter_threshold: 0.75, raw_root: false,
         explore_coeff,
         value_temp: 1.0,
+        blind_opponent: false,
     };
     let tr = if full_info {
         choose_action_traced(&obs, &belief, &TrueState, &cfg)

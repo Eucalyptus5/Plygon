@@ -32,6 +32,7 @@ fn cfg(seed: u64) -> PimcConfig {
         raw_root: false,
         explore_coeff: 0.49,
         value_temp: 1.0,
+        blind_opponent: false,
     }
 }
 

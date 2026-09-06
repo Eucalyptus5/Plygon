@@ -118,6 +118,7 @@ fn gen(args: &[String]) {
                     raw_root: false,
                     explore_coeff: EXPLORE_COEFF,
                     value_temp: 1.0,
+                    blind_opponent: false,
                 };
                 choose_action_eval_iters(&obs, &bel[side], &RandomBattle, &cfg, eval, None).0
             });

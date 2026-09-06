@@ -66,6 +66,7 @@ fn driver_runs_both_modes_and_is_reproducible() {
             pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false,
             explore_coeff: 2.0,
             value_temp: 1.0,
+            blind_opponent: false,
         };
         let a = choose_action(&obs, &belief, &RandomBattle, &cfg);
         let b = choose_action(&obs, &belief, &RandomBattle, &cfg);

@@ -6,7 +6,7 @@ use poke_mcts::fixtures::{build, Fixture, MonJson};
 use poke_mcts::policies::{greedy_action, random_action};
 use poke_mcts::rng::{splitmix64, Lcg};
 use poke_mcts::features::{DENSE_DIM, NUM_SEGMENTS};
-use poke_mcts::search::{search_world, SearchParams};
+use poke_mcts::search::{same_root_shape, search_world, search_world_blind, BlindMode, SearchParams};
 use pkmn_engine::state::*;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -67,6 +67,7 @@ fn choose(e: Entrant, state: &BattleState, teams: &TeamData, side: usize, rng: &
                 pick_mode: e.pick_mode, filter_threshold: e.filter_threshold, raw_root: e.raw_root,
                 explore_coeff: 2.0,
                 value_temp: 1.0,
+                blind_opponent: false,
             };
             poke_mcts::driver::choose_action(&obs, &beliefs[side], &poke_mcts::determinize::RandomBattle, &cfg)
         }
@@ -96,7 +97,22 @@ fn stats(mut v: Vec<f64>) -> (f64, f64, f64) {
     (v[0], med, v[n - 1])
 }
 
-fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::EvalKind<'_>, label: &str) {
+// side 0 re-sampled from an empty opponent belief, redrawn until its root arms match the fixture's
+fn blind_root(state: &BattleState, teams: &TeamData) -> (BattleState, TeamData) {
+    let obs = poke_mcts::determinize::Observation { state, teams, our_side: 0 };
+    let opp_view = poke_mcts::belief::Belief::default();
+    for attempt in 0..64u64 {
+        let (mut s, mut t) = (*state, teams.clone());
+        poke_mcts::frontier::blind_our_side(&mut s, &mut t, &obs, &opp_view, &mut Lcg::new(attempt));
+        if same_root_shape(state, &s) {
+            println!("blind-opp: on draw_seed={attempt} our_species={:?}", (0..6).map(|i| s.sides[0].team[i].species_id).collect::<Vec<_>>());
+            return (s, t);
+        }
+    }
+    panic!("no blinded root of the fixture's shape in 64 draws");
+}
+
+fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::EvalKind<'_>, label: &str, blind: Option<BlindMode>) {
     let (team1, b1, l1) = build(&fixture.teams[0]);
     let (team2, b2, l2) = build(&fixture.teams[1]);
     let teams = TeamData { mons: [b1, b2], levels: [l1, l2] };
@@ -106,6 +122,7 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
     state.phase = PHASE_ACTIONS;
     switch::switch_in(&mut state, &teams, 0, 0);
     switch::switch_in(&mut state, &teams, 1, 0);
+    let blinded = blind.map(|mode| (mode, blind_root(&state, &teams)));
 
     let mut sink = 0f32;
     for _ in 0..1_000 {
@@ -129,7 +146,10 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
     let mut iters: Vec<f64> = Vec::new();
     let (mut guards, mut depths) = (0u64, 0u64);
     for seed in 0..10u64 {
-        let r = search_world(&state, &teams, eval, &OpenLoop, &params, seed, 0, None);
+        let r = match &blinded {
+            Some((mode, (bs, bt))) => search_world_blind(&state, &teams, bs, bt, *mode, eval, &OpenLoop, &params, seed, 0, None),
+            None => search_world(&state, &teams, eval, &OpenLoop, &params, seed, 0, None),
+        };
         iters.push(r.iterations as f64);
         guards += r.guard_hits;
         depths += r.depth_sum;
@@ -178,6 +198,7 @@ fn bench(fixture: &Fixture, eval: &impl Evaluator, kind: poke_mcts::driver::Eval
             pick_mode: poke_mcts::driver::PickMode::Weighted, filter_threshold: 0.75, raw_root: false,
             explore_coeff: 2.0,
             value_temp: 1.0,
+            blind_opponent: false,
         };
         let t0 = std::time::Instant::now();
         let _ = poke_mcts::driver::choose_action_eval(&obs, &belief, &poke_mcts::determinize::RandomBattle, &cfg, kind, None);
@@ -1191,15 +1212,22 @@ fn main() {
 
     let fixture: Fixture = serde_json::from_str(&std::fs::read_to_string(&teams_path).unwrap()).unwrap();
     if args.iter().any(|a| a == "--bench-search") {
+        let blind = if args.iter().any(|a| a == "--blind-opp-split") {
+            Some(BlindMode::Split)
+        } else if args.iter().any(|a| a == "--blind-opp") {
+            Some(BlindMode::Shared)
+        } else {
+            None
+        };
         match get("--eval", "handcrafted").as_str() {
-            "handcrafted" => bench(&fixture, &Handcrafted, poke_mcts::driver::EvalKind::Handcrafted, "handcrafted"),
+            "handcrafted" => bench(&fixture, &Handcrafted, poke_mcts::driver::EvalKind::Handcrafted, "handcrafted", blind),
             "learned" => {
                 let le = LearnedEval::from_env();
-                bench(&fixture, &le, poke_mcts::driver::EvalKind::Learned(&le), "learned");
+                bench(&fixture, &le, poke_mcts::driver::EvalKind::Learned(&le), "learned", blind);
             }
             "learned-v2" => {
                 let lv = LearnedValueV2::from_env();
-                bench(&fixture, &lv, poke_mcts::driver::EvalKind::LearnedV2(&lv), "learned_v2");
+                bench(&fixture, &lv, poke_mcts::driver::EvalKind::LearnedV2(&lv), "learned_v2", blind);
             }
             other => panic!("unknown --eval {other}"),
         }

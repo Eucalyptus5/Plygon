@@ -337,6 +337,7 @@ fn search_action(state: &BattleState, teams: &TeamData, side: usize, belief: &Be
         raw_root: false,
         explore_coeff: GEN_EXPLORE_COEFF,
         value_temp: GEN_VALUE_TEMP,
+        blind_opponent: false,
     };
     choose_action_eval_iters(&Observation { state, teams, our_side: side }, belief, &RandomBattle, &cfg, EvalKind::Handcrafted, None)
 }

@@ -8,6 +8,8 @@ pub const CHILD_CAP: usize = ARM_CAP * ARM_CAP;
 pub struct Node {
     pub phase: u8,
     pub visits: u32,
+    // rollouts from a blinded root; the opponent's parent count when the search carries one
+    pub blind_visits: u32,
     pub s1: Bandit,
     pub s2: Bandit,
     pub children: [u32; CHILD_CAP],
@@ -18,6 +20,7 @@ impl Node {
         Node {
             phase: state.phase,
             visits: 0,
+            blind_visits: 0,
             s1: Bandit::from_actions(&legal_actions(state, 0)),
             s2: Bandit::from_actions(&legal_actions(state, 1)),
             children: [NO_CHILD; CHILD_CAP],
