@@ -1,0 +1,11 @@
+{
+  "name": "pkmn-fuzzer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Differential fuzzer driver. Pokemon Showdown is located via SHOWDOWN_DIR, config.json showdown_dir, or a sibling checkout; not declared as a dependency.",
+  "main": "fuzz.js",
+  "scripts": {
+    "fuzz": "node fuzz.js"
+  },
+  "dependencies": {}
+}

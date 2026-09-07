@@ -1,0 +1,23 @@
+# Fuzzer runtime artifacts — do not commit.
+
+# Per-scenario stats writer output.
+stats.jsonl
+
+# Inbox + corpus directories — runtime-generated findings and minimization
+# corpus. Tracked subdirs are re-included via .gitkeep below.
+inbox/
+corpus/
+
+# Inbox internal scratch (atomic-write tmp dir + cross-process advisory lock).
+inbox/.tmp/
+inbox/.fuzz.lock
+
+# Re-include placeholder files so the directory tree is preserved.
+!inbox/.gitkeep
+!inbox/bugs/.gitkeep
+!inbox/suppressed/.gitkeep
+!inbox/rejected/.gitkeep
+!inbox/splash/.gitkeep
+!corpus/.gitkeep
+HARNESS_ISSUE_ORACLE.md
+tools/parity_report*.json

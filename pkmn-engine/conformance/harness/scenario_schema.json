@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Test Scenario",
+  "description": "Input format for both showdown_runner.js and run_scenario Rust CLI",
+  "type": "object",
+  "required": ["name", "mode", "teams"],
+  "properties": {
+    "name": { "type": "string", "description": "Unique scenario name" },
+    "mode": {
+      "type": "string",
+      "enum": ["execute_turns", "calc_damage", "legal_actions"]
+    },
+    "teams": {
+      "type": "object",
+      "required": ["p1", "p2"],
+      "properties": {
+        "p1": { "type": "array", "items": { "$ref": "#/$defs/mon" }, "minItems": 1, "maxItems": 6 },
+        "p2": { "type": "array", "items": { "$ref": "#/$defs/mon" }, "minItems": 1, "maxItems": 6 }
+      }
+    },
+    "state_overrides": { "$ref": "#/$defs/state_overrides" },
+    "turns": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/turn" }
+    },
+    "calc_damage_params": {
+      "type": "object",
+      "properties": {
+        "atk_side": { "type": "integer", "enum": [0, 1] },
+        "move_id": { "type": "integer" },
+        "include_crit": { "type": "boolean", "default": true }
+      }
+    },
+    "legal_actions_params": {
+      "type": "object",
+      "properties": {
+        "side": { "type": "integer", "enum": [0, 1] }
+      }
+    }
+  },
+  "$defs": {
+    "mon": {
+      "type": "object",
+      "required": ["species_id", "ability_id", "moves"],
+      "properties": {
+        "species_id": { "type": "integer", "description": "Showdown num / engine species ID" },
+        "ability_id": { "type": "integer", "description": "Showdown num / engine ability ID" },
+        "item_id": { "type": "integer", "default": 0, "description": "Showdown spritenum / engine item ID" },
+        "moves": {
+          "type": "array", "items": { "type": "integer" }, "minItems": 4, "maxItems": 4,
+          "description": "Move IDs (Showdown num). Use 0 for empty slots."
+        },
+        "ivs": { "type": "array", "items": { "type": "integer" }, "minItems": 6, "maxItems": 6, "default": [31,31,31,31,31,31] },
+        "evs": { "type": "array", "items": { "type": "integer" }, "minItems": 6, "maxItems": 6, "default": [0,0,0,0,0,0] },
+        "nature": { "type": "integer", "default": 0, "description": "Engine nature ID (0-24). 0=neutral." },
+        "level": { "type": "integer", "default": 100, "minimum": 1, "maximum": 100 },
+        "tera_type": { "type": "integer", "default": 0 },
+        "is_female": { "type": "boolean", "default": false }
+      }
+    },
+    "turn": {
+      "type": "object",
+      "required": ["p1_action", "p2_action"],
+      "properties": {
+        "p1_action": { "type": "integer", "description": "0-3=move, 4-9=switch, 10=tera" },
+        "p2_action": { "type": "integer", "description": "0-3=move, 4-9=switch, 10=tera" },
+        "rng_mode": {
+          "type": "string",
+          "enum": ["force_all", "force_none", "min_roll", "max_roll", "all_rolls", "specific"],
+          "default": "force_all"
+        },
+        "rng_overrides": {
+          "type": "object",
+          "properties": {
+            "damage_roll": { "type": "integer", "minimum": 0, "maximum": 15, "default": 15 },
+            "crit": { "type": "boolean", "default": false },
+            "secondary_trigger": { "type": "boolean", "default": true },
+            "accuracy_hit": { "type": "boolean", "default": true },
+            "speed_tie": { "type": "integer", "default": 0 },
+            "multi_hit_count": { "type": "integer", "default": 0 }
+          }
+        }
+      }
+    },
+    "state_overrides": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "object",
+          "properties": {
+            "weather": { "type": "integer" },
+            "weather_turns": { "type": "integer" },
+            "terrain": { "type": "integer" },
+            "terrain_turns": { "type": "integer" },
+            "trick_room_turns": { "type": "integer" },
+            "gravity_turns": { "type": "integer" }
+          }
+        },
+        "p1": { "$ref": "#/$defs/side_overrides" },
+        "p2": { "$ref": "#/$defs/side_overrides" }
+      }
+    },
+    "side_overrides": {
+      "type": "object",
+      "properties": {
+        "active_overrides": {
+          "type": "object",
+          "properties": {
+            "boosts": { "type": "array", "items": { "type": "integer" }, "minItems": 7, "maxItems": 7 },
+            "status": { "type": "integer" },
+            "current_hp": { "type": "integer" },
+            "volatile_flags": { "type": "integer" },
+            "substitute_hp": { "type": "integer" },
+            "confusion_turns": { "type": "integer" },
+            "taunt_turns": { "type": "integer" },
+            "toxic_counter": { "type": "integer" }
+          }
+        },
+        "side_conditions": {
+          "type": "object",
+          "properties": {
+            "reflect_turns": { "type": "integer" },
+            "light_screen_turns": { "type": "integer" },
+            "aurora_veil_turns": { "type": "integer" },
+            "spikes": { "type": "integer" },
+            "toxic_spikes": { "type": "integer" },
+            "stealth_rock": { "type": "boolean" },
+            "sticky_web": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

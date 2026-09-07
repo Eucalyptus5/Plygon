@@ -1,0 +1,23 @@
+{
+  "name": "forme_coverage",
+  "mode": "execute_turns",
+  "teams": {
+    "p1": [
+      { "species_id": 1305, "ability_id": 11,  "item_id": 759, "moves": [904, 182, 0, 0] },
+      { "species_id": 1145, "ability_id": 266, "item_id": 0,   "moves": [824, 182, 0, 0] },
+      { "species_id": 1414, "ability_id": 309, "item_id": 0,   "moves": [906, 182, 0, 0] },
+      { "species_id": 1426, "ability_id": 260, "item_id": 0,   "moves": [818, 182, 0, 0] },
+      { "species_id": 25,   "ability_id": 9,   "item_id": 0,   "moves": [33,  182, 0, 0] },
+      { "species_id": 6,    "ability_id": 66,  "item_id": 0,   "moves": [33,  182, 0, 0] }
+    ],
+    "p2": [
+      { "species_id": 1305, "ability_id": 11,  "item_id": 759, "moves": [904, 182, 0, 0] },
+      { "species_id": 1145, "ability_id": 266, "item_id": 0,   "moves": [824, 182, 0, 0] },
+      { "species_id": 1414, "ability_id": 309, "item_id": 0,   "moves": [906, 182, 0, 0] },
+      { "species_id": 1426, "ability_id": 260, "item_id": 0,   "moves": [818, 182, 0, 0] },
+      { "species_id": 143,  "ability_id": 17,  "item_id": 0,   "moves": [33,  182, 0, 0] },
+      { "species_id": 94,   "ability_id": 26,  "item_id": 0,   "moves": [33,  182, 0, 0] }
+    ]
+  },
+  "turns": []
+}

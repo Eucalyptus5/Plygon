@@ -1,0 +1,894 @@
+{
+  "1103": {
+    "showdown_num": 681,
+    "showdown_forme_name": "Aegislash-Blade"
+  },
+  "1111": {
+    "showdown_num": 752,
+    "showdown_forme_name": "Araquanid-Totem"
+  },
+  "1112": {
+    "showdown_num": 59,
+    "showdown_forme_name": "Arcanine-Hisui"
+  },
+  "1113": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Bug"
+  },
+  "1114": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Dark"
+  },
+  "1115": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Dragon"
+  },
+  "1116": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Electric"
+  },
+  "1117": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Fairy"
+  },
+  "1118": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Fighting"
+  },
+  "1119": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Fire"
+  },
+  "1120": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Flying"
+  },
+  "1121": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Ghost"
+  },
+  "1122": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Grass"
+  },
+  "1123": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Ground"
+  },
+  "1124": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Ice"
+  },
+  "1125": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Poison"
+  },
+  "1126": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Psychic"
+  },
+  "1127": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Rock"
+  },
+  "1128": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Steel"
+  },
+  "1129": {
+    "showdown_num": 493,
+    "showdown_forme_name": "Arceus-Water"
+  },
+  "1130": {
+    "showdown_num": 144,
+    "showdown_forme_name": "Articuno-Galar"
+  },
+  "1132": {
+    "showdown_num": 713,
+    "showdown_forme_name": "Avalugg-Hisui"
+  },
+  "1135": {
+    "showdown_num": 902,
+    "showdown_forme_name": "Basculegion-F"
+  },
+  "1136": {
+    "showdown_num": 550,
+    "showdown_forme_name": "Basculin-Blue-Striped"
+  },
+  "1137": {
+    "showdown_num": 550,
+    "showdown_forme_name": "Basculin-White-Striped"
+  },
+  "1143": {
+    "showdown_num": 628,
+    "showdown_forme_name": "Braviary-Hisui"
+  },
+  "1145": {
+    "showdown_num": 898,
+    "showdown_forme_name": "Calyrex-Ice"
+  },
+  "1146": {
+    "showdown_num": 898,
+    "showdown_forme_name": "Calyrex-Shadow"
+  },
+  "1148": {
+    "showdown_num": 351,
+    "showdown_forme_name": "Castform-Rainy"
+  },
+  "1149": {
+    "showdown_num": 351,
+    "showdown_forme_name": "Castform-Snowy"
+  },
+  "1150": {
+    "showdown_num": 351,
+    "showdown_forme_name": "Castform-Sunny"
+  },
+  "1156": {
+    "showdown_num": 421,
+    "showdown_forme_name": "Cherrim-Sunshine"
+  },
+  "1163": {
+    "showdown_num": 222,
+    "showdown_forme_name": "Corsola-Galar"
+  },
+  "1166": {
+    "showdown_num": 845,
+    "showdown_forme_name": "Cramorant-Gorging"
+  },
+  "1167": {
+    "showdown_num": 845,
+    "showdown_forme_name": "Cramorant-Gulping"
+  },
+  "1169": {
+    "showdown_num": 555,
+    "showdown_forme_name": "Darmanitan-Galar"
+  },
+  "1170": {
+    "showdown_num": 555,
+    "showdown_forme_name": "Darmanitan-Galar-Zen"
+  },
+  "1171": {
+    "showdown_num": 555,
+    "showdown_forme_name": "Darmanitan-Zen"
+  },
+  "1172": {
+    "showdown_num": 554,
+    "showdown_forme_name": "Darumaka-Galar"
+  },
+  "1173": {
+    "showdown_num": 724,
+    "showdown_forme_name": "Decidueye-Hisui"
+  },
+  "1175": {
+    "showdown_num": 386,
+    "showdown_forme_name": "Deoxys-Attack"
+  },
+  "1176": {
+    "showdown_num": 386,
+    "showdown_forme_name": "Deoxys-Defense"
+  },
+  "1177": {
+    "showdown_num": 386,
+    "showdown_forme_name": "Deoxys-Speed"
+  },
+  "1178": {
+    "showdown_num": 483,
+    "showdown_forme_name": "Dialga-Origin"
+  },
+  "1180": {
+    "showdown_num": 50,
+    "showdown_forme_name": "Diglett-Alola"
+  },
+  "1185": {
+    "showdown_num": 982,
+    "showdown_forme_name": "Dudunsparce-Three-Segment"
+  },
+  "1186": {
+    "showdown_num": 51,
+    "showdown_forme_name": "Dugtrio-Alola"
+  },
+  "1190": {
+    "showdown_num": 133,
+    "showdown_forme_name": "Eevee-Starter"
+  },
+  "1191": {
+    "showdown_num": 875,
+    "showdown_forme_name": "Eiscue-Noice"
+  },
+  "1192": {
+    "showdown_num": 101,
+    "showdown_forme_name": "Electrode-Hisui"
+  },
+  "1194": {
+    "showdown_num": 905,
+    "showdown_forme_name": "Enamorus-Therian"
+  },
+  "1195": {
+    "showdown_num": 890,
+    "showdown_forme_name": "Eternatus-Eternamax"
+  },
+  "1197": {
+    "showdown_num": 103,
+    "showdown_forme_name": "Exeggutor-Alola"
+  },
+  "1199": {
+    "showdown_num": 83,
+    "showdown_forme_name": "Farfetchd-Galar"
+  },
+  "1202": {
+    "showdown_num": 670,
+    "showdown_forme_name": "Floette-Eternal"
+  },
+  "1210": {
+    "showdown_num": 649,
+    "showdown_forme_name": "Genesect-Burn"
+  },
+  "1211": {
+    "showdown_num": 649,
+    "showdown_forme_name": "Genesect-Chill"
+  },
+  "1212": {
+    "showdown_num": 649,
+    "showdown_forme_name": "Genesect-Douse"
+  },
+  "1213": {
+    "showdown_num": 649,
+    "showdown_forme_name": "Genesect-Shock"
+  },
+  "1216": {
+    "showdown_num": 74,
+    "showdown_forme_name": "Geodude-Alola"
+  },
+  "1217": {
+    "showdown_num": 999,
+    "showdown_forme_name": "Gimmighoul-Roaming"
+  },
+  "1218": {
+    "showdown_num": 487,
+    "showdown_forme_name": "Giratina-Origin"
+  },
+  "1221": {
+    "showdown_num": 76,
+    "showdown_forme_name": "Golem-Alola"
+  },
+  "1224": {
+    "showdown_num": 706,
+    "showdown_forme_name": "Goodra-Hisui"
+  },
+  "1225": {
+    "showdown_num": 711,
+    "showdown_forme_name": "Gourgeist-Large"
+  },
+  "1226": {
+    "showdown_num": 711,
+    "showdown_forme_name": "Gourgeist-Small"
+  },
+  "1227": {
+    "showdown_num": 711,
+    "showdown_forme_name": "Gourgeist-Super"
+  },
+  "1228": {
+    "showdown_num": 75,
+    "showdown_forme_name": "Graveler-Alola"
+  },
+  "1229": {
+    "showdown_num": 658,
+    "showdown_forme_name": "Greninja-Ash"
+  },
+  "1230": {
+    "showdown_num": 658,
+    "showdown_forme_name": "Greninja-Bond"
+  },
+  "1232": {
+    "showdown_num": 88,
+    "showdown_forme_name": "Grimer-Alola"
+  },
+  "1234": {
+    "showdown_num": 383,
+    "showdown_forme_name": "Groudon-Primal"
+  },
+  "1235": {
+    "showdown_num": 58,
+    "showdown_forme_name": "Growlithe-Hisui"
+  },
+  "1236": {
+    "showdown_num": 735,
+    "showdown_forme_name": "Gumshoos-Totem"
+  },
+  "1242": {
+    "showdown_num": 720,
+    "showdown_forme_name": "Hoopa-Unbound"
+  },
+  "1244": {
+    "showdown_num": 876,
+    "showdown_forme_name": "Indeedee-F"
+  },
+  "1247": {
+    "showdown_num": 647,
+    "showdown_forme_name": "Keldeo-Resolute"
+  },
+  "1249": {
+    "showdown_num": 784,
+    "showdown_forme_name": "Kommo-o-Totem"
+  },
+  "1250": {
+    "showdown_num": 382,
+    "showdown_forme_name": "Kyogre-Primal"
+  },
+  "1251": {
+    "showdown_num": 646,
+    "showdown_forme_name": "Kyurem-Black"
+  },
+  "1252": {
+    "showdown_num": 646,
+    "showdown_forme_name": "Kyurem-White"
+  },
+  "1253": {
+    "showdown_num": 645,
+    "showdown_forme_name": "Landorus-Therian"
+  },
+  "1257": {
+    "showdown_num": 549,
+    "showdown_forme_name": "Lilligant-Hisui"
+  },
+  "1258": {
+    "showdown_num": 264,
+    "showdown_forme_name": "Linoone-Galar"
+  },
+  "1262": {
+    "showdown_num": 754,
+    "showdown_forme_name": "Lurantis-Totem"
+  },
+  "1263": {
+    "showdown_num": 745,
+    "showdown_forme_name": "Lycanroc-Dusk"
+  },
+  "1264": {
+    "showdown_num": 745,
+    "showdown_forme_name": "Lycanroc-Midnight"
+  },
+  "1267": {
+    "showdown_num": 801,
+    "showdown_forme_name": "Magearna-Original"
+  },
+  "1271": {
+    "showdown_num": 105,
+    "showdown_forme_name": "Marowak-Alola"
+  },
+  "1272": {
+    "showdown_num": 105,
+    "showdown_forme_name": "Marowak-Alola-Totem"
+  },
+  "1273": {
+    "showdown_num": 925,
+    "showdown_forme_name": "Maushold-Four"
+  },
+  "1278": {
+    "showdown_num": 648,
+    "showdown_forme_name": "Meloetta-Pirouette"
+  },
+  "1279": {
+    "showdown_num": 678,
+    "showdown_forme_name": "Meowstic-F"
+  },
+  "1282": {
+    "showdown_num": 52,
+    "showdown_forme_name": "Meowth-Alola"
+  },
+  "1283": {
+    "showdown_num": 52,
+    "showdown_forme_name": "Meowth-Galar"
+  },
+  "1288": {
+    "showdown_num": 778,
+    "showdown_forme_name": "Mimikyu-Busted"
+  },
+  "1289": {
+    "showdown_num": 778,
+    "showdown_forme_name": "Mimikyu-Busted-Totem"
+  },
+  "1290": {
+    "showdown_num": 778,
+    "showdown_forme_name": "Mimikyu-Totem"
+  },
+  "1291": {
+    "showdown_num": 774,
+    "showdown_forme_name": "Minior-Meteor"
+  },
+  "1292": {
+    "showdown_num": 146,
+    "showdown_forme_name": "Moltres-Galar"
+  },
+  "1293": {
+    "showdown_num": 877,
+    "showdown_forme_name": "Morpeko-Hangry"
+  },
+  "1294": {
+    "showdown_num": 122,
+    "showdown_forme_name": "Mr-Mime-Galar"
+  },
+  "1295": {
+    "showdown_num": 89,
+    "showdown_forme_name": "Muk-Alola"
+  },
+  "1296": {
+    "showdown_num": 800,
+    "showdown_forme_name": "Necrozma-Dawn-Wings"
+  },
+  "1297": {
+    "showdown_num": 800,
+    "showdown_forme_name": "Necrozma-Dusk-Mane"
+  },
+  "1298": {
+    "showdown_num": 800,
+    "showdown_forme_name": "Necrozma-Ultra"
+  },
+  "1299": {
+    "showdown_num": 38,
+    "showdown_forme_name": "Ninetales-Alola"
+  },
+  "1300": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Cornerstone"
+  },
+  "1301": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Cornerstone-Tera"
+  },
+  "1302": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Hearthflame"
+  },
+  "1303": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Hearthflame-Tera"
+  },
+  "1304": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Teal-Tera"
+  },
+  "1305": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Wellspring"
+  },
+  "1306": {
+    "showdown_num": 1017,
+    "showdown_forme_name": "Ogerpon-Wellspring-Tera"
+  },
+  "1307": {
+    "showdown_num": 916,
+    "showdown_forme_name": "Oinkologne-F"
+  },
+  "1309": {
+    "showdown_num": 741,
+    "showdown_forme_name": "Oricorio-Pom-Pom"
+  },
+  "1310": {
+    "showdown_num": 741,
+    "showdown_forme_name": "Oricorio-Sensu"
+  },
+  "1311": {
+    "showdown_num": 964,
+    "showdown_forme_name": "Palafin-Hero"
+  },
+  "1312": {
+    "showdown_num": 484,
+    "showdown_forme_name": "Palkia-Origin"
+  },
+  "1313": {
+    "showdown_num": 53,
+    "showdown_forme_name": "Persian-Alola"
+  },
+  "1314": {
+    "showdown_num": 172,
+    "showdown_forme_name": "Pichu-Spiky-eared"
+  },
+  "1316": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Alola"
+  },
+  "1317": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Belle"
+  },
+  "1318": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Cosplay"
+  },
+  "1320": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Hoenn"
+  },
+  "1321": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Kalos"
+  },
+  "1322": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Libre"
+  },
+  "1323": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Original"
+  },
+  "1324": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Partner"
+  },
+  "1325": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-PhD"
+  },
+  "1326": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Pop-Star"
+  },
+  "1327": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Rock-Star"
+  },
+  "1328": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Sinnoh"
+  },
+  "1329": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Starter"
+  },
+  "1330": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-Unova"
+  },
+  "1331": {
+    "showdown_num": 25,
+    "showdown_forme_name": "Pikachu-World"
+  },
+  "1333": {
+    "showdown_num": 1012,
+    "showdown_forme_name": "Poltchageist-Artisan"
+  },
+  "1334": {
+    "showdown_num": 855,
+    "showdown_forme_name": "Polteageist-Antique"
+  },
+  "1335": {
+    "showdown_num": 77,
+    "showdown_forme_name": "Ponyta-Galar"
+  },
+  "1336": {
+    "showdown_num": 710,
+    "showdown_forme_name": "Pumpkaboo-Large"
+  },
+  "1337": {
+    "showdown_num": 710,
+    "showdown_forme_name": "Pumpkaboo-Small"
+  },
+  "1338": {
+    "showdown_num": 710,
+    "showdown_forme_name": "Pumpkaboo-Super"
+  },
+  "1340": {
+    "showdown_num": 211,
+    "showdown_forme_name": "Qwilfish-Hisui"
+  },
+  "1341": {
+    "showdown_num": 26,
+    "showdown_forme_name": "Raichu-Alola"
+  },
+  "1344": {
+    "showdown_num": 78,
+    "showdown_forme_name": "Rapidash-Galar"
+  },
+  "1345": {
+    "showdown_num": 20,
+    "showdown_forme_name": "Raticate-Alola"
+  },
+  "1346": {
+    "showdown_num": 20,
+    "showdown_forme_name": "Raticate-Alola-Totem"
+  },
+  "1347": {
+    "showdown_num": 19,
+    "showdown_forme_name": "Rattata-Alola"
+  },
+  "1349": {
+    "showdown_num": 743,
+    "showdown_forme_name": "Ribombee-Totem"
+  },
+  "1351": {
+    "showdown_num": 744,
+    "showdown_forme_name": "Rockruff-Dusk"
+  },
+  "1352": {
+    "showdown_num": 479,
+    "showdown_forme_name": "Rotom-Fan"
+  },
+  "1353": {
+    "showdown_num": 479,
+    "showdown_forme_name": "Rotom-Frost"
+  },
+  "1354": {
+    "showdown_num": 479,
+    "showdown_forme_name": "Rotom-Heat"
+  },
+  "1355": {
+    "showdown_num": 479,
+    "showdown_forme_name": "Rotom-Mow"
+  },
+  "1356": {
+    "showdown_num": 479,
+    "showdown_forme_name": "Rotom-Wash"
+  },
+  "1359": {
+    "showdown_num": 758,
+    "showdown_forme_name": "Salazzle-Totem"
+  },
+  "1360": {
+    "showdown_num": 503,
+    "showdown_forme_name": "Samurott-Hisui"
+  },
+  "1362": {
+    "showdown_num": 27,
+    "showdown_forme_name": "Sandshrew-Alola"
+  },
+  "1363": {
+    "showdown_num": 28,
+    "showdown_forme_name": "Sandslash-Alola"
+  },
+  "1370": {
+    "showdown_num": 492,
+    "showdown_forme_name": "Shaymin-Sky"
+  },
+  "1371": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Bug"
+  },
+  "1372": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Dark"
+  },
+  "1373": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Dragon"
+  },
+  "1374": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Electric"
+  },
+  "1375": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Fairy"
+  },
+  "1376": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Fighting"
+  },
+  "1377": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Fire"
+  },
+  "1378": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Flying"
+  },
+  "1379": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Ghost"
+  },
+  "1380": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Grass"
+  },
+  "1381": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Ground"
+  },
+  "1382": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Ice"
+  },
+  "1383": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Poison"
+  },
+  "1384": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Psychic"
+  },
+  "1385": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Rock"
+  },
+  "1386": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Steel"
+  },
+  "1387": {
+    "showdown_num": 773,
+    "showdown_forme_name": "Silvally-Water"
+  },
+  "1388": {
+    "showdown_num": 1013,
+    "showdown_forme_name": "Sinistcha-Masterpiece"
+  },
+  "1389": {
+    "showdown_num": 854,
+    "showdown_forme_name": "Sinistea-Antique"
+  },
+  "1391": {
+    "showdown_num": 705,
+    "showdown_forme_name": "Sliggoo-Hisui"
+  },
+  "1392": {
+    "showdown_num": 80,
+    "showdown_forme_name": "Slowbro-Galar"
+  },
+  "1394": {
+    "showdown_num": 199,
+    "showdown_forme_name": "Slowking-Galar"
+  },
+  "1395": {
+    "showdown_num": 79,
+    "showdown_forme_name": "Slowpoke-Galar"
+  },
+  "1396": {
+    "showdown_num": 215,
+    "showdown_forme_name": "Sneasel-Hisui"
+  },
+  "1398": {
+    "showdown_num": 931,
+    "showdown_forme_name": "Squawkabilly-Blue"
+  },
+  "1399": {
+    "showdown_num": 931,
+    "showdown_forme_name": "Squawkabilly-White"
+  },
+  "1400": {
+    "showdown_num": 931,
+    "showdown_forme_name": "Squawkabilly-Yellow"
+  },
+  "1404": {
+    "showdown_num": 618,
+    "showdown_forme_name": "Stunfisk-Galar"
+  },
+  "1407": {
+    "showdown_num": 978,
+    "showdown_forme_name": "Tatsugiri-Droopy"
+  },
+  "1409": {
+    "showdown_num": 978,
+    "showdown_forme_name": "Tatsugiri-Stretchy"
+  },
+  "1411": {
+    "showdown_num": 128,
+    "showdown_forme_name": "Tauros-Paldea-Aqua"
+  },
+  "1412": {
+    "showdown_num": 128,
+    "showdown_forme_name": "Tauros-Paldea-Blaze"
+  },
+  "1413": {
+    "showdown_num": 128,
+    "showdown_forme_name": "Tauros-Paldea-Combat"
+  },
+  "1414": {
+    "showdown_num": 1024,
+    "showdown_forme_name": "Terapagos-Stellar"
+  },
+  "1415": {
+    "showdown_num": 1024,
+    "showdown_forme_name": "Terapagos-Terastal"
+  },
+  "1416": {
+    "showdown_num": 642,
+    "showdown_forme_name": "Thundurus-Therian"
+  },
+  "1417": {
+    "showdown_num": 777,
+    "showdown_forme_name": "Togedemaru-Totem"
+  },
+  "1418": {
+    "showdown_num": 641,
+    "showdown_forme_name": "Tornadus-Therian"
+  },
+  "1420": {
+    "showdown_num": 849,
+    "showdown_forme_name": "Toxtricity-Low-Key"
+  },
+  "1422": {
+    "showdown_num": 157,
+    "showdown_forme_name": "Typhlosion-Hisui"
+  },
+  "1424": {
+    "showdown_num": 901,
+    "showdown_forme_name": "Ursaluna-Bloodmoon"
+  },
+  "1426": {
+    "showdown_num": 892,
+    "showdown_forme_name": "Urshifu-Rapid-Strike"
+  },
+  "1431": {
+    "showdown_num": 738,
+    "showdown_forme_name": "Vikavolt-Totem"
+  },
+  "1432": {
+    "showdown_num": 666,
+    "showdown_forme_name": "Vivillon-Fancy"
+  },
+  "1433": {
+    "showdown_num": 666,
+    "showdown_forme_name": "Vivillon-Pokeball"
+  },
+  "1434": {
+    "showdown_num": 100,
+    "showdown_forme_name": "Voltorb-Hisui"
+  },
+  "1435": {
+    "showdown_num": 37,
+    "showdown_forme_name": "Vulpix-Alola"
+  },
+  "1436": {
+    "showdown_num": 110,
+    "showdown_forme_name": "Weezing-Galar"
+  },
+  "1437": {
+    "showdown_num": 746,
+    "showdown_forme_name": "Wishiwashi-School"
+  },
+  "1438": {
+    "showdown_num": 194,
+    "showdown_forme_name": "Wooper-Paldea"
+  },
+  "1439": {
+    "showdown_num": 413,
+    "showdown_forme_name": "Wormadam-Sandy"
+  },
+  "1440": {
+    "showdown_num": 413,
+    "showdown_forme_name": "Wormadam-Trash"
+  },
+  "1441": {
+    "showdown_num": 716,
+    "showdown_forme_name": "Xerneas-Neutral"
+  },
+  "1442": {
+    "showdown_num": 562,
+    "showdown_forme_name": "Yamask-Galar"
+  },
+  "1443": {
+    "showdown_num": 888,
+    "showdown_forme_name": "Zacian-Crowned"
+  },
+  "1444": {
+    "showdown_num": 889,
+    "showdown_forme_name": "Zamazenta-Crowned"
+  },
+  "1445": {
+    "showdown_num": 145,
+    "showdown_forme_name": "Zapdos-Galar"
+  },
+  "1446": {
+    "showdown_num": 893,
+    "showdown_forme_name": "Zarude-Dada"
+  },
+  "1448": {
+    "showdown_num": 263,
+    "showdown_forme_name": "Zigzagoon-Galar"
+  },
+  "1449": {
+    "showdown_num": 571,
+    "showdown_forme_name": "Zoroark-Hisui"
+  },
+  "1450": {
+    "showdown_num": 570,
+    "showdown_forme_name": "Zorua-Hisui"
+  },
+  "1451": {
+    "showdown_num": 718,
+    "showdown_forme_name": "Zygarde-10%"
+  },
+  "1452": {
+    "showdown_num": 718,
+    "showdown_forme_name": "Zygarde-Complete"
+  }
+}

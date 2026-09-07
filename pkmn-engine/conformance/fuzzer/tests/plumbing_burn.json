@@ -1,0 +1,16 @@
+{
+  "name": "plumbing_burn",
+  "mode": "execute_turns",
+  "teams": {
+    "p1": [
+      { "species_id": 25, "ability_id": 9, "item_id": 145, "moves": [33, 0, 0, 0] }
+    ],
+    "p2": [
+      { "species_id": 25, "ability_id": 9, "item_id": 0, "moves": [150, 0, 0, 0] }
+    ]
+  },
+  "turns": [
+    { "p1_action": 0, "p2_action": 0, "rng_mode": "force_all" },
+    { "p1_action": 0, "p2_action": 0, "rng_mode": "force_all" }
+  ]
+}

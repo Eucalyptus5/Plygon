@@ -1,0 +1,48 @@
+{
+  "seed": 0,
+  "required_categories": [
+    "team.current_hp_decreased",
+    "team.current_hp_increased",
+    "team.status",
+    "team.is_fainted",
+    "team.item_id",
+    "team.ability_id",
+    "active.boosts.atk",
+    "active.boosts.def",
+    "active.boosts.spa",
+    "active.boosts.spd",
+    "active.boosts.spe",
+    "active.boosts.accuracy",
+    "active.boosts.evasion",
+    "side_conditions.stealth_rock",
+    "side_conditions.spikes",
+    "side_conditions.toxic_spikes",
+    "side_conditions.sticky_web",
+    "side_conditions.reflect_turns",
+    "side_conditions.light_screen_turns",
+    "side_conditions.aurora_veil_turns",
+    "field.weather",
+    "field.terrain",
+    "active.is_terastallized",
+    "active.types",
+    "active.effective_ability_id",
+    "active.effective_item_id"
+  ],
+  "window_size": 1000,
+  "window_multiplier": 10,
+  "max_turns_per_scenario": 8,
+  "rng_mode_split": {
+    "force_all": 0.9,
+    "all_rolls": 0.1
+  },
+  "scenario_timeout_ms": 30000,
+  "same_species_opposing_sides_ban": false,
+  "minimize_budget_seconds": 15,
+  "suppression": {
+    "enabled": true
+  },
+  "use_server_mode": true,
+  "recycleAfter": 1000,
+  "rss_cap_engine_mb": 1024,
+  "rss_cap_showdown_mb": 2048
+}
