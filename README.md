@@ -92,10 +92,6 @@ If you want a strong bot out of the box, the shipped evaluator will not give you
 | [`poke_mcts/`](poke_mcts) | The search agent |
 | [`docs/`](docs) | [engine](docs/engine.md) · [search](docs/search.md) · [testing](docs/conformance.md) · [benchmarks](docs/benchmarks.md) |
 
-## The name
-
-"Ply" is a single move in a game tree, which is the unit a search counts. Porygon is the robot Pokemon.
-
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).
