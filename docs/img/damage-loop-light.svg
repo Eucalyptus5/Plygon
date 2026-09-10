@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 532" width="720" height="532" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="Damage calculation: fourteen loop-invariant values are computed once before the hit loop; each hit then does an accuracy roll, a crit roll, the base formula, a thirteen-step modifier chain in Showdown's order, and a floor at one damage.">
+<defs>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2a78d6"/></marker>
+<marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#eb6834"/></marker>
+</defs>
+<text x="24" y="24" font-size="15" font-weight="600" fill="#0b0b0b">Damage: hoisted once, then a short per-hit loop</text>
+<text x="24" y="44" font-size="12" fill="#52514e">Everything that cannot change between hits is computed before the loop.</text>
+<text x="24" y="60" font-size="12" fill="#52514e">The loop body is two rolls, the base formula, and a modifier chain in Showdown's order.</text>
+<text x="24" y="88" font-size="12" font-weight="600" fill="#0b0b0b">once, before the loop</text>
+<text x="390" y="88" font-size="12" font-weight="600" fill="#0b0b0b">per hit</text>
+<rect x="24" y="96" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="112" font-size="11" text-anchor="middle" fill="#ffffff">attack stat chain, normal and crit variants</text>
+<rect x="24" y="124" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="140" font-size="11" text-anchor="middle" fill="#ffffff">defense stat chain, normal and crit variants</text>
+<rect x="24" y="152" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="168" font-size="11" text-anchor="middle" fill="#ffffff">hit count (1 to 10)</text>
+<rect x="24" y="180" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="196" font-size="11" text-anchor="middle" fill="#ffffff">level factor</text>
+<rect x="24" y="208" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="224" font-size="11" text-anchor="middle" fill="#ffffff">weather</text>
+<rect x="24" y="236" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="252" font-size="11" text-anchor="middle" fill="#ffffff">STAB</text>
+<rect x="24" y="264" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="280" font-size="11" text-anchor="middle" fill="#ffffff">burn</text>
+<rect x="24" y="292" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="308" font-size="11" text-anchor="middle" fill="#ffffff">screens, normal and crit variants</text>
+<rect x="24" y="320" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="336" font-size="11" text-anchor="middle" fill="#ffffff">defender ability</text>
+<rect x="24" y="348" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="364" font-size="11" text-anchor="middle" fill="#ffffff">attacker ability</text>
+<rect x="24" y="376" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="392" font-size="11" text-anchor="middle" fill="#ffffff">item</text>
+<rect x="24" y="404" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="420" font-size="11" text-anchor="middle" fill="#ffffff">Sniper, normal and crit variants</text>
+<rect x="24" y="432" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="448" font-size="11" text-anchor="middle" fill="#ffffff">semi-invulnerable target &#215; 2</text>
+<rect x="24" y="460" width="300" height="24" rx="4" fill="#6f6e69"/>
+<text x="174" y="476" font-size="11" text-anchor="middle" fill="#ffffff">critical-hit multiplier</text>
+<rect x="390" y="96" width="300" height="24" rx="4" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="540" y="112" font-size="11" text-anchor="middle" fill="#0b0b0b">accuracy roll, hits after the first only</text>
+<rect x="390" y="124" width="300" height="24" rx="4" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="540" y="140" font-size="11" text-anchor="middle" fill="#0b0b0b">crit roll</text>
+<rect x="390" y="152" width="300" height="24" rx="4" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="540" y="168" font-size="11" text-anchor="middle" fill="#0b0b0b">base formula: level factor &#215; power &#215; A / D / 50 + 2</text>
+<rect x="390" y="184" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="197" font-size="10" text-anchor="middle" fill="#ffffff">Parental Bond, second hit only, &#215; 0.25</text>
+<rect x="390" y="204" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="217" font-size="10" text-anchor="middle" fill="#ffffff">weather</text>
+<rect x="390" y="224" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="237" font-size="10" text-anchor="middle" fill="#ffffff">crit &#215; 1.5</text>
+<rect x="390" y="244" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="257" font-size="10" text-anchor="middle" fill="#ffffff">random 85 to 100</text>
+<rect x="390" y="264" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="277" font-size="10" text-anchor="middle" fill="#ffffff">STAB</text>
+<rect x="390" y="284" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="297" font-size="10" text-anchor="middle" fill="#ffffff">type effectiveness</text>
+<rect x="390" y="304" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="317" font-size="10" text-anchor="middle" fill="#ffffff">burn</text>
+<rect x="390" y="324" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="337" font-size="10" text-anchor="middle" fill="#ffffff">screens</text>
+<rect x="390" y="344" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="357" font-size="10" text-anchor="middle" fill="#ffffff">defender ability</text>
+<rect x="390" y="364" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="377" font-size="10" text-anchor="middle" fill="#ffffff">attacker ability</text>
+<rect x="390" y="384" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="397" font-size="10" text-anchor="middle" fill="#ffffff">item</text>
+<rect x="390" y="404" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="417" font-size="10" text-anchor="middle" fill="#ffffff">Sniper, crit only</text>
+<rect x="390" y="424" width="300" height="18" rx="3" fill="#2a78d6"/>
+<text x="540" y="437" font-size="10" text-anchor="middle" fill="#ffffff">semi-invulnerable target &#215; 2</text>
+<rect x="390" y="450" width="300" height="24" rx="4" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="540" y="466" font-size="11" text-anchor="middle" fill="#0b0b0b">floor at 1</text>
+<path d="M540,474 V486 H702 V84 H540 V93" fill="none" stroke="#2a78d6" stroke-width="1.5" marker-end="url(#ab)"/>
+<text x="714" y="285" font-size="11" text-anchor="middle" fill="#52514e" transform="rotate(-90 714 285)">repeat for each hit, up to 10</text>
+<path d="M324,472 H357 V108 H387" fill="none" stroke="#eb6834" stroke-width="1.5" marker-end="url(#ao)"/>
+<text x="347" y="290" font-size="11" font-weight="600" text-anchor="middle" fill="#eb6834" transform="rotate(-90 347 290)">precomputed values</text>
+<text x="24" y="518" font-size="12" fill="#0b0b0b">The chain order is Showdown's, so integer rounding happens at the same points and one-HP results agree.</text>
+</svg>

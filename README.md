@@ -32,12 +32,30 @@ The last command plays 20 games of the search agent against a random player and 
 
 ```mermaid
 flowchart TD
-    O["what I can actually see<br/>(my team, their revealed Pokemon)"] --> D[guess complete opponent teams]
-    D --> W["N possible battles<br/>searched in parallel"]
-    W --> T["tree search<br/>both players choose at once"]
-    T <--> E["battle engine<br/>play out a turn"]
-    T --> V[score the position]
-    V --> A["combine every world's answer<br/>into one move"]
+    observation["what I can see: my team, their revealed Pokemon"]
+    sample["sample opponent teams from the 9,265-build table"]
+    engine["battle engine"]
+    combine["sum distributions, keep arms >= 75% of best, pick one"]
+    observation -->|revealed facts| sample
+    subgraph w1 [world 1]
+        tree1[tree search] -->|root visits| dist1[distribution over 13 actions]
+    end
+    subgraph w2 [world 2]
+        tree2[tree search] -->|root visits| dist2[distribution over 13 actions]
+    end
+    subgraph wk [world K]
+        treek[tree search] -->|root visits| distk[distribution over 13 actions]
+    end
+    sample -->|sampled team| tree1
+    sample -->|sampled team| tree2
+    sample -->|sampled team| treek
+    engine <-->|play one turn, fresh dice| tree1
+    engine <-->|play one turn, fresh dice| tree2
+    engine <-->|play one turn, fresh dice| treek
+    dist1 -->|distribution| combine
+    dist2 -->|distribution| combine
+    distk -->|distribution| combine
+    combine -->|one action| played([the move played])
 ```
 
 **The engine** keeps the entire battle in one flat block of memory with no pointers and no heap allocation, so copying a position is a single memory copy. All damage arithmetic is integers on a fixed scale, matching Showdown's numbers and also the exact points at which it rounds, because a one-HP difference can decide whether a Pokemon faints. The data tables for 876 moves, 1,454 species forms and 484 items are generated at build time from Showdown's own data files rather than parsed at runtime. The engine contains no random number generator at all; callers pass one in, which is what makes deterministic replay and side-by-side testing possible.

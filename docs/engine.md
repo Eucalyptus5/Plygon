@@ -10,7 +10,7 @@ A search algorithm copies the game state constantly. Copying is the inner loop. 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/state-layout-dark.svg">
-  <img alt="BattleState is 664 bytes: two 324-byte player sides plus 16 bytes of field data. One side is a 76-byte active Pokemon, a 228-byte team of six, and 20 bytes of side conditions." src="img/state-layout-light.svg">
+  <img alt="BattleState is 664 bytes: two 324-byte player sides plus 16 bytes of field data. One side is a 76-byte active Pokemon, a 228-byte team of six, and 20 bytes of side conditions. The active Pokemon is 4 bytes of volatile flags, 38 bytes of u16 overrides and last-move state, 27 bytes of boosts and turn counters, 5 padding bytes that carry state, and 2 alignment bytes." src="img/state-layout-light.svg">
 </picture>
 
 It breaks down like this:
@@ -45,27 +45,49 @@ An action is a single byte. Zero through three is a move slot, four through nine
 A turn runs in this order:
 
 ```mermaid
-flowchart TD
-    A["both players choose<br/>(one byte each)"] --> B[commit Terastallization]
-    B --> C["decide who goes first<br/>priority, then items, then speed"]
-    C --> D[first action resolves]
-    D --> E{"did that force<br/>a switch?"}
-    E -->|yes| P["pause the turn,<br/>ask for a replacement"]
-    P --> F
-    E -->|no| F[second action resolves]
-    F --> G["end of turn<br/>18 ordered steps"]
-    G --> H{anyone fainted?}
-    H -->|yes| I[ask for replacements]
-    H -->|no| J[next turn]
+stateDiagram-v2
+    direction TB
+    choose: choose (both players pick one byte)
+    commit_tera: commit_tera (Terastallize before anything resolves)
+    order: order (priority, then Quick Claw and Custap, then Quick Draw, then Lagging Tail, then speed. Trick Room inverts, a tie is a coin flip)
+    publish: publish (both choices written into the state so Sucker Punch and Protect can read them)
+    first_action: first_action
+    second_action: second_action
+    end_of_turn: end_of_turn
+    faints: faints
+    state paused {
+        marker: resume marker stores subphase, second_side, action
+    }
+    [*] --> choose
+    choose --> commit_tera: two action bytes
+    commit_tera --> order: decoded actions
+    order --> publish: first mover, second mover
+    publish --> first_action: first mover's action
+    first_action --> second_action: no switch forced
+    first_action --> paused: forced switch (U-turn, Eject Button)
+    paused --> second_action: caller supplies replacement
+    second_action --> end_of_turn: both actions resolved
+    end_of_turn --> faints: residuals applied
+    faints --> [*]: a side is wiped out
+    faints --> choose: replacements supplied, next turn
+    note right of paused
+        the engine returns to the caller here
+    end note
+    note left of end_of_turn
+        residual steps 1 to 18 in a fixed order,
+        see the end-of-turn figure
+    end note
 ```
 
 
-1. **Commit Terastallization** before anything else resolves, because it changes defensive typing even if the other player moves first.
-2. **Decide who goes first.** Move priority first, then the various priority-modifying abilities, then Quick Claw and its relatives, then speed, with Trick Room inverting the comparison and a coin flip breaking exact ties.
-3. **Publish both decisions** into the state, so moves like Sucker Punch and Protect can legally ask what the opponent chose.
-4. **Execute** the first action, check whether either side has been wiped out, then the second.
-5. **Run end of turn**, an explicit sequence of 18 ordered steps covering weather, status damage, item triggers, and everything else that ticks.
-6. **Handle faints**, and either end the battle or ask the affected player for a replacement.
+1. **Both players choose**, one byte each, and the engine takes the two bytes together.
+2. **Commit Terastallization** before anything else resolves, because it changes defensive typing even if the other player moves first.
+3. **Decide who goes first.** Move priority first, then Quick Claw and Custap Berry, then Quick Draw, then Lagging Tail, then speed, with Trick Room inverting the comparison and a coin flip breaking exact ties.
+4. **Publish both decisions** into the state, so moves like Sucker Punch and Protect can legally ask what the opponent chose.
+5. **Execute the first action** and check whether either side has been wiped out. If it forced a switch, pause here: the engine returns, and a marker records where to resume.
+6. **Execute the second action**, once the caller has supplied any replacement.
+7. **Run end of turn**, the residual steps numbered 1 to 18 in Showdown's order, drawn in the [End of turn](#end-of-turn) figure below.
+8. **Handle faints**, and either end the battle or ask the affected player for a replacement.
 
 ### Pausing in the middle of a turn
 
@@ -74,6 +96,54 @@ The genuinely awkward case is a move like U-turn, or an Eject Button, which forc
 Rather than restructure the engine around coroutines or an action queue, I store a small resume marker in those spare padding bytes: which sub-phase we stopped at, which side still owes an action, and what that action was. The engine returns, the caller supplies a replacement Pokemon, and the follow-up entry point picks the turn back up and finishes it.
 
 It is a compact solution to a problem that otherwise infects every function signature in the call stack.
+
+### End of turn
+
+End of turn is a fixed list, and the order is a rule: each node carries Showdown's residual-order index from the source comments, so gaps, repeats and letter suffixes are deliberate.
+
+```mermaid
+flowchart LR
+    subgraph c1 [steps 1 to 6b]
+        direction TB
+        s1["1 weather"] --> s2a["2a terrain countdown<br/>(decrement only)"]
+        s2a --> s3["3 Future Sight, Doom Desire"]
+        s3 --> s4["4 Wish"]
+        s4 --> s5a["5a Hydration"]
+        s5a --> s5b["5b item healing"]
+        s5b --> s5c["5c Grassy Terrain heal"]
+        s5c --> s2b["2b terrain expiry<br/>(clear if zero)"]
+        s2b --> s6["6 Aqua Ring, Ingrain"]
+        s6 --> s6b["6b weather abilities"]
+        s2b -.- tn["terrain ticks before the heal<br/>but expires after it"]
+    end
+    subgraph c2 [steps 7-8 to 12d]
+        direction TB
+        s78["7-8 berry activation"] --> s910["9-10 status damage, then berries"]
+        s910 --> s11["11 Leech Seed"]
+        s11 --> s12["12 Curse"]
+        s12 --> s13["13 binding damage"]
+        s13 --> s11b["11 screen expiry"]
+        s11b --> s12t["12 Tailwind expiry"]
+        s12t --> s12b["12b side-condition expiry"]
+        s12b --> s12c["12c Salt Cure"]
+        s12c --> s12d["12d Yawn"]
+    end
+    subgraph c3 [steps 13 to 18]
+        direction TB
+        s13v["13 volatile counters"] --> s14["14 Perish Song"]
+        s14 --> s14c["14c status orbs"]
+        s14c --> s14b["14b Soul-Heart"]
+        s14b --> s15["15 end-of-turn abilities"]
+        s15 --> s16["16 turns_active += 1"]
+        s16 --> s17["17 per-turn reset"]
+        s17 --> s18["18 turn += 1"]
+    end
+    c1 --> c2 --> c3
+    classDef terrain stroke-width:3px,stroke-dasharray:5 3
+    classDef notebox stroke-dasharray:2 3,font-style:italic
+    class s2a,s2b terrain
+    class tn notebox
+```
 
 ## Damage is integer arithmetic, on purpose
 
@@ -98,6 +168,11 @@ The same reasoning drives some odd-looking choices elsewhere. Thick Fat is imple
 A multi-hit move can hit ten times, so everything that does not change between hits is computed before the loop: the level factor, weather, same-type bonus, burn, screens, ability and item modifiers, and the critical-hit multiplier. The attack and defence stat chains are each computed in two versions, normal and critical, with the critical version reusing the normal value whenever a critical hit could not change it.
 
 Inside the per-hit loop there is only an accuracy roll, a critical-hit roll, the base formula, and the modifier chain applied in Showdown's exact order: weather, critical hit, the random 85-to-100 roll, same-type bonus, type effectiveness, burn, screens, defender ability, attacker ability, item, then a floor of one damage.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/damage-loop-dark.svg">
+  <img alt="Damage calculation: fourteen loop-invariant values are computed once before the hit loop; each hit then does an accuracy roll, a crit roll, the base formula, a thirteen-step modifier chain in Showdown's order, and a floor at one damage." src="img/damage-loop-light.svg">
+</picture>
 
 ## Move execution is mostly a table
 

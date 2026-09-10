@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" width="720" height="320" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="BattleState is 664 bytes: two 324-byte sides plus 16 bytes of field and bookkeeping. One side is a 76-byte active Pokemon, a 228-byte team of six, and 20 bytes of side conditions.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 516" width="720" height="516" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="BattleState is 664 bytes: two 324-byte sides plus 16 bytes of field and bookkeeping. One side is a 76-byte active Pokemon, a 228-byte team of six, and 20 bytes of side conditions. The active Pokemon is 4 bytes of volatile flags, 38 bytes of u16 overrides and last-move state, 27 bytes of boosts and turn counters, 5 padding bytes that carry state, and 2 alignment bytes.">
 <text x="24" y="24" font-size="15" font-weight="600" fill="#ffffff">One battle position is 664 contiguous bytes</text>
 <text x="24" y="44" font-size="12" fill="#c3c2b7">Segment width is proportional to size. Copying the whole thing is one memcpy.</text>
 <text x="24" y="70" font-size="12" font-weight="600" fill="#ffffff">BattleState, 664 bytes</text>
@@ -20,5 +20,23 @@
 <rect x="654.5" y="188" width="39.5" height="44" rx="4" fill="#8a8980"/>
 <text x="696" y="250" font-size="11" text-anchor="end" fill="#c3c2b7">grey: 20 bytes of hazards, screens and bookkeeping</text>
 <text x="24" y="250" font-size="11" fill="#c3c2b7">team = six 38-byte records</text>
-<text x="24" y="284" font-size="12" fill="#ffffff">Every size here is asserted at compile time, so the struct cannot silently grow.</text>
+<text x="24" y="292" font-size="12" font-weight="600" fill="#ffffff">the active Pokemon, expanded &#8212; 76 bytes</text>
+<rect x="24.0" y="300" width="34.8" height="44" rx="4" fill="#3987e5"/>
+<rect x="60.8" y="300" width="331.0" height="44" rx="4" fill="#d95926"/>
+<text x="226.3" y="321" font-size="12" font-weight="600" text-anchor="middle" fill="#ffffff">u16 overrides and last-move state</text>
+<text x="226.3" y="336" font-size="11" text-anchor="middle" fill="#ffffff" opacity="0.88">38 bytes</text>
+<rect x="393.8" y="300" width="235.2" height="44" rx="4" fill="#199e70"/>
+<text x="511.4" y="321" font-size="12" font-weight="600" text-anchor="middle" fill="#ffffff">boosts and turn counters</text>
+<text x="511.4" y="336" font-size="11" text-anchor="middle" fill="#ffffff" opacity="0.88">27 bytes</text>
+<rect x="631.0" y="300" width="43.6" height="44" rx="4" fill="#8a8980"/>
+<rect x="676.6" y="300" width="17.4" height="44" rx="4" fill="#8a8980" opacity="0.35"/>
+<text x="24" y="362" font-size="11" fill="#c3c2b7">blue: 32 volatile flags in 4 bytes</text>
+<text x="696" y="362" font-size="11" text-anchor="end" fill="#c3c2b7">grey: 5 padding bytes, listed below, then 2 alignment bytes that hold nothing</text>
+<text x="696" y="386" font-size="11" font-weight="600" text-anchor="end" fill="#c3c2b7">what the 5 padding bytes hold</text>
+<text x="696" y="402" font-size="11" text-anchor="end" fill="#c3c2b7">byte 0: Baton Pass pending, Protect variant, stats-split active, Truant loaf</text>
+<text x="696" y="418" font-size="11" text-anchor="end" fill="#c3c2b7">byte 1: charge location (air, underground, underwater, vanished)</text>
+<text x="696" y="434" font-size="11" text-anchor="end" fill="#c3c2b7">byte 2: move-lock turns remaining</text>
+<text x="696" y="450" font-size="11" text-anchor="end" fill="#c3c2b7">byte 3: Protean, attract, Paradox booster, No Retreat, Paradox boosted stat</text>
+<text x="696" y="466" font-size="11" text-anchor="end" fill="#c3c2b7">byte 4: Disguise/Ice Face broken, charge, bind turns</text>
+<text x="24" y="496" font-size="12" fill="#ffffff">Every size here is asserted at compile time, so the struct cannot silently grow.</text>
 </svg>

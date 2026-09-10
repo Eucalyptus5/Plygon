@@ -30,6 +30,11 @@ Taking the single best move from each world and voting would be a mistake, becau
 
 Every node holds **two** independent bandits, one per player. Each side picks its own move by its own statistics, without conditioning on the other, and the resulting pair of moves names the child node. Each node has a dense table of up to 169 children, one for each combination of 13 possible actions.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/tree-node-dark.svg">
+  <img alt="A tree node holds two independent 13-arm bandits, one per side, and a 13 by 13 table of child slots indexed by the pair of arms chosen. The leaf value v is added to side 1's chosen arm and 1 minus v to side 2's chosen arm." src="img/tree-node-light.svg">
+</picture>
+
 Selection uses the usual exploration formula:
 
 ```

@@ -7,14 +7,25 @@ So I did not try to get it right by reading. I built a rig that runs my engine a
 ## How it works
 
 ```mermaid
-flowchart LR
-    G[fuzzer generates<br/>a random battle] --> S[scenario.json]
-    S --> R[run_scenario<br/>my engine, Rust]
-    S --> N[showdown_runner.js<br/>real Showdown, Node]
-    R --> C[compare_results.js]
-    N --> C
-    C -->|identical| P[pass]
-    C -->|differs| M[minimize to<br/>smallest repro]
+flowchart TD
+    gen["fuzzer: random battle from a 32-bit seed"] -->|seed| scenario["scenario.json: teams, overrides, per-turn actions"]
+    scenario --> pin["RNG pin: one forced answer per kind of roll"]
+    pin -->|"closure: max -> fixed value"| rust["run_scenario, my engine"]
+    pin -->|"patch randomChance, random, sample, damage randomizer"| node["showdown_runner.js, real Showdown"]
+    rust -->|state per turn| cmp["compare_results.js, field by field"]
+    node -->|state per turn| cmp
+    node -->|Showdown refused the action| rejected[rejected]
+    cmp -->|identical| pass[pass]
+    cmp -->|differs| min[minimize]
+    min -->|"shorten turns, drop bench, Splash moves, strip items, drop state overrides"| bug[bug]
+    min -->|every piece already on the known list| suppressed[suppressed]
+    min -->|the minimized divergence names Splash, the stand-in move| splash[splash]
+    pass --> gate[coverage gate]
+    bug --> gate
+    rejected --> gate
+    suppressed --> gate
+    splash --> gate
+    gate -->|"next seed; halt if any of 26 state categories is silent across the trailing 10,000 scenarios (checked every 1,000)"| gen
 ```
 
 A **scenario** is a JSON file describing both teams, any starting conditions, and a list of turns with the action each side takes. It is fed to two runners on standard input: a small Rust binary that drives my engine, and a Node script that drives a real Showdown battle. Both print the resulting battle state in the same format, and a comparison script diffs them field by field.
@@ -25,15 +36,27 @@ Pokemon is full of dice. Damage varies by up to 15 percent, moves miss, critical
 
 The two simulators do not share a random number generator. Instead, **every random decision in both is pinned to the same forced outcome.**
 
-My engine makes this straightforward, because it has no random number generator of its own. Every entry point takes a closure, and the `max` argument identifies what is being rolled: 16 is a damage roll, 24 is a critical hit, 100 is accuracy or a secondary effect, 2 is a speed tie, 4 is full paralysis, 5 is thawing. The test harness supplies a closure that returns a fixed answer for each.
+My engine makes this straightforward, because it has no random number generator of its own. Every entry point takes a closure, and the `max` argument identifies what is being rolled. The test harness supplies a closure that returns a fixed answer for each, and patches Showdown to give the matching one:
 
-Showdown needs more work. The harness patches the battle object's `randomChance`, `random`, `sample`, and damage randomizer so each one returns the matching fixed answer. One detail that matters: the patch intercepts `sample` rather than the underlying generator, so Showdown's speed-tie shuffle is left alone.
+| `max` | what is rolled | `force_all` returns | `force_none` returns | Showdown patch point |
+|---|---|---|---|---|
+| 16 | damage roll, 0 is the 85% roll and 15 the 100% roll | 15 | 15 | `randomizer`, fed `15 - r` |
+| 24 | critical hit, 0 is a crit | 23, no crit | 23, no crit | `randomChance(1, 24)`, and the 1/8, 1/2 and 1/1 crit ratios, forced false |
+| 100 | accuracy, or a secondary effect, 0 passes | 0 | 0 until the turn's first damage roll, then 99 | `randomChance(n, 100)` with n >= 50 treated as accuracy and forced true, otherwise as a secondary; `random(100)` gives 0 or 99 |
+| 2 | speed tie, 0 lets the first side listed go first | 0 | 0 | not patched: Showdown's own shuffle runs on the fixed seed `[1, 2, 3, 4]` |
+| 4 | full paralysis, 0 cannot move | 0, cannot move | 3, can move | `randomChance(1, 4)`, true or false |
+| 5 | thaw, 0 thaws | 0, thaws | 4, stays frozen | `randomChance(1, 5)`, true or false |
+| 3 | second consecutive Protect, 0 succeeds (1 in 3) | 0, succeeds | 1, fails | `randomChance(1, 3)`, true or false |
+| 9 | third consecutive Protect, 0 succeeds (1 in 9) | 0, succeeds | 1, fails | `randomChance(1, 9)`, true or false |
+| anything else | multi-hit count, sleep and confusion length, Tri Attack's status, and other picks | 0 | 0 | `random(m, n)` gives m, `random(m)` gives 0, `sample` gives the first item; under `force_none` these fall through to the seeded PRNG |
 
 The two simulators also number their damage rolls in opposite directions, so the harness converts explicitly: my roll `r` is Showdown's `15 - r`.
 
-Six modes are available: force everything to the maximum, force nothing, minimum roll, maximum roll, **all 16 rolls**, or a specific hand-picked set. Damage is never compared on a single roll. It is always compared across all sixteen, because two engines can agree on the average and still disagree on the distribution.
-
 One honest caveat: my engine distinguishes an accuracy check from a secondary-effect check by the order they are drawn, while the Showdown patch distinguishes them by a threshold on the probability. These agree for ordinary moves but are not literally the same rule.
+
+Showdown needs more work. The harness patches the battle object's `randomChance`, `random`, `sample`, and damage randomizer so each one returns the matching fixed answer. One detail that matters: the patch intercepts `sample` rather than the underlying generator, so Showdown's speed-tie shuffle is left alone.
+
+Six modes are available: force everything to the maximum, force nothing, minimum roll, maximum roll, **all 16 rolls**, or a specific hand-picked set. Damage is never compared on a single roll. It is always compared across all sixteen, because two engines can agree on the average and still disagree on the distribution.
 
 ## The fuzzer
 
