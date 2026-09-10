@@ -1,12 +1,12 @@
-<p align="center">
-  <img src="docs/img/logo.gif" alt="Porygon" width="150">
-</p>
-
 # Plygon
 
 A Generation 9 Pokemon battle engine written from scratch in Rust, and a Monte Carlo tree search agent that plays it.
 
 ![license](https://img.shields.io/badge/license-GPL--3.0-blue) ![rust](https://img.shields.io/badge/rust-2021-orange)
+
+<p align="center">
+  <img src="docs/img/logo.gif" alt="Porygon" width="150">
+</p>
 
 The engine simulates a complete six-on-six battle in about **13.9 microseconds**, roughly [72,000 battles per second](docs/benchmarks.md) on one core. The whole battle state is **664 bytes** and copies with a single `memcpy`. Correctness is checked by [running it against Pokemon Showdown](docs/conformance.md) on randomly generated battles and diffing the results field by field.
 
