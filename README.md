@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/img/logo.gif" alt="Porygon" width="150">
+</p>
+
 # Plygon
 
 A Generation 9 Pokemon battle engine written from scratch in Rust, and a Monte Carlo tree search agent that plays it.
