@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 572" width="720" height="572" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="The evaluator's input is 15 tokens built from one BattleState: one token per team seat on each side, one token per side's conditions, and one global token. Each token is the sum of embedding rows for the sparse feature ids its segment emits. A seat token carries identity, HP bucket, status, moves, item and ability, and the active seat adds boosts, volatiles, confusion and Tera type. An empty seat emits no ids and its token is all zeros. Seven dense floats bypass the table.">
+<text x="24" y="24" font-size="15" font-weight="600" fill="#ffffff">The input: 15 tokens from one BattleState</text>
+<text x="24" y="44" font-size="12" fill="#c3c2b7">The extractor walks each side's six seats, then each side's conditions, then the field, emitting sparse feature ids in 15 segments.</text>
+<text x="24" y="60" font-size="12" fill="#c3c2b7">Each segment sums the embedding rows of its ids into one token. Every id also names its side.</text>
+<rect x="24" y="76" width="328" height="332" rx="8" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="36" y="94" font-size="12" font-weight="600" fill="#ffffff">one seat token (one team slot)</text>
+<rect x="36" y="104" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="188" y="119" font-size="11" text-anchor="middle" fill="#ffffff">identity: side, active or benched, species</text>
+<rect x="36" y="130" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="188" y="145" font-size="11" text-anchor="middle" fill="#ffffff">HP: side, species, bucket 0 to 16</text>
+<rect x="36" y="156" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="188" y="171" font-size="11" text-anchor="middle" fill="#ffffff">status: side, species, which status (only if statused)</text>
+<rect x="36" y="182" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="188" y="197" font-size="11" text-anchor="middle" fill="#ffffff">moves: side, active or benched, move (one id per move)</text>
+<rect x="36" y="208" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="188" y="223" font-size="11" text-anchor="middle" fill="#ffffff">item: side, active or benched, item</text>
+<rect x="36" y="234" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="188" y="249" font-size="11" text-anchor="middle" fill="#ffffff">ability: side, active or benched, ability</text>
+<text x="36" y="280" font-size="11" font-weight="600" fill="#3987e5">the active seat also carries</text>
+<rect x="36" y="288" width="304" height="22" rx="4" fill="none" stroke="#3987e5" stroke-width="1.5"/>
+<text x="188" y="303" font-size="11" text-anchor="middle" fill="#ffffff">stat boosts: side, stat, stage (nonzero only)</text>
+<rect x="36" y="314" width="304" height="22" rx="4" fill="none" stroke="#3987e5" stroke-width="1.5"/>
+<text x="188" y="329" font-size="11" text-anchor="middle" fill="#ffffff">durable volatiles: side, flag (26 flags)</text>
+<rect x="36" y="340" width="304" height="22" rx="4" fill="none" stroke="#3987e5" stroke-width="1.5"/>
+<text x="188" y="355" font-size="11" text-anchor="middle" fill="#ffffff">confusion: side</text>
+<rect x="36" y="366" width="304" height="22" rx="4" fill="none" stroke="#3987e5" stroke-width="1.5"/>
+<text x="188" y="381" font-size="11" text-anchor="middle" fill="#ffffff">Tera type: side, type (once Terastallized)</text>
+<rect x="368" y="76" width="328" height="138" rx="8" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="380" y="94" font-size="12" font-weight="600" fill="#ffffff">one side token</text>
+<rect x="380" y="104" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="532" y="119" font-size="11" text-anchor="middle" fill="#ffffff">hazards: Stealth Rock, Sticky Web, Spikes, Toxic Spikes</text>
+<rect x="380" y="130" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="532" y="145" font-size="11" text-anchor="middle" fill="#ffffff">screens: Reflect, Light Screen, Aurora Veil</text>
+<rect x="380" y="156" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="532" y="171" font-size="11" text-anchor="middle" fill="#ffffff">Safeguard, Tailwind, Healing Wish pending</text>
+<rect x="380" y="182" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="532" y="197" font-size="11" text-anchor="middle" fill="#ffffff">Tera already used this battle</text>
+<rect x="368" y="230" width="328" height="86" rx="8" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="380" y="248" font-size="12" font-weight="600" fill="#ffffff">the global token</text>
+<rect x="380" y="258" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="532" y="273" font-size="11" text-anchor="middle" fill="#ffffff">weather, terrain, Trick Room, Gravity</text>
+<rect x="380" y="284" width="304" height="22" rx="4" fill="#8a8980"/>
+<text x="532" y="299" font-size="11" text-anchor="middle" fill="#ffffff">turn bucket: turn / 5, capped at 7</text>
+<rect x="368" y="332" width="328" height="76" rx="8" fill="none" stroke="#8a8980" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="380" y="350" font-size="12" font-weight="600" fill="#ffffff">the dense channel, 7 floats, no table</text>
+<text x="380" y="368" font-size="11" fill="#c3c2b7">HP fraction summed per side, survivors per side,</text>
+<text x="380" y="383" font-size="11" fill="#c3c2b7">the two differences, and the hand evaluator's score</text>
+<text x="380" y="398" font-size="11" fill="#c3c2b7">scaled by 0.0125. Appended raw to the first layer's input.</text>
+<text x="24" y="432" font-size="12" font-weight="600" fill="#ffffff">the 15 segments, in emission order</text>
+<text x="85" y="447" font-size="9" text-anchor="middle" fill="#3987e5">active</text>
+<text x="513" y="447" font-size="9" text-anchor="middle" fill="#c3c2b7">empty</text>
+<rect x="24" y="452" width="38" height="40" rx="3" fill="#3987e5"/>
+<text x="43" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 0</text>
+<rect x="66" y="452" width="38" height="40" rx="3" fill="#3987e5"/>
+<text x="85" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 1</text>
+<rect x="108" y="452" width="38" height="40" rx="3" fill="#3987e5"/>
+<text x="127" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 2</text>
+<rect x="150" y="452" width="38" height="40" rx="3" fill="#3987e5"/>
+<text x="169" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 3</text>
+<rect x="192" y="452" width="38" height="40" rx="3" fill="#3987e5"/>
+<text x="211" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 4</text>
+<rect x="234" y="452" width="38" height="40" rx="3" fill="#3987e5"/>
+<text x="253" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 5</text>
+<rect x="284" y="452" width="38" height="40" rx="3" fill="#d95926"/>
+<text x="303" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 0</text>
+<rect x="326" y="452" width="38" height="40" rx="3" fill="#d95926"/>
+<text x="345" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 1</text>
+<rect x="368" y="452" width="38" height="40" rx="3" fill="#d95926"/>
+<text x="387" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 2</text>
+<rect x="410" y="452" width="38" height="40" rx="3" fill="#d95926"/>
+<text x="429" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 3</text>
+<rect x="452" y="452" width="38" height="40" rx="3" fill="#d95926"/>
+<text x="471" y="476" font-size="9" text-anchor="middle" fill="#ffffff">seat 4</text>
+<rect x="494" y="452" width="38" height="40" rx="3" fill="none" stroke="#d95926" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="513" y="476" font-size="9" text-anchor="middle" fill="#c3c2b7">seat 5</text>
+<rect x="544" y="452" width="38" height="40" rx="3" fill="none" stroke="#3987e5" stroke-width="1.5"/>
+<text x="563" y="476" font-size="9" text-anchor="middle" fill="#ffffff">side</text>
+<rect x="586" y="452" width="38" height="40" rx="3" fill="none" stroke="#d95926" stroke-width="1.5"/>
+<text x="605" y="476" font-size="9" text-anchor="middle" fill="#ffffff">side</text>
+<rect x="636" y="452" width="38" height="40" rx="3" fill="#8a8980"/>
+<text x="655" y="476" font-size="9" text-anchor="middle" fill="#ffffff">global</text>
+<text x="148" y="508" font-size="10" text-anchor="middle" fill="#c3c2b7">side 0 seats, segments 0 to 5</text>
+<text x="408" y="508" font-size="10" text-anchor="middle" fill="#c3c2b7">side 1 seats, segments 6 to 11</text>
+<text x="584" y="508" font-size="10" text-anchor="middle" fill="#c3c2b7">12, 13</text>
+<text x="655" y="508" font-size="10" text-anchor="middle" fill="#c3c2b7">14</text>
+<text x="24" y="534" font-size="11" fill="#c3c2b7">A token is the sum of its ids' rows from one table of 80,973 rows, width W from the file header. A token carries no seat number.</text>
+<text x="24" y="549" font-size="11" fill="#c3c2b7">An empty seat emits no ids, so its token is all zeros. A fainted Pokemon keeps its identity id and lands in HP bucket 0.</text>
+<text x="24" y="566" font-size="12" fill="#ffffff">Mirroring a state swaps the two side blocks and flips the side inside every id, which is how the policy net is shown seat 1's view.</text>
+</svg>

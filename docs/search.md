@@ -77,7 +77,7 @@ It is **untuned on purpose**. The interface is one line:
 pub trait Evaluator { fn eval(&self, state: &BattleState) -> f32; }
 ```
 
-Anything implementing that can be dropped into the search. If you want an agent that plays well, this is the part to replace. Note that the top-level convenience wrapper currently selects among evaluators through a closed enum, so plugging in your own today means either extending that enum or calling the per-world search function directly.
+Anything implementing that can be dropped into the search. If you want an agent that plays well, this is the part to replace. The [evaluator page](evaluator.md) describes the neural network I built behind this trait; its code is here and its weights are not. Note that the top-level convenience wrapper currently selects among evaluators through a closed enum, so plugging in your own today means either extending that enum or calling the per-world search function directly.
 
 ## Making a random search testable
 

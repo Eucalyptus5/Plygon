@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 544" width="720" height="544" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="How the policy prior reaches the search. For each sampled world, prior_inputs orients the state to the decider, extracts the 15 tokens and 7 dense floats, the active moveset, the legal mask, and a per-action block of 14 rows of 8 floats computed by the engine's damage calculator. One batched forward over all worlds runs the shared trunk and two heads: a move head evaluated for each of 4 moves, plain and Terastallized, and a switch head evaluated for each of 6 seats. The 14 logits are masked to the legal set and softmaxed into a prior, which the root node's decider bandit uses in its selection score. The opponent's bandit and every deeper node are unchanged.">
+<defs>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2a78d6"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6f6e69"/></marker>
+</defs>
+<text x="24" y="24" font-size="15" font-weight="600" fill="#0b0b0b">The policy prior: one batched forward per turn, used at the root only</text>
+<text x="24" y="44" font-size="12" fill="#52514e">Every sampled world gets its own prior over the 14 action bytes. The search reads it in the root's decider bandit and nowhere else.</text>
+<rect x="24" y="70" width="120" height="110" rx="6" fill="none" stroke="#6f6e69" stroke-width="1.5"/>
+<text x="84" y="118" font-size="11" font-weight="600" text-anchor="middle" fill="#0b0b0b">K sampled worlds</text>
+<text x="84" y="134" font-size="10" text-anchor="middle" fill="#52514e">one decision, one turn</text>
+<path d="M144,125 H175" fill="none" stroke="#6f6e69" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="178" y="70" width="250" height="110" rx="6" fill="none" stroke="#6f6e69" stroke-width="1.5"/>
+<text x="190" y="86" font-size="10" font-weight="600" fill="#0b0b0b">prior_inputs, per world</text>
+<text x="190" y="100" font-size="10" fill="#52514e">state oriented to the decider (mirrored at seat 1)</text>
+<text x="190" y="113" font-size="10" fill="#52514e">&#8594; 15 tokens and 7 dense floats</text>
+<text x="190" y="126" font-size="10" fill="#52514e">the decider's active moveset: 4 move ids</text>
+<text x="190" y="139" font-size="10" fill="#52514e">legal mask over the 14 action bytes</text>
+<text x="190" y="152" font-size="10" fill="#52514e">per-action block: 14 rows &#215; 8 floats from the</text>
+<text x="190" y="165" font-size="10" fill="#52514e">engine's damage calculator, on the unmirrored state</text>
+<path d="M428,125 H455" fill="none" stroke="#6f6e69" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="458" y="70" width="238" height="110" rx="6" fill="none" stroke="#6f6e69" stroke-width="1.5"/>
+<text x="470" y="86" font-size="10" font-weight="600" fill="#0b0b0b">forward_batch, one call for all K worlds</text>
+<text x="470" y="100" font-size="10" fill="#52514e">trunk: tokens &#8594; acc0, acc1, the 6 by 6 web,</text>
+<text x="470" y="113" font-size="10" fill="#52514e">then a small ReLU chain &#8594; context vector g</text>
+<text x="470" y="126" font-size="10" fill="#52514e">heads read seat tokens, web cells, g and</text>
+<text x="470" y="139" font-size="10" fill="#52514e">one per-action row each</text>
+<text x="470" y="152" font-size="10" fill="#52514e">weights stream once across the batch; every</text>
+<text x="470" y="165" font-size="10" fill="#52514e">row is bit-identical to the single forward</text>
+<path d="M577,180 V192" fill="none" stroke="#6f6e69" stroke-width="1.5"/>
+<path d="M577,192 H112 V205" fill="none" stroke="#6f6e69" stroke-width="1.5" marker-end="url(#ag)"/>
+<path d="M577,192 H358 V205" fill="none" stroke="#6f6e69" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="24" y="208" width="176" height="60" rx="6" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="112" y="223" font-size="10" font-weight="600" text-anchor="middle" fill="#0b0b0b">move head, per move j</text>
+<text x="112" y="236" font-size="10" text-anchor="middle" fill="#52514e">active seat token, its web row sum,</text>
+<text x="112" y="249" font-size="10" text-anchor="middle" fill="#52514e">the active cell, a move embedding, g,</text>
+<text x="112" y="262" font-size="10" text-anchor="middle" fill="#52514e">and action row j or 10 + j</text>
+<rect x="216" y="208" width="284" height="60" rx="6" fill="none" stroke="#6f6e69" stroke-width="1.5"/>
+<text x="358" y="223" font-size="10" font-weight="600" text-anchor="middle" fill="#0b0b0b">switch head, per seat k</text>
+<text x="358" y="236" font-size="10" text-anchor="middle" fill="#52514e">seat token, sum and max of its web row,</text>
+<text x="358" y="249" font-size="10" text-anchor="middle" fill="#52514e">its cell against their active, their active token, g,</text>
+<text x="358" y="262" font-size="10" text-anchor="middle" fill="#52514e">and action row 4 + k</text>
+<path d="M112,268 V297" fill="none" stroke="#2a78d6" stroke-width="1.5" marker-end="url(#ab)"/>
+<path d="M112,280 H598 V297" fill="none" stroke="#2a78d6" stroke-width="1.5" marker-end="url(#ab)"/>
+<text x="400" y="291" font-size="9" fill="#2a78d6">same weights, Terastallized action row</text>
+<path d="M358,268 V297" fill="none" stroke="#6f6e69" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="24" y="300" width="44" height="30" rx="3" fill="#2a78d6"/>
+<text x="46" y="319" font-size="10" text-anchor="middle" fill="#ffffff">0</text>
+<rect x="72" y="300" width="44" height="30" rx="3" fill="#2a78d6"/>
+<text x="94" y="319" font-size="10" text-anchor="middle" fill="#ffffff">1</text>
+<rect x="120" y="300" width="44" height="30" rx="3" fill="#2a78d6"/>
+<text x="142" y="319" font-size="10" text-anchor="middle" fill="#ffffff">2</text>
+<rect x="168" y="300" width="44" height="30" rx="3" fill="#2a78d6"/>
+<text x="190" y="319" font-size="10" text-anchor="middle" fill="#ffffff">3</text>
+<rect x="216" y="300" width="44" height="30" rx="3" fill="#6f6e69"/>
+<text x="238" y="319" font-size="10" text-anchor="middle" fill="#ffffff">4</text>
+<rect x="264" y="300" width="44" height="30" rx="3" fill="#6f6e69"/>
+<text x="286" y="319" font-size="10" text-anchor="middle" fill="#ffffff">5</text>
+<rect x="312" y="300" width="44" height="30" rx="3" fill="#6f6e69"/>
+<text x="334" y="319" font-size="10" text-anchor="middle" fill="#ffffff">6</text>
+<rect x="360" y="300" width="44" height="30" rx="3" fill="#6f6e69"/>
+<text x="382" y="319" font-size="10" text-anchor="middle" fill="#ffffff">7</text>
+<rect x="408" y="300" width="44" height="30" rx="3" fill="#6f6e69"/>
+<text x="430" y="319" font-size="10" text-anchor="middle" fill="#ffffff">8</text>
+<rect x="456" y="300" width="44" height="30" rx="3" fill="#6f6e69"/>
+<text x="478" y="319" font-size="10" text-anchor="middle" fill="#ffffff">9</text>
+<rect x="504" y="300" width="44" height="30" rx="3" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="526" y="319" font-size="10" text-anchor="middle" fill="#0b0b0b">10</text>
+<rect x="552" y="300" width="44" height="30" rx="3" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="574" y="319" font-size="10" text-anchor="middle" fill="#0b0b0b">11</text>
+<rect x="600" y="300" width="44" height="30" rx="3" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="622" y="319" font-size="10" text-anchor="middle" fill="#0b0b0b">12</text>
+<rect x="648" y="300" width="44" height="30" rx="3" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="670" y="319" font-size="10" text-anchor="middle" fill="#0b0b0b">13</text>
+<text x="118" y="346" font-size="10" text-anchor="middle" fill="#52514e">moves 0 to 3</text>
+<text x="358" y="346" font-size="10" text-anchor="middle" fill="#52514e">switch to seat 0 to 5</text>
+<text x="598" y="346" font-size="10" text-anchor="middle" fill="#52514e">Terastallize, then move 0 to 3</text>
+<text x="24" y="368" font-size="10" fill="#52514e">14 logits per world, one per action byte</text>
+<path d="M358,330 V357" fill="none" stroke="#6f6e69" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="228" y="360" width="260" height="26" rx="4" fill="none" stroke="#6f6e69" stroke-width="1.5"/>
+<text x="358" y="377" font-size="10" text-anchor="middle" fill="#0b0b0b">illegal bytes to &#8722;&#8734;, then softmax &#8594; P</text>
+<path d="M358,386 V403" fill="none" stroke="#2a78d6" stroke-width="1.5" marker-end="url(#ab)"/>
+<rect x="24" y="406" width="672" height="46" rx="6" fill="none" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="360" y="424" font-size="11" font-weight="600" text-anchor="middle" fill="#0b0b0b">root node, the decider's bandit only: pick the arm maximizing  q_a + P[a] &#183; &#8730;N / (1 + n_a)</text>
+<text x="360" y="441" font-size="10" text-anchor="middle" fill="#52514e">the opponent's root bandit and every deeper node keep the prior-free rule, and no arm gets a first-visit shortcut here</text>
+<text x="24" y="476" font-size="11" fill="#52514e">Move rows: damage as a fraction of their HP at the median roll, KO flag, type effectiveness, moves first, priority,</text>
+<text x="24" y="491" font-size="11" fill="#52514e">accuracy, status move, pivot move. Switch rows, on a copy of the state with that seat swapped in: damage taken and dealt,</text>
+<text x="24" y="506" font-size="11" fill="#52514e">both KO flags, speed order, hazard damage, HP fraction, best effectiveness. An illegal byte gets an all-zero row and zero prior;</text>
+<text x="24" y="521" font-size="11" fill="#52514e">Struggle (byte 255) is outside the vector and scores no prior.</text>
+<text x="24" y="539" font-size="12" fill="#0b0b0b">The forward runs before the worlds' searches start, so it costs wall time but displaces no iterations.</text>
+</svg>

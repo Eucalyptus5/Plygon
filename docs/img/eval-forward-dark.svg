@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 540" width="720" height="540" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-label="The value forward pass. The six side-0 seat tokens, the side-0 side token and the global token are summed into accumulator acc0; side 1's into acc1; both pass through a ReLU. Separately, matrix A projects each of my six seat tokens and matrix B each of their six, and the 36 pairwise products are rectified into a 6 by 6 web of cells; web_total sums all cells and the active cell is the one for the two active Pokemon. The first layer's input is ReLU acc0, ReLU acc1, web_total, the active cell and 7 dense floats, 2W plus 2R plus 7 wide. A chain of fully-connected layers with ReLU between them ends in one output, which a multiplier from the file header puts in the hand evaluator's units. The search squashes it relative to the root's value.">
+<defs>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3987e5"/></marker>
+<marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d95926"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8a8980"/></marker>
+</defs>
+<text x="24" y="24" font-size="15" font-weight="600" fill="#ffffff">The value forward: two accumulators, a 6 by 6 web, one fully-connected chain</text>
+<text x="24" y="44" font-size="12" fill="#c3c2b7">The same 15 tokens feed two paths. The accumulators pool each side; the web compares individual seats across sides.</text>
+<text x="270" y="82" font-size="10" fill="#c3c2b7">side 0 seat tokens</text>
+<rect x="270" y="90" width="100" height="14" rx="2" fill="#3987e5"/>
+<text x="320" y="101" font-size="9" text-anchor="middle" fill="#ffffff">seat 0</text>
+<rect x="270" y="107" width="100" height="14" rx="2" fill="#3987e5"/>
+<text x="320" y="118" font-size="9" text-anchor="middle" fill="#ffffff">seat 1 (active)</text>
+<rect x="270" y="124" width="100" height="14" rx="2" fill="#3987e5"/>
+<text x="320" y="135" font-size="9" text-anchor="middle" fill="#ffffff">seat 2</text>
+<rect x="270" y="141" width="100" height="14" rx="2" fill="#3987e5"/>
+<text x="320" y="152" font-size="9" text-anchor="middle" fill="#ffffff">seat 3</text>
+<rect x="270" y="158" width="100" height="14" rx="2" fill="#3987e5"/>
+<text x="320" y="169" font-size="9" text-anchor="middle" fill="#ffffff">seat 4</text>
+<rect x="270" y="175" width="100" height="14" rx="2" fill="#3987e5"/>
+<text x="320" y="186" font-size="9" text-anchor="middle" fill="#ffffff">seat 5</text>
+<text x="270" y="206" font-size="10" fill="#c3c2b7">side 1 seat tokens</text>
+<rect x="270" y="214" width="100" height="14" rx="2" fill="#d95926"/>
+<text x="320" y="225" font-size="9" text-anchor="middle" fill="#ffffff">seat 0</text>
+<rect x="270" y="231" width="100" height="14" rx="2" fill="#d95926"/>
+<text x="320" y="242" font-size="9" text-anchor="middle" fill="#ffffff">seat 1</text>
+<rect x="270" y="248" width="100" height="14" rx="2" fill="#d95926"/>
+<text x="320" y="259" font-size="9" text-anchor="middle" fill="#ffffff">seat 2</text>
+<rect x="270" y="265" width="100" height="14" rx="2" fill="#d95926"/>
+<text x="320" y="276" font-size="9" text-anchor="middle" fill="#ffffff">seat 3</text>
+<rect x="270" y="282" width="100" height="14" rx="2" fill="#d95926"/>
+<text x="320" y="293" font-size="9" text-anchor="middle" fill="#ffffff">seat 4</text>
+<rect x="270" y="299" width="100" height="14" rx="2" fill="#d95926"/>
+<text x="320" y="310" font-size="9" text-anchor="middle" fill="#ffffff">seat 5 (active)</text>
+<rect x="24" y="112" width="170" height="48" rx="6" fill="none" stroke="#3987e5" stroke-width="1.5"/>
+<text x="109" y="128" font-size="10" font-weight="600" text-anchor="middle" fill="#ffffff">acc0 = sum of side 0 seats</text>
+<text x="109" y="141" font-size="10" text-anchor="middle" fill="#c3c2b7">+ side 0 side token + global token</text>
+<text x="109" y="154" font-size="10" text-anchor="middle" fill="#c3c2b7">then ReLU, width W</text>
+<rect x="64" y="241" width="130" height="48" rx="6" fill="none" stroke="#d95926" stroke-width="1.5"/>
+<text x="129" y="257" font-size="10" font-weight="600" text-anchor="middle" fill="#ffffff">acc1 = sum of side 1 seats</text>
+<text x="129" y="270" font-size="10" text-anchor="middle" fill="#c3c2b7">+ side token + global</text>
+<text x="129" y="283" font-size="10" text-anchor="middle" fill="#c3c2b7">then ReLU, width W</text>
+<path d="M270,141 H197" fill="none" stroke="#3987e5" stroke-width="1.5" marker-end="url(#ab)"/>
+<path d="M270,265 H197" fill="none" stroke="#d95926" stroke-width="1.5" marker-end="url(#ao)"/>
+<text x="412" y="96" font-size="9" font-weight="600" fill="#3987e5">a_i = A &#183; t_i, my six seats</text>
+<text x="548" y="96" font-size="9" font-weight="600" fill="#c3c2b7">cells: ReLU(a_i &#8857; b_j), R each</text>
+<rect x="412" y="104" width="16" height="18" rx="2" fill="#3987e5"/>
+<rect x="412" y="124" width="16" height="18" rx="2" fill="#3987e5"/>
+<rect x="412" y="144" width="16" height="18" rx="2" fill="#3987e5"/>
+<rect x="412" y="164" width="16" height="18" rx="2" fill="#3987e5"/>
+<rect x="412" y="184" width="16" height="18" rx="2" fill="#3987e5"/>
+<rect x="412" y="204" width="16" height="18" rx="2" fill="#3987e5"/>
+<rect x="434" y="104" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="454" y="104" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="474" y="104" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="494" y="104" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="514" y="104" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="534" y="104" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="434" y="124" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="454" y="124" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="474" y="124" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="494" y="124" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="514" y="124" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="534" y="124" width="18" height="18" rx="2" fill="#3987e5"/>
+<rect x="434" y="144" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="454" y="144" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="474" y="144" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="494" y="144" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="514" y="144" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="534" y="144" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="434" y="164" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="454" y="164" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="474" y="164" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="494" y="164" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="514" y="164" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="534" y="164" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="434" y="184" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="454" y="184" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="474" y="184" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="494" y="184" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="514" y="184" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="534" y="184" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="434" y="204" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="454" y="204" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="474" y="204" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="494" y="204" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="514" y="204" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<rect x="534" y="204" width="18" height="18" rx="2" fill="#8a8980" opacity="0.22"/>
+<text x="560" y="138" font-size="9" font-weight="600" fill="#3987e5">active pair</text>
+<rect x="434" y="228" width="18" height="16" rx="2" fill="#d95926"/>
+<rect x="454" y="228" width="18" height="16" rx="2" fill="#d95926"/>
+<rect x="474" y="228" width="18" height="16" rx="2" fill="#d95926"/>
+<rect x="494" y="228" width="18" height="16" rx="2" fill="#d95926"/>
+<rect x="514" y="228" width="18" height="16" rx="2" fill="#d95926"/>
+<rect x="534" y="228" width="18" height="16" rx="2" fill="#d95926"/>
+<text x="560" y="240" font-size="9" font-weight="600" fill="#d95926">b_j = B &#183; t_j, their six seats</text>
+<path d="M370,141 H409" fill="none" stroke="#3987e5" stroke-width="1.5" marker-end="url(#ab)"/>
+<path d="M370,265 H400 V236 H431" fill="none" stroke="#d95926" stroke-width="1.5" marker-end="url(#ao)"/>
+<path d="M40,160 V337" fill="none" stroke="#3987e5" stroke-width="1.5" marker-end="url(#ab)"/>
+<path d="M129,289 V318 H300 V337" fill="none" stroke="#d95926" stroke-width="1.5" marker-end="url(#ao)"/>
+<path d="M494,244 V300" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<path d="M494,300 H424 V337" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<path d="M494,300 H574 V337" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<text x="418" y="326" font-size="9" text-anchor="end" fill="#c3c2b7">sum of all 36 cells</text>
+<text x="580" y="326" font-size="9" fill="#c3c2b7">the active pair's cell</text>
+<rect x="614" y="256" width="82" height="36" rx="4" fill="none" stroke="#8a8980" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="655" y="271" font-size="9" font-weight="600" text-anchor="middle" fill="#ffffff">dense channel</text>
+<text x="655" y="284" font-size="9" text-anchor="middle" fill="#c3c2b7">7 floats, no table</text>
+<path d="M670,292 V337" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<text x="60" y="334" font-size="10" fill="#ffffff">the first layer's input x, 2W + 2R + 7 wide</text>
+<rect x="24" y="340" width="160" height="26" rx="3" fill="#3987e5"/>
+<text x="104" y="357" font-size="10" text-anchor="middle" fill="#ffffff">ReLU(acc0), W</text>
+<rect x="184" y="340" width="160" height="26" rx="3" fill="#d95926"/>
+<text x="264" y="357" font-size="10" text-anchor="middle" fill="#ffffff">ReLU(acc1), W</text>
+<rect x="344" y="340" width="160" height="26" rx="3" fill="#8a8980"/>
+<text x="424" y="357" font-size="10" text-anchor="middle" fill="#ffffff">web_total, R</text>
+<rect x="504" y="340" width="140" height="26" rx="3" fill="#8a8980" opacity="0.55"/>
+<text x="574" y="357" font-size="10" text-anchor="middle" fill="#ffffff">active cell, R</text>
+<rect x="644" y="340" width="52" height="26" rx="3" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="670" y="357" font-size="10" text-anchor="middle" fill="#ffffff">dense 7</text>
+<path d="M84,366 V395" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="24" y="398" width="120" height="28" rx="4" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="84" y="416" font-size="10" text-anchor="middle" fill="#ffffff">fc, ReLU</text>
+<path d="M144,412 H165" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="168" y="398" width="120" height="28" rx="4" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="228" y="416" font-size="10" text-anchor="middle" fill="#ffffff">fc, ReLU</text>
+<path d="M288,412 H305" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="318" y="416" font-size="12" text-anchor="middle" fill="#c3c2b7">&#8230;</text>
+<path d="M331,412 H349" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="352" y="398" width="130" height="28" rx="4" fill="none" stroke="#8a8980" stroke-width="1.5"/>
+<text x="417" y="416" font-size="10" text-anchor="middle" fill="#ffffff">fc, one output</text>
+<path d="M482,412 H503" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="506" y="398" width="110" height="28" rx="4" fill="none" stroke="#8a8980" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="561" y="416" font-size="10" text-anchor="middle" fill="#ffffff">&#215; multiplier</text>
+<path d="M616,412 H637" fill="none" stroke="#8a8980" stroke-width="1.5" marker-end="url(#ag)"/>
+<rect x="640" y="398" width="56" height="28" rx="4" fill="#8a8980"/>
+<text x="668" y="416" font-size="10" text-anchor="middle" fill="#ffffff">logit</text>
+<text x="24" y="446" font-size="10" fill="#c3c2b7">Layer count and widths come from the file header. Hidden layers use ReLU; the output does not. The multiplier is in the header too.</text>
+<text x="24" y="470" font-size="11" fill="#ffffff">The search then does what it does for the hand evaluator: leaf value = sigmoid((logit &#8722; root logit) / temperature).</text>
+<text x="24" y="494" font-size="11" fill="#c3c2b7">W is the accumulator width and R the web rank, both read from the header. The loader refuses a file whose first layer is not</text>
+<text x="24" y="509" font-size="11" fill="#c3c2b7">2W + 2R + 7 wide or whose last layer is not 1 wide. The active cell is all zeros when either side has no active Pokemon.</text>
+<text x="24" y="531" font-size="12" fill="#ffffff">The ReLU inside each cell is load-bearing: without it the 36 products sum to one product of two pooled sides.</text>
+</svg>

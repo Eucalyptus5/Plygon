@@ -66,6 +66,10 @@ flowchart TD
 
 [Read more about the search](docs/search.md)
 
+**The evaluator** shipped here counts survivors and HP. The repository also carries the inference code for a learned one: a sparse embedding of the position summed per side, a 6 by 6 web of cross-side matchups, and a policy head that seeds the root. Its weights are not included.
+
+[Read more about the evaluator](docs/evaluator.md)
+
 ## Is it correct?
 
 This is the part I spent the most time on, because Pokemon has thousands of interacting rules and most of the hard ones are undocumented.
@@ -112,7 +116,7 @@ If you want a strong bot out of the box, the shipped evaluator will not give you
 | [`pkmn-engine/codegen.py`](pkmn-engine/codegen.py) | Generates the data tables from Showdown's files |
 | [`pkmn-engine/conformance/`](pkmn-engine/conformance) | Differential testing rig and fuzzer |
 | [`poke_mcts/`](poke_mcts) | The search agent |
-| [`docs/`](docs) | [engine](docs/engine.md) · [search](docs/search.md) · [testing](docs/conformance.md) · [benchmarks](docs/benchmarks.md) |
+| [`docs/`](docs) | [engine](docs/engine.md) · [search](docs/search.md) · [evaluator](docs/evaluator.md) · [testing](docs/conformance.md) · [benchmarks](docs/benchmarks.md) |
 
 ## License
 
