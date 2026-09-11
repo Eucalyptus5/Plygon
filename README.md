@@ -10,6 +10,8 @@ A Generation 9 Pokemon battle engine written from scratch in Rust, and a Monte C
 
 The engine simulates a complete six-on-six battle in about **13.9 microseconds**, roughly [72,000 battles per second](docs/benchmarks.md) on one core. The whole battle state is **664 bytes** and copies with a single `memcpy`. Correctness is checked by [running it against Pokemon Showdown](docs/conformance.md) on randomly generated battles and diffing the results field by field.
 
+Playing on the real Pokemon Showdown Gen 9 Random Battle ladder, the bot peaked at around 2133 Elo, sustaining roughly 82% GXE over a few hundred battles.
+
 ## Why I built it
 
 I wanted to write a Pokemon AI, and a search algorithm needs to play out millions of hypothetical battles to pick one move. Pokemon Showdown is the reference implementation of the rules, but it is a game server. It allocates, it builds strings, it emits a protocol log. That is the right design for running matches between people and the wrong one for use as the inner loop of a search.
